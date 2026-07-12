@@ -75,6 +75,11 @@ interface EvaluacionFormulario {
   cantidadGrupos: number | null; personasPorGrupo: number | null;
   editandoId: string | null; mostrarDescripcion: boolean; enfoque: string;
   errores: ErroresEvaluacion;
+  // Marca qué campos fueron autocompletados por el agente (IA). Mientras un campo esté marcado
+  // como true, se omite la validación estricta de "palabras de la materia" para ese campo,
+  // ya que el agente puede redactar con sinónimos que no están en la lista de palabras clave.
+  // En cuanto el usuario edita manualmente ese campo, la bandera pasa a false y se vuelve a validar.
+  origenAgente?: { materia?: boolean; tipoActividad?: boolean; descripcion?: boolean };
 }
 
 // ============================================
@@ -1162,7 +1167,24 @@ function CampanitaNotificacionesFlotante({ notificaciones, setNotificaciones, ca
 // ============================================
 // DRAG AND DROP SECCIONES
 // ============================================
-function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio }: any) {
+function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF }: any) {
+  const [enviandoId, setEnviandoId] = useState<string | null>(null);
+
+  const handleEnviarTarjeta = async (seccion: SeccionExamen) => {
+    if (!generarPDF) return;
+    try {
+      setEnviandoId(seccion.id);
+      const url = await generarPDF([seccion]);
+      if (url) {
+        setPdfAbierto(true);
+        setMostrarMenuEnvio(true);
+        if (agregarNotificacion) agregarNotificacion(`📤 Preparando envío de "${limpiarTexto(seccion.nombre)}".`);
+      }
+    } finally {
+      setEnviandoId(null);
+    }
+  };
+
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -1329,6 +1351,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <Tooltip text="Ver Detalle"><button onClick={() => handleCardClick(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expandedId === seccion.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
                     <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
+                    <Tooltip text="Enviar"><button onClick={() => handleEnviarTarjeta(seccion)} disabled={enviandoId === seccion.id} className="p-1.5 text-[#8a8b9e] hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">{enviandoId === seccion.id ? <div className="w-4 h-4 border-2 border-t-emerald-400 rounded-full animate-spin" /> : <Send className="w-4 h-4" />}</button></Tooltip>
                     <Tooltip text="Eliminar"><button onClick={() => { onDelete(seccion.id); }} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
                   </div>
                 </div>
@@ -1428,6 +1451,13 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
       const r = validarEnfoque(valor);
       setEv(prev => ({ ...prev, errores: { ...prev.errores, [campo]: r.valido ? undefined : r.error } }));
     } else {
+      // Si el contenido de este campo todavía proviene del agente (no editado manualmente
+      // por el usuario), se omite la validación de palabras clave de la materia, ya que el
+      // agente puede usar sinónimos que no están en la lista y bloquearía el guardado sin motivo.
+      if (ev.origenAgente?.[campo as 'materia' | 'tipoActividad' | 'descripcion']) {
+        setEv(prev => ({ ...prev, errores: { ...prev.errores, [campo]: undefined } }));
+        return;
+      }
       // materia, tipoActividad y descripcion usan validación de SE
       const r = validarContenidoSE(valor);
       setEv(prev => ({ ...prev, errores: { ...prev.errores, [campo]: r.valido ? undefined : r.error } }));
@@ -1476,7 +1506,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
           <label className={`${labelBase} ${ev.errores?.materia ? 'text-red-400' : ''}`}>Contenido</label>
           <StreamInput
             value={ev.materia}
-            onChange={(val: string) => { setEv((prev: EvaluacionFormulario) => ({...prev, materia: val, errores: {...prev.errores, materia: undefined}})); }}
+            onChange={(val: string) => { setEv((prev: EvaluacionFormulario) => ({...prev, materia: val, errores: {...prev.errores, materia: undefined}, origenAgente: {...prev.origenAgente, materia: false}})); }}
             placeholder="Ej: Arquitectura de Microservicios"
             className={`${inputBase} ${ev.errores?.materia ? 'border-red-500/50 focus:border-red-500/60' : ''}`}
           />
@@ -1497,7 +1527,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
           <label className={`${labelBase} ${ev.errores?.tipoActividad ? 'text-red-400' : ''}`}>Estrategia</label>
           <StreamInput
             value={ev.tipoActividad}
-            onChange={(val: string) => { setEv((prev: EvaluacionFormulario) => ({...prev, tipoActividad: val, errores: {...prev.errores, tipoActividad: undefined}})); }}
+            onChange={(val: string) => { setEv((prev: EvaluacionFormulario) => ({...prev, tipoActividad: val, errores: {...prev.errores, tipoActividad: undefined}, origenAgente: {...prev.origenAgente, tipoActividad: false}})); }}
             placeholder="Ej: Proyecto integrador, Taller..."
             className={`${inputBase} ${ev.errores?.tipoActividad ? 'border-red-500/50 focus:border-red-500/60' : ''}`}
           />
@@ -1549,14 +1579,16 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
             </select>
           </div>
         </div>
-        <div className="w-[88px] flex-shrink-0"><label className={`${labelBase} text-center`}>Pond.</label><div className="relative"><input type="number" value={ev.peso ?? ''} onChange={(e) => setEv({...ev, peso: e.target.value ? parseInt(e.target.value) : null})} className={`${smallInput} pr-9`} placeholder="0" /><span className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none"><span className="text-[11px] font-bold text-[#818cf8] bg-[#818cf8]/10 px-1.5 py-0.5 rounded-md">%</span></span></div></div>
+        <div className="w-[88px] flex-shrink-0"><label className={`${labelBase} text-center`}>Pond.</label><div className="relative"><input type="number" min={0} max={100} value={ev.peso ?? ''} onChange={(e) => { const v = e.target.value ? Math.min(100, Math.max(0, parseInt(e.target.value))) : null; setEv({...ev, peso: v}); }} className={`${smallInput} pr-9`} placeholder="0" /><span className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none"><span className="text-[11px] font-bold text-[#818cf8] bg-[#818cf8]/10 px-1.5 py-0.5 rounded-md">%</span></span></div></div>
                 <div className="w-[72px] flex-shrink-0">
           <label className={`${labelBase} text-center`}>Grupos</label>
           <input
             type="number"
+            min={0}
+            max={20}
             value={ev.cantidadGrupos ?? ''}
             onChange={(e) => {
-              const grupos = e.target.value ? parseInt(e.target.value) : null;
+              const grupos = e.target.value ? Math.min(20, Math.max(0, parseInt(e.target.value))) : null;
               const personas = grupos ? calcularPersonasPorGrupo(totalEstudiantes, grupos) : null;
               setEv({...ev, cantidadGrupos: grupos, personasPorGrupo: personas});
             }}
@@ -1568,9 +1600,11 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
           <label className={`${labelBase} text-center`}>Pers/Grupo</label>
           <input
             type="number"
+            min={0}
+            max={300}
             value={ev.personasPorGrupo ?? ''}
             onChange={(e) => {
-              const personas = e.target.value ? parseInt(e.target.value) : null;
+              const personas = e.target.value ? Math.min(300, Math.max(0, parseInt(e.target.value))) : null;
               const { cantidadGrupos } = calcularDistribucionGrupos(totalEstudiantes, personas);
               setEv({...ev, personasPorGrupo: personas, cantidadGrupos: cantidadGrupos || null});
             }}
@@ -1616,30 +1650,38 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
           {ev.mostrarDescripcion ? <><ChevronUp className="w-3.5 h-3.5" /> Ocultar Descripción</> : <><ChevronDown className="w-3.5 h-3.5" /> Mostrar Descripción</>}
         </button>
       </div>
-      <AnimatePresence initial={false}>
-        {ev.mostrarDescripcion && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
-            <div
-              onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) validarCampoAlBlur('descripcion', ev.descripcion || ''); }}
-            >
-              <StreamTextarea
-                value={ev.descripcion ?? ''}
-                onChange={(val: string) => { setEv((prev: EvaluacionFormulario) => ({...prev, descripcion: val, errores: {...prev.errores, descripcion: undefined}})); }}
-                placeholder="Descripción detallada de la evaluación..."
-                className={`${textareaBase} min-h-[200px] mt-2 ${ev.errores?.descripcion ? 'border-red-500/50 focus:border-red-500/60' : ''}`}
-              />
-              <AnimatePresence>
-                {ev.errores?.descripcion && (
-                  <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-red-400 text-[11px] mt-1 flex items-start gap-1 leading-relaxed">
-                    <AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                    <span>{ev.errores.descripcion}</span>
-                  </motion.p>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/*
+        IMPORTANTE: el campo de Descripción se mantiene SIEMPRE montado (no se desmonta con
+        mostrarDescripcion) para que el componente StreamTextarea no reinicie su animación de
+        escritura cada vez que el usuario oculta y vuelve a mostrar el campo. Solo se anima
+        la altura/opacidad para ocultarlo visualmente.
+      */}
+      <motion.div
+        initial={false}
+        animate={{ height: ev.mostrarDescripcion ? 'auto' : 0, opacity: ev.mostrarDescripcion ? 1 : 0 }}
+        transition={{ duration: 0.25 }}
+        className="overflow-hidden"
+        aria-hidden={!ev.mostrarDescripcion}
+      >
+        <div
+          onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) validarCampoAlBlur('descripcion', ev.descripcion || ''); }}
+        >
+          <StreamTextarea
+            value={ev.descripcion ?? ''}
+            onChange={(val: string) => { setEv((prev: EvaluacionFormulario) => ({...prev, descripcion: val, errores: {...prev.errores, descripcion: undefined}, origenAgente: {...prev.origenAgente, descripcion: false}})); }}
+            placeholder="Descripción detallada de la evaluación..."
+            className={`${textareaBase} min-h-[200px] mt-2 ${ev.errores?.descripcion ? 'border-red-500/50 focus:border-red-500/60' : ''}`}
+          />
+          <AnimatePresence>
+            {ev.errores?.descripcion && (
+              <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-red-400 text-[11px] mt-1 flex items-start gap-1 leading-relaxed">
+                <AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                <span>{ev.errores.descripcion}</span>
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
 
       {/* ---- BOTONES ---- */}
       <div className="flex justify-end gap-2 pt-1">
@@ -1698,6 +1740,8 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
   const [escribiendo, setEscribiendo] = useState(false); 
   const [historial, setHistorial] = useState<Mensaje[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null); 
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isChatStarted = historial.length > 0; 
   const [navegarAlPlan, setNavegarAlPlan] = useState(false);
@@ -1708,8 +1752,23 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Considera "abajo" si el usuario está a menos de 100px del final del chat
+  const comprobarSiEstaAbajo = () => {
+    const el = chatContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+  };
+
+  const handleChatScroll = () => {
+    isAtBottomRef.current = comprobarSiEstaAbajo();
+  };
+
+  // Solo hace autoscroll si el usuario ya estaba abajo (o si se fuerza, ej. al enviar un mensaje)
+  const scrollToBottom = (forzar = false) => {
+    if (forzar) isAtBottomRef.current = true;
+    if (isAtBottomRef.current) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   useEffect(() => { if (navegarAlPlan) { setVistaPanel('planificacion'); setNavegarAlPlan(false); } }, [navegarAlPlan, setVistaPanel]);
@@ -1731,6 +1790,8 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
   
   useEffect(() => { if (!escribiendo) scrollToBottom(); }, [historial.length, pensando]);
   useEffect(() => { if (escribiendo) scrollToBottom(); }, [escribiendo, historial]);
+  // NOTA: scrollToBottom ahora respeta si el usuario se desplazó hacia arriba (ver comprobarSiEstaAbajo),
+  // por lo que estos efectos ya no lo arrastran forzosamente hacia abajo mientras lee mensajes anteriores.
   
   const onTypewriterComplete = useCallback((mensajeId: string) => { 
     setTimeout(() => { 
@@ -1809,7 +1870,7 @@ if (sonCuatro && generarPDF) {
     if (!msg.trim() || pensando || escribiendo) return;
     setHistorial(prev => [...prev, { rol: 'user', contenido: msg, completo: true, id: `user-${Date.now()}` }]);
     setMensaje(''); setPensando(true);
-    scrollToBottom();
+    scrollToBottom(true);
     if (manejarComandoEliminacion(msg)) { setPensando(false); return; }
     if (propuestaPendienteLocal && esNegacion(msg)) { setPensando(false); cancelarPropuesta(); return; }
     if (propuestaPendienteLocal && esConfirmacionGuardado(msg)) { setPensando(false); const resultado = await guardarEvaluacionesDirecto(); setHistorial(prev => [...prev, { rol: 'agent', contenido: resultado.success ? resultado.mensaje : '⚠️ ' + resultado.mensaje, completo: true, id: `agent-${Date.now()}` }]); if (resultado.success) { setNavegarAlPlan(true); setVistaPanel('planificacion'); } return; }
@@ -1835,7 +1896,7 @@ if (sonCuatro && generarPDF) {
   return (
     <motion.div animate={{ width: expandido ? 640 : 0, opacity: expandido ? 1 : 0 }} transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }} className="border-r border-[#282a3f] flex flex-col h-full bg-[#191a26] overflow-hidden" style={{ minWidth: expandido ? 640 : 0 }}>
       <div className="px-6 py-4 border-b border-[#282a3f] flex items-center gap-3 bg-gradient-to-r from-[#191a26] to-[#1f2035]"><div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center shadow-lg shadow-[#818cf8]/30"><Bot className="w-5 h-5 text-white" /></div><div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-[#191a26] flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div><div><h2 className="text-sm font-semibold text-[#d0d0da] font-['Inter'] flex items-center gap-2">Agente planificador de evaluaciones<span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">IA</span></h2><p className="text-xs text-[#8a8b9e] flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>{isChatStarted ? 'Procesando...' : 'Listo'}</p></div></div>
-      {!isChatStarted ? (<div className="flex-1 flex flex-col items-center justify-center px-6"><motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="flex flex-col items-center text-center"><div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#818cf8]/20 to-[#6366f1]/20 flex items-center justify-center border-2 border-[#818cf8]/30 mb-6 shadow-2xl shadow-[#818cf8]/20"><Sparkle className="w-10 h-10 text-[#818cf8]" /></div><h1 className="text-2xl font-bold text-[#d0d0da] font-['Inter'] mb-2">Agente planificador de evaluaciones</h1><p className="text-sm text-[#8a8b9e] font-['Inter'] max-w-sm">Escribe el tema que quieres evaluar o usa el micrófono para hablar.</p></motion.div></div>) : (<div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 custom-scrollbar"><AnimatePresence>{historial.map((msg) => (<motion.div key={msg.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>{msg.rol === 'agent' ? (<div className="flex items-start gap-3 max-w-[90%]"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="text-base text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">{msg.completo ? (<div><div dangerouslySetInnerHTML={{ __html: formatMessage(msg.contenido) }} />{renderOpciones(msg.contenido)}</div>) : (<TypewriterText text={msg.contenido} onComplete={() => onTypewriterComplete(msg.id)} onUpdate={scrollToBottom} />)}</div></div>) : (<div className="max-w-[85%] px-5 py-3 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-base leading-relaxed font-['Inter'] border border-[#818cf8]/20">{msg.contenido}</div>)}</motion.div>))}</AnimatePresence>{pensando && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-start gap-3 justify-start"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="px-4 py-3.5 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-1.5 mt-0.5">{[0,1,2].map(i => (<motion.span key={i} className="w-2 h-2 bg-[#818cf8] rounded-full" animate={{ y: [0, -5, 0], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }} />))}</div></motion.div>)}<div ref={chatEndRef} /></div>)}
+      {!isChatStarted ? (<div className="flex-1 flex flex-col items-center justify-center px-6"><motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="flex flex-col items-center text-center"><div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#818cf8]/20 to-[#6366f1]/20 flex items-center justify-center border-2 border-[#818cf8]/30 mb-6 shadow-2xl shadow-[#818cf8]/20"><Sparkle className="w-10 h-10 text-[#818cf8]" /></div><h1 className="text-2xl font-bold text-[#d0d0da] font-['Inter'] mb-2">Agente planificador de evaluaciones</h1><p className="text-sm text-[#8a8b9e] font-['Inter'] max-w-sm">Escribe el tema que quieres evaluar o usa el micrófono para hablar.</p></motion.div></div>) : (<div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 overflow-y-auto px-6 py-5 space-y-6 custom-scrollbar"><AnimatePresence>{historial.map((msg) => (<motion.div key={msg.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>{msg.rol === 'agent' ? (<div className="flex items-start gap-3 max-w-[90%]"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="text-base text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">{msg.completo ? (<div><div dangerouslySetInnerHTML={{ __html: formatMessage(msg.contenido) }} />{renderOpciones(msg.contenido)}</div>) : (<TypewriterText text={msg.contenido} onComplete={() => onTypewriterComplete(msg.id)} onUpdate={scrollToBottom} />)}</div></div>) : (<div className="max-w-[85%] px-5 py-3 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-base leading-relaxed font-['Inter'] border border-[#818cf8]/20">{msg.contenido}</div>)}</motion.div>))}</AnimatePresence>{pensando && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-start gap-3 justify-start"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="px-4 py-3.5 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-1.5 mt-0.5">{[0,1,2].map(i => (<motion.span key={i} className="w-2 h-2 bg-[#818cf8] rounded-full" animate={{ y: [0, -5, 0], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }} />))}</div></motion.div>)}<div ref={chatEndRef} /></div>)}
       <div className="p-5 border-t border-[#282a3f] bg-gradient-to-t from-[#161722] to-transparent"><div className="relative"><motion.div className="absolute -inset-1 rounded-2xl opacity-70" animate={{ opacity: [0.4, 0.6, 0.4] }} transition={{ duration: 4, repeat: Infinity }} style={{ background: 'linear-gradient(90deg, #818cf8, #6366f1, #818cf8)', filter: 'blur(12px)' }} /><motion.div className="relative flex items-end gap-2.5 bg-[#1f2035] border border-[#313248] rounded-2xl px-4 py-3 focus-within:border-[#818cf8]/60 transition-all duration-300 shadow-lg shadow-black/20"><motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} onClick={() => fileInputRef.current?.click()} className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></motion.button><input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx" /><Tooltip text={isRecording ? "Detener grabación" : "Hablar (n8n transcribe)"}><motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo} className={`p-2 rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-t-red-400 rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3 h-3 bg-red-500 rounded-sm"></div>) : (<Mic className="w-5 h-5" />)}</motion.button></Tooltip><div className="flex-1 relative"><textarea value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={transcribiendo ? "Transcribiendo..." : "Escribe tu consulta..."} rows={1} className="w-full bg-transparent text-base text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-1.5 font-['Inter'] min-h-[40px] max-h-[120px]" style={{ lineHeight: '1.5' }} /></div><motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.88 }} onClick={() => handleSend()} disabled={!mensaje.trim() || pensando || escribiendo} className={`p-2.5 rounded-xl transition-all flex-shrink-0 self-end ${mensaje.trim() && !pensando && !escribiendo ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></motion.button></motion.div></div></div>
     </motion.div>
   );
@@ -1898,7 +1959,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   
   useEffect(() => { if (scrollToSections && seccionesGuardadasRef.current && vista === 'planificacion') { requestAnimationFrame(() => { seccionesGuardadasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setScrollToSections(false); }); } }, [planificacion.secciones, scrollToSections, vista]);
 
-  const evalInit: EvaluacionFormulario = { materia: '', duracionMinutos: null, duracionUnidad: 'min', peso: null, fecha: new Date(), tipoActividad: '', descripcion: '', cantidadGrupos: null, personasPorGrupo: null, editandoId: null, mostrarDescripcion: false, enfoque: '', errores: {}, };
+  const evalInit: EvaluacionFormulario = { materia: '', duracionMinutos: null, duracionUnidad: 'min', peso: null, fecha: new Date(), tipoActividad: '', descripcion: '', cantidadGrupos: null, personasPorGrupo: null, editandoId: null, mostrarDescripcion: false, enfoque: '', errores: {}, origenAgente: {}, };
   const [evaluacion1, setEvaluacion1] = useState<EvaluacionFormulario>({...evalInit});
   const [evaluacion2, setEvaluacion2] = useState<EvaluacionFormulario>({...evalInit});
   const [evaluacion3, setEvaluacion3] = useState<EvaluacionFormulario>({...evalInit});
@@ -1960,7 +2021,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
         let fechaExamen = fechas[idx] || new Date();
         if (p.fecha && p.hora) fechaExamen = new Date(`${p.fecha}T${p.hora}:00`);
         else if (p.fecha) fechaExamen = new Date(p.fecha);
-        const evalData: EvaluacionFormulario = { materia: p.materia, duracionMinutos: p.duracionMinutos ?? null, duracionUnidad: 'min', peso: p.peso ?? null, fecha: fechaExamen, tipoActividad: p.tipoActividad || '', descripcion: p.descripcion || '', cantidadGrupos: p.cantidadGrupos ?? null, personasPorGrupo: p.personasPorGrupo ?? null, editandoId: null, mostrarDescripcion: false, enfoque: p.enfoque || '', errores: {} };
+        const evalData: EvaluacionFormulario = { materia: p.materia, duracionMinutos: p.duracionMinutos ?? null, duracionUnidad: 'min', peso: p.peso ?? null, fecha: fechaExamen, tipoActividad: p.tipoActividad || '', descripcion: p.descripcion || '', cantidadGrupos: p.cantidadGrupos ?? null, personasPorGrupo: p.personasPorGrupo ?? null, editandoId: null, mostrarDescripcion: false, enfoque: p.enfoque || '', errores: {}, origenAgente: { materia: true, tipoActividad: true, descripcion: true } };
         if (idx === 0) { setEvaluacion1(evalData); activarGlow(1); }
         else if (idx === 1) { setEvaluacion2(evalData); activarGlow(2); }
         else if (idx === 2) { setEvaluacion3(evalData); activarGlow(3); }
@@ -2110,14 +2171,15 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     if (!ev.materia.trim()) { alert(`Completa el nombre de ${tipo}`); return; }
 
     // === VALIDACIÓN DE INGENIERÍA DE SOFTWARE ===
-        // === VALIDACIÓN DE INGENIERÍA DE SOFTWARE ===
+    // Nota: si un campo todavía contiene texto autocompletado por el agente (no editado
+    // manualmente por el usuario), se omite la validación de palabras clave para ese campo.
     const nuevosErrores: ErroresEvaluacion = {};
 
-    if (ev.materia.trim()) {
+    if (ev.materia.trim() && !ev.origenAgente?.materia) {
       const rMateria = validarContenidoSE(ev.materia);
       if (!rMateria.valido) nuevosErrores.materia = rMateria.error;
     }
-    if (ev.tipoActividad.trim()) {
+    if (ev.tipoActividad.trim() && !ev.origenAgente?.tipoActividad) {
       const rTipo = validarContenidoSE(ev.tipoActividad);
       if (!rTipo.valido) nuevosErrores.tipoActividad = rTipo.error;
     }
@@ -2125,7 +2187,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       const rEnfoque = validarEnfoque(ev.enfoque);
       if (!rEnfoque.valido) nuevosErrores.enfoque = rEnfoque.error;
     }
-    if (ev.descripcion?.trim()) {
+    if (ev.descripcion?.trim() && !ev.origenAgente?.descripcion) {
       const rDesc = validarContenidoSE(ev.descripcion);
       if (!rDesc.valido) nuevosErrores.descripcion = rDesc.error;
     }
@@ -2325,6 +2387,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   setPdfAbierto={setPdfAbierto}
   setPdfUrl={setPdfUrl}
   agregarNotificacion={agregarNotificacion}
+  generarPDF={generarPDF}
                 />
               </div>
               {planificacion.comentariosAgente.length > 0 && (<div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[#818cf8]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[#9090a4] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
