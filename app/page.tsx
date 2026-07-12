@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback, ChangeEvent, useImperativeHandle, forwardRef, Dispatch, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import {
   Calendar, Clock, Plus, BookOpen, Brain, Target,
   MessageSquare, Bell, ChevronDown, ChevronUp,
@@ -1187,18 +1187,11 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
     }
   };
 
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
   // Agregar al inicio de DragDropSecciones, después de los otros useState:
   const [sendPressTimer, setSendPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [isLongPressing, setIsLongPressing] = useState(false);
-  const handleDragStart = (e: React.DragEvent, index: number) => { e.stopPropagation(); setDragIndex(index); setIsDragging(true); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(index)); };
-  const handleDragEnd = () => { setIsDragging(false); setDragIndex(null); setHoverIndex(null); };
-  const handleDragOver = (e: React.DragEvent, index: number) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (!isDragging) return; setHoverIndex(index); };
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => { e.preventDefault(); e.stopPropagation(); const dragIndexValue = parseInt(e.dataTransfer.getData('text/plain')); if (isNaN(dragIndexValue) || dragIndexValue === dropIndex) { handleDragEnd(); return; } const nuevoOrden = [...secciones]; const [removed] = nuevoOrden.splice(dragIndexValue, 1); nuevoOrden.splice(dropIndex, 0, removed); onReorder(nuevoOrden); agregarNotificacion('🔄 Evaluaciones reordenadas.'); handleDragEnd(); };
-  const handleCardClick = (seccionId: string) => { if (!isDragging) setExpandedId(expandedId === seccionId ? null : seccionId); };
+  const handleCardClick = (seccionId: string) => { setExpandedId(expandedId === seccionId ? null : seccionId); };
   const handleClosePdf = () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(null); setPdfAbierto(false); setMostrarMenuEnvio(false); agregarNotificacion('🗑️ Plan eliminado.'); };
 
   const exportToCSV = () => {
@@ -1330,47 +1323,27 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
         </motion.div>
       )}
 
+      <Reorder.Group as="div" axis="y" values={secciones} onReorder={(nuevoOrden: SeccionExamen[]) => { onReorder(nuevoOrden); agregarNotificacion('🔄 Evaluaciones reordenadas.'); }} className="space-y-2">
+        {secciones.map((seccion: SeccionExamen, index: number) => {
+          const isSelected = Array.isArray(selectedIds) && selectedIds.includes(seccion.id);
+          return (
+            <TarjetaEvaluacion
+              key={seccion.id}
+              seccion={seccion}
+              index={index}
+              isSelected={isSelected}
+              onToggleSelect={onToggleSelect}
+              expanded={expandedId === seccion.id}
+              onToggleExpand={() => handleCardClick(seccion.id)}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onEnviar={handleEnviarTarjeta}
+              enviando={enviandoId === seccion.id}
+            />
+          );
+        })}
+      </Reorder.Group>
       <div className="space-y-2">
-        <AnimatePresence mode="popLayout">
-          {secciones.map((seccion: SeccionExamen, index: number) => {
-            const isDraggingItem = dragIndex === index; const isHoveringItem = hoverIndex === index && isDragging; const nombreLimpio = limpiarTexto(seccion.nombre);
-            const isSelected = Array.isArray(selectedIds) && selectedIds.includes(seccion.id);
-            return (
-              <motion.div key={seccion.id} layout initial={{ opacity: 0, y: -20 }} animate={{ opacity: isDraggingItem ? 0.4 : 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} onDragOver={(e) => handleDragOver(e, index)} onDrop={(e) => handleDrop(e, index)} className={`bg-[#1f2035] rounded-xl border transition-all select-none ${isDraggingItem ? 'border-[#818cf8] shadow-2xl scale-[1.02] z-50' : isHoveringItem ? 'border-[#818cf8]/50 border-dashed bg-[#818cf8]/5' : 'border-[#313248] hover:border-[#414258]'}`}>
-                <div className="p-3 flex items-center gap-3">
-                  <div draggable onDragStart={(e) => handleDragStart(e, index)} onDragEnd={handleDragEnd} className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[#272839] transition-colors text-[#6a6b7e]" onClick={(e) => e.stopPropagation()}><GripVertical className="w-4 h-4" /></div>
-                  <Tooltip text={isSelected ? 'Quitar de la selección' : 'Seleccionar para el plan de acción'}>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); if (onToggleSelect) onToggleSelect(seccion.id); }}
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 border transition-all duration-150 ${isSelected ? 'bg-[#a855f7] border-[#a855f7] text-white shadow-[0_0_10px_rgba(168,85,247,0.6)] scale-110' : 'bg-[#272839] border-transparent text-[#8a8b9e] hover:border-[#a855f7]/50 hover:text-[#c084fc]'}`}
-                    >
-                      {index + 1}
-                    </button>
-                  </Tooltip>
-                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleCardClick(seccion.id)}>
-                    <div className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8] flex-shrink-0" /><h4 className="text-sm text-[#d0d0da] font-medium truncate">{nombreLimpio}</h4></div>
-                    <div className="flex flex-wrap gap-3 mt-0.5 text-xs text-[#b0b0c4]">
-                      {seccion.peso != null && <span>{seccion.peso}%</span>}
-                      {seccion.tipoActividad && <span>🎯 {seccion.tipoActividad}</span>}
-                      {seccion.enfoque && <span>📌 {seccion.enfoque}</span>}
-                      {seccion.tiempoEstimadoMinutos && <span>⏱️ {seccion.tiempoEstimadoMinutos} min</span>}
-                      {seccion.cantidadGrupos && <span>👥 {seccion.cantidadGrupos} grupos</span>}
-                      {seccion.fecha && <span>📅 {new Date(seccion.fecha).toLocaleDateString()}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <Tooltip text="Ver Detalle"><button onClick={() => handleCardClick(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expandedId === seccion.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
-                    <Tooltip text="Enviar"><button onClick={() => handleEnviarTarjeta(seccion)} disabled={enviandoId === seccion.id} className="p-1.5 text-[#8a8b9e] hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">{enviandoId === seccion.id ? <div className="w-4 h-4 border-2 border-t-emerald-400 rounded-full animate-spin" /> : <Send className="w-4 h-4" />}</button></Tooltip>
-                    <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
-                    <Tooltip text="Eliminar"><button onClick={() => { onDelete(seccion.id); }} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
-                  </div>
-                </div>
-                <AnimatePresence>{expandedId === seccion.id && seccion.descripcion && (<motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]"><div className="p-3 pl-14 text-sm text-[#c0c0cc] whitespace-pre-wrap">{seccion.descripcion}</div></motion.div>)}</AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
         {secciones.length === 0 && (<div className="text-center py-8 text-[#8a8b9e] border border-dashed border-[#313248] rounded-xl"><p className="text-sm">No hay evaluaciones</p></div>)}
       </div>
       
@@ -1382,6 +1355,65 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
         </Tooltip>
       </div>
     </div>
+  );
+}
+
+// ============================================
+// TARJETA DE EVALUACIÓN (draggable individual, fluida con Framer Motion)
+// ============================================
+function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando }: {
+  seccion: SeccionExamen; index: number; isSelected: boolean; onToggleSelect?: (id: string) => void;
+  expanded: boolean; onToggleExpand: () => void; onEdit: (s: SeccionExamen) => void; onDelete: (id: string) => void;
+  onEnviar: (s: SeccionExamen) => void; enviando: boolean;
+}) {
+  const dragControls = useDragControls();
+  const nombreLimpio = limpiarTexto(seccion.nombre);
+  return (
+    <Reorder.Item
+      as="div"
+      value={seccion}
+      dragListener={false}
+      dragControls={dragControls}
+      whileDrag={{ scale: 1.03, boxShadow: '0 18px 40px rgba(0,0,0,0.45)', zIndex: 50, cursor: 'grabbing' }}
+      transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+      className="bg-[#1f2035] rounded-xl border border-[#313248] hover:border-[#414258] select-none relative"
+    >
+      <div className="p-3 flex items-center gap-3">
+        <div
+          onPointerDown={(e) => dragControls.start(e)}
+          className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[#272839] transition-colors text-[#6a6b7e] touch-none"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <Tooltip text={isSelected ? 'Quitar de la selección' : 'Seleccionar para el plan de acción'}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); if (onToggleSelect) onToggleSelect(seccion.id); }}
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 border transition-all duration-150 ${isSelected ? 'bg-[#a855f7] border-[#a855f7] text-white shadow-[0_0_10px_rgba(168,85,247,0.6)] scale-110' : 'bg-[#272839] border-transparent text-[#8a8b9e] hover:border-[#a855f7]/50 hover:text-[#c084fc]'}`}
+          >
+            {index + 1}
+          </button>
+        </Tooltip>
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={onToggleExpand}>
+          <div className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8] flex-shrink-0" /><h4 className="text-sm text-[#d0d0da] font-medium truncate">{nombreLimpio}</h4></div>
+          <div className="flex flex-wrap gap-3 mt-0.5 text-xs text-[#b0b0c4]">
+            {seccion.peso != null && <span>{seccion.peso}%</span>}
+            {seccion.tipoActividad && <span>🎯 {seccion.tipoActividad}</span>}
+            {seccion.enfoque && <span>📌 {seccion.enfoque}</span>}
+            {seccion.tiempoEstimadoMinutos && <span>⏱️ {seccion.tiempoEstimadoMinutos} min</span>}
+            {seccion.cantidadGrupos && <span>👥 {seccion.cantidadGrupos} grupos</span>}
+            {seccion.fecha && <span>📅 {new Date(seccion.fecha).toLocaleDateString()}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
+          <Tooltip text="Enviar"><button onClick={() => onEnviar(seccion)} disabled={enviando} className="p-1.5 text-[#8a8b9e] hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">{enviando ? <div className="w-4 h-4 border-2 border-t-emerald-400 rounded-full animate-spin" /> : <Send className="w-4 h-4" />}</button></Tooltip>
+          <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
+          <Tooltip text="Eliminar"><button onClick={() => onDelete(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
+        </div>
+      </div>
+      <AnimatePresence>{expanded && seccion.descripcion && (<motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]"><div className="p-3 pl-14 text-sm text-[#c0c0cc] whitespace-pre-wrap">{seccion.descripcion}</div></motion.div>)}</AnimatePresence>
+    </Reorder.Item>
   );
 }
 
@@ -1969,6 +2001,28 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     setSeccionActiva(letra);
     setTarjetasSeleccionadas([]); // al cambiar de sección, la selección de tarjetas no debe arrastrarse
   };
+  const eliminarSeccionActiva = () => {
+    if (seccionesDisponibles.length <= 1) {
+      alert('Debe existir al menos una sección activa.');
+      return;
+    }
+    const letra = seccionActiva;
+    const cantidadEnSeccion = planificacion.secciones.filter(s => (s.grupoSeccion || 'A') === letra).length;
+    const confirmado = window.confirm(
+      cantidadEnSeccion > 0
+        ? `¿Eliminar la Sección ${letra}? Se eliminarán también sus ${cantidadEnSeccion} evaluación(es) guardada(s).`
+        : `¿Eliminar la Sección ${letra}?`
+    );
+    if (!confirmado) return;
+    const restantes = seccionesDisponibles.filter(l => l !== letra);
+    const estadoActualizado = { ...planificacion, secciones: planificacion.secciones.filter(s => (s.grupoSeccion || 'A') !== letra) };
+    setPlanificacion(estadoActualizado);
+    sincronizarConBD(estadoActualizado);
+    setSeccionesDisponibles(restantes);
+    setSeccionActiva(restantes[0]);
+    setTarjetasSeleccionadas([]);
+    agregarNotificacion(`🗑️ Sección ${letra} eliminada.`);
+  };
   // Evaluaciones que pertenecen a la sección activa (A, B, C...)
   const seccionesFiltradas = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva);
   // Si hay tarjetas seleccionadas (círculo morado) se usan solo esas; si no, se usan TODAS las de la sección activa
@@ -2128,8 +2182,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const limpiarEvaluacion4 = () => setEvaluacion4({...evalInit});
 
     // Genera el Plan de Acción como HTML visual (sin depender de n8n)
-  const generarPlanVisual = (): string | null => {
-    if (planificacion.secciones.length === 0) return null;
+  const generarPlanVisual = (seccionesOverride?: SeccionExamen[]): string | null => {
+    const seccionesPlan = seccionesOverride ?? planificacion.secciones;
+    if (seccionesPlan.length === 0) return null;
     const nombreMateria = planificacion.materia || 'Asignatura';
     const fechaPlan = planificacion.fechaExamen ? new Date(planificacion.fechaExamen).toLocaleDateString() : 'Por definir';
     
@@ -2144,12 +2199,12 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       </tr>`;
     };
 
-    const tieneDescripciones = planificacion.secciones.some(s => s.descripcion);
+    const tieneDescripciones = seccionesPlan.some(s => s.descripcion);
     const renderDescripciones = tieneDescripciones ? `
       <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e2e8f0;">
         <h3 style="font-size: 14px; font-weight: 700; color: #1e3a8a; margin: 0 0 12px 0;">📋 Especificaciones</h3>
         <div style="display: grid; gap: 16px;">
-          ${planificacion.secciones.map((sec, i) => {
+          ${seccionesPlan.map((sec, i) => {
             const n = sec.nombre?.replace(/^(Evaluación [1-4]:|Evaluacion [1-4]:)\s*/i, '') || 'Sin Nombre';
             return sec.descripcion ? `<div key="${sec.id || i}" style="background: #f8fafc; padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px;">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -2209,7 +2264,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
         </tr>
       </thead>
       <tbody>
-        ${planificacion.secciones.map((sec, idx) => renderFila(sec, idx))}
+        ${seccionesPlan.map((sec, idx) => renderFila(sec, idx))}
       </tbody>
     </table>
     ${renderDescripciones}
@@ -2366,7 +2421,22 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
               <div ref={seccionesGuardadasRef} className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider font-['Inter']">Evaluaciones guardadas ({seccionesFiltradas.length})</h2>
+                    <h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider font-['Inter']">
+                      Evaluaciones guardadas (
+                      <AnimatePresence mode="wait">
+                        <motion.span
+                          key={`${seccionActiva}-${seccionesFiltradas.length}`}
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 4 }}
+                          transition={{ duration: 0.15 }}
+                          className="inline-block"
+                        >
+                          {seccionesFiltradas.length}
+                        </motion.span>
+                      </AnimatePresence>
+                      )
+                    </h2>
                     {/* Pestañas de Sección/Paralelo (grupos de estudiantes que ven la materia en común) */}
                     <div className="flex items-center gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
                       {seccionesDisponibles.map((letra) => (
@@ -2374,9 +2444,16 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                           <button
                             type="button"
                             onClick={() => cambiarSeccionActiva(letra)}
-                            className={`w-7 h-7 rounded-md text-xs font-semibold transition-all ${seccionActiva === letra ? 'bg-[#818cf8] text-white shadow-md' : 'text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#232430]'}`}
+                            className={`relative w-7 h-7 rounded-md text-xs font-semibold transition-colors duration-200 ${seccionActiva === letra ? 'text-white' : 'text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#232430]'}`}
                           >
-                            {letra}
+                            {seccionActiva === letra && (
+                              <motion.span
+                                layoutId="pill-seccion-activa"
+                                className="absolute inset-0 bg-[#818cf8] rounded-md shadow-md z-0"
+                                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                              />
+                            )}
+                            <span className="relative z-10">{letra}</span>
                           </button>
                         </Tooltip>
                       ))}
@@ -2387,6 +2464,16 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                           className="w-7 h-7 rounded-md text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#232430] transition-all flex items-center justify-center"
                         >
                           <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip text={seccionesDisponibles.length <= 1 ? 'Debe existir al menos una sección' : `Eliminar Sección ${seccionActiva}`}>
+                        <button
+                          type="button"
+                          onClick={eliminarSeccionActiva}
+                          disabled={seccionesDisponibles.length <= 1}
+                          className="w-7 h-7 rounded-md text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#8a8b9e]"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </Tooltip>
                     </div>
@@ -2426,7 +2513,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 
     // Si no hubo PDF, generar HTML visual
     if (!urlFinal) {
-      const html = generarPlanVisual();
+      const html = generarPlanVisual(seccionesParaPlan);
 
       if (html) {
         const blob = new Blob([html], {
@@ -2474,23 +2561,33 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                       </motion.button>
                   </div>
                 </div>
-                <DragDropSecciones
-                  secciones={seccionesFiltradas} onReorder={(nuevoOrden: SeccionExamen[]) => setPlanificacion(prev => { let i = 0; const nuevasSecciones = prev.secciones.map(s => (s.grupoSeccion || 'A') === seccionActiva ? nuevoOrden[i++] : s); return { ...prev, secciones: nuevasSecciones }; })} onEdit={cargarSeccionParaEditar} onDelete={(id: string) => { 
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={seccionActiva}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                  >
+                    <DragDropSecciones
+                      secciones={seccionesFiltradas} onReorder={(nuevoOrden: SeccionExamen[]) => setPlanificacion(prev => { let i = 0; const nuevasSecciones = prev.secciones.map(s => (s.grupoSeccion || 'A') === seccionActiva ? nuevoOrden[i++] : s); return { ...prev, secciones: nuevasSecciones }; })} onEdit={cargarSeccionParaEditar} onDelete={(id: string) => { 
   const estadoActualizado = { ...planificacion, secciones: planificacion.secciones.filter(s => s.id !== id) };
   setPlanificacion(estadoActualizado);
   sincronizarConBD(estadoActualizado);
   setTarjetasSeleccionadas(prev => prev.filter(x => x !== id));
   agregarNotificacion(`🗑️ Evaluación eliminada de la BD.`); 
 }}
-                  selectedIds={tarjetasSeleccionadas} onToggleSelect={toggleTarjetaSeleccionada}
-                  mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
-                  mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
+                      selectedIds={tarjetasSeleccionadas} onToggleSelect={toggleTarjetaSeleccionada}
+                      mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
+                      mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
   pdfAbierto={pdfAbiertoLocal}
   setPdfAbierto={setPdfAbierto}
   setPdfUrl={setPdfUrl}
   agregarNotificacion={agregarNotificacion}
   generarPDF={generarPDF}
-                />
+                    />
+                  </motion.div>
+                </AnimatePresence>
               </div>
               {planificacion.comentariosAgente.length > 0 && (<div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[#818cf8]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[#9090a4] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
             </motion.div>
