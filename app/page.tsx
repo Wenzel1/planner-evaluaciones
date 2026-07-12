@@ -43,6 +43,8 @@ interface SeccionExamen {
   tiempoEstimadoMinutos: number | null; tipoActividad?: string; descripcion?: string;
   cantidadGrupos?: number; personasPorGrupo?: number; orden?: number; enfoque?: string;
   fecha?: Date;
+  // Sección/paralelo al que pertenece esta evaluación (A, B, C...). Por defecto 'A'.
+  grupoSeccion?: string;
 }
 interface CriterioRubrica {
   id: string; nombre: string; peso: number; descripcion: string;
@@ -1167,7 +1169,7 @@ function CampanitaNotificacionesFlotante({ notificaciones, setNotificaciones, ca
 // ============================================
 // DRAG AND DROP SECCIONES
 // ============================================
-function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF }: any) {
+function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect }: any) {
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
 
   const handleEnviarTarjeta = async (seccion: SeccionExamen) => {
@@ -1332,11 +1334,20 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
         <AnimatePresence mode="popLayout">
           {secciones.map((seccion: SeccionExamen, index: number) => {
             const isDraggingItem = dragIndex === index; const isHoveringItem = hoverIndex === index && isDragging; const nombreLimpio = limpiarTexto(seccion.nombre);
+            const isSelected = Array.isArray(selectedIds) && selectedIds.includes(seccion.id);
             return (
-              <motion.div key={seccion.id} layout initial={{ opacity: 0, y: -20 }} animate={{ opacity: isDraggingItem ? 0.4 : 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} className={`bg-[#1f2035] rounded-xl border transition-all select-none ${isDraggingItem ? 'border-[#818cf8] shadow-2xl scale-[1.02] z-50' : isHoveringItem ? 'border-[#818cf8]/50 border-dashed bg-[#818cf8]/5' : 'border-[#313248] hover:border-[#414258]'}`}>
+              <motion.div key={seccion.id} layout initial={{ opacity: 0, y: -20 }} animate={{ opacity: isDraggingItem ? 0.4 : 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} onDragOver={(e) => handleDragOver(e, index)} onDrop={(e) => handleDrop(e, index)} className={`bg-[#1f2035] rounded-xl border transition-all select-none ${isDraggingItem ? 'border-[#818cf8] shadow-2xl scale-[1.02] z-50' : isHoveringItem ? 'border-[#818cf8]/50 border-dashed bg-[#818cf8]/5' : 'border-[#313248] hover:border-[#414258]'}`}>
                 <div className="p-3 flex items-center gap-3">
                   <div draggable onDragStart={(e) => handleDragStart(e, index)} onDragEnd={handleDragEnd} className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[#272839] transition-colors text-[#6a6b7e]" onClick={(e) => e.stopPropagation()}><GripVertical className="w-4 h-4" /></div>
-                  <div className="w-6 h-6 rounded-full bg-[#272839] flex items-center justify-center text-xs text-[#8a8b9e] font-medium flex-shrink-0">{index + 1}</div>
+                  <Tooltip text={isSelected ? 'Quitar de la selección' : 'Seleccionar para el plan de acción'}>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); if (onToggleSelect) onToggleSelect(seccion.id); }}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 border transition-all duration-150 ${isSelected ? 'bg-[#a855f7] border-[#a855f7] text-white shadow-[0_0_10px_rgba(168,85,247,0.6)] scale-110' : 'bg-[#272839] border-transparent text-[#8a8b9e] hover:border-[#a855f7]/50 hover:text-[#c084fc]'}`}
+                    >
+                      {index + 1}
+                    </button>
+                  </Tooltip>
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleCardClick(seccion.id)}>
                     <div className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8] flex-shrink-0" /><h4 className="text-sm text-[#d0d0da] font-medium truncate">{nombreLimpio}</h4></div>
                     <div className="flex flex-wrap gap-3 mt-0.5 text-xs text-[#b0b0c4]">
@@ -1350,8 +1361,8 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <Tooltip text="Ver Detalle"><button onClick={() => handleCardClick(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expandedId === seccion.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
-                    <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
                     <Tooltip text="Enviar"><button onClick={() => handleEnviarTarjeta(seccion)} disabled={enviandoId === seccion.id} className="p-1.5 text-[#8a8b9e] hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">{enviandoId === seccion.id ? <div className="w-4 h-4 border-2 border-t-emerald-400 rounded-full animate-spin" /> : <Send className="w-4 h-4" />}</button></Tooltip>
+                    <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
                     <Tooltip text="Eliminar"><button onClick={() => { onDelete(seccion.id); }} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
                   </div>
                 </div>
@@ -1802,9 +1813,18 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
   }, []);
 
   const esConfirmacionGuardado = (msg: string): boolean => {
-    const palabras = ['sí','si','guardar','confirmo','aceptar','están bien','guardar evaluaciones','ok','vale','perfecto','adelante','dale','si guarda','guardar plan','excelente','genial','de acuerdo','claro','por supuesto'];
+    // Se usan límites de palabra (\b) para evitar falsos positivos y para reconocer tanto el
+    // infinitivo ("guardar") como el imperativo ("guarda") u otras formas coloquiales de afirmar.
+    const palabras = [
+      'sí','si','ya','va','vale','ok','okay','oka','listo','lista','hazlo','procede','adelante',
+      'guarda','guárdalo','guardalo','guárdala','guardala','guardar','guárdame esto','confirmo',
+      'confirmar','confirmado','acepto','aceptar','aceptado','apruebo','aprobado','correcto',
+      'exacto','perfecto','excelente','genial','buena','buenisimo','buenísimo','de acuerdo','claro',
+      'por supuesto','esta bien','está bien','así está bien','asi esta bien','me gusta','se ve bien',
+      'dale','sale','afirmativo'
+    ];
     const msgLower = msg.toLowerCase().trim();
-    return palabras.some(p => msgLower.includes(p));
+    return palabras.some(p => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(msgLower));
   };
 
   const esSolicitudPlanAccion = (msg: string): boolean => {
@@ -1814,7 +1834,7 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
 
   const esNegacion = (msg: string): boolean => {
     const msgLower = msg.toLowerCase().trim();
-    const palabrasNegativas = ['no quiero','no quiera','no generar','no crees','no hagas','cancelar','cancel','rechazar','rechazo','descartar','no guardar','no guardes','olvida','olvídalo'];
+    const palabrasNegativas = ['no quiero','no quiera','no generar','no crees','no hagas','cancelar','cancela','cancel','rechazar','rechaza','rechazo','descartar','descarta','no guardar','no guardes','olvida','olvídalo','olvidalo','mejor no'];
     return palabrasNegativas.some(p => msgLower.includes(p));
   };
 
@@ -1830,7 +1850,20 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
       else if (p.fecha) fechaExamen = new Date(p.fecha);
       return { id: `eval${idx+1}-${Date.now()}`, nombre: `${p.tipo || `Evaluación ${idx+1}`}: ${limpiarTexto(p.materia)}`, tipoPregunta: 'desarrollo', peso: p.peso ?? null, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'aplicar', tiempoEstimadoMinutos: p.duracionMinutos ?? null, tipoActividad: p.tipoActividad || undefined, descripcion: p.descripcion || '', cantidadGrupos: p.cantidadGrupos ?? undefined, personasPorGrupo: p.personasPorGrupo ?? undefined, enfoque: p.enfoque || undefined, fecha: fechaExamen };
     });
-    setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: [...prev.secciones, ...nuevasSecciones] }));
+    setPlanificacion((prev: PlanificacionExamen) => {
+      let secciones = [...prev.secciones];
+      nuevasSecciones.forEach((nueva, idx) => {
+        const tipoBuscado = (propuestaPendienteLocal.evaluaciones[idx]?.tipo || `Evaluación ${idx + 1}`).toLowerCase();
+        const indiceExistente = secciones.findIndex(s => s.nombre.toLowerCase().startsWith(`${tipoBuscado}:`));
+        if (indiceExistente !== -1) {
+          // Ya existe una evaluación con ese mismo número/tipo → se actualiza en su lugar (edición)
+          secciones[indiceExistente] = { ...nueva, id: secciones[indiceExistente].id, grupoSeccion: secciones[indiceExistente].grupoSeccion };
+        } else {
+          secciones = [...secciones, nueva];
+        }
+      });
+      return { ...prev, secciones };
+    });
     setPropuestaPendiente(null);
     let pdfGenerado = false;
     // ✅ DESPUÉS (la solución):
@@ -1853,9 +1886,10 @@ if (sonCuatro && generarPDF) {
 
   const manejarComandoEliminacion = (texto: string): boolean => {
     const msgLower = texto.toLowerCase().trim();
-    const borrarTodasRegex = /^(borrar|eliminar|quitar|suprimir)\s+(todas\s+las\s+)?evaluacion(es)?(\s*guardad[ao]s?)?$/i;
+    const verbosBorrar = '(borrar|borra|eliminar|elimina|quitar|quita|suprimir|suprime)';
+    const borrarTodasRegex = new RegExp(`^${verbosBorrar}\\s+(todas\\s+las\\s+)?evaluacion(es)?(\\s*guardad[ao]s?)?$`, 'i');
     if (borrarTodasRegex.test(msgLower)) { setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: [] })); if (limpiarYScroll) limpiarYScroll(); setHistorial(prev => [...prev, { rol: 'agent', contenido: '🗑️ Todas las evaluaciones han sido eliminadas.', completo: true, id: `agent-${Date.now()}` }]); return true; }
-    const borrarUnaRegex = /^(borrar|eliminar|quitar|suprimir)\s+(la\s+)?evaluaci[oó]n\s+(\d+)/i;
+    const borrarUnaRegex = new RegExp(`^${verbosBorrar}\\s+(la\\s+)?evaluaci[oó]n\\s+(\\d+)`, 'i');
     const match = msgLower.match(borrarUnaRegex);
     if (match) { const num = parseInt(match[3], 10); const index = num - 1; const secciones = planificacion.secciones; if (index >= 0 && index < secciones.length) { const nombre = limpiarTexto(secciones[index].nombre); setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.filter((_: SeccionExamen, i: number) => i !== index) })); setHistorial(prev => [...prev, { rol: 'agent', contenido: `🗑️ Evaluación ${num} «${nombre}» eliminada.`, completo: true, id: `agent-${Date.now()}` }]); return true; } else { setHistorial(prev => [...prev, { rol: 'agent', contenido: `❌ No se encontró la evaluación ${num}.`, completo: true, id: `agent-${Date.now()}` }]); return true; } }
     return false;
@@ -1912,6 +1946,35 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const [vista, setVista] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
+  // --- Selección múltiple de tarjetas para "Generar Plan de Acción" ---
+  // Si no hay ninguna tarjeta seleccionada, el plan se genera con TODAS las evaluaciones.
+  const [tarjetasSeleccionadas, setTarjetasSeleccionadas] = useState<string[]>([]);
+  const toggleTarjetaSeleccionada = (id: string) => {
+    setTarjetasSeleccionadas(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  // --- Secciones/paralelos (A, B, C...) del grupo de estudiantes que comparten la materia ---
+  const [seccionesDisponibles, setSeccionesDisponibles] = useState<string[]>(['A', 'B', 'C']);
+  const [seccionActiva, setSeccionActiva] = useState<string>('A');
+  const agregarNuevaSeccion = () => {
+    // Genera la siguiente letra disponible después de la última (A, B, C, D...)
+    const ultima = seccionesDisponibles[seccionesDisponibles.length - 1] || 'A';
+    const siguienteCodigo = ultima.charCodeAt(0) + 1;
+    if (siguienteCodigo > 'Z'.charCodeAt(0)) return; // límite razonable
+    const nuevaLetra = String.fromCharCode(siguienteCodigo);
+    setSeccionesDisponibles(prev => [...prev, nuevaLetra]);
+    setSeccionActiva(nuevaLetra);
+    setTarjetasSeleccionadas([]);
+  };
+  const cambiarSeccionActiva = (letra: string) => {
+    setSeccionActiva(letra);
+    setTarjetasSeleccionadas([]); // al cambiar de sección, la selección de tarjetas no debe arrastrarse
+  };
+  // Evaluaciones que pertenecen a la sección activa (A, B, C...)
+  const seccionesFiltradas = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva);
+  // Si hay tarjetas seleccionadas (círculo morado) se usan solo esas; si no, se usan TODAS las de la sección activa
+  const seccionesParaPlan = tarjetasSeleccionadas.length > 0
+    ? seccionesFiltradas.filter((s: SeccionExamen) => tarjetasSeleccionadas.includes(s.id))
+    : seccionesFiltradas;
   const tarjetaRef = useRef<HTMLDivElement>(null);
   const [scrollToSections, setScrollToSections] = useState(false);
   const [pdfUrlLocal, setPdfUrlLocal] = useState<string | null>(pdfUrlProp || null);
@@ -1924,7 +1987,10 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const [mensajeWhatsApp, setMensajeWhatsApp] = useState('');
   const [notificaciones, setNotificaciones] = useState<{id: string, mensaje: string, timestamp: Date, leido: boolean}[]>([{ id: 'bienvenida', mensaje: '👋 Bienvenido al planificador', timestamp: new Date(), leido: false }]);
 
-    // Total de estudiantes registrados (para auto-calcular grupos)
+    // Total de estudiantes registrados (para auto-calcular grupos).
+  // Se recalcula por sección/paralelo (A, B, C...) usando el campo "grupo" que ya
+  // existe en el modelo de Estudiante, para que el cálculo de equipos de la
+  // evaluación corresponda solo a los estudiantes de la sección activa.
   const [totalEstudiantes, setTotalEstudiantes] = useState(8); // 8 por defecto
 
   useEffect(() => {
@@ -1932,14 +1998,17 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       try {
         const data = await apiEstudiantes.listar();
         if (Array.isArray(data) && data.length > 0) {
-          setTotalEstudiantes(data.length);
+          const delaSeccion = data.filter((e: any) => (e?.grupo || 'A') === seccionActiva);
+          // Si aún no hay estudiantes cargados con ese código de sección específico,
+          // se usa el total general como respaldo para no bloquear la planificación.
+          setTotalEstudiantes(delaSeccion.length > 0 ? delaSeccion.length : data.length);
         }
       } catch {
         // Si falla, mantiene el valor por defecto (8)
       }
     };
     cargarTotal();
-  }, []);
+  }, [seccionActiva]);
 
   // Estados para el efecto glow
   const [glow1, setGlow1] = useState(false);
@@ -2041,6 +2110,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   };
 
   const cargarSeccionParaEditar = (seccion: SeccionExamen) => {
+    if (seccion.grupoSeccion) setSeccionActiva(seccion.grupoSeccion);
     const nombreLimpio = limpiarTexto(seccion.nombre);
     const esEval1 = seccion.nombre.toLowerCase().includes('evaluación 1') || seccion.nombre.toLowerCase().includes('evaluacion 1');
     const esEval2 = seccion.nombre.toLowerCase().includes('evaluación 2') || seccion.nombre.toLowerCase().includes('evaluacion 2');
@@ -2164,7 +2234,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const crearSeccion = (evalData: EvaluacionFormulario, tipo: string, idPrefix: string): SeccionExamen => {
     const materiaLimpia = limpiarTexto(evalData.materia);
     const duracionMin = evalData.duracionUnidad === 'hrs' ? (evalData.duracionMinutos || 0) * 60 : evalData.duracionMinutos;
-    return { id: evalData.editandoId || `${idPrefix}-${Date.now()}`, nombre: `${tipo}: ${materiaLimpia}`, tipoPregunta: 'desarrollo', peso: evalData.peso, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'comprender', tiempoEstimadoMinutos: duracionMin, tipoActividad: evalData.tipoActividad || undefined, descripcion: evalData.descripcion, cantidadGrupos: evalData.cantidadGrupos ?? undefined, personasPorGrupo: evalData.personasPorGrupo ?? undefined, orden: planificacion.secciones.length, enfoque: evalData.enfoque || undefined, fecha: evalData.fecha };
+    return { id: evalData.editandoId || `${idPrefix}-${Date.now()}`, nombre: `${tipo}: ${materiaLimpia}`, tipoPregunta: 'desarrollo', peso: evalData.peso, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'comprender', tiempoEstimadoMinutos: duracionMin, tipoActividad: evalData.tipoActividad || undefined, descripcion: evalData.descripcion, cantidadGrupos: evalData.cantidadGrupos ?? undefined, personasPorGrupo: evalData.personasPorGrupo ?? undefined, orden: planificacion.secciones.length, enfoque: evalData.enfoque || undefined, fecha: evalData.fecha, grupoSeccion: evalData.editandoId ? (planificacion.secciones.find(s => s.id === evalData.editandoId)?.grupoSeccion || seccionActiva) : seccionActiva };
   };
 
             const guardarEval = async (ev: EvaluacionFormulario, tipo: string, prefix: string, limpiar: () => void, setEv: (updater: (prev: EvaluacionFormulario) => EvaluacionFormulario) => void) => {
@@ -2294,14 +2364,44 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                 totalEstudiantes={totalEstudiantes}
               />
               <div ref={seccionesGuardadasRef} className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider font-['Inter']">Evaluaciones guardadas ({planificacion.secciones.length})</h2>
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider font-['Inter']">Evaluaciones guardadas ({seccionesFiltradas.length})</h2>
+                    {/* Pestañas de Sección/Paralelo (grupos de estudiantes que ven la materia en común) */}
+                    <div className="flex items-center gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
+                      {seccionesDisponibles.map((letra) => (
+                        <Tooltip key={letra} text={`Sección ${letra}`}>
+                          <button
+                            type="button"
+                            onClick={() => cambiarSeccionActiva(letra)}
+                            className={`w-7 h-7 rounded-md text-xs font-semibold transition-all ${seccionActiva === letra ? 'bg-[#818cf8] text-white shadow-md' : 'text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#232430]'}`}
+                          >
+                            {letra}
+                          </button>
+                        </Tooltip>
+                      ))}
+                      <Tooltip text="Añadir nueva sección">
+                        <button
+                          type="button"
+                          onClick={agregarNuevaSeccion}
+                          className="w-7 h-7 rounded-md text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#232430] transition-all flex items-center justify-center"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                    {tarjetasSeleccionadas.length > 0 && (
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-[#a855f7]/10 text-[#c084fc] border border-[#a855f7]/30 font-medium">
+                        {tarjetasSeleccionadas.length} seleccionada{tarjetasSeleccionadas.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <motion.button 
                         whileHover={{ scale: 1.02 }} 
                         whileTap={{ scale: 0.98 }}
                         onClick={async () => {
-  if (planificacion.secciones.length === 0) {
+  if (seccionesParaPlan.length === 0) {
     alert('No hay evaluaciones guardadas para generar el plan.');
     return;
   }
@@ -2315,10 +2415,10 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 
     let urlFinal: string | null = null;
 
-    // Intentar generar PDF
+    // Intentar generar PDF (solo con las tarjetas seleccionadas, o todas las de la sección activa si no hay selección)
     if (generarPDF) {
       try {
-        urlFinal = await generarPDF(planificacion.secciones);
+        urlFinal = await generarPDF(seccionesParaPlan);
       } catch (e) {
         console.log("n8n no disponible");
       }
@@ -2353,9 +2453,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     setCargandoPdf(false);
   }
 }}
-                        disabled={planificacion.secciones.length === 0 || cargandoPdf} 
+                        disabled={seccionesParaPlan.length === 0 || cargandoPdf} 
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          planificacion.secciones.length === 0 || cargandoPdf 
+                          seccionesParaPlan.length === 0 || cargandoPdf 
                             ? 'bg-[#313248] text-[#8a8b9e] cursor-not-allowed' 
                             : 'bg-[#818cf8] hover:bg-[#6366f1] text-white shadow-md'
                         }`}
@@ -2375,12 +2475,14 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                   </div>
                 </div>
                 <DragDropSecciones
-                  secciones={planificacion.secciones} onReorder={(nuevoOrden: SeccionExamen[]) => setPlanificacion(prev => ({ ...prev, secciones: nuevoOrden }))} onEdit={cargarSeccionParaEditar} onDelete={(id: string) => { 
+                  secciones={seccionesFiltradas} onReorder={(nuevoOrden: SeccionExamen[]) => setPlanificacion(prev => { let i = 0; const nuevasSecciones = prev.secciones.map(s => (s.grupoSeccion || 'A') === seccionActiva ? nuevoOrden[i++] : s); return { ...prev, secciones: nuevasSecciones }; })} onEdit={cargarSeccionParaEditar} onDelete={(id: string) => { 
   const estadoActualizado = { ...planificacion, secciones: planificacion.secciones.filter(s => s.id !== id) };
   setPlanificacion(estadoActualizado);
   sincronizarConBD(estadoActualizado);
+  setTarjetasSeleccionadas(prev => prev.filter(x => x !== id));
   agregarNotificacion(`🗑️ Evaluación eliminada de la BD.`); 
 }}
+                  selectedIds={tarjetasSeleccionadas} onToggleSelect={toggleTarjetaSeleccionada}
                   mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
                   mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
   pdfAbierto={pdfAbiertoLocal}
