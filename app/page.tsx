@@ -2007,13 +2007,6 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       return;
     }
     const letra = seccionActiva;
-    const cantidadEnSeccion = planificacion.secciones.filter(s => (s.grupoSeccion || 'A') === letra).length;
-    const confirmado = window.confirm(
-      cantidadEnSeccion > 0
-        ? `¿Eliminar la Sección ${letra}? Se eliminarán también sus ${cantidadEnSeccion} evaluación(es) guardada(s).`
-        : `¿Eliminar la Sección ${letra}?`
-    );
-    if (!confirmado) return;
     const restantes = seccionesDisponibles.filter(l => l !== letra);
     const estadoActualizado = { ...planificacion, secciones: planificacion.secciones.filter(s => (s.grupoSeccion || 'A') !== letra) };
     setPlanificacion(estadoActualizado);
@@ -2021,6 +2014,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     setSeccionesDisponibles(restantes);
     setSeccionActiva(restantes[0]);
     setTarjetasSeleccionadas([]);
+    // Limpia también el plan de acción propio de la sección eliminada
+    setPdfPorSeccion(prev => { const copia = { ...prev }; delete copia[letra]; return copia; });
+    setPdfAbiertoPorSeccion(prev => { const copia = { ...prev }; delete copia[letra]; return copia; });
     agregarNotificacion(`🗑️ Sección ${letra} eliminada.`);
   };
   // Evaluaciones que pertenecen a la sección activa (A, B, C...)
@@ -2031,8 +2027,12 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     : seccionesFiltradas;
   const tarjetaRef = useRef<HTMLDivElement>(null);
   const [scrollToSections, setScrollToSections] = useState(false);
-  const [pdfUrlLocal, setPdfUrlLocal] = useState<string | null>(pdfUrlProp || null);
-  const [pdfAbiertoLocal, setPdfAbiertoLocal] = useState(pdfAbiertoProp || false);
+  const [pdfPorSeccion, setPdfPorSeccion] = useState<Record<string, string | null>>({});
+  const [pdfAbiertoPorSeccion, setPdfAbiertoPorSeccion] = useState<Record<string, boolean>>({});
+  // Cada sección (A, B, C...) tiene su propio Plan de Acción generado; cambiar de pestaña
+  // no debe mostrar el plan de otra sección.
+  const pdfUrlLocal = pdfPorSeccion[seccionActiva] ?? null;
+  const pdfAbiertoLocal = pdfAbiertoPorSeccion[seccionActiva] ?? false;
   const [cargandoPdf, setCargandoPdf] = useState(false);
   const [campanaActiva, setCampanaActiva] = useState(false);
   const [mostrarMenuEnvio, setMostrarMenuEnvio] = useState(false);
@@ -2072,11 +2072,11 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 
   useEffect(() => { setVista(vistaInicial); }, [vistaInicial]);
   useEffect(() => { onCambiarVista(vista); }, [vista, onCambiarVista]);
-  useEffect(() => { if (pdfUrlProp !== undefined) setPdfUrlLocal(pdfUrlProp); }, [pdfUrlProp]);
-  useEffect(() => { if (pdfAbiertoProp !== undefined) setPdfAbiertoLocal(pdfAbiertoProp); }, [pdfAbiertoProp]);
+  useEffect(() => { if (pdfUrlProp !== undefined) setPdfPorSeccion(prev => ({ ...prev, [seccionActiva]: pdfUrlProp })); }, [pdfUrlProp]);
+  useEffect(() => { if (pdfAbiertoProp !== undefined) setPdfAbiertoPorSeccion(prev => ({ ...prev, [seccionActiva]: pdfAbiertoProp })); }, [pdfAbiertoProp]);
 
-  const setPdfUrl = (url: string | null) => { setPdfUrlLocal(url); if (setPdfUrlProp) setPdfUrlProp(url); };
-  const setPdfAbierto = (abierto: boolean) => { setPdfAbiertoLocal(abierto); if (setPdfAbiertoProp) setPdfAbiertoProp(abierto); };
+  const setPdfUrl = (url: string | null) => { setPdfPorSeccion(prev => ({ ...prev, [seccionActiva]: url })); if (setPdfUrlProp) setPdfUrlProp(url); };
+  const setPdfAbierto = (abierto: boolean) => { setPdfAbiertoPorSeccion(prev => ({ ...prev, [seccionActiva]: abierto })); if (setPdfAbiertoProp) setPdfAbiertoProp(abierto); };
   const agregarNotificacion = (mensaje: string) => { setNotificaciones(prev => [{ id: `notif-${Date.now()}`, mensaje, timestamp: new Date(), leido: false }, ...prev.slice(0, 19)]); };
   const scrollToTarjeta = () => { setTimeout(() => { if (tarjetaRef.current) tarjetaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 250); };
   
@@ -2174,6 +2174,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     else if (esEval2) setEvaluacion2(datosBase);
     else if (esEval3) setEvaluacion3(datosBase);
     else setEvaluacion4(datosBase);
+    // Desliza suavemente hacia los campos de la evaluación para que el usuario
+    // vea de inmediato los datos cargados, sin tener que buscarlos manualmente.
+    scrollToTarjeta();
   };
 
   const limpiarEvaluacion1 = () => setEvaluacion1({...evalInit});
@@ -2409,6 +2412,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><Dashboard planificacion={planificacion} /></motion.div>)}
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
+                <div ref={tarjetaRef}>
                 <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
                 evaluacion2={evaluacion2} setEvaluacion2={setEvaluacion2} guardarEvaluacion2={guardarEvaluacion2} limpiarEvaluacion2={limpiarEvaluacion2}
@@ -2418,6 +2422,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                 justFilled1={glow1} justFilled2={glow2} justFilled3={glow3} justFilled4={glow4}
                 totalEstudiantes={totalEstudiantes}
               />
+                </div>
               <div ref={seccionesGuardadasRef} className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
@@ -2857,7 +2862,7 @@ const guardarPlanificacionEnBD = async () => {
   const generarPDF = async (secciones?: SeccionExamen[]): Promise<string | null> => {
     const seccionesParaPDF = secciones || planificacion.secciones;
     if (seccionesParaPDF.length === 0) { alert('No hay evaluaciones guardadas'); return null; }
-    try { const response = await fetch('http://localhost:5678/webhook/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'pdf', examenData: { fechaExamen: planificacion.fechaExamen.toISOString(), materia: planificacion.materia || 'Asignatura', tipoExamen: planificacion.tipoExamen || 'mixto', duracionMinutos: planificacion.duracionMinutos || 0, secciones: seccionesParaPDF.map(sec => ({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, tiempoEstimadoMinutos: sec.tiempoEstimadoMinutos, peso: sec.peso, cantidadGrupos: sec.cantidadGrupos, personasPorGrupo: sec.personasPorGrupo, descripcion: sec.descripcion, enfoque: sec.enfoque, nivelBloom: sec.nivelBloom, fecha: sec.fecha })) } }) }); if (!response.ok) throw new Error('Error al generar PDF'); const blob = await response.blob(); const url = URL.createObjectURL(blob); setPdfUrl(url); setPdfAbierto(false); agregarNotificacion('📄 Plan de acción generado correctamente.'); return url; } catch (error) { console.error('Error:', error); alert('Error al generar el plan de acción.'); return null; }
+    try { const response = await fetch('http://localhost:5678/webhook/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'pdf', examenData: { fechaExamen: planificacion.fechaExamen.toISOString(), materia: planificacion.materia || 'Asignatura', tipoExamen: planificacion.tipoExamen || 'mixto', duracionMinutos: planificacion.duracionMinutos || 0, secciones: seccionesParaPDF.map(sec => ({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, tiempoEstimadoMinutos: sec.tiempoEstimadoMinutos, peso: sec.peso, cantidadGrupos: sec.cantidadGrupos, personasPorGrupo: sec.personasPorGrupo, descripcion: sec.descripcion, enfoque: sec.enfoque, nivelBloom: sec.nivelBloom, fecha: sec.fecha })) } }) }); if (!response.ok) throw new Error('Error al generar PDF'); const blob = await response.blob(); const url = URL.createObjectURL(blob); setPdfUrl(url); setPdfAbierto(false); agregarNotificacion('📄 Plan de acción generado correctamente.'); return url; } catch (error) { console.error('Error al generar PDF con n8n (se usará el plan visual local):', error); return null; }
   };
 
   const aceptarPropuesta = async () => { return { success: true }; };
