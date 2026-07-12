@@ -3,10 +3,13 @@ import prisma from '@/lib/prisma';
 
 // POST /api/conversaciones/:id/mensajes
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: Request, 
+  context: { params: Promise<{ id: string }> } 
 ) {
   try {
+    // 💡 REGLA CLAVE: Desestructuramos el id esperando la promesa de context.params
+    const { id } = await context.params;
+
     const body = await request.json()
 
     const mensaje = await prisma.mensaje.create({
@@ -14,12 +17,12 @@ export async function POST(
         rol: body.rol,
         contenido: body.contenido,
         completo: body.completo ?? true,
-        conversacionId: params.id,
+        conversacionId: id, // 🌟 Cambiado de params.id a id
       },
     })
 
     await prisma.conversacion.update({
-      where: { id: params.id },
+      where: { id: id }, // 🌟 Cambiado de params.id a id
       data: { updatedAt: new Date() },
     })
 
