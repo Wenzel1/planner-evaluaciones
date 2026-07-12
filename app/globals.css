@@ -1,0 +1,82 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* ============================================
+   TEMA OSCURO PERSONALIZADO
+   (reemplaza las variables de shadcn por tus colores)
+   ============================================ */
+:root {
+  --background: #161722;
+  --foreground: #d0d0da;
+  --card: #1f2035;
+  --card-foreground: #d0d0da;
+  --popover: #1f2035;
+  --popover-foreground: #d0d0da;
+  --primary: #818cf8;
+  --primary-foreground: #ffffff;
+  --secondary: #313248;
+  --secondary-foreground: #d0d0da;
+  --muted: #272839;
+  --muted-foreground: #8a8b9e;
+  --accent: #272839;
+  --accent-foreground: #d0d0da;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #313248;
+  --input: #1f2035;
+  --ring: #818cf8;
+  --radius: 0.5rem;
+
+  /* Sidebar (si usas el componente de shadcn) */
+  --sidebar-background: #161722;
+  --sidebar-foreground: #d0d0da;
+  --sidebar-primary: #818cf8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1f2035;
+  --sidebar-accent-foreground: #d0d0da;
+  --sidebar-border: #313248;
+  --sidebar-ring: #818cf8;
+
+  /* Charts (si usas gráficos) */
+  --chart-1: #818cf8;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #8b5cf6;
+}
+
+/* ============================================
+   ESTILOS BASE DEL BODY Y SCROLLBARS
+   ============================================ */
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  scrollbar-width: thin;
+  scrollbar-color: #313248 #161722;
+}
+
+/* Scrollbar personalizada para navegadores webkit */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2035;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #313248;
+  border-radius: 20px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #414258;
+}
+
+/* Ocultar flechas de inputs numéricos */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}

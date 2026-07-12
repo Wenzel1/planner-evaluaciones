@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+enum EstadoPlanificacion {
+  BORRADOR
+  REVISION
+  APROBADO
+  PUBLICADO
+}
+
+enum TipoExamen {
+  TEORICO
+  PRACTICO
+  MIXTO
+  PROYECTO
+  ORAL
+}
+
+enum TipoPregunta {
+  MULTIPLE_CHOICE
+  DESARROLLO
+  CODIGO
+  CASO_PRACTICO
+}
+
+enum NivelBloom {
+  RECORDAR
+  COMPRENDER
+  APLICAR
+  ANALIZAR
+  EVALUAR
+  CREAR
+}
+
+enum EstadoEstudiante {
+  ACTIVO
+  INACTIVO
+}
+
+enum TipoComentario {
+  SUGERENCIA
+  ALERTA
+  INFO
+  EXITO
+}
+
+enum RolMensaje {
+  AGENT
+  USER
+}
+
+// ============================================
+// MODELOS
+// ============================================
+model Materia {
+  id          String   @id @default(cuid())
+  nombre      String
+  descripcion String?
+  codigo      String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  planificaciones Planificacion[]
+}
+
+model Planificacion {
+  id              String              @id @default(cuid())
+  version         Int                 @default(1)
+  estado          EstadoPlanificacion @default(BORRADOR)
+  fechaExamen     DateTime
+  tipoExamen      TipoExamen          @default(MIXTO)
+  duracionMinutos Int
+  materiaId       String
+  materia         Materia             @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  evaluaciones    Evaluacion[]
+  rubrica         CriterioRubrica[]
+  comentarios     ComentarioAgente[]
+  conversaciones  Conversacion[]
+}
+
+model Evaluacion {
+  id                    String          @id @default(cuid())
+  nombre                String
+  tipoPregunta          TipoPregunta    @default(MULTIPLE_CHOICE)
+  peso                  Int?
+  cantidadPreguntas     Int             @default(0)
+  contenidosEvaluados   String[]
+  nivelBloom            NivelBloom      @default(APLICAR)
+  tiempoEstimadoMinutos Int?
+  tipoActividad         String?
+  descripcion           String?
+  cantidadGrupos        Int?
+  personasPorGrupo      Int?
+  orden                 Int?
+  enfoque               String?
+  fecha                 DateTime?
+  planificacionId       String
+  planificacion         Planificacion   @relation(fields: [planificacionId], references: [id], onDelete: Cascade)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  calificaciones        Calificacion[]
+}
+
+model CriterioRubrica {
+  id              String         @id @default(cuid())
+  nombre          String
+  peso            Int
+  descripcion     String
+  planificacionId String
+  planificacion   Planificacion  @relation(fields: [planificacionId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  niveles         NivelDesempeno[]
+}
+
+model NivelDesempeno {
+  id          String          @id @default(cuid())
+  nombre      String
+  puntaje     Int
+  descripcion String
+  criterioId  String
+  criterio    CriterioRubrica @relation(fields: [criterioId], references: [id], onDelete: Cascade)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model Estudiante {
+  id        String           @id @default(cuid())
+  nombre    String
+  email     String           @unique
+  telefono  String?
+  grupo     String           @default("A")
+  estado    EstadoEstudiante @default(ACTIVO)
+  promedio  Float            @default(0)
+  asistencia Float           @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  calificaciones Calificacion[]
+}
+
+model Calificacion {
+  id            String     @id @default(cuid())
+  puntaje       Float?
+  observaciones String?
+  estudianteId  String
+  estudiante    Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  evaluacionId  String
+  evaluacion    Evaluacion @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@unique([estudianteId, evaluacionId])
+}
+
+model ComentarioAgente {
+  id              String         @id @default(cuid())
+  tipo            TipoComentario
+  mensaje         String
+  planificacionId String?
+  planificacion   Planificacion? @relation(fields: [planificacionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+}
+
+model Conversacion {
+  id              String         @id @default(cuid())
+  titulo          String?
+  planificacionId String?
+  planificacion   Planificacion? @relation(fields: [planificacionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  mensajes        Mensaje[]
+}
+
+model Mensaje {
+  id              String       @id @default(cuid())
+  rol             RolMensaje
+  contenido       String       @db.Text
+  completo        Boolean      @default(false)
+  conversacionId  String
+  conversacion    Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+}
