@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma';
+import { requerirActor, verificarAcceso } from '@/lib/permisos';
 
 // POST /api/conversaciones/:id/mensajes
 export async function POST(
@@ -7,8 +8,17 @@ export async function POST(
   context: { params: Promise<{ id: string }> } 
 ) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
+
     // 💡 REGLA CLAVE: Desestructuramos el id esperando la promesa de context.params
     const { id } = await context.params;
+
+    // La conversación debe pertenecer al usuario (o ser SUPERADMIN)
+    const conversacion = await prisma.conversacion.findUnique({ where: { id }, select: { usuarioId: true } })
+    if (!conversacion) return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 })
+    const denegado = verificarAcceso(actor, conversacion.usuarioId, 'escribir')
+    if (denegado) return denegado
 
     const body = await request.json()
 

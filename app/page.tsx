@@ -25,13 +25,15 @@ import {
   Beaker, FlaskConical, Lightbulb, PenTool, Mic2, ScrollText,
   UsersRound, UserCheck, FileSearch, Layout, Puzzle, Gamepad2,
   Presentation, Handshake, Globe, Scale, BookType, ClipboardCheck,
-  MessageCircleQuestion, Eye as EyeIcon, Speech, Download
+  MessageCircleQuestion, Eye as EyeIcon, Speech, Download,
+  UserCog, ShieldCheck, RefreshCw
 } from 'lucide-react';
 
 // Agregar esto debajo de los imports de lucide-react
 import { apiEstudiantes, apiPlanificaciones } from '@/lib/api'; 
 import StreamInput from "@/components/StreamInput";
 import StreamTextarea from "@/components/StreamTextarea";
+import { validarNombre, validarEmail, validarPassword } from '@/lib/validacionesUsuario';
 
 // ============================================
 // TIPOS
@@ -502,6 +504,239 @@ function Dashboard({ planificacion }: { planificacion: PlanificacionExamen }) {
 }
 
 // ============================================
+// DASHBOARD POR ROL
+//  - USUARIO (profesor): solo ve su propio dashboard.
+//  - ADMIN: su dashboard + vista de solo lectura del trabajo de TODOS los profesores.
+//  - SUPERADMIN: lo anterior + resumen de cuentas del sistema.
+// ============================================
+const ESTILO_ROL: Record<string, string> = {
+  SUPERADMIN: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30',
+  ADMIN: 'bg-[#818cf8]/10 text-[#a5b4fc] border-[#818cf8]/30',
+  USUARIO: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+};
+
+// Colores y textos por rol (la franja superior y las etiquetas cambian según quién entró)
+const TEMA_ROL: Record<'SUPERADMIN' | 'ADMIN' | 'USUARIO', { etiqueta: string; descripcion: string; barra: string; fondo: string; texto: string; borde: string }> = {
+  SUPERADMIN: { etiqueta: 'MODO SUPERADMIN', descripcion: 'Administración del sistema', barra: 'from-fuchsia-600 via-fuchsia-500 to-purple-500', fondo: 'bg-fuchsia-500/10', texto: 'text-fuchsia-300', borde: 'border-fuchsia-500/30' },
+  ADMIN: { etiqueta: 'MODO ADMINISTRADOR', descripcion: 'Supervisión de profesores', barra: 'from-indigo-600 via-indigo-500 to-blue-500', fondo: 'bg-indigo-500/10', texto: 'text-indigo-300', borde: 'border-indigo-500/30' },
+  USUARIO: { etiqueta: 'MODO PROFESOR', descripcion: 'Tu espacio de trabajo', barra: 'from-emerald-600 via-emerald-500 to-teal-500', fondo: 'bg-emerald-500/10', texto: 'text-emerald-300', borde: 'border-emerald-500/30' },
+};
+const COLOR_TEXTO_ROL: Record<string, string> = { SUPERADMIN: 'text-fuchsia-300', ADMIN: 'text-indigo-300', USUARIO: 'text-emerald-300' };
+
+function BandaRol({ rol }: { rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO' }) {
+  const tema = TEMA_ROL[rol];
+  return (
+    <div className={`flex-shrink-0 relative flex items-center justify-center gap-2 h-6 ${tema.fondo} border-b ${tema.borde}`}>
+      <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${tema.barra}`} />
+      <span className={`text-[10px] font-bold tracking-[0.2em] ${tema.texto}`}>{tema.etiqueta}</span>
+      <span className="text-[10px] text-[#8a8b9e] hidden sm:inline">· {tema.descripcion}</span>
+    </div>
+  );
+}
+
+function DashboardPorRol({ planificacion, usuario }: { planificacion: PlanificacionExamen; usuario?: UsuarioSesion | null }) {
+  const [modo, setModo] = useState<'mio' | 'equipo'>(usuario?.rol === 'ADMIN' ? 'equipo' : 'mio');
+  const esSuper = usuario?.rol === 'SUPERADMIN';
+  const esAdminPlus = esSuper || usuario?.rol === 'ADMIN';
+  if (!esAdminPlus) return <Dashboard planificacion={planificacion} />;
+  if (esSuper) return <DashboardEquipo esSuper />; // el superadmin no tiene planificador propio
+
+  const opciones = [
+    { id: 'mio' as const, label: 'Mi trabajo', icon: BarChart3 },
+    { id: 'equipo' as const, label: esSuper ? 'Todo el sistema' : 'Todos los profesores', icon: UsersIcon },
+  ];
+  return (
+    <div className="space-y-5">
+      <div className="inline-flex items-center gap-1 p-1 bg-[#161722] border border-[#282a3f] rounded-xl">
+        {opciones.map(o => (
+          <button key={o.id} onClick={() => setModo(o.id)} className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${modo === o.id ? 'text-[#c7d2fe]' : 'text-[#8a8b9e] hover:text-[#b0b0c4]'}`}>
+            {modo === o.id && <motion.div layoutId="pill-dashboard-modo" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-lg" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />}
+            <o.icon className="relative z-10 w-4 h-4" /><span className="relative z-10">{o.label}</span>
+          </button>
+        ))}
+      </div>
+      <AnimatePresence mode="wait">
+        <motion.div key={modo} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+          {modo === 'mio' ? <Dashboard planificacion={planificacion} /> : <DashboardEquipo esSuper={esSuper} />}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
+  interface EvalResumen { id: string; nombre: string; peso: number | null; tipoActividad: string | null; fecha: string | null }
+  interface MateriaResumen { id: string; nombre: string; fechaExamen: string | null; evaluaciones: EvalResumen[] }
+  interface FilaResumen { id: string; nombre: string; email: string; rol: string; activo: boolean; pendiente: boolean; materias: MateriaResumen[]; totalMaterias: number; totalEvaluaciones: number; totalEstudiantes: number; ultimaActividad: string | null }
+  interface Resumen {
+    totales: { cuentas: { SUPERADMIN: number; ADMIN: number; USUARIO: number; desactivadas: number; pendientes: number }; materias: number; evaluaciones: number; estudiantes: number };
+    usuarios: FilaResumen[];
+    sinDueno: { materias: number; evaluaciones: number; estudiantes: number };
+  }
+  const [datos, setDatos] = useState<Resumen | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const [confirmandoEval, setConfirmandoEval] = useState<string | null>(null);
+
+  const cargar = async () => {
+    setCargando(true); setError('');
+    try {
+      const r = await fetch('/api/resumen');
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'No se pudo cargar el resumen.');
+      setDatos(d);
+    } catch (e: any) { setError(e.message || 'No se pudo cargar el resumen.'); }
+    finally { setCargando(false); }
+  };
+  useEffect(() => { cargar(); }, []);
+
+  const fecha = (f: string | null) => (f ? new Date(f).toLocaleDateString() : '—');
+
+  // Moderación: elimina una evaluación (confirmación en dos pasos). Queda registrada en la Actividad.
+  const eliminarEvaluacion = async (idEval: string) => {
+    if (confirmandoEval !== idEval) { setConfirmandoEval(idEval); setTimeout(() => setConfirmandoEval(prev => (prev === idEval ? null : prev)), 3000); return; }
+    setConfirmandoEval(null);
+    const r = await fetch(`/api/evaluaciones/${idEval}`, { method: 'DELETE' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(d.error || 'No se pudo eliminar la evaluación.'); return; }
+    await cargar();
+  };
+  const filas = (datos?.usuarios || []).filter(u => {
+    const q = busqueda.trim().toLowerCase();
+    return !q || u.nombre.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+  });
+
+  const tarjetas = datos ? [
+    { titulo: 'Profesores', valor: datos.totales.cuentas.USUARIO, icono: UsersIcon, color: 'text-emerald-400', bg: 'bg-emerald-500/10', borde: 'border-emerald-500/20' },
+    { titulo: 'Materias', valor: datos.totales.materias, icono: BookOpen, color: 'text-blue-400', bg: 'bg-blue-500/10', borde: 'border-blue-500/20' },
+    { titulo: 'Evaluaciones', valor: datos.totales.evaluaciones, icono: FileText, color: 'text-amber-400', bg: 'bg-amber-500/10', borde: 'border-amber-500/20' },
+    { titulo: 'Estudiantes', valor: datos.totales.estudiantes, icono: GraduationCap, color: 'text-purple-400', bg: 'bg-purple-500/10', borde: 'border-purple-500/20' },
+  ] : [];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-[#d0d0da] flex items-center gap-3"><UsersIcon className="w-6 h-6 text-[#818cf8]" />{esSuper ? 'Todo el sistema' : 'Todos los profesores'}</h2>
+          <p className="text-sm text-[#8a8b9e] mt-1">Revisa el trabajo de cada cuenta. Puedes eliminar evaluaciones como moderación; editarlas es exclusivo de su dueño.</p>
+        </div>
+        <button onClick={cargar} disabled={cargando} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 disabled:opacity-60">
+          <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />Actualizar
+        </button>
+      </div>
+
+      {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
+      {cargando && !datos && <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>}
+
+      {datos && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {tarjetas.map((t, i) => (
+              <motion.div key={t.titulo} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.25 }} className={`bg-[#1f2035] border ${t.borde} rounded-xl p-4 shadow-lg`}>
+                <div className="flex items-center justify-between"><div><p className="text-xs text-[#8a8b9e]">{t.titulo}</p><p className="text-2xl font-bold text-[#d0d0da] mt-1">{t.valor}</p></div><div className={`${t.bg} p-2.5 rounded-lg`}><t.icono className={`w-5 h-5 ${t.color}`} /></div></div>
+              </motion.div>
+            ))}
+          </div>
+
+          {esSuper && (
+            <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><ShieldCheck className="w-4 h-4 text-[#818cf8]" />Cuentas del sistema</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                {([['SUPERADMIN', datos.totales.cuentas.SUPERADMIN], ['ADMIN', datos.totales.cuentas.ADMIN], ['USUARIO', datos.totales.cuentas.USUARIO]] as [string, number][]).map(([rol, n]) => (
+                  <div key={rol} className="bg-[#191a26] border border-[#282a3f] rounded-lg p-3"><span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[rol]}`}>{rol}</span><p className="text-xl font-bold text-[#d0d0da] mt-2">{n}</p></div>
+                ))}
+                <div className="bg-[#191a26] border border-[#282a3f] rounded-lg p-3"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADAS</span><p className="text-xl font-bold text-[#d0d0da] mt-2">{datos.totales.cuentas.desactivadas}</p></div>
+                <div className="bg-[#191a26] border border-[#282a3f] rounded-lg p-3"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">PENDIENTES</span><p className="text-xl font-bold text-[#d0d0da] mt-2">{datos.totales.cuentas.pendientes}</p></div>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-[#313248] flex items-center gap-3">
+              <Search className="w-4 h-4 text-[#6a6b7e]" />
+              <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o correo..." className="flex-1 bg-transparent text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none" />
+              <span className="text-xs text-[#8a8b9e]">{filas.length} cuenta(s)</span>
+            </div>
+            {filas.length === 0 ? (
+              <div className="p-8 text-center text-sm text-[#8a8b9e]">No hay cuentas que coincidan.</div>
+            ) : (
+              <div className="divide-y divide-[#313248]">
+                {filas.map(u => {
+                  const expandido = abierto === u.id;
+                  return (
+                    <div key={u.id}>
+                      <button onClick={() => setAbierto(expandido ? null : u.id)} className="w-full p-4 flex items-center gap-3 text-left hover:bg-[#232438] transition-colors">
+                        <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-[#818cf8]" /></div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-[#d0d0da] truncate">{u.nombre}</span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[u.rol] || ''}`}>{u.rol}</span>
+                            {u.pendiente && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">PENDIENTE</span>}
+                            {!u.activo && !u.pendiente && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADA</span>}
+                          </div>
+                          <div className="text-xs text-[#8a8b9e] truncate">{u.email}</div>
+                        </div>
+                        <div className="hidden sm:flex items-center gap-5 text-xs text-[#b0b0c4]">
+                          <span title="Materias"><BookOpen className="w-3.5 h-3.5 inline mr-1 text-blue-400" />{u.totalMaterias}</span>
+                          <span title="Evaluaciones"><FileText className="w-3.5 h-3.5 inline mr-1 text-amber-400" />{u.totalEvaluaciones}</span>
+                          <span title="Estudiantes"><GraduationCap className="w-3.5 h-3.5 inline mr-1 text-purple-400" />{u.totalEstudiantes}</span>
+                          <span className="text-[#8a8b9e] w-24 text-right" title="Última actividad">{fecha(u.ultimaActividad)}</span>
+                        </div>
+                        {expandido ? <ChevronUp className="w-4 h-4 text-[#8a8b9e] flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-[#8a8b9e] flex-shrink-0" />}
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {expandido && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden bg-[#191a26]">
+                            <div className="p-4 space-y-4">
+                              <p className="sm:hidden text-xs text-[#8a8b9e]">{u.totalMaterias} materia(s) · {u.totalEvaluaciones} evaluación(es) · {u.totalEstudiantes} estudiante(s)</p>
+                              {u.materias.length === 0 ? (
+                                <p className="text-xs text-[#8a8b9e]">Aún no ha creado materias.</p>
+                              ) : u.materias.map(m => (
+                                <div key={m.id}>
+                                  <div className="flex items-center justify-between gap-2 mb-2">
+                                    <h4 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8]" />{m.nombre}</h4>
+                                    <span className="text-xs text-[#8a8b9e]">Examen: {fecha(m.fechaExamen)}</span>
+                                  </div>
+                                  {m.evaluaciones.length === 0 ? (
+                                    <p className="text-xs text-[#6a6b7e] pl-6">Sin evaluaciones guardadas.</p>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      {m.evaluaciones.map((ev, i) => (
+                                        <div key={i} className="flex items-center gap-3 bg-[#1f2035] border border-[#282a3f] rounded-lg px-3 py-2 text-xs">
+                                          <span className="flex-1 min-w-0 truncate text-[#d0d0da]">{limpiarTexto(ev.nombre)}</span>
+                                          {ev.tipoActividad && <span className="hidden sm:inline text-[#8a8b9e] truncate max-w-[140px]">🎯 {ev.tipoActividad}</span>}
+                                          <span className="text-[#8a8b9e]">📅 {fecha(ev.fecha)}</span>
+                                          <span className="font-semibold text-[#a5b4fc] w-10 text-right">{ev.peso != null ? `${ev.peso}%` : '—'}</span>
+                                          <button onClick={() => eliminarEvaluacion(ev.id)} title="Eliminar evaluación (moderación)" className={`px-1.5 py-1 rounded-md transition-colors ${confirmandoEval === ev.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[#6a6b7e] hover:text-red-400 hover:bg-red-500/10'}`}>{confirmandoEval === ev.id ? '¿Seguro?' : <Trash2 className="w-3.5 h-3.5" />}</button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {(datos.sinDueno.materias > 0 || datos.sinDueno.estudiantes > 0) && (
+            <p className="text-xs text-[#8a8b9e] flex items-start gap-2"><Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" /><span>Hay datos sin dueño ({datos.sinDueno.materias} materia(s), {datos.sinDueno.evaluaciones} evaluación(es) y {datos.sinDueno.estudiantes} estudiante(s)). Suelen venir de cuentas eliminadas o de antes de existir los usuarios.</span></p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================
 // ESTUDIANTES PANEL (MEJORADO)
 // ============================================
 interface Estudiante {
@@ -518,6 +753,464 @@ interface Estudiante {
 const estudiantesIniciales: Estudiante[] = [
  
 ];
+
+// ============================================
+// MI PERFIL (disponible para los tres roles)
+// ============================================
+function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | null; onActualizado?: (u: UsuarioSesion) => void }) {
+  const [nombre, setNombre] = useState(usuario?.nombre || '');
+  const [email, setEmail] = useState(usuario?.email || '');
+  const [passwordActual, setPasswordActual] = useState('');
+  const [nueva, setNueva] = useState('');
+  const [confirmar, setConfirmar] = useState('');
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const [errorGlobal, setErrorGlobal] = useState('');
+  const [exito, setExito] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [creadoEn, setCreadoEn] = useState('');
+
+  useEffect(() => { if (usuario) { setNombre(usuario.nombre); setEmail(usuario.email); } }, [usuario?.id, usuario?.nombre, usuario?.email]);
+  useEffect(() => {
+    fetch('/api/perfil').then(r => (r.ok ? r.json() : null)).then(d => { if (d?.createdAt) setCreadoEn(new Date(d.createdAt).toLocaleDateString()); }).catch(() => {});
+  }, []);
+
+  const INFO_ROL = {
+    SUPERADMIN: {
+      badge: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30',
+      descripcion: 'Administras el sistema; no creas evaluaciones.',
+      permisos: ['Crear, editar y eliminar cuentas de administradores y profesores', 'Restablecer la contraseña de cualquier cuenta', 'Ver el trabajo de todos los profesores y eliminar evaluaciones como moderación', 'Consultar el registro de actividad'],
+    },
+    ADMIN: {
+      badge: 'bg-[#818cf8]/10 text-[#a5b4fc] border-[#818cf8]/30',
+      descripcion: 'Supervisas a los profesores y administras sus cuentas.',
+      permisos: ['Crear, editar, desactivar y eliminar cuentas de profesores (rol USUARIO)', 'Ver el trabajo de todos los profesores y eliminar evaluaciones como moderación', 'No puedes modificar a otros administradores ni al superadmin', 'Gestionar tus propias materias, estudiantes y evaluaciones'],
+    },
+    USUARIO: {
+      badge: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+      descripcion: 'Profesor: trabajas con tus propios datos.',
+      permisos: ['Gestionar tus materias, secciones y evaluaciones', 'Agregar y administrar a tus propios estudiantes', 'Generar y enviar planes de acción', 'Tus datos no son visibles para otros profesores'],
+    },
+  } as const;
+  const rol = usuario?.rol || 'USUARIO';
+  const info = INFO_ROL[rol];
+
+  const inputCls = 'w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
+  const labelCls = 'text-xs font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5';
+
+  const guardar = async () => {
+    setExito(''); setErrorGlobal('');
+    const e: Record<string, string> = {};
+    const n = validarNombre(nombre); if (n) e.nombre = n;
+    const m = validarEmail(email); if (m) e.email = m;
+    const cambiaEmail = !!usuario && email.trim().toLowerCase() !== usuario.email.toLowerCase();
+    const cambiaPassword = nueva.length > 0 || confirmar.length > 0;
+    if (cambiaPassword) {
+      const p = validarPassword(nueva);
+      if (p) e.nueva = p;
+      else if (nueva !== confirmar) e.confirmar = 'Las contraseñas no coinciden.';
+    }
+    if ((cambiaEmail || cambiaPassword) && !passwordActual) e.passwordActual = 'Ingresa tu contraseña actual para confirmar este cambio.';
+    setErrores(e);
+    if (Object.keys(e).length > 0) return;
+
+    setGuardando(true);
+    try {
+      const r = await fetch('/api/perfil', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, email, passwordActual: passwordActual || undefined, passwordNueva: nueva || undefined }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErrorGlobal(d.error || 'No se pudieron guardar los cambios.'); return; }
+      if (onActualizado) onActualizado(d);
+      setPasswordActual(''); setNueva(''); setConfirmar('');
+      setExito(cambiaPassword ? 'Cambios guardados. Tu contraseña fue actualizada.' : 'Cambios guardados.');
+    } catch {
+      setErrorGlobal('No se pudo conectar con el servidor.');
+    } finally { setGuardando(false); }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-[#e0e0ec]">Mi perfil</h2>
+        <p className="text-xs text-[#8a8b9e] mt-0.5">Administra tus datos de acceso.{creadoEn && ` Cuenta creada el ${creadoEn}.`}</p>
+      </div>
+
+      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="w-11 h-11 rounded-full bg-[#272839] flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-[#818cf8]" /></div>
+          <div>
+            <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${info.badge}`}>{rol}</span>
+            <p className="text-sm text-[#b0b0c4] mt-1">{info.descripcion}</p>
+          </div>
+        </div>
+        <ul className="space-y-1.5 pt-1">
+          {info.permisos.map(p => (<li key={p} className="text-xs text-[#9a9bb0] flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" /><span>{p}</span></li>))}
+        </ul>
+      </div>
+
+      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-[#d0d0da]">Datos personales</h3>
+        <div>
+          <label className={labelCls}>Nombre completo</label>
+          <input value={nombre} onChange={(e) => { setNombre(e.target.value); setExito(''); }} className={`${inputCls} ${errores.nombre ? 'border-red-500/50' : ''}`} />
+          {errores.nombre && <p className="text-red-400 text-[11px] mt-1">{errores.nombre}</p>}
+        </div>
+        <div>
+          <label className={labelCls}>Correo electrónico</label>
+          <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setExito(''); }} className={`${inputCls} ${errores.email ? 'border-red-500/50' : ''}`} />
+          {errores.email && <p className="text-red-400 text-[11px] mt-1">{errores.email}</p>}
+        </div>
+      </div>
+
+      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-5 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-[#d0d0da]">Seguridad</h3>
+          <p className="text-[11px] text-[#8a8b9e] mt-0.5">Necesitas tu contraseña actual solo si cambias tu correo o tu contraseña.</p>
+        </div>
+        <div>
+          <label className={labelCls}>Contraseña actual</label>
+          <input type="password" value={passwordActual} onChange={(e) => setPasswordActual(e.target.value)} autoComplete="current-password" className={`${inputCls} ${errores.passwordActual ? 'border-red-500/50' : ''}`} />
+          {errores.passwordActual && <p className="text-red-400 text-[11px] mt-1">{errores.passwordActual}</p>}
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Nueva contraseña</label>
+            <input type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} placeholder="Mín. 8, letras y números" autoComplete="new-password" className={`${inputCls} ${errores.nueva ? 'border-red-500/50' : ''}`} />
+            {errores.nueva && <p className="text-red-400 text-[11px] mt-1">{errores.nueva}</p>}
+          </div>
+          <div>
+            <label className={labelCls}>Confirmar nueva contraseña</label>
+            <input type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} autoComplete="new-password" className={`${inputCls} ${errores.confirmar ? 'border-red-500/50' : ''}`} />
+            {errores.confirmar && <p className="text-red-400 text-[11px] mt-1">{errores.confirmar}</p>}
+          </div>
+        </div>
+      </div>
+
+      {errorGlobal && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{errorGlobal}</span></p>}
+      {exito && <p className="text-emerald-400 text-xs flex items-start gap-1.5"><CheckCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{exito}</span></p>}
+
+      <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={guardar} disabled={guardando} className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl shadow-lg disabled:opacity-60">
+        {guardando ? 'Guardando...' : 'Guardar cambios'}
+      </motion.button>
+    </div>
+  );
+}
+
+// ============================================
+// REGISTRO DE ACTIVIDAD (solo SUPERADMIN)
+// ============================================
+const ESTILO_ACCION: Record<string, string> = {
+  CREAR: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+  EDITAR: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
+  ELIMINAR: 'bg-red-500/10 text-red-300 border-red-500/30',
+  RECHAZAR: 'bg-red-500/10 text-red-300 border-red-500/30',
+  APROBAR: 'bg-teal-500/10 text-teal-300 border-teal-500/30',
+  REGISTRO: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+  LOGIN: 'bg-slate-500/10 text-slate-300 border-slate-500/30',
+  LOGIN_FALLIDO: 'bg-orange-500/10 text-orange-300 border-orange-500/30',
+  LOGOUT: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+};
+
+function ActividadPanel() {
+  interface RegistroActividad { id: string; usuarioNombre: string; usuarioRol: string | null; accion: string; entidad: string; detalle: string | null; createdAt: string }
+  const [items, setItems] = useState<RegistroActividad[]>([]);
+  const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [accion, setAccion] = useState('');
+  const [buscar, setBuscar] = useState('');
+  const [buscarAplicado, setBuscarAplicado] = useState('');
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+
+  const cargar = async (p: number) => {
+    setCargando(true); setError('');
+    try {
+      const params = new URLSearchParams({ pagina: String(p) });
+      if (accion) params.set('accion', accion);
+      if (buscarAplicado) params.set('buscar', buscarAplicado);
+      const r = await fetch(`/api/actividad?${params.toString()}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'No se pudo cargar la actividad.');
+      setItems(d.items); setTotal(d.total); setTotalPaginas(d.totalPaginas); setPagina(d.pagina);
+    } catch (e: any) { setError(e.message || 'No se pudo cargar la actividad.'); }
+    finally { setCargando(false); }
+  };
+  useEffect(() => { cargar(1); }, [accion, buscarAplicado]);
+
+  const acciones = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT', 'REGISTRO', 'APROBAR', 'RECHAZAR', 'CREAR', 'EDITAR', 'ELIMINAR'];
+  const inputCls = 'bg-[#272839] border border-[#313248] rounded-xl px-3 py-2 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-lg font-semibold text-[#e0e0ec] flex items-center gap-2"><Activity className="w-5 h-5 text-[#818cf8]" />Registro de actividad</h2>
+          <p className="text-xs text-[#8a8b9e] mt-0.5">Quién hizo qué y cuándo. Solo lectura. {total} registro(s).</p>
+        </div>
+        <button onClick={() => cargar(pagina)} disabled={cargando} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 disabled:opacity-60">
+          <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />Actualizar
+        </button>
+      </div>
+
+      <div className="flex gap-3 flex-wrap">
+        <select value={accion} onChange={(e) => setAccion(e.target.value)} className={inputCls}>
+          <option value="">Todas las acciones</option>
+          {acciones.map(a => <option key={a} value={a}>{a.replace('_', ' ')}</option>)}
+        </select>
+        <div className="flex-1 min-w-[200px] relative">
+          <Search className="w-4 h-4 text-[#6a6b7e] absolute left-3 top-1/2 -translate-y-1/2" />
+          <input value={buscar} onChange={(e) => setBuscar(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setBuscarAplicado(buscar.trim()); }} placeholder="Buscar por persona o detalle y presiona Enter..." className={`${inputCls} w-full pl-9`} />
+        </div>
+      </div>
+
+      {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
+
+      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+        {cargando && items.length === 0 ? (
+          <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>
+        ) : items.length === 0 ? (
+          <div className="p-8 text-center text-sm text-[#8a8b9e]">No hay registros{accion || buscarAplicado ? ' con esos filtros' : ' todavía'}.</div>
+        ) : (
+          <div className="divide-y divide-[#313248]">
+            {items.map(it => (
+              <div key={it.id} className="p-4 flex items-start gap-3 hover:bg-[#232438] transition-colors">
+                <span className={`mt-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${ESTILO_ACCION[it.accion] || 'bg-slate-500/10 text-slate-300 border-slate-500/30'}`}>{it.accion.replace('_', ' ')}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-[#d0d0da]">{it.usuarioNombre}</span>
+                    {it.usuarioRol && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[it.usuarioRol] || ''}`}>{it.usuarioRol}</span>}
+                    <span className="text-[11px] text-[#6a6b7e]">· {it.entidad}</span>
+                  </div>
+                  {it.detalle && <p className="text-xs text-[#9a9bb0] mt-0.5 break-words">{it.detalle}</p>}
+                </div>
+                <span className="text-[11px] text-[#8a8b9e] whitespace-nowrap">{new Date(it.createdAt).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-center gap-4">
+          <button onClick={() => cargar(pagina - 1)} disabled={pagina <= 1 || cargando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl disabled:opacity-40">Anterior</button>
+          <span className="text-xs text-[#8a8b9e]">Página {pagina} de {totalPaginas}</span>
+          <button onClick={() => cargar(pagina + 1)} disabled={pagina >= totalPaginas || cargando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl disabled:opacity-40">Siguiente</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// PANEL DE USUARIOS (solo ADMIN y SUPERADMIN)
+// ============================================
+function UsuariosPanel() {
+  type RolU = 'SUPERADMIN' | 'ADMIN' | 'USUARIO';
+  interface UsuarioFila { id: string; nombre: string; email: string; rol: RolU; activo: boolean; pendiente: boolean; }
+  const [usuarios, setUsuarios] = useState<UsuarioFila[]>([]);
+  const [actor, setActor] = useState<{ id: string; rol: RolU } | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [modal, setModal] = useState<null | 'nuevo' | UsuarioFila>(null);
+  const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'USUARIO' as RolU, activo: true });
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const [errorGlobal, setErrorGlobal] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+
+  const cargar = async () => {
+    try {
+      const r = await fetch('/api/usuarios');
+      const d = await r.json();
+      if (r.ok) { setUsuarios(d.usuarios); setActor(d.actor); }
+    } finally { setCargando(false); }
+  };
+  useEffect(() => { cargar(); }, []);
+
+  const esSuper = actor?.rol === 'SUPERADMIN';
+  // SUPERADMIN gestiona a todos; ADMIN solo a usuarios con rol USUARIO (y puede editarse a sí mismo)
+  const puedeEditar = (u: UsuarioFila) => esSuper || u.rol === 'USUARIO' || u.id === actor?.id;
+  const puedeEliminar = (u: UsuarioFila) => u.id !== actor?.id && (esSuper || u.rol === 'USUARIO');
+
+  const abrirNuevo = () => { setForm({ nombre: '', email: '', password: '', rol: 'USUARIO', activo: true }); setErrores({}); setErrorGlobal(''); setModal('nuevo'); };
+  const abrirEditar = (u: UsuarioFila) => { setForm({ nombre: u.nombre, email: u.email, password: '', rol: u.rol, activo: u.activo }); setErrores({}); setErrorGlobal(''); setModal(u); };
+
+  const validar = (editando: boolean) => {
+    const e: Record<string, string> = {};
+    const n = validarNombre(form.nombre); if (n) e.nombre = n;
+    const m = validarEmail(form.email); if (m) e.email = m;
+    if (!editando || form.password) { const p = validarPassword(form.password); if (p) e.password = p; }
+    setErrores(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const guardar = async () => {
+    const editando = modal !== 'nuevo' && modal !== null;
+    if (!validar(editando)) return;
+    setGuardando(true); setErrorGlobal('');
+    try {
+      const r = await fetch('/api/usuarios', {
+        method: editando ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editando ? { id: (modal as UsuarioFila).id, ...form, password: form.password || undefined } : form),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErrorGlobal(d.error || 'No se pudo guardar.'); return; }
+      setModal(null);
+      await cargar();
+    } finally { setGuardando(false); }
+  };
+
+  const eliminar = async (u: UsuarioFila) => {
+    // Confirmación en dos pasos sin cuadros de diálogo: primer clic arma, segundo clic elimina
+    if (confirmandoId !== u.id) { setConfirmandoId(u.id); setTimeout(() => setConfirmandoId(prev => (prev === u.id ? null : prev)), 3000); return; }
+    setConfirmandoId(null);
+    const r = await fetch(`/api/usuarios?id=${u.id}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (!r.ok) { alert(d.error || 'No se pudo eliminar.'); return; }
+    await cargar();
+  };
+
+  const badgeRol = (rol: RolU) =>
+    rol === 'SUPERADMIN' ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30'
+    : rol === 'ADMIN' ? 'bg-[#818cf8]/10 text-[#a5b4fc] border-[#818cf8]/30'
+    : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+
+  const inputCls = 'w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
+  const rolesDisponibles: RolU[] = esSuper ? ['USUARIO', 'ADMIN', 'SUPERADMIN'] : ['USUARIO'];
+  const editandoSelf = modal !== null && modal !== 'nuevo' && modal.id === actor?.id;
+  const pendientes = usuarios.filter(u => u.pendiente);
+  const aprobados = usuarios.filter(u => !u.pendiente);
+
+  // Aprueba una solicitud de cuenta hecha desde el login (rechazar = eliminar, con el mismo "¿Seguro?")
+  const aprobar = async (u: UsuarioFila) => {
+    const r = await fetch('/api/usuarios', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id, accion: 'aprobar' }) });
+    const d = await r.json();
+    if (!r.ok) { alert(d.error || 'No se pudo aprobar la cuenta.'); return; }
+    await cargar();
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-[#e0e0ec]">Usuarios del sistema</h2>
+          <p className="text-xs text-[#8a8b9e] mt-0.5">{esSuper ? 'Como superadmin gestionas a todos los usuarios.' : 'Como administrador gestionas a los usuarios con rol USUARIO.'}</p>
+        </div>
+        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white text-sm font-semibold rounded-xl shadow-lg"><Plus className="w-4 h-4" />Nuevo usuario</motion.button>
+      </div>
+
+      <AnimatePresence initial={false}>
+        {pendientes.length > 0 && (
+          <motion.div key="solicitudes" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-amber-500/20 flex items-center gap-2 flex-wrap">
+                <AlertCircle className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-semibold text-amber-200">Solicitudes pendientes ({pendientes.length})</h3>
+                <span className="text-[11px] text-[#8a8b9e]">Se registraron desde el login y todavía no pueden entrar.</span>
+              </div>
+              <div className="divide-y divide-amber-500/10">
+                {pendientes.map(u => (
+                  <div key={u.id} className="p-4 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-amber-300" /></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-[#d0d0da] truncate">{u.nombre}</div>
+                      <div className="text-xs text-[#8a8b9e] truncate">{u.email}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => aprobar(u)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors"><CheckCircle className="w-3.5 h-3.5" />Aprobar</button>
+                      {puedeEliminar(u) && (
+                        <button onClick={() => eliminar(u)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors"><X className="w-3.5 h-3.5" />{confirmandoId === u.id ? '¿Seguro?' : 'Rechazar'}</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+        {cargando ? (
+          <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>
+        ) : aprobados.length === 0 ? (
+          <div className="p-8 text-center text-sm text-[#8a8b9e]">No hay usuarios registrados.</div>
+        ) : (
+          <div className="divide-y divide-[#313248]">
+            {aprobados.map(u => (
+              <div key={u.id} className="p-4 flex items-center gap-3 hover:bg-[#232438] transition-colors">
+                <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-[#818cf8]" /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-[#d0d0da] truncate">{u.nombre}</span>
+                    {u.id === actor?.id && <span className="text-[10px] text-[#8a8b9e]">(tú)</span>}
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeRol(u.rol)}`}>{u.rol}</span>
+                    {!u.activo && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADO</span>}
+                  </div>
+                  <div className="text-xs text-[#8a8b9e] truncate">{u.email}</div>
+                </div>
+                <div className="flex items-center gap-1">
+                  {puedeEditar(u) && <Tooltip text="Editar"><button onClick={() => abrirEditar(u)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>}
+                  {puedeEliminar(u) && (confirmandoId === u.id
+                    ? <button onClick={() => eliminar(u)} className="px-2 py-1 text-xs font-semibold text-red-300 bg-red-500/15 border border-red-500/30 rounded-lg">¿Seguro?</button>
+                    : <Tooltip text="Eliminar"><button onClick={() => eliminar(u)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {modal !== null && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4" onClick={() => setModal(null)}>
+            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-[#e0e0ec]">{modal === 'nuevo' ? 'Nuevo usuario' : 'Editar usuario'}</h3>
+                <button onClick={() => setModal(null)} className="p-1 text-[#8a8b9e] hover:text-[#d0d0da]"><X className="w-4 h-4" /></button>
+              </div>
+
+              <div>
+                <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre completo" className={`${inputCls} ${errores.nombre ? 'border-red-500/50' : ''}`} />
+                {errores.nombre && <p className="text-red-400 text-[11px] mt-1">{errores.nombre}</p>}
+              </div>
+              <div>
+                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Correo electrónico" className={`${inputCls} ${errores.email ? 'border-red-500/50' : ''}`} />
+                {errores.email && <p className="text-red-400 text-[11px] mt-1">{errores.email}</p>}
+              </div>
+              <div>
+                <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={modal === 'nuevo' ? 'Contraseña (mín. 8, letras y números)' : 'Nueva contraseña (dejar vacío para no cambiar)'} className={`${inputCls} ${errores.password ? 'border-red-500/50' : ''}`} autoComplete="new-password" />
+                {errores.password && <p className="text-red-400 text-[11px] mt-1">{errores.password}</p>}
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5">Rol</label>
+                <select value={form.rol} disabled={!esSuper || editandoSelf} onChange={(e) => setForm({ ...form, rol: e.target.value as RolU })} className={`${inputCls} disabled:opacity-60`}>
+                  {(esSuper ? rolesDisponibles : [form.rol]).map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              {modal !== 'nuevo' && !editandoSelf && (
+                <label className="flex items-center gap-2 text-sm text-[#b0b0c4] cursor-pointer">
+                  <input type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} className="accent-[#818cf8]" />
+                  Cuenta activa
+                </label>
+              )}
+
+              {errorGlobal && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{errorGlobal}</span></p>}
+
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setModal(null)} className="flex-1 py-2.5 text-sm font-medium text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-xl hover:bg-[#2c2d40]">Cancelar</button>
+                <button onClick={guardar} disabled={guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 function EstudiantesPanel() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -1972,10 +2665,11 @@ if (sonCuatro && generarPDF) {
 // PANEL DERECHO (CONFIG Y NOTIFICACIONES MEJORADAS)
 // ============================================
 type PanelDerechoHandle = { limpiarYScroll: () => void; };
-interface PanelDerechoProps { planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion'; onCambiarVista: (v: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
+interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; }
+interface PanelDerechoProps { usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad'; onCambiarVista: (v: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
 
-const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
-  const [vista, setVista] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion'>(vistaInicial);
+const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ usuario, onLogout, onUsuarioActualizado, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
+  const [vista, setVista] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
   // --- Selección múltiple de tarjetas para "Generar Plan de Acción" ---
@@ -2378,20 +3072,41 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [vista, numEvaluaciones, evaluacion1, evaluacion2, evaluacion3, evaluacion4]);
 
-  const tabs = [
+  const puedeAdministrar = usuario?.rol === 'ADMIN' || usuario?.rol === 'SUPERADMIN';
+  const esSuperadmin = usuario?.rol === 'SUPERADMIN';
+  // Si un USUARIO intenta llegar a una vista de administración (ej. por el chat), se le devuelve al Dashboard
+  useEffect(() => { if (!puedeAdministrar && vista === 'usuarios') setVista('estadisticas'); }, [puedeAdministrar, vista]);
+  useEffect(() => { if (!esSuperadmin && vista === 'actividad') setVista('estadisticas'); }, [esSuperadmin, vista]);
+  useEffect(() => { if (esSuperadmin && ['planificacion', 'rubrica', 'estudiantes', 'configuracion'].includes(vista)) setVista('estadisticas'); }, [esSuperadmin, vista]);
+  // Cantidad de cuentas esperando aprobación (para el contador rojo de la pestaña Usuarios)
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
+  useEffect(() => {
+    if (!puedeAdministrar) return;
+    fetch('/api/usuarios').then(r => (r.ok ? r.json() : null)).then(d => { if (d?.usuarios) setSolicitudesPendientes(d.usuarios.filter((u: any) => u.pendiente).length); }).catch(() => {});
+  }, [puedeAdministrar, vista]);
+  const todasLasTabs = [
     { id: 'estadisticas' as const, label: 'Dashboard', icon: BarChart3 }, 
     { id: 'planificacion' as const, label: 'Planificador', icon: ClipboardList }, 
     { id: 'rubrica' as const, label: 'Rúbrica', icon: FileText }, 
-    { id: 'estudiantes' as const, label: 'Estudiantes', icon: Users }
+    { id: 'estudiantes' as const, label: 'Estudiantes', icon: Users },
+    ...(puedeAdministrar ? [
+      { id: 'usuarios' as const, label: 'Usuarios', icon: UserCog, badge: solicitudesPendientes }
+    ] : []),
+    ...(esSuperadmin ? [
+      { id: 'actividad' as const, label: 'Actividad', icon: Activity }
+    ] : [])
   ];
+  // El superadmin administra el sistema: no tiene planificador, rúbrica ni estudiantes propios
+  const tabs = esSuperadmin ? todasLasTabs.filter(tb => ['estadisticas', 'usuarios', 'actividad'].includes(tb.id)) : todasLasTabs;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <style>{` input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } input[type="number"] { -moz-appearance: textfield; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } `}</style>
       <div className="px-4 py-3 border-b border-[#282a3f] flex flex-wrap items-center gap-1 md:gap-2 bg-[#161722]">
-        {tabs.map(tab => (<motion.button key={tab.id} onClick={() => setVista(tab.id)} className={`relative flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className="relative z-10 hidden sm:inline">{tab.label}</span></motion.button>))}
+        {tabs.map(tab => (<motion.button key={tab.id} onClick={() => setVista(tab.id)} className={`relative flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className="relative z-10 hidden sm:inline">{tab.label}</span>{(tab as any).badge > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{(tab as any).badge}</span>)}</motion.button>))}
         {/* Botón de configuración junto a la campanita */}
         <div className="ml-auto flex items-center gap-2">
+          {!esSuperadmin && (
           <motion.button
             onClick={() => setVista('configuracion')}
             whileHover={{ scale: 1.02 }}
@@ -2404,12 +3119,29 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
             <Settings className="w-4 h-4 relative z-10" />
             <span className="relative z-10 hidden sm:inline">Config</span>
           </motion.button>
+          )}
           <CampanitaNotificacionesFlotante notificaciones={notificaciones} setNotificaciones={setNotificaciones} campanaActiva={campanaActiva} setCampanaActiva={setCampanaActiva} />
+          {usuario && (
+            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[#282a3f]">
+              <Tooltip text="Mi perfil">
+                <button onClick={() => setVista('perfil')} className={`flex items-center gap-2 px-2 py-1 rounded-xl transition-colors ${vista === 'perfil' ? 'bg-[#818cf8]/10 border border-[#818cf8]/20' : 'hover:bg-[#1d1e2e] border border-transparent'}`}>
+                  <User className="w-4 h-4 text-[#8a8b9e] md:hidden" />
+                  <div className="hidden md:flex flex-col items-end leading-tight">
+                    <span className="text-xs font-medium text-[#d0d0da] max-w-[140px] truncate">{usuario.nombre}</span>
+                    <span className={`text-[10px] uppercase tracking-wider ${COLOR_TEXTO_ROL[usuario.rol] || 'text-[#818cf8]'}`}>{usuario.rol}</span>
+                  </div>
+                </button>
+              </Tooltip>
+              <Tooltip text="Cerrar sesión">
+                <button onClick={() => onLogout && onLogout()} className="p-2 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"><LogOut className="w-4 h-4" /></button>
+              </Tooltip>
+            </div>
+          )}
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#161722]">
         <AnimatePresence mode="wait">
-          {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><Dashboard planificacion={planificacion} /></motion.div>)}
+          {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><DashboardPorRol planificacion={planificacion} usuario={usuario} /></motion.div>)}
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
                 <div ref={tarjetaRef}>
@@ -2599,6 +3331,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           )}
           {vista === 'rubrica' && (<motion.div key="rubrica" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-5xl mx-auto"><RubricaPanel planificacion={planificacion} setPlanificacion={setPlanificacion} /></motion.div>)}
           {vista === 'estudiantes' && (<motion.div key="estudiantes" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><EstudiantesPanel /></motion.div>)}
+          {vista === 'actividad' && esSuperadmin && (<motion.div key="actividad" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><ActividadPanel /></motion.div>)}
+          {vista === 'perfil' && (<motion.div key="perfil" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-3xl mx-auto"><PerfilPanel usuario={usuario} onActualizado={onUsuarioActualizado} /></motion.div>)}
+          {vista === 'usuarios' && puedeAdministrar && (<motion.div key="usuarios" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><UsuariosPanel /></motion.div>)}
           {vista === 'configuracion' && (
             <motion.div key="configuracion" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-3xl mx-auto">
               <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-8 shadow-xl space-y-6">
@@ -2687,6 +3422,24 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 // APP PRINCIPAL
 // ============================================
 export default function PlanificadorExamenes() {
+  // ===== SESIÓN / ROLES =====
+  const [usuario, setUsuario] = useState<UsuarioSesion | null>(null);
+  useEffect(() => {
+    // Si la sesión expira mientras se usa la app, cualquier llamada a /api responde 401 → volver al login
+    const fetchOriginal = window.fetch;
+    window.fetch = async (...args) => {
+      const res = await fetchOriginal(...args);
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+      if (res.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth/login')) window.location.href = '/login';
+      return res;
+    };
+    fetchOriginal('/api/auth/me').then(r => (r.ok ? r.json() : Promise.reject())).then((u: UsuarioSesion) => { setUsuario(u); setVistaActual(u.rol === 'USUARIO' ? 'planificacion' : 'estadisticas'); }).catch(() => { window.location.href = '/login'; });
+    return () => { window.fetch = fetchOriginal; };
+  }, []);
+  const cerrarSesion = async () => {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } finally { window.location.href = '/login'; }
+  };
+  // ===== FIN SESIÓN / ROLES =====
   // ===== INICIO CONEXIÓN BD =====
 const [planificacionId, setPlanificacionId] = useState<string | null>(null);
 const [guardando, setGuardando] = useState(false);
@@ -2781,7 +3534,7 @@ const guardarPlanificacionEnBD = async () => {
 // ===== FIN CONEXIÓN BD =====
   const [agenteExpandido, setAgenteExpandido] = useState(true);
   const [propuestaPendiente, setPropuestaPendiente] = useState<PropuestaEvaluacion | null>(null);
-  const [vistaActual, setVistaActual] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion'>('estadisticas');
+  const [vistaActual, setVistaActual] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad'>('estadisticas');
   const [planificacion, setPlanificacion] = useState<PlanificacionExamen>({ id: '1', version: 1, estado: 'borrador', fechaExamen: new Date(), tipoExamen: 'mixto', duracionMinutos: 0, materia: 'Ing Software', secciones: [], rubrica: [], comentariosAgente: [{ id: 'c1', tipo: 'info', mensaje: 'Sube un archivo o escribe en el chat para comenzar la planificación.', timestamp: new Date() }] });
     // CARGAR EVALUACIONES DESDE LA BD AL REFRESCAR
   useEffect(() => {
@@ -2880,12 +3633,30 @@ const guardarPlanificacionEnBD = async () => {
     cargar();
   }, []);
 
+  // Hasta saber quién entró no se dibuja la interfaz (evita que las pestañas "salten" al cargar)
+  if (!usuario) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#161722]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#313248] border-t-[#818cf8] rounded-full animate-spin" />
+          <p className="text-xs text-[#8a8b9e]">Cargando tu espacio de trabajo...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen bg-[#161722] text-[#b0b0c0] overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#161722] text-[#b0b0c0] overflow-hidden">
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } `}</style>
-      <div className="flex-1 flex overflow-hidden">
+      <BandaRol rol={usuario.rol} />
+      <div className="flex-1 flex overflow-hidden min-h-0">
+                {usuario.rol !== 'SUPERADMIN' && (
                 <AgentePanel expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} />
+                )}
         <PanelDerecho 
+          usuario={usuario}
+          onLogout={cerrarSesion}
+          onUsuarioActualizado={setUsuario}
           ref={panelDerechoRef} 
           planificacion={planificacion} 
           setPlanificacion={setPlanificacion} 

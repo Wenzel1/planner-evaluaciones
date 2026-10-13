@@ -1,5 +1,16 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { requerirActor, verificarAcceso } from '@/lib/permisos'
+import { registrarActividad } from '@/lib/actividad'
+
+// Obtiene el dueño de una planificación (el dueño de su materia)
+async function duenoDePlanificacion(id: string) {
+  const p = await prisma.planificacion.findUnique({
+    where: { id },
+    select: { materia: { select: { usuarioId: true, nombre: true } } },
+  })
+  return p ? { usuarioId: p.materia.usuarioId, materiaNombre: p.materia.nombre } : null
+}
 
 // GET /api/planificaciones/:id
 export async function GET(
@@ -7,6 +18,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
     const { id } = await params; // AQUÍ ESTÁ EL ARREGLO
     
     const planificacion = await prisma.planificacion.findUnique({
@@ -26,6 +39,8 @@ export async function GET(
     if (!planificacion) {
       return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
     }
+    const denegado = verificarAcceso(actor, planificacion.materia.usuarioId, 'leer')
+    if (denegado) return denegado
 
     return NextResponse.json(planificacion)
   } catch (error) {
@@ -40,7 +55,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
     const { id } = await params; // AQUÍ ESTÁ EL ARREGLO
+
+    const dueno = await duenoDePlanificacion(id)
+    if (!dueno) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+    const denegado = verificarAcceso(actor, dueno.usuarioId, 'escribir')
+    if (denegado) return denegado
+
     const body = await request.json()
 
     // Actualizar campos principales
@@ -130,6 +153,7 @@ export async function PUT(
       },
     })
 
+    await registrarActividad({ actor, accion: 'EDITAR', entidad: 'Plan', detalle: `Actualizó el plan de "${dueno.materiaNombre}"${body.evaluaciones ? ` (${body.evaluaciones.length} evaluaciones)` : ''}` })
     return NextResponse.json(actualizada)
   } catch (error) {
     console.error(error)
@@ -143,8 +167,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
     const { id } = await params; // AQUÍ ESTÁ EL ARREGLO
+
+    const dueno = await duenoDePlanificacion(id)
+    if (!dueno) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
+    const denegado = verificarAcceso(actor, dueno.usuarioId, 'escribir')
+    if (denegado) return denegado
+
     await prisma.planificacion.delete({ where: { id } })
+    await registrarActividad({ actor, accion: 'ELIMINAR', entidad: 'Plan', detalle: `Eliminó el plan de "${dueno.materiaNombre}"` })
     return NextResponse.json({ eliminado: true })
   } catch (error) {
     console.error(error)

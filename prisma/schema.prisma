@@ -58,9 +58,31 @@ enum RolMensaje {
   USER
 }
 
+enum RolUsuario {
+  SUPERADMIN
+  ADMIN
+  USUARIO
+}
+
 // ============================================
 // MODELOS
 // ============================================
+model Usuario {
+  id           String     @id @default(cuid())
+  nombre       String
+  email        String     @unique
+  passwordHash String
+  rol          RolUsuario @default(USUARIO)
+  activo       Boolean    @default(true)
+  pendiente    Boolean    @default(false) // true = se registró desde el login y espera aprobación de un administrador
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  materias       Materia[]
+  estudiantes    Estudiante[]
+  conversaciones Conversacion[]
+}
+
 model Materia {
   id          String   @id @default(cuid())
   nombre      String
@@ -69,6 +91,11 @@ model Materia {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   planificaciones Planificacion[]
+
+  // Dueño (profesor que la creó). Si se elimina la cuenta, los datos quedan sin dueño (no se borran).
+  usuarioId   String?
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  @@index([usuarioId])
 }
 
 model Planificacion {
@@ -137,7 +164,7 @@ model NivelDesempeno {
 model Estudiante {
   id        String           @id @default(cuid())
   nombre    String
-  email     String           @unique
+  email     String
   telefono  String?
   grupo     String           @default("A")
   estado    EstadoEstudiante @default(ACTIVO)
@@ -146,6 +173,12 @@ model Estudiante {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   calificaciones Calificacion[]
+
+  // Dueño (profesor). El mismo estudiante puede existir en la lista de varios profesores.
+  usuarioId String?
+  usuario   Usuario?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  @@unique([usuarioId, email])
+  @@index([usuarioId])
 }
 
 model Calificacion {
@@ -178,6 +211,10 @@ model Conversacion {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   mensajes        Mensaje[]
+
+  usuarioId       String?
+  usuario         Usuario?       @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  @@index([usuarioId])
 }
 
 model Mensaje {
@@ -188,4 +225,20 @@ model Mensaje {
   conversacionId  String
   conversacion    Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
   createdAt       DateTime     @default(now())
+}
+
+// Registro de actividad (auditoría). Guarda una copia del nombre/rol de quien actuó,
+// así el historial se conserva aunque la cuenta se elimine.
+model Actividad {
+  id            String   @id @default(cuid())
+  usuarioId     String?
+  usuarioNombre String
+  usuarioRol    String?
+  accion        String
+  entidad       String
+  detalle       String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([accion])
 }

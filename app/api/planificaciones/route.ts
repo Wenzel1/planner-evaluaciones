@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma';
+import { requerirActor, quiereTodos, verificarAcceso, bloquearSiSuperadmin } from '@/lib/permisos';
+import { registrarActividad } from '@/lib/actividad';
 
-// GET /api/planificaciones?materiaId=xxx
+// GET /api/planificaciones?materiaId=xxx  (solo las del usuario; ADMIN/SUPERADMIN pueden pedir ?todos=1)
 export async function GET(request: Request) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
     const { searchParams } = new URL(request.url)
     const materiaId = searchParams.get('materiaId')
+    const todos = quiereTodos(request, actor)
 
     const where: any = {}
     if (materiaId) where.materiaId = materiaId
+    if (!todos) where.materia = { usuarioId: actor.id }
 
     const planificaciones = await prisma.planificacion.findMany({
       where,
@@ -31,11 +37,21 @@ export async function GET(request: Request) {
 // POST /api/planificaciones
 export async function POST(request: Request) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
+    const bloqueado = bloquearSiSuperadmin(actor)
+    if (bloqueado) return bloqueado
     const body = await request.json()
 
     if (!body.materiaId) {
       return NextResponse.json({ error: 'materiaId es obligatorio' }, { status: 400 })
     }
+
+    // La materia debe pertenecer al usuario (o ser SUPERADMIN)
+    const materia = await prisma.materia.findUnique({ where: { id: body.materiaId }, select: { usuarioId: true } })
+    if (!materia) return NextResponse.json({ error: 'Materia no encontrada' }, { status: 404 })
+    const denegado = verificarAcceso(actor, materia.usuarioId, 'escribir')
+    if (denegado) return denegado
 
     const planificacion = await prisma.planificacion.create({
       data: {
@@ -85,6 +101,7 @@ export async function POST(request: Request) {
       },
     })
 
+    await registrarActividad({ actor, accion: 'CREAR', entidad: 'Plan', detalle: `Plan de "${planificacion.materia.nombre}" (${planificacion.evaluaciones.length} evaluaciones)` })
     return NextResponse.json(planificacion, { status: 201 })
   } catch (error) {
     console.error(error)

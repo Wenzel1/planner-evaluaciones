@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { requerirActor, quiereTodos, verificarAcceso, bloquearSiSuperadmin } from '@/lib/permisos'
+import { registrarActividad } from '@/lib/actividad'
 
-// GET /api/estudiantes
+// GET /api/estudiantes  (solo los del usuario; ADMIN/SUPERADMIN pueden pedir ?todos=1)
 export async function GET(request: Request) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
     const { searchParams } = new URL(request.url)
     const grupo = searchParams.get('grupo')
     const estado = searchParams.get('estado')
     const buscar = searchParams.get('buscar')
+    const todos = quiereTodos(request, actor)
 
     const where: any = {}
+    if (!todos) where.usuarioId = actor.id
     if (grupo) where.grupo = grupo
     if (estado) where.estado = estado.toUpperCase()
     if (buscar) {
@@ -22,6 +28,7 @@ export async function GET(request: Request) {
 
     const estudiantes = await prisma.estudiante.findMany({
       where,
+      ...(todos ? { include: { usuario: { select: { id: true, nombre: true } } } } : {}),
       orderBy: { nombre: 'asc' },
     })
     return NextResponse.json(estudiantes)
@@ -34,6 +41,10 @@ export async function GET(request: Request) {
 // POST /api/estudiantes
 export async function POST(request: Request) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
+    const bloqueado = bloquearSiSuperadmin(actor)
+    if (bloqueado) return bloqueado
     const body = await request.json()
 
     // Validaciones
@@ -55,12 +66,14 @@ export async function POST(request: Request) {
         telefono: body.telefono.trim(),
         grupo: body.grupo || 'A',
         estado: body.estado || 'ACTIVO',
+        usuarioId: actor.id,
       },
     })
+    await registrarActividad({ actor, accion: 'CREAR', entidad: 'Estudiante', detalle: `Agregó a ${estudiante.nombre}` })
     return NextResponse.json(estudiante, { status: 201 })
   } catch (error: any) {
     if (error.code === 'P2002') {
-      return NextResponse.json({ error: 'El email ya está registrado.' }, { status: 409 })
+      return NextResponse.json({ error: 'Ya tienes un estudiante registrado con ese email.' }, { status: 409 })
     }
     console.error(error)
     return NextResponse.json({ error: 'Error al crear estudiante' }, { status: 500 })
@@ -70,11 +83,18 @@ export async function POST(request: Request) {
 // PUT /api/estudiantes (EDITAR)
 export async function PUT(request: Request) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
     const body = await request.json()
 
     if (!body.id) {
       return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
     }
+
+    const existente = await prisma.estudiante.findUnique({ where: { id: body.id }, select: { usuarioId: true } })
+    if (!existente) return NextResponse.json({ error: 'Estudiante no encontrado' }, { status: 404 })
+    const denegado = verificarAcceso(actor, existente.usuarioId, 'escribir')
+    if (denegado) return denegado
     
     // Validaciones
     if (!body.nombre || body.nombre.trim().length < 3) {
@@ -98,10 +118,11 @@ export async function PUT(request: Request) {
         estado: body.estado ? body.estado.toUpperCase() : undefined,
       },
     })
+    await registrarActividad({ actor, accion: 'EDITAR', entidad: 'Estudiante', detalle: `Editó a ${estudiante.nombre}` })
     return NextResponse.json(estudiante)
   } catch (error: any) {
     if (error.code === 'P2002') {
-      return NextResponse.json({ error: 'El email ya está registrado por otro estudiante.' }, { status: 409 })
+      return NextResponse.json({ error: 'Ya tienes otro estudiante con ese email.' }, { status: 409 })
     }
     console.error(error)
     return NextResponse.json({ error: 'Error al actualizar' }, { status: 500 })
@@ -111,10 +132,19 @@ export async function PUT(request: Request) {
 // DELETE /api/estudiantes?id=xxx
 export async function DELETE(request: Request) {
   try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+
+    const existente = await prisma.estudiante.findUnique({ where: { id }, select: { usuarioId: true, nombre: true } })
+    if (!existente) return NextResponse.json({ error: 'Estudiante no encontrado' }, { status: 404 })
+    const denegado = verificarAcceso(actor, existente.usuarioId, 'escribir')
+    if (denegado) return denegado
+
     await prisma.estudiante.delete({ where: { id } })
+    await registrarActividad({ actor, accion: 'ELIMINAR', entidad: 'Estudiante', detalle: `Eliminó a ${existente.nombre}` })
     return NextResponse.json({ eliminado: true })
   } catch (error) {
     console.error(error)
