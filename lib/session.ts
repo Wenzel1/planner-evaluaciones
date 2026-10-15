@@ -10,10 +10,12 @@ export interface SesionPayload {
   email: string
   rol: Rol
   exp: number // segundos desde epoch
+  ini?: number // cuándo se inició la sesión (login); se conserva al renovar para respetar el tope absoluto
 }
 
 export const COOKIE_SESION = 'session'
 export const DURACION_SESION_SEG = 60 * 60 * 8 // 8 horas
+export const LIMITE_ABSOLUTO_SEG = 60 * 60 * 24 // una sesión nunca dura más de 24 h desde el login, aunque se renueve
 
 const encoder = new TextEncoder()
 
@@ -49,8 +51,10 @@ async function getKey(): Promise<CryptoKey> {
   )
 }
 
-export async function crearToken(data: Omit<SesionPayload, 'exp'>): Promise<string> {
-  const payload: SesionPayload = { ...data, exp: Math.floor(Date.now() / 1000) + DURACION_SESION_SEG }
+export async function crearToken(data: Omit<SesionPayload, 'exp' | 'ini'>, ini?: number): Promise<string> {
+  const ahora = Math.floor(Date.now() / 1000)
+  const inicio = ini ?? ahora
+  const payload: SesionPayload = { ...data, ini: inicio, exp: Math.min(ahora + DURACION_SESION_SEG, inicio + LIMITE_ABSOLUTO_SEG) }
   const cuerpo = b64urlEncode(encoder.encode(JSON.stringify(payload)))
   const firma = await crypto.subtle.sign('HMAC', await getKey(), encoder.encode(cuerpo))
   return `${cuerpo}.${b64urlEncode(new Uint8Array(firma))}`
@@ -78,3 +82,15 @@ export async function verificarToken(token: string | undefined | null): Promise<
 }
 
 export const esAdminOSuperadmin = (rol?: string) => rol === 'ADMIN' || rol === 'SUPERADMIN'
+
+// ----- Sesión deslizante: mientras la persona siga usando la app, la sesión se renueva sola -----
+const inicioDe = (p: SesionPayload) => p.ini ?? p.exp - DURACION_SESION_SEG
+
+/** Se renueva cuando ya pasó más de la mitad de la duración y todavía no se llegó al tope absoluto. */
+export function debeRenovar(p: SesionPayload, ahora: number = Math.floor(Date.now() / 1000)): boolean {
+  return p.exp - ahora < DURACION_SESION_SEG / 2 && p.exp < inicioDe(p) + LIMITE_ABSOLUTO_SEG
+}
+
+export async function renovarToken(p: SesionPayload): Promise<string> {
+  return crearToken({ sub: p.sub, nombre: p.nombre, email: p.email, rol: p.rol }, inicioDe(p))
+}

@@ -6,7 +6,8 @@
 export interface UsuarioBase { id: string; nombre: string; email: string; rol: string; activo: boolean; pendiente: boolean; createdAt: Date }
 export interface EvaluacionBase { id: string; nombre: string; peso: number | null; tipoActividad: string | null; fecha: Date | null; tiempoEstimadoMinutos: number | null }
 export interface PlanificacionBase { fechaExamen: Date; updatedAt: Date; evaluaciones: EvaluacionBase[] }
-export interface MateriaBase { id: string; nombre: string; usuarioId: string | null; planificaciones: PlanificacionBase[] } // planificaciones: la más reciente primero
+export interface ObservacionBase { id: string; autorNombre: string; evaluacionNombre: string | null; mensaje: string; leida: boolean; createdAt: Date }
+export interface MateriaBase { id: string; nombre: string; usuarioId: string | null; planificaciones: PlanificacionBase[]; observaciones?: ObservacionBase[] } // planificaciones: la más reciente primero
 export interface GrupoEstudiantes { usuarioId: string | null; total: number }
 
 export function construirResumen(usuarios: UsuarioBase[], materias: MateriaBase[], grupos: GrupoEstudiantes[]) {
@@ -20,6 +21,7 @@ export function construirResumen(usuarios: UsuarioBase[], materias: MateriaBase[
       fechaExamen: plan?.fechaExamen ?? null,
       ultimaActividad: plan?.updatedAt ?? null,
       evaluaciones: plan?.evaluaciones ?? [],
+      observaciones: m.observaciones ?? [],
     }
   }
 

@@ -95,6 +95,7 @@ model Materia {
   // Dueño (profesor que la creó). Si se elimina la cuenta, los datos quedan sin dueño (no se borran).
   usuarioId   String?
   usuario     Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  observaciones Observacion[]
   @@index([usuarioId])
 }
 
@@ -136,6 +137,7 @@ model Evaluacion {
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
   calificaciones        Calificacion[]
+  grupoSeccion String @default("A") // sección de estudiantes (A, B, C, D...) a la que pertenece
 }
 
 model CriterioRubrica {
@@ -241,4 +243,38 @@ model Actividad {
 
   @@index([createdAt])
   @@index([accion])
+}
+
+// Observaciones que un ADMIN / SUPERADMIN deja sobre el trabajo de un profesor.
+// Se anclan a la materia (no a la evaluación) porque las evaluaciones se vuelven a guardar con cada cambio.
+model Observacion {
+  id               String   @id @default(cuid())
+  materiaId        String
+  materia          Materia  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  evaluacionNombre String?
+  autorId          String?
+  autorNombre      String
+  autorRol         String
+  mensaje          String
+  leida            Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([materiaId])
+  @@index([createdAt])
+}
+
+// Papelera: lo que se elimina se guarda aquí 30 días para poder restaurarlo.
+model PapeleraItem {
+  id                 String   @id @default(cuid())
+  usuarioId          String   // dueño: la persona que puede restaurarlo
+  tipo               String   // 'EVALUACION' | 'ESTUDIANTE'
+  nombre             String
+  contexto           String?
+  datos              Json
+  eliminadoPorId     String?
+  eliminadoPorNombre String
+  createdAt          DateTime @default(now()) // fecha de eliminación
+
+  @@index([usuarioId, createdAt])
+  @@index([createdAt])
 }

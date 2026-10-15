@@ -26,7 +26,7 @@ import {
   UsersRound, UserCheck, FileSearch, Layout, Puzzle, Gamepad2,
   Presentation, Handshake, Globe, Scale, BookType, ClipboardCheck,
   MessageCircleQuestion, Eye as EyeIcon, Speech, Download,
-  UserCog, ShieldCheck, RefreshCw
+  UserCog, ShieldCheck, RefreshCw, Upload
 } from 'lucide-react';
 
 // Agregar esto debajo de los imports de lucide-react
@@ -34,6 +34,7 @@ import { apiEstudiantes, apiPlanificaciones } from '@/lib/api';
 import StreamInput from "@/components/StreamInput";
 import StreamTextarea from "@/components/StreamTextarea";
 import { validarNombre, validarEmail, validarPassword } from '@/lib/validacionesUsuario';
+import { csvAEstudiantes, plantillaCSV } from '@/lib/csvEstudiantes';
 
 // ============================================
 // TIPOS
@@ -566,7 +567,8 @@ function DashboardPorRol({ planificacion, usuario }: { planificacion: Planificac
 
 function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
   interface EvalResumen { id: string; nombre: string; peso: number | null; tipoActividad: string | null; fecha: string | null }
-  interface MateriaResumen { id: string; nombre: string; fechaExamen: string | null; evaluaciones: EvalResumen[] }
+  interface ObsResumen { id: string; autorNombre: string; evaluacionNombre: string | null; mensaje: string; leida: boolean; createdAt: string }
+  interface MateriaResumen { id: string; nombre: string; fechaExamen: string | null; evaluaciones: EvalResumen[]; observaciones: ObsResumen[] }
   interface FilaResumen { id: string; nombre: string; email: string; rol: string; activo: boolean; pendiente: boolean; materias: MateriaResumen[]; totalMaterias: number; totalEvaluaciones: number; totalEstudiantes: number; ultimaActividad: string | null }
   interface Resumen {
     totales: { cuentas: { SUPERADMIN: number; ADMIN: number; USUARIO: number; desactivadas: number; pendientes: number }; materias: number; evaluaciones: number; estudiantes: number };
@@ -579,6 +581,39 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
   const [busqueda, setBusqueda] = useState('');
   const [abierto, setAbierto] = useState<string | null>(null);
   const [confirmandoEval, setConfirmandoEval] = useState<string | null>(null);
+  // Observaciones: el admin escribe una nota sobre una evaluación (o sobre la materia) y el profesor la recibe
+  const [composer, setComposer] = useState<{ materiaId: string; evaluacionNombre: string | null } | null>(null);
+  const [textoObs, setTextoObs] = useState('');
+  const [enviandoObs, setEnviandoObs] = useState(false);
+  const [errorObs, setErrorObs] = useState('');
+  const abrirComposer = (materiaId: string, evaluacionNombre: string | null) => { setComposer({ materiaId, evaluacionNombre }); setTextoObs(''); setErrorObs(''); };
+  const enviarObservacion = async () => {
+    if (!composer) return;
+    if (textoObs.trim().length < 3) { setErrorObs('Escribe al menos 3 caracteres.'); return; }
+    setEnviandoObs(true); setErrorObs('');
+    try {
+      const r = await fetch('/api/observaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ materiaId: composer.materiaId, evaluacionNombre: composer.evaluacionNombre, mensaje: textoObs }) });
+      const d = await r.json();
+      if (!r.ok) { setErrorObs(d.error || 'No se pudo enviar la observación.'); return; }
+      setComposer(null); setTextoObs('');
+      await cargar();
+    } catch { setErrorObs('No se pudo conectar con el servidor.'); }
+    finally { setEnviandoObs(false); }
+  };
+  const esComposer = (materiaId: string, nombre: string | null) => composer?.materiaId === materiaId && composer.evaluacionNombre === nombre;
+  const formularioObservacion = (
+    <div className="mt-1.5 mb-2 bg-[#191a26] border border-yellow-500/30 rounded-lg p-3 space-y-2">
+      <textarea value={textoObs} onChange={(e) => setTextoObs(e.target.value)} maxLength={500} rows={3} placeholder="Escribe tu observación para el profesor..." className="w-full bg-[#272839] border border-[#313248] rounded-lg px-3 py-2 text-xs text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-yellow-500/50" />
+      {errorObs && <p className="text-red-400 text-[11px]">{errorObs}</p>}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-[#6a6b7e]">{textoObs.length}/500</span>
+        <div className="flex gap-2">
+          <button onClick={() => setComposer(null)} className="px-3 py-1.5 text-xs text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-lg">Cancelar</button>
+          <button onClick={enviarObservacion} disabled={enviandoObs} className="px-3 py-1.5 text-xs font-semibold text-yellow-200 bg-yellow-500/10 border border-yellow-500/30 rounded-lg hover:bg-yellow-500/20 disabled:opacity-60">{enviandoObs ? 'Enviando...' : 'Enviar observación'}</button>
+        </div>
+      </div>
+    </div>
+  );
 
   const cargar = async () => {
     setCargando(true); setError('');
@@ -697,19 +732,39 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
                                 <div key={m.id}>
                                   <div className="flex items-center justify-between gap-2 mb-2">
                                     <h4 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8]" />{m.nombre}</h4>
-                                    <span className="text-xs text-[#8a8b9e]">Examen: {fecha(m.fechaExamen)}</span>
+                                    <div className="flex items-center gap-3">
+                                      <button onClick={() => abrirComposer(m.id, null)} className="flex items-center gap-1 text-[11px] text-yellow-300/80 hover:text-yellow-200" title="Dejar una observación sobre esta materia"><MessageSquare className="w-3.5 h-3.5" />Observación general</button>
+                                      <span className="text-xs text-[#8a8b9e]">Examen: {fecha(m.fechaExamen)}</span>
+                                    </div>
                                   </div>
+                                  {esComposer(m.id, null) && formularioObservacion}
                                   {m.evaluaciones.length === 0 ? (
                                     <p className="text-xs text-[#6a6b7e] pl-6">Sin evaluaciones guardadas.</p>
                                   ) : (
                                     <div className="space-y-1.5">
                                       {m.evaluaciones.map((ev, i) => (
-                                        <div key={i} className="flex items-center gap-3 bg-[#1f2035] border border-[#282a3f] rounded-lg px-3 py-2 text-xs">
+                                        <div key={i}>
+                                        <div className="flex items-center gap-3 bg-[#1f2035] border border-[#282a3f] rounded-lg px-3 py-2 text-xs">
                                           <span className="flex-1 min-w-0 truncate text-[#d0d0da]">{limpiarTexto(ev.nombre)}</span>
                                           {ev.tipoActividad && <span className="hidden sm:inline text-[#8a8b9e] truncate max-w-[140px]">🎯 {ev.tipoActividad}</span>}
                                           <span className="text-[#8a8b9e]">📅 {fecha(ev.fecha)}</span>
                                           <span className="font-semibold text-[#a5b4fc] w-10 text-right">{ev.peso != null ? `${ev.peso}%` : '—'}</span>
+                                          <button onClick={() => abrirComposer(m.id, ev.nombre)} title="Dejar una observación sobre esta evaluación" className="px-1.5 py-1 rounded-md text-[#6a6b7e] hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors"><MessageSquare className="w-3.5 h-3.5" /></button>
                                           <button onClick={() => eliminarEvaluacion(ev.id)} title="Eliminar evaluación (moderación)" className={`px-1.5 py-1 rounded-md transition-colors ${confirmandoEval === ev.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[#6a6b7e] hover:text-red-400 hover:bg-red-500/10'}`}>{confirmandoEval === ev.id ? '¿Seguro?' : <Trash2 className="w-3.5 h-3.5" />}</button>
+                                        </div>
+                                        {esComposer(m.id, ev.nombre) && formularioObservacion}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {m.observaciones.length > 0 && (
+                                    <div className="mt-2 space-y-1">
+                                      <p className="text-[10px] uppercase tracking-wider text-[#6a6b7e]">Observaciones enviadas</p>
+                                      {m.observaciones.map(o => (
+                                        <div key={o.id} className="flex items-start gap-2 text-[11px] text-[#9a9bb0]">
+                                          <MessageSquare className="w-3 h-3 flex-shrink-0 mt-0.5 text-yellow-300/70" />
+                                          <span className="flex-1 break-words"><span className="text-[#c0c0cc]">{o.autorNombre}</span>{o.evaluacionNombre ? ` · «${limpiarTexto(o.evaluacionNombre)}»` : ''}: {o.mensaje}</span>
+                                          <span className={`flex-shrink-0 ${o.leida ? 'text-emerald-400/80' : 'text-amber-300/80'}`}>{o.leida ? 'leída' : 'sin leer'}</span>
                                         </div>
                                       ))}
                                     </div>
@@ -732,6 +787,45 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ============================================
+// AVISOS DEL PLAN: suma de pesos y evaluaciones en el mismo día (por sección)
+// ============================================
+function AlertasPlan({ secciones }: { secciones: SeccionExamen[] }) {
+  if (secciones.length === 0) return null;
+
+  const suma = secciones.reduce((acc, s) => acc + (s.peso ?? 0), 0);
+
+  // Agrupa por día (en hora local) para detectar evaluaciones que caen el mismo día
+  const porDia = new Map<string, SeccionExamen[]>();
+  secciones.forEach(s => {
+    if (!s.fecha) return;
+    const d = new Date(s.fecha);
+    if (isNaN(d.getTime())) return;
+    const clave = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    porDia.set(clave, [...(porDia.get(clave) || []), s]);
+  });
+  const choques = [...porDia.values()].filter(lista => lista.length > 1);
+
+  const chip = 'flex items-start gap-2 text-xs rounded-lg px-3 py-2 border';
+  return (
+    <div className="space-y-2 mb-4">
+      {suma === 100 ? (
+        <div className={`${chip} bg-emerald-500/10 border-emerald-500/30 text-emerald-300`}><CheckCircle className="w-4 h-4 flex-shrink-0" /><span>Los pesos de esta sección suman 100%.</span></div>
+      ) : suma < 100 ? (
+        <div className={`${chip} bg-amber-500/10 border-amber-500/30 text-amber-300`}><AlertCircle className="w-4 h-4 flex-shrink-0" /><span>Los pesos suman {suma}%: faltan {100 - suma}% para llegar a 100%.</span></div>
+      ) : (
+        <div className={`${chip} bg-red-500/10 border-red-500/30 text-red-300`}><AlertCircle className="w-4 h-4 flex-shrink-0" /><span>Los pesos suman {suma}%: sobran {suma - 100}% sobre el 100%.</span></div>
+      )}
+      {choques.map((lista, i) => (
+        <div key={i} className={`${chip} bg-amber-500/10 border-amber-500/30 text-amber-300`}>
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{lista.length} evaluaciones caen el {new Date(lista[0].fecha as any).toLocaleDateString()}: {lista.map(s => limpiarTexto(s.nombre)).join(', ')}.</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -911,6 +1005,8 @@ const ESTILO_ACCION: Record<string, string> = {
   LOGIN: 'bg-slate-500/10 text-slate-300 border-slate-500/30',
   LOGIN_FALLIDO: 'bg-orange-500/10 text-orange-300 border-orange-500/30',
   LOGOUT: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+  OBSERVAR: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30',
+  RESTAURAR: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
 };
 
 function ActividadPanel() {
@@ -940,7 +1036,7 @@ function ActividadPanel() {
   };
   useEffect(() => { cargar(1); }, [accion, buscarAplicado]);
 
-  const acciones = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT', 'REGISTRO', 'APROBAR', 'RECHAZAR', 'CREAR', 'EDITAR', 'ELIMINAR'];
+  const acciones = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT', 'REGISTRO', 'APROBAR', 'RECHAZAR', 'CREAR', 'EDITAR', 'ELIMINAR', 'OBSERVAR', 'RESTAURAR'];
   const inputCls = 'bg-[#272839] border border-[#313248] rounded-xl px-3 py-2 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
 
   return (
@@ -1000,6 +1096,155 @@ function ActividadPanel() {
           <button onClick={() => cargar(pagina + 1)} disabled={pagina >= totalPaginas || cargando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl disabled:opacity-40">Siguiente</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================
+// OBSERVACIONES RECIBIDAS (lo que un administrador dejó sobre tu trabajo)
+// ============================================
+interface ObservacionRecibida { id: string; evaluacionNombre: string | null; autorNombre: string; autorRol: string; mensaje: string; leida: boolean; createdAt: string; materia: { nombre: string } }
+
+function ObservacionesRecibidas({ items, onLeer }: { items: ObservacionRecibida[]; onLeer: (id?: string) => void }) {
+  const [verLeidas, setVerLeidas] = useState(false);
+  if (items.length === 0) return null;
+  const sinLeer = items.filter(o => !o.leida);
+  const leidas = items.filter(o => o.leida);
+
+  const tarjeta = (o: ObservacionRecibida, nueva: boolean) => (
+    <div key={o.id} className="p-4 flex items-start gap-3">
+      <MessageSquare className={`w-4 h-4 flex-shrink-0 mt-0.5 ${nueva ? 'text-amber-300' : 'text-[#6a6b7e]'}`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <span className="font-semibold text-[#d0d0da]">{o.autorNombre}</span>
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[o.autorRol] || ''}`}>{o.autorRol}</span>
+          <span className="text-[#8a8b9e]">· {o.materia.nombre}{o.evaluacionNombre ? ` · «${limpiarTexto(o.evaluacionNombre)}»` : ''}</span>
+          <span className="text-[#6a6b7e]">· {new Date(o.createdAt).toLocaleString()}</span>
+        </div>
+        <p className="text-sm text-[#c0c0cc] mt-1 whitespace-pre-wrap break-words">{o.mensaje}</p>
+      </div>
+      {nueva && <button onClick={() => onLeer(o.id)} className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg hover:bg-amber-500/20 transition-colors">Entendido</button>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      {sinLeer.length > 0 && (
+        <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-amber-500/20 flex items-center gap-2 flex-wrap">
+            <MessageSquare className="w-4 h-4 text-amber-300" />
+            <h3 className="text-sm font-semibold text-amber-200">Observaciones nuevas ({sinLeer.length})</h3>
+            <span className="text-[11px] text-[#8a8b9e]">Un administrador revisó tu trabajo.</span>
+            {sinLeer.length > 1 && <button onClick={() => onLeer()} className="ml-auto text-xs text-amber-200/80 hover:text-amber-100 underline">Marcar todas como leídas</button>}
+          </div>
+          <div className="divide-y divide-amber-500/10">{sinLeer.map(o => tarjeta(o, true))}</div>
+        </div>
+      )}
+      {leidas.length > 0 && (
+        <div>
+          <button onClick={() => setVerLeidas(v => !v)} className="text-xs text-[#8a8b9e] hover:text-[#b0b0c4] flex items-center gap-1">
+            {verLeidas ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}{verLeidas ? 'Ocultar' : 'Ver'} observaciones leídas ({leidas.length})
+          </button>
+          {verLeidas && <div className="mt-2 bg-[#1d1e2e] border border-[#313248] rounded-2xl divide-y divide-[#313248] overflow-hidden">{leidas.map(o => tarjeta(o, false))}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// PAPELERA (lo eliminado se guarda 30 días y se puede restaurar)
+// ============================================
+function PapeleraPanel({ usuario }: { usuario?: UsuarioSesion | null }) {
+  interface ItemPapelera { id: string; tipo: string; nombre: string; contexto: string | null; eliminadoPorNombre: string; eliminadoPorId: string | null; createdAt: string }
+  const [items, setItems] = useState<ItemPapelera[]>([]);
+  const [dias, setDias] = useState(30);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [procesandoId, setProcesandoId] = useState<string | null>(null);
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+
+  const cargar = async () => {
+    setCargando(true); setError('');
+    try {
+      const r = await fetch('/api/papelera');
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'No se pudo cargar la papelera.');
+      setItems(d.items); setDias(d.diasRetencion);
+    } catch (e: any) { setError(e.message || 'No se pudo cargar la papelera.'); }
+    finally { setCargando(false); }
+  };
+  useEffect(() => { cargar(); }, []);
+
+  const restaurar = async (it: ItemPapelera) => {
+    setProcesandoId(it.id); setError(''); setAviso('');
+    try {
+      const r = await fetch(`/api/papelera/${it.id}/restaurar`, { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || 'No se pudo restaurar.'); return; }
+      if (it.tipo === 'EVALUACION') {
+        // La evaluación vuelve a la base de datos: se recarga la página para que aparezca en el planificador
+        setAviso('Evaluación restaurada. Recargando...');
+        setTimeout(() => window.location.reload(), 900);
+      } else {
+        setAviso('Estudiante restaurado. Ya aparece en la pestaña Estudiantes.');
+        await cargar();
+      }
+    } catch { setError('No se pudo conectar con el servidor.'); }
+    finally { setProcesandoId(null); }
+  };
+
+  const eliminarDefinitivo = async (it: ItemPapelera) => {
+    if (confirmandoId !== it.id) { setConfirmandoId(it.id); setTimeout(() => setConfirmandoId(prev => (prev === it.id ? null : prev)), 3000); return; }
+    setConfirmandoId(null);
+    const r = await fetch(`/api/papelera/${it.id}`, { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); setError(d.error || 'No se pudo eliminar.'); return; }
+    await cargar();
+  };
+
+  const diasRestantes = (creado: string) => Math.max(0, Math.ceil((new Date(creado).getTime() + dias * 86400000 - Date.now()) / 86400000));
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-[#e0e0ec] flex items-center gap-2"><Trash2 className="w-5 h-5 text-[#818cf8]" />Papelera</h2>
+        <p className="text-xs text-[#8a8b9e] mt-0.5">Lo que eliminas se guarda {dias} días y luego se borra definitivamente. Aquí puedes restaurarlo.</p>
+      </div>
+
+      {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
+      {aviso && <p className="text-emerald-400 text-sm flex items-start gap-2"><CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{aviso}</span></p>}
+
+      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+        {cargando ? (
+          <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>
+        ) : items.length === 0 ? (
+          <div className="p-10 text-center text-sm text-[#8a8b9e]"><Trash2 className="w-8 h-8 mx-auto mb-3 text-[#3a3b52]" />La papelera está vacía.</div>
+        ) : (
+          <div className="divide-y divide-[#313248]">
+            {items.map(it => {
+              const porOtro = !!it.eliminadoPorId && it.eliminadoPorId !== usuario?.id;
+              return (
+                <div key={it.id} className="p-4 flex items-center gap-3 hover:bg-[#232438] transition-colors">
+                  <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0">{it.tipo === 'ESTUDIANTE' ? <User className="w-4 h-4 text-purple-300" /> : <FileText className="w-4 h-4 text-amber-300" />}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-[#d0d0da] truncate">{it.tipo === 'EVALUACION' ? limpiarTexto(it.nombre) : it.nombre}</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-slate-500/10 text-slate-300 border-slate-500/30">{it.tipo === 'ESTUDIANTE' ? 'ESTUDIANTE' : 'EVALUACIÓN'}</span>
+                      {porOtro && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">ELIMINADA POR {it.eliminadoPorNombre.toUpperCase()}</span>}
+                    </div>
+                    <div className="text-xs text-[#8a8b9e] truncate">{it.contexto ? `${it.contexto} · ` : ''}Eliminado el {new Date(it.createdAt).toLocaleDateString()} · se borra en {diasRestantes(it.createdAt)} día(s)</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => restaurar(it)} disabled={procesandoId === it.id} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors disabled:opacity-60"><RotateCcw className="w-3.5 h-3.5" />{procesandoId === it.id ? 'Restaurando...' : 'Restaurar'}</button>
+                    <button onClick={() => eliminarDefinitivo(it)} className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${confirmandoId === it.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[#6a6b7e] hover:text-red-400 hover:bg-red-500/10'}`} title="Eliminar definitivamente">{confirmandoId === it.id ? '¿Seguro?' : <Trash2 className="w-4 h-4" />}</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1218,6 +1463,10 @@ function EstudiantesPanel() {
   const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [cargando, setCargando] = useState(true);
+  const [importando, setImportando] = useState(false);
+  const [resultadoImport, setResultadoImport] = useState<{ creados: number; omitidos: { fila: number; motivo: string }[]; desplazamiento: number } | null>(null);
+  const [errorImport, setErrorImport] = useState('');
+  const inputArchivoRef = useRef<HTMLInputElement>(null);
   
   // Estados para Agregar
   const [nuevoNombre, setNuevoNombre] = useState('');
@@ -1295,6 +1544,30 @@ function EstudiantesPanel() {
     setEstudiantes(data.map((e: any) => ({ ...e, estado: e.estado.toLowerCase() })));
   };
 
+  // Importa estudiantes desde un archivo CSV (Excel → Guardar como → CSV). Máximo 500 por archivo.
+  const importarArchivo = async (archivo: File | undefined) => {
+    if (!archivo) return;
+    setResultadoImport(null); setErrorImport('');
+    try {
+      if (!/\.(csv|txt)$/i.test(archivo.name)) { setErrorImport('El archivo debe ser .csv. En Excel usa Guardar como → CSV.'); return; }
+      const { estudiantes: filas, tieneEncabezado } = csvAEstudiantes(await archivo.text());
+      if (filas.length === 0) { setErrorImport('El archivo está vacío.'); return; }
+      setImportando(true);
+      const r = await fetch('/api/estudiantes/importar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudiantes: filas }) });
+      const d = await r.json();
+      if (!r.ok) { setErrorImport(d.error || 'No se pudo importar el archivo.'); return; }
+      setResultadoImport({ creados: d.creados, omitidos: d.omitidos, desplazamiento: tieneEncabezado ? 1 : 0 });
+      await recargarEstudiantes();
+    } catch { setErrorImport('No se pudo leer o enviar el archivo.'); }
+    finally { setImportando(false); if (inputArchivoRef.current) inputArchivoRef.current.value = ''; }
+  };
+
+  const descargarPlantilla = () => {
+    const url = URL.createObjectURL(new Blob([plantillaCSV()], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'plantilla-estudiantes.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredEstudiantes = estudiantes.filter(e => {
     const matchSearch = e.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || e.email.toLowerCase().includes(searchTerm.toLowerCase()) || e.telefono.includes(searchTerm);
     const matchFilter = filter === 'todos' || e.estado === filter;
@@ -1358,8 +1631,34 @@ function EstudiantesPanel() {
           <h2 className="text-xl font-bold text-[#d0d0da] flex items-center gap-3"><Users className="w-6 h-6 text-[#818cf8]" />Gestión de Estudiantes</h2>
           <p className="text-sm text-[#8a8b9e] mt-1">{totalEstudiantes} estudiantes en {grupos.length} grupos</p>
         </div>
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#818cf8] hover:bg-[#6366f1] text-white text-sm font-medium rounded-xl transition-all shadow-md"><Plus className="w-4 h-4" /> Agregar estudiante</motion.button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input ref={inputArchivoRef} type="file" accept=".csv,.txt" className="hidden" onChange={(e) => importarArchivo(e.target.files?.[0])} />
+          <button onClick={descargarPlantilla} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 transition-colors"><Download className="w-4 h-4" />Plantilla</button>
+          <button onClick={() => inputArchivoRef.current?.click()} disabled={importando} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 transition-colors disabled:opacity-60"><Upload className="w-4 h-4" />{importando ? 'Importando...' : 'Importar CSV'}</button>
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#818cf8] hover:bg-[#6366f1] text-white text-sm font-medium rounded-xl transition-all shadow-md"><Plus className="w-4 h-4" /> Agregar estudiante</motion.button>
+        </div>
       </div>
+
+      {errorImport && (
+        <div className="flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span className="flex-1">{errorImport}</span><button onClick={() => setErrorImport('')} className="text-red-300/70 hover:text-red-200"><X className="w-4 h-4" /></button></div>
+      )}
+      {resultadoImport && (
+        <div className={`rounded-xl px-4 py-3 border text-sm ${resultadoImport.omitidos.length > 0 ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'}`}>
+          <div className="flex items-start gap-2">
+            {resultadoImport.omitidos.length > 0 ? <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> : <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+            <div className="flex-1">
+              <p className="font-medium">Se importaron {resultadoImport.creados} estudiante(s){resultadoImport.omitidos.length > 0 ? ` y se omitieron ${resultadoImport.omitidos.length}.` : '.'}</p>
+              {resultadoImport.omitidos.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs text-amber-200/90">
+                  {resultadoImport.omitidos.slice(0, 10).map(o => (<li key={o.fila}>Fila {o.fila + resultadoImport.desplazamiento}: {o.motivo}</li>))}
+                  {resultadoImport.omitidos.length > 10 && <li>... y {resultadoImport.omitidos.length - 10} más.</li>}
+                </ul>
+              )}
+            </div>
+            <button onClick={() => setResultadoImport(null)} className="opacity-70 hover:opacity-100"><X className="w-4 h-4" /></button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 bg-[#1f2035] border border-[#313248] rounded-xl p-3"><div className="flex items-center gap-3"><Search className="w-4 h-4 text-[#8a8b9e]" /><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 bg-transparent text-[#d8d8e2] placeholder-[#6a6b7e] outline-none text-sm" /></div></div>
@@ -2666,10 +2965,10 @@ if (sonCuatro && generarPDF) {
 // ============================================
 type PanelDerechoHandle = { limpiarYScroll: () => void; };
 interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; }
-interface PanelDerechoProps { usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad'; onCambiarVista: (v: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
+interface PanelDerechoProps { usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera'; onCambiarVista: (v: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
 
 const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ usuario, onLogout, onUsuarioActualizado, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
-  const [vista, setVista] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad'>(vistaInicial);
+  const [vista, setVista] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
   // --- Selección múltiple de tarjetas para "Generar Plan de Acción" ---
@@ -2680,6 +2979,11 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   };
   // --- Secciones/paralelos (A, B, C...) del grupo de estudiantes que comparten la materia ---
   const [seccionesDisponibles, setSeccionesDisponibles] = useState<string[]>(['A', 'B', 'C']);
+  // Si al cargar aparecen evaluaciones de otras secciones (ej. 'E'), se agregan a las pestañas
+  useEffect(() => {
+    const letras = new Set(planificacion.secciones.map((s: SeccionExamen) => s.grupoSeccion || 'A'));
+    setSeccionesDisponibles(prev => { const faltan = [...letras].filter(l => !prev.includes(l)); return faltan.length ? [...prev, ...faltan].sort() : prev; });
+  }, [planificacion.secciones]);
   const [seccionActiva, setSeccionActiva] = useState<string>('A');
   const agregarNuevaSeccion = () => {
     // Genera la siguiente letra disponible después de la última (A, B, C, D...)
@@ -2810,7 +3114,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
             peso: ev.peso, cantidadPreguntas: ev.cantidadPreguntas, contenidosEvaluados: ev.contenidosEvaluados,
             tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
             cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden ?? idx,
-            enfoque: ev.enfoque, fecha: ev.fecha ? ev.fecha.toISOString() : null,
+            enfoque: ev.enfoque, fecha: ev.fecha ? ev.fecha.toISOString() : null, grupoSeccion: ev.grupoSeccion || 'A',
           })),
           rubrica: planActualizada.rubrica.map(crit => ({
             nombre: crit.nombre, peso: crit.peso, descripcion: crit.descripcion,
@@ -3077,18 +3381,51 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   // Si un USUARIO intenta llegar a una vista de administración (ej. por el chat), se le devuelve al Dashboard
   useEffect(() => { if (!puedeAdministrar && vista === 'usuarios') setVista('estadisticas'); }, [puedeAdministrar, vista]);
   useEffect(() => { if (!esSuperadmin && vista === 'actividad') setVista('estadisticas'); }, [esSuperadmin, vista]);
-  useEffect(() => { if (esSuperadmin && ['planificacion', 'rubrica', 'estudiantes', 'configuracion'].includes(vista)) setVista('estadisticas'); }, [esSuperadmin, vista]);
+  useEffect(() => { if (esSuperadmin && ['planificacion', 'rubrica', 'estudiantes', 'configuracion', 'papelera'].includes(vista)) setVista('estadisticas'); }, [esSuperadmin, vista]);
   // Cantidad de cuentas esperando aprobación (para el contador rojo de la pestaña Usuarios)
   const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
   useEffect(() => {
     if (!puedeAdministrar) return;
     fetch('/api/usuarios').then(r => (r.ok ? r.json() : null)).then(d => { if (d?.usuarios) setSolicitudesPendientes(d.usuarios.filter((u: any) => u.pendiente).length); }).catch(() => {});
   }, [puedeAdministrar, vista]);
+
+  // Observaciones que dejan los administradores sobre el trabajo de esta cuenta (se consultan cada minuto)
+  const [observaciones, setObservaciones] = useState<ObservacionRecibida[]>([]);
+  const observacionesVistas = useRef<Set<string> | null>(null);
+  const cargarObservaciones = async () => {
+    try {
+      const r = await fetch('/api/observaciones');
+      if (!r.ok) return;
+      const lista: ObservacionRecibida[] = await r.json();
+      setObservaciones(lista);
+      const sinLeer = lista.filter(o => !o.leida);
+      if (observacionesVistas.current === null) {
+        observacionesVistas.current = new Set(sinLeer.map(o => o.id));
+        if (sinLeer.length > 0) agregarNotificacion(`💬 Tienes ${sinLeer.length} observación(es) sin leer en el Planificador.`);
+      } else {
+        sinLeer.filter(o => !observacionesVistas.current!.has(o.id)).forEach(o => {
+          observacionesVistas.current!.add(o.id);
+          agregarNotificacion(`💬 ${o.autorNombre} dejó una observación${o.evaluacionNombre ? ` sobre «${limpiarTexto(o.evaluacionNombre)}»` : ''}.`);
+        });
+      }
+    } catch { /* sin conexión: se intenta de nuevo en el siguiente ciclo */ }
+  };
+  useEffect(() => {
+    if (!usuario || usuario.rol === 'SUPERADMIN') return;
+    cargarObservaciones();
+    const t = setInterval(cargarObservaciones, 60000);
+    return () => clearInterval(t);
+  }, [usuario?.id]);
+  const marcarObservacionLeida = async (id?: string) => {
+    await fetch('/api/observaciones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id } : { todas: true }) });
+    await cargarObservaciones();
+  };
   const todasLasTabs = [
     { id: 'estadisticas' as const, label: 'Dashboard', icon: BarChart3 }, 
     { id: 'planificacion' as const, label: 'Planificador', icon: ClipboardList }, 
     { id: 'rubrica' as const, label: 'Rúbrica', icon: FileText }, 
     { id: 'estudiantes' as const, label: 'Estudiantes', icon: Users },
+    { id: 'papelera' as const, label: 'Papelera', icon: Trash2 },
     ...(puedeAdministrar ? [
       { id: 'usuarios' as const, label: 'Usuarios', icon: UserCog, badge: solicitudesPendientes }
     ] : []),
@@ -3144,6 +3481,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><DashboardPorRol planificacion={planificacion} usuario={usuario} /></motion.div>)}
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
+                <ObservacionesRecibidas items={observaciones} onLeer={marcarObservacionLeida} />
                 <div ref={tarjetaRef}>
                 <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
@@ -3298,6 +3636,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                       </motion.button>
                   </div>
                 </div>
+                <AlertasPlan secciones={seccionesFiltradas} />
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={seccionActiva}
@@ -3331,6 +3670,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           )}
           {vista === 'rubrica' && (<motion.div key="rubrica" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-5xl mx-auto"><RubricaPanel planificacion={planificacion} setPlanificacion={setPlanificacion} /></motion.div>)}
           {vista === 'estudiantes' && (<motion.div key="estudiantes" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><EstudiantesPanel /></motion.div>)}
+          {vista === 'papelera' && !esSuperadmin && (<motion.div key="papelera" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-4xl mx-auto"><PapeleraPanel usuario={usuario} /></motion.div>)}
           {vista === 'actividad' && esSuperadmin && (<motion.div key="actividad" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><ActividadPanel /></motion.div>)}
           {vista === 'perfil' && (<motion.div key="perfil" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-3xl mx-auto"><PerfilPanel usuario={usuario} onActualizado={onUsuarioActualizado} /></motion.div>)}
           {vista === 'usuarios' && puedeAdministrar && (<motion.div key="usuarios" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><UsuariosPanel /></motion.div>)}
@@ -3494,6 +3834,7 @@ const guardarPlanificacionEnBD = async () => {
         orden: ev.orden ?? idx,
         enfoque: ev.enfoque,
         fecha: ev.fecha ? ev.fecha.toISOString() : null,
+        grupoSeccion: ev.grupoSeccion || 'A',
       })),
       rubrica: planificacion.rubrica.map(crit => ({
         nombre: crit.nombre,
@@ -3534,7 +3875,7 @@ const guardarPlanificacionEnBD = async () => {
 // ===== FIN CONEXIÓN BD =====
   const [agenteExpandido, setAgenteExpandido] = useState(true);
   const [propuestaPendiente, setPropuestaPendiente] = useState<PropuestaEvaluacion | null>(null);
-  const [vistaActual, setVistaActual] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad'>('estadisticas');
+  const [vistaActual, setVistaActual] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera'>('estadisticas');
   const [planificacion, setPlanificacion] = useState<PlanificacionExamen>({ id: '1', version: 1, estado: 'borrador', fechaExamen: new Date(), tipoExamen: 'mixto', duracionMinutos: 0, materia: 'Ing Software', secciones: [], rubrica: [], comentariosAgente: [{ id: 'c1', tipo: 'info', mensaje: 'Sube un archivo o escribe en el chat para comenzar la planificación.', timestamp: new Date() }] });
     // CARGAR EVALUACIONES DESDE LA BD AL REFRESCAR
   useEffect(() => {
@@ -3582,6 +3923,7 @@ const guardarPlanificacionEnBD = async () => {
               orden: ev.orden ?? undefined,
               enfoque: ev.enfoque || undefined,
               fecha: ev.fecha ? new Date(ev.fecha) : undefined,
+              grupoSeccion: ev.grupoSeccion || 'A',
             })),
             rubrica: (ultimoPlan.rubrica || []).map((crit: any) => ({
               id: crit.id,

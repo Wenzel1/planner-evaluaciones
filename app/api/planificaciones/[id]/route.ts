@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
+import { enviarAPapelera, detectarEliminadas } from '@/lib/papelera'
 
 // Obtiene el dueño de una planificación (el dueño de su materia)
 async function duenoDePlanificacion(id: string) {
@@ -79,7 +80,11 @@ export async function PUT(
     })
 
     // Sincronizar evaluaciones
+    let eliminadas: any[] = []
     if (body.evaluaciones) {
+      // Se deduce qué evaluaciones ya no vienen para guardarlas en la papelera (30 días)
+      const existentes = await prisma.evaluacion.findMany({ where: { planificacionId: id } })
+      eliminadas = detectarEliminadas(existentes, body.evaluaciones)
       await prisma.evaluacion.deleteMany({ where: { planificacionId: id } })
       await prisma.planificacion.update({
         where: { id },
@@ -100,10 +105,29 @@ export async function PUT(
               orden: ev.orden ?? index,
               enfoque: ev.enfoque || null,
               fecha: ev.fecha ? new Date(ev.fecha) : null,
+              grupoSeccion: ev.grupoSeccion || 'A',
             })),
           },
         },
       })
+    }
+
+    if (eliminadas.length > 0) {
+      await enviarAPapelera(eliminadas.map((ev) => ({
+        usuarioId: actor.id,
+        tipo: 'EVALUACION' as const,
+        nombre: ev.nombre,
+        contexto: dueno.materiaNombre,
+        eliminadoPorId: actor.id,
+        eliminadoPorNombre: actor.nombre,
+        datos: {
+          planificacionId: id, grupoSeccion: ev.grupoSeccion, nombre: ev.nombre, tipoPregunta: ev.tipoPregunta, nivelBloom: ev.nivelBloom,
+          peso: ev.peso, cantidadPreguntas: ev.cantidadPreguntas, contenidosEvaluados: ev.contenidosEvaluados,
+          tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
+          cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden, enfoque: ev.enfoque,
+          fecha: ev.fecha ? ev.fecha.toISOString() : null,
+        },
+      })))
     }
 
     // Sincronizar rúbrica

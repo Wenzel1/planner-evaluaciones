@@ -77,6 +77,7 @@ export async function POST(request: Request) {
             orden: ev.orden ?? index,
             enfoque: ev.enfoque || null,
             fecha: ev.fecha ? new Date(ev.fecha) : null,
+            grupoSeccion: ev.grupoSeccion || 'A',
           })),
         },
         rubrica: {

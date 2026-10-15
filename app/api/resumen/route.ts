@@ -22,6 +22,11 @@ export async function GET(request: Request) {
           id: true,
           nombre: true,
           usuarioId: true,
+          observaciones: {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: { id: true, autorNombre: true, evaluacionNombre: true, mensaje: true, leida: true, createdAt: true },
+          },
           planificaciones: {
             orderBy: { createdAt: 'desc' },
             select: {

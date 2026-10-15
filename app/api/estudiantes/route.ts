@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, quiereTodos, verificarAcceso, bloquearSiSuperadmin } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
+import { enviarAPapelera } from '@/lib/papelera'
 
 // GET /api/estudiantes  (solo los del usuario; ADMIN/SUPERADMIN pueden pedir ?todos=1)
 export async function GET(request: Request) {
@@ -138,11 +139,15 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
 
-    const existente = await prisma.estudiante.findUnique({ where: { id }, select: { usuarioId: true, nombre: true } })
+    const existente = await prisma.estudiante.findUnique({ where: { id } })
     if (!existente) return NextResponse.json({ error: 'Estudiante no encontrado' }, { status: 404 })
     const denegado = verificarAcceso(actor, existente.usuarioId, 'escribir')
     if (denegado) return denegado
 
+    if (existente.usuarioId) {
+      const { id: _id, usuarioId: _dueno, createdAt: _c, updatedAt: _u, ...campos } = existente as any
+      await enviarAPapelera([{ usuarioId: existente.usuarioId, tipo: 'ESTUDIANTE', nombre: existente.nombre, contexto: existente.email, eliminadoPorId: actor.id, eliminadoPorNombre: actor.nombre, datos: campos }])
+    }
     await prisma.estudiante.delete({ where: { id } })
     await registrarActividad({ actor, accion: 'ELIMINAR', entidad: 'Estudiante', detalle: `Eliminó a ${existente.nombre}` })
     return NextResponse.json({ eliminado: true })
