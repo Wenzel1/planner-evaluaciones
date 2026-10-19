@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getActor } from '@/lib/authServer'
 import { hashPassword } from '@/lib/password'
-import { validarNombre, validarEmail, validarPassword, ROLES_VALIDOS } from '@/lib/validacionesUsuario'
+import { validarNombre, validarEmail, validarPassword, validarTelefono, validarCedula, normalizarTelefono, normalizarCedula, ROLES_VALIDOS } from '@/lib/validacionesUsuario'
+import { mensajeDuplicado } from '@/lib/duplicados'
 import { registrarActividad } from '@/lib/actividad'
 
-const SELECT = { id: true, nombre: true, email: true, rol: true, activo: true, pendiente: true, createdAt: true } as const
+const SELECT = { id: true, nombre: true, email: true, rol: true, activo: true, pendiente: true, telefono: true, cedula: true, debeCambiarPassword: true, createdAt: true } as const
 
 // Reglas:
 //  - SUPERADMIN: gestiona a todos (no puede eliminarse/desactivarse/degradarse a sí mismo ni dejar el sistema sin superadmin).
@@ -16,6 +17,7 @@ async function requerirAdmin(request: Request) {
   const actor = await getActor(request)
   if (!actor) return { error: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) }
   if (actor.rol === 'USUARIO') return { error: NextResponse.json({ error: 'No tienes permisos para esta acción' }, { status: 403 }) }
+  if (actor.debeCambiarPassword) return { error: NextResponse.json({ error: 'Debes cambiar tu contraseña temporal antes de continuar.', codigo: 'CAMBIO_OBLIGATORIO' }, { status: 403 }) }
   return { actor }
 }
 
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
     if (actor.rol === 'ADMIN' && rol !== 'USUARIO') {
       return NextResponse.json({ error: 'Un administrador solo puede crear usuarios con rol USUARIO.' }, { status: 403 })
     }
-    const msg = validarNombre(body.nombre) || validarEmail(body.email) || validarPassword(body.password)
+    const msg = validarNombre(body.nombre) || validarEmail(body.email) || validarPassword(body.password) || validarTelefono(String(body.telefono ?? '')) || validarCedula(String(body.cedula ?? ''))
     if (msg) return NextResponse.json({ error: msg }, { status: 400 })
 
     const creado = await prisma.usuario.create({
@@ -47,13 +49,16 @@ export async function POST(request: Request) {
         email: String(body.email).trim().toLowerCase(),
         passwordHash: await hashPassword(String(body.password)),
         rol: rol as any,
+        telefono: normalizarTelefono(String(body.telefono)),
+        cedula: normalizarCedula(String(body.cedula)),
+        debeCambiarPassword: true, // la clave la puso quien creó la cuenta: la persona debe elegir la suya al entrar
       },
       select: SELECT,
     })
     await registrarActividad({ actor, accion: 'CREAR', entidad: 'Usuario', detalle: `Creó la cuenta de ${creado.nombre} (${creado.rol})` })
     return NextResponse.json(creado, { status: 201 })
   } catch (e: any) {
-    if (e.code === 'P2002') return NextResponse.json({ error: 'Ese correo ya está registrado.' }, { status: 409 })
+    if (e.code === 'P2002') return NextResponse.json({ error: mensajeDuplicado(e) }, { status: 409 })
     console.error(e)
     return NextResponse.json({ error: 'Error al crear usuario.' }, { status: 500 })
   }
@@ -75,7 +80,10 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'No puedes modificar a administradores ni al superadmin.' }, { status: 403 })
     }
 
-    const msg = validarNombre(body.nombre) || validarEmail(body.email) || (body.password ? validarPassword(body.password) : null)
+    const telefonoNuevo = String(body.telefono ?? '').trim()
+    const cedulaNueva = String(body.cedula ?? '').trim()
+    const msg = validarNombre(body.nombre) || validarEmail(body.email) || (body.password ? validarPassword(body.password) : null) ||
+      (telefonoNuevo ? validarTelefono(telefonoNuevo) : null) || (cedulaNueva ? validarCedula(cedulaNueva) : null)
     if (msg) return NextResponse.json({ error: msg }, { status: 400 })
 
     const nuevoRol = body.rol ? String(body.rol) : objetivo.rol
@@ -100,7 +108,13 @@ export async function PUT(request: Request) {
       rol: nuevoRol,
       activo: nuevoActivo,
     }
-    if (body.password) data.passwordHash = await hashPassword(String(body.password))
+    if (telefonoNuevo) data.telefono = normalizarTelefono(telefonoNuevo)
+    if (cedulaNueva) data.cedula = normalizarCedula(cedulaNueva)
+    if (body.password) {
+      data.passwordHash = await hashPassword(String(body.password))
+      // Si la clave se la pone otra persona, es temporal: debe cambiarla al entrar y se cierran sus sesiones abiertas
+      if (!esUnoMismo) { data.debeCambiarPassword = true; data.sesionesDesde = new Date() }
+    }
     if (nuevoActivo === true) data.pendiente = false // activar una cuenta pendiente equivale a aprobarla
 
     const actualizado = await prisma.usuario.update({ where: { id: body.id }, data, select: SELECT })
@@ -111,7 +125,7 @@ export async function PUT(request: Request) {
     await registrarActividad({ actor, accion: 'EDITAR', entidad: 'Usuario', detalle: `Editó la cuenta de ${actualizado.nombre}${cambios.length ? ` (${cambios.join(', ')})` : ''}` })
     return NextResponse.json(actualizado)
   } catch (e: any) {
-    if (e.code === 'P2002') return NextResponse.json({ error: 'Ese correo ya está registrado.' }, { status: 409 })
+    if (e.code === 'P2002') return NextResponse.json({ error: mensajeDuplicado(e) }, { status: 409 })
     console.error(e)
     return NextResponse.json({ error: 'Error al actualizar usuario.' }, { status: 500 })
   }

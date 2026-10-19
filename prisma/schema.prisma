@@ -75,12 +75,18 @@ model Usuario {
   rol          RolUsuario @default(USUARIO)
   activo       Boolean    @default(true)
   pendiente    Boolean    @default(false) // true = se registró desde el login y espera aprobación de un administrador
+  telefono     String?                    // para que un administrador pueda contactar a la persona (ej. entregar una clave temporal)
+  cedula       String?    @unique         // documento de identidad (solo dígitos); lo ven únicamente la persona, los admins y el superadmin
+  debeCambiarPassword Boolean @default(false) // true = entró con una clave temporal y debe elegir una nueva antes de usar el sistema
+  sesionesDesde DateTime?                 // las sesiones iniciadas antes de esta fecha dejan de valer (se usa al restablecer claves)
+  consentimientoEn DateTime?              // cuándo aceptó el tratamiento de sus datos personales
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   materias       Materia[]
   estudiantes    Estudiante[]
   conversaciones Conversacion[]
+  recuperaciones SolicitudRecuperacion[]
 }
 
 model Materia {
@@ -277,4 +283,17 @@ model PapeleraItem {
 
   @@index([usuarioId, createdAt])
   @@index([createdAt])
+}
+
+// Solicitudes de "olvidé mi contraseña": las atiende el SUPERADMIN (restablece la clave y se la hace llegar a la persona).
+model SolicitudRecuperacion {
+  id          String    @id @default(cuid())
+  usuarioId   String
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  estado      String    @default("PENDIENTE") // PENDIENTE | ATENDIDA
+  createdAt   DateTime  @default(now())
+  atendidaPor String?
+  atendidaEn  DateTime?
+
+  @@index([estado, createdAt])
 }

@@ -15,6 +15,10 @@ export type ResultadoActor =
 export async function requerirActor(request: Request): Promise<ResultadoActor> {
   const actor = await getActor(request)
   if (!actor) return { error: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) }
+  // Entró con una clave temporal: primero debe elegir una nueva (solo /api/perfil y /api/auth/* quedan disponibles)
+  if (actor.debeCambiarPassword) {
+    return { error: NextResponse.json({ error: 'Debes cambiar tu contraseña temporal antes de continuar.', codigo: 'CAMBIO_OBLIGATORIO' }, { status: 403 }) }
+  }
   return { actor }
 }
 

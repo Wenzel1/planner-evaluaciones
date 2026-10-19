@@ -33,7 +33,7 @@ import {
 import { apiEstudiantes, apiPlanificaciones } from '@/lib/api'; 
 import StreamInput from "@/components/StreamInput";
 import StreamTextarea from "@/components/StreamTextarea";
-import { validarNombre, validarEmail, validarPassword } from '@/lib/validacionesUsuario';
+import { validarNombre, validarEmail, validarPassword, validarTelefono, validarCedula } from '@/lib/validacionesUsuario';
 import { csvAEstudiantes, plantillaCSV } from '@/lib/csvEstudiantes';
 
 // ============================================
@@ -516,6 +516,55 @@ const ESTILO_ROL: Record<string, string> = {
   USUARIO: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
 };
 
+// ============================================
+// CAMBIO OBLIGATORIO DE CONTRASEÑA (cuenta con clave temporal)
+// ============================================
+function CambioPasswordObligatorio({ usuario, onLogout }: { usuario: UsuarioSesion; onLogout: () => void }) {
+  const [actual, setActual] = useState('');
+  const [nueva, setNueva] = useState('');
+  const [confirmar, setConfirmar] = useState('');
+  const [ver, setVer] = useState(false);
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const campo = 'w-full bg-[#1b1c2b] border border-[#313248] rounded-xl px-3 py-3 text-sm text-[#e0e0ec] placeholder-[#5f6074] focus:outline-none focus:border-[#818cf8] focus:ring-2 focus:ring-[#818cf8]/20 transition-all';
+  const etiqueta = 'text-[11px] font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5';
+
+  const guardar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!actual) return setError('Escribe la contraseña temporal que te entregaron.');
+    const p = validarPassword(nueva); if (p) return setError(p);
+    if (nueva !== confirmar) return setError('Las contraseñas no coinciden.');
+    if (nueva === actual) return setError('La nueva contraseña debe ser distinta a la temporal.');
+    setGuardando(true);
+    try {
+      const r = await fetch('/api/perfil', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: usuario.nombre, email: usuario.email, passwordActual: actual, passwordNueva: nueva }) });
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || 'No se pudo cambiar la contraseña.'); setGuardando(false); return; }
+      window.location.reload(); // entra al sistema con la contraseña nueva
+    } catch { setError('No se pudo conectar con el servidor.'); setGuardando(false); }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#12131d] flex items-center justify-center p-5">
+      <motion.form onSubmit={guardar} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md bg-[#1d1e2e] border border-[#313248] rounded-2xl p-8 shadow-2xl space-y-5" noValidate>
+        <div className="flex flex-col items-center text-center">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3"><ShieldCheck className="w-7 h-7 text-amber-300" /></div>
+          <h1 className="text-xl font-semibold text-[#e0e0ec]">Elige tu nueva contraseña</h1>
+          <p className="text-sm text-[#8a8b9e] mt-1">Hola, {usuario.nombre}. Entraste con una contraseña temporal; por seguridad debes cambiarla para continuar.</p>
+        </div>
+        <div><label className={etiqueta}>Contraseña temporal</label><input type={ver ? 'text' : 'password'} value={actual} onChange={(e) => setActual(e.target.value)} className={campo} autoComplete="current-password" autoFocus /></div>
+        <div><label className={etiqueta}>Nueva contraseña</label><input type={ver ? 'text' : 'password'} value={nueva} onChange={(e) => setNueva(e.target.value)} placeholder="Mínimo 8, con letras y números" className={campo} autoComplete="new-password" /></div>
+        <div><label className={etiqueta}>Confirmar nueva contraseña</label><input type={ver ? 'text' : 'password'} value={confirmar} onChange={(e) => setConfirmar(e.target.value)} className={campo} autoComplete="new-password" /></div>
+        <label className="flex items-center gap-2 text-xs text-[#9a9bb0] cursor-pointer"><input type="checkbox" checked={ver} onChange={(e) => setVer(e.target.checked)} className="accent-[#818cf8]" />Mostrar contraseñas</label>
+        {error && <p className="text-red-300 text-xs flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2.5" role="alert"><AlertCircle className="w-4 h-4 flex-shrink-0" /><span>{error}</span></p>}
+        <button type="submit" disabled={guardando} className="w-full py-3 bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white font-semibold text-sm rounded-xl shadow-lg disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar y entrar'}</button>
+        <button type="button" onClick={onLogout} className="w-full text-xs text-[#8a8b9e] hover:text-[#b0b0c4]">Cerrar sesión</button>
+      </motion.form>
+    </div>
+  );
+}
+
 // Colores y textos por rol (la franja superior y las etiquetas cambian según quién entró)
 const TEMA_ROL: Record<'SUPERADMIN' | 'ADMIN' | 'USUARIO', { etiqueta: string; descripcion: string; barra: string; fondo: string; texto: string; borde: string }> = {
   SUPERADMIN: { etiqueta: 'MODO SUPERADMIN', descripcion: 'Administración del sistema', barra: 'from-fuchsia-600 via-fuchsia-500 to-purple-500', fondo: 'bg-fuchsia-500/10', texto: 'text-fuchsia-300', borde: 'border-fuchsia-500/30' },
@@ -862,10 +911,14 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
   const [exito, setExito] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [creadoEn, setCreadoEn] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [cedula, setCedula] = useState('');
+  const [cedulaBloqueada, setCedulaBloqueada] = useState(false);
+  const telefonoOriginal = useRef('');
 
   useEffect(() => { if (usuario) { setNombre(usuario.nombre); setEmail(usuario.email); } }, [usuario?.id, usuario?.nombre, usuario?.email]);
   useEffect(() => {
-    fetch('/api/perfil').then(r => (r.ok ? r.json() : null)).then(d => { if (d?.createdAt) setCreadoEn(new Date(d.createdAt).toLocaleDateString()); }).catch(() => {});
+    fetch('/api/perfil').then(r => (r.ok ? r.json() : null)).then(d => { if (d?.createdAt) setCreadoEn(new Date(d.createdAt).toLocaleDateString()); if (d) { setTelefono(d.telefono || ''); telefonoOriginal.current = (d.telefono || '').replace(/[\s().-]/g, ''); setCedula(d.cedula || ''); setCedulaBloqueada(!!d.cedula); } }).catch(() => {});
   }, []);
 
   const INFO_ROL = {
@@ -896,14 +949,17 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
     const e: Record<string, string> = {};
     const n = validarNombre(nombre); if (n) e.nombre = n;
     const m = validarEmail(email); if (m) e.email = m;
+    if (telefono.trim()) { const tl = validarTelefono(telefono); if (tl) e.telefono = tl; }
+    if (!cedulaBloqueada && cedula.trim()) { const cd = validarCedula(cedula); if (cd) e.cedula = cd; }
     const cambiaEmail = !!usuario && email.trim().toLowerCase() !== usuario.email.toLowerCase();
     const cambiaPassword = nueva.length > 0 || confirmar.length > 0;
+    const cambiaTelefono = telefono.trim() !== '' && telefono.replace(/[\s().-]/g, '') !== telefonoOriginal.current;
     if (cambiaPassword) {
       const p = validarPassword(nueva);
       if (p) e.nueva = p;
       else if (nueva !== confirmar) e.confirmar = 'Las contraseñas no coinciden.';
     }
-    if ((cambiaEmail || cambiaPassword) && !passwordActual) e.passwordActual = 'Ingresa tu contraseña actual para confirmar este cambio.';
+    if ((cambiaEmail || cambiaPassword || cambiaTelefono) && !passwordActual) e.passwordActual = 'Ingresa tu contraseña actual para confirmar este cambio.';
     setErrores(e);
     if (Object.keys(e).length > 0) return;
 
@@ -912,11 +968,12 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
       const r = await fetch('/api/perfil', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, email, passwordActual: passwordActual || undefined, passwordNueva: nueva || undefined }),
+        body: JSON.stringify({ nombre, email, telefono, cedula: cedulaBloqueada ? undefined : cedula, passwordActual: passwordActual || undefined, passwordNueva: nueva || undefined }),
       });
       const d = await r.json();
       if (!r.ok) { setErrorGlobal(d.error || 'No se pudieron guardar los cambios.'); return; }
       if (onActualizado) onActualizado(d);
+      telefonoOriginal.current = telefono.replace(/[\s().-]/g, ''); if (cedula.trim()) setCedulaBloqueada(true);
       setPasswordActual(''); setNueva(''); setConfirmar('');
       setExito(cambiaPassword ? 'Cambios guardados. Tu contraseña fue actualizada.' : 'Cambios guardados.');
     } catch {
@@ -955,6 +1012,20 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
           <label className={labelCls}>Correo electrónico</label>
           <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setExito(''); }} className={`${inputCls} ${errores.email ? 'border-red-500/50' : ''}`} />
           {errores.email && <p className="text-red-400 text-[11px] mt-1">{errores.email}</p>}
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Teléfono</label>
+            <input type="tel" value={telefono} onChange={(e) => { setTelefono(e.target.value); setExito(''); }} placeholder="Ej: 300 123 4567" className={`${inputCls} ${errores.telefono ? 'border-red-500/50' : ''}`} />
+            {errores.telefono && <p className="text-red-400 text-[11px] mt-1">{errores.telefono}</p>}
+            <p className="text-[11px] text-[#6a6b7e] mt-1">Por este número el administrador puede contactarte (por ejemplo, para entregarte una clave temporal).</p>
+          </div>
+          <div>
+            <label className={labelCls}>Cédula</label>
+            <input value={cedula} disabled={cedulaBloqueada} onChange={(e) => { setCedula(e.target.value); setExito(''); }} inputMode="numeric" placeholder="Solo números" className={`${inputCls} disabled:opacity-60 ${errores.cedula ? 'border-red-500/50' : ''}`} />
+            {errores.cedula && <p className="text-red-400 text-[11px] mt-1">{errores.cedula}</p>}
+            <p className="text-[11px] text-[#6a6b7e] mt-1">{cedulaBloqueada ? 'Si necesitas corregirla, pídeselo a un administrador.' : 'Se registra una sola vez.'}</p>
+          </div>
         </div>
       </div>
 
@@ -1007,6 +1078,8 @@ const ESTILO_ACCION: Record<string, string> = {
   LOGOUT: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
   OBSERVAR: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/30',
   RESTAURAR: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+  RECUPERAR: 'bg-pink-500/10 text-pink-300 border-pink-500/30',
+  RESTABLECER: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30',
 };
 
 function ActividadPanel() {
@@ -1036,7 +1109,7 @@ function ActividadPanel() {
   };
   useEffect(() => { cargar(1); }, [accion, buscarAplicado]);
 
-  const acciones = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT', 'REGISTRO', 'APROBAR', 'RECHAZAR', 'CREAR', 'EDITAR', 'ELIMINAR', 'OBSERVAR', 'RESTAURAR'];
+  const acciones = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT', 'REGISTRO', 'APROBAR', 'RECHAZAR', 'CREAR', 'EDITAR', 'ELIMINAR', 'OBSERVAR', 'RESTAURAR', 'RECUPERAR', 'RESTABLECER'];
   const inputCls = 'bg-[#272839] border border-[#313248] rounded-xl px-3 py-2 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
 
   return (
@@ -1254,12 +1327,17 @@ function PapeleraPanel({ usuario }: { usuario?: UsuarioSesion | null }) {
 // ============================================
 function UsuariosPanel() {
   type RolU = 'SUPERADMIN' | 'ADMIN' | 'USUARIO';
-  interface UsuarioFila { id: string; nombre: string; email: string; rol: RolU; activo: boolean; pendiente: boolean; }
+  interface UsuarioFila { id: string; nombre: string; email: string; rol: RolU; activo: boolean; pendiente: boolean; telefono: string | null; cedula: string | null; debeCambiarPassword: boolean; }
+  interface RecuperacionFila { id: string; createdAt: string; usuario: { id: string; nombre: string; email: string; telefono: string | null; cedula: string | null; rol: RolU } }
   const [usuarios, setUsuarios] = useState<UsuarioFila[]>([]);
   const [actor, setActor] = useState<{ id: string; rol: RolU } | null>(null);
   const [cargando, setCargando] = useState(true);
   const [modal, setModal] = useState<null | 'nuevo' | UsuarioFila>(null);
-  const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'USUARIO' as RolU, activo: true });
+  const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'USUARIO' as RolU, activo: true, telefono: '', cedula: '' });
+  const [recuperaciones, setRecuperaciones] = useState<RecuperacionFila[]>([]);
+  const [resultadoReset, setResultadoReset] = useState<{ passwordTemporal: string; nombre: string; email: string; telefono: string | null } | null>(null);
+  const [procesandoRec, setProcesandoRec] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [errorGlobal, setErrorGlobal] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -1269,7 +1347,13 @@ function UsuariosPanel() {
     try {
       const r = await fetch('/api/usuarios');
       const d = await r.json();
-      if (r.ok) { setUsuarios(d.usuarios); setActor(d.actor); }
+      if (r.ok) {
+        setUsuarios(d.usuarios); setActor(d.actor);
+        if (d.actor?.rol === 'SUPERADMIN') {
+          const rr = await fetch('/api/recuperaciones');
+          if (rr.ok) setRecuperaciones(await rr.json());
+        }
+      }
     } finally { setCargando(false); }
   };
   useEffect(() => { cargar(); }, []);
@@ -1279,13 +1363,16 @@ function UsuariosPanel() {
   const puedeEditar = (u: UsuarioFila) => esSuper || u.rol === 'USUARIO' || u.id === actor?.id;
   const puedeEliminar = (u: UsuarioFila) => u.id !== actor?.id && (esSuper || u.rol === 'USUARIO');
 
-  const abrirNuevo = () => { setForm({ nombre: '', email: '', password: '', rol: 'USUARIO', activo: true }); setErrores({}); setErrorGlobal(''); setModal('nuevo'); };
-  const abrirEditar = (u: UsuarioFila) => { setForm({ nombre: u.nombre, email: u.email, password: '', rol: u.rol, activo: u.activo }); setErrores({}); setErrorGlobal(''); setModal(u); };
+  const abrirNuevo = () => { setForm({ nombre: '', email: '', password: '', rol: 'USUARIO', activo: true, telefono: '', cedula: '' }); setErrores({}); setErrorGlobal(''); setModal('nuevo'); };
+  const abrirEditar = (u: UsuarioFila) => { setForm({ nombre: u.nombre, email: u.email, password: '', rol: u.rol, activo: u.activo, telefono: u.telefono || '', cedula: u.cedula || '' }); setErrores({}); setErrorGlobal(''); setModal(u); };
 
   const validar = (editando: boolean) => {
     const e: Record<string, string> = {};
     const n = validarNombre(form.nombre); if (n) e.nombre = n;
     const m = validarEmail(form.email); if (m) e.email = m;
+    // Al crear una cuenta teléfono y cédula son obligatorios; al editar (cuentas antiguas) solo se validan si se escriben
+    if (!editando || form.telefono.trim()) { const tl = validarTelefono(form.telefono); if (tl) e.telefono = tl; }
+    if (!editando || form.cedula.trim()) { const cd = validarCedula(form.cedula); if (cd) e.cedula = cd; }
     if (!editando || form.password) { const p = validarPassword(form.password); if (p) e.password = p; }
     setErrores(e);
     return Object.keys(e).length === 0;
@@ -1330,6 +1417,31 @@ function UsuariosPanel() {
   const aprobados = usuarios.filter(u => !u.pendiente);
 
   // Aprueba una solicitud de cuenta hecha desde el login (rechazar = eliminar, con el mismo "¿Seguro?")
+  // Solicitudes de "olvidé mi contraseña": el superadmin restablece la clave y se la hace llegar por teléfono
+  const restablecerRec = async (sol: RecuperacionFila) => {
+    setProcesandoRec(sol.id);
+    try {
+      const r = await fetch(`/api/recuperaciones/${sol.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'restablecer' }) });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'No se pudo restablecer la contraseña.'); return; }
+      setCopiado(false);
+      setResultadoReset({ passwordTemporal: d.passwordTemporal, nombre: d.usuario.nombre, email: d.usuario.email, telefono: d.usuario.telefono });
+      await cargar();
+    } finally { setProcesandoRec(null); }
+  };
+  const descartarRec = async (sol: RecuperacionFila) => {
+    setProcesandoRec(sol.id);
+    try {
+      const r = await fetch(`/api/recuperaciones/${sol.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'descartar' }) });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || 'No se pudo descartar.'); return; }
+      await cargar();
+    } finally { setProcesandoRec(null); }
+  };
+  const copiarClave = async () => {
+    if (!resultadoReset) return;
+    try { await navigator.clipboard.writeText(resultadoReset.passwordTemporal); setCopiado(true); } catch { /* la puede copiar a mano */ }
+  };
+
   const aprobar = async (u: UsuarioFila) => {
     const r = await fetch('/api/usuarios', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id, accion: 'aprobar' }) });
     const d = await r.json();
@@ -1347,6 +1459,53 @@ function UsuariosPanel() {
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white text-sm font-semibold rounded-xl shadow-lg"><Plus className="w-4 h-4" />Nuevo usuario</motion.button>
       </div>
 
+      {esSuper && recuperaciones.length > 0 && (
+        <div className="bg-red-500/5 border border-red-500/30 rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-red-500/20 flex items-center gap-2 flex-wrap">
+            <AlertCircle className="w-4 h-4 text-red-300" />
+            <h3 className="text-sm font-semibold text-red-200">Recuperación de contraseña ({recuperaciones.length})</h3>
+            <span className="text-[11px] text-[#8a8b9e]">Verifica la identidad por teléfono antes de entregar la clave temporal.</span>
+          </div>
+          <div className="divide-y divide-red-500/10">
+            {recuperaciones.map(sol => (
+              <div key={sol.id} className="p-4 flex items-center gap-3 flex-wrap">
+                <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-red-300" /></div>
+                <div className="flex-1 min-w-[180px]">
+                  <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium text-[#d0d0da]">{sol.usuario.nombre}</span><span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeRol(sol.usuario.rol)}`}>{sol.usuario.rol}</span></div>
+                  <div className="text-xs text-[#8a8b9e]">{sol.usuario.email}{sol.usuario.cedula ? ` · CC ${sol.usuario.cedula}` : ''} · {new Date(sol.createdAt).toLocaleString()}</div>
+                  {sol.usuario.telefono
+                    ? <a href={`tel:${sol.usuario.telefono}`} className="inline-flex items-center gap-1.5 text-xs text-emerald-300 hover:text-emerald-200 mt-0.5"><Phone className="w-3 h-3" />{sol.usuario.telefono}</a>
+                    : <span className="text-xs text-amber-300">Esta cuenta no tiene teléfono registrado.</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => restablecerRec(sol)} disabled={procesandoRec === sol.id} className="px-3 py-1.5 text-xs font-semibold text-red-200 bg-red-500/10 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-60">{procesandoRec === sol.id ? 'Procesando...' : 'Restablecer contraseña'}</button>
+                  <button onClick={() => descartarRec(sol)} disabled={procesandoRec === sol.id} className="px-3 py-1.5 text-xs text-[#9a9bb0] bg-[#272839] border border-[#313248] rounded-lg hover:bg-[#2c2d40] disabled:opacity-60">Descartar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {resultadoReset && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] bg-black/70 flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} className="w-full max-w-md bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-2xl space-y-4">
+              <h3 className="text-base font-semibold text-[#e0e0ec]">Contraseña temporal para {resultadoReset.nombre}</h3>
+              <div className="bg-[#161722] border border-[#313248] rounded-xl p-4 text-center">
+                <code className="text-2xl font-mono tracking-widest text-emerald-300 select-all">{resultadoReset.passwordTemporal}</code>
+              </div>
+              <button onClick={copiarClave} className="w-full py-2.5 text-sm text-[#c7d2fe] bg-[#272839] border border-[#313248] rounded-xl hover:bg-[#2c2d40]">{copiado ? '¡Copiada!' : 'Copiar contraseña'}</button>
+              <div className="text-xs text-[#9a9bb0] space-y-1.5">
+                {resultadoReset.telefono ? <p>Entrégasela por teléfono: <a href={`tel:${resultadoReset.telefono}`} className="text-emerald-300 font-medium">{resultadoReset.telefono}</a>.</p> : <p className="text-amber-300">Esta cuenta no tiene teléfono registrado: contacta a la persona por otro medio.</p>}
+                <p>Se muestra <strong className="text-[#c0c0cc]">solo esta vez</strong>. Al entrar, la persona deberá elegir una contraseña nueva, y sus sesiones abiertas anteriores se cerraron.</p>
+              </div>
+              <button onClick={() => setResultadoReset(null)} className="w-full py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl">Entendido</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence initial={false}>
         {pendientes.length > 0 && (
           <motion.div key="solicitudes" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
@@ -1362,7 +1521,7 @@ function UsuariosPanel() {
                     <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-amber-300" /></div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-[#d0d0da] truncate">{u.nombre}</div>
-                      <div className="text-xs text-[#8a8b9e] truncate">{u.email}</div>
+                      <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · CC ${u.cedula}` : ''}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => aprobar(u)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors"><CheckCircle className="w-3.5 h-3.5" />Aprobar</button>
@@ -1394,8 +1553,9 @@ function UsuariosPanel() {
                     {u.id === actor?.id && <span className="text-[10px] text-[#8a8b9e]">(tú)</span>}
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeRol(u.rol)}`}>{u.rol}</span>
                     {!u.activo && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADO</span>}
+                    {u.debeCambiarPassword && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">CLAVE TEMPORAL</span>}
                   </div>
-                  <div className="text-xs text-[#8a8b9e] truncate">{u.email}</div>
+                  <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · CC ${u.cedula}` : ''}</div>
                 </div>
                 <div className="flex items-center gap-1">
                   {puedeEditar(u) && <Tooltip text="Editar"><button onClick={() => abrirEditar(u)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>}
@@ -1425,6 +1585,16 @@ function UsuariosPanel() {
               <div>
                 <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Correo electrónico" className={`${inputCls} ${errores.email ? 'border-red-500/50' : ''}`} />
                 {errores.email && <p className="text-red-400 text-[11px] mt-1">{errores.email}</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <input value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })} placeholder="Cédula" inputMode="numeric" className={`${inputCls} ${errores.cedula ? 'border-red-500/50' : ''}`} />
+                  {errores.cedula && <p className="text-red-400 text-[11px] mt-1">{errores.cedula}</p>}
+                </div>
+                <div>
+                  <input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} placeholder="Teléfono" type="tel" className={`${inputCls} ${errores.telefono ? 'border-red-500/50' : ''}`} />
+                  {errores.telefono && <p className="text-red-400 text-[11px] mt-1">{errores.telefono}</p>}
+                </div>
               </div>
               <div>
                 <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={modal === 'nuevo' ? 'Contraseña (mín. 8, letras y números)' : 'Nueva contraseña (dejar vacío para no cambiar)'} className={`${inputCls} ${errores.password ? 'border-red-500/50' : ''}`} autoComplete="new-password" />
@@ -2964,7 +3134,7 @@ if (sonCuatro && generarPDF) {
 // PANEL DERECHO (CONFIG Y NOTIFICACIONES MEJORADAS)
 // ============================================
 type PanelDerechoHandle = { limpiarYScroll: () => void; };
-interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; }
+interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; debeCambiarPassword?: boolean; }
 interface PanelDerechoProps { usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera'; onCambiarVista: (v: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
 
 const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ usuario, onLogout, onUsuarioActualizado, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
@@ -3384,9 +3554,29 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   useEffect(() => { if (esSuperadmin && ['planificacion', 'rubrica', 'estudiantes', 'configuracion', 'papelera'].includes(vista)) setVista('estadisticas'); }, [esSuperadmin, vista]);
   // Cantidad de cuentas esperando aprobación (para el contador rojo de la pestaña Usuarios)
   const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
+  const recuperacionesPrevias = useRef<number | null>(null);
+  const actualizarContadores = async () => {
+    try {
+      const r = await fetch('/api/usuarios');
+      if (!r.ok) return;
+      const d = await r.json();
+      const registros = (d.usuarios || []).filter((u: any) => u.pendiente).length;
+      let recuperaciones = 0;
+      if (esSuperadmin) {
+        const rr = await fetch('/api/recuperaciones');
+        if (rr.ok) recuperaciones = (await rr.json()).length;
+        const previas = recuperacionesPrevias.current;
+        if (recuperaciones > 0 && (previas === null || recuperaciones > previas)) agregarNotificacion(`🔑 ${recuperaciones} solicitud(es) de recuperación de contraseña esperan tu atención en Usuarios.`);
+        recuperacionesPrevias.current = recuperaciones;
+      }
+      setSolicitudesPendientes(registros + recuperaciones);
+    } catch { /* se intenta de nuevo en el siguiente ciclo */ }
+  };
   useEffect(() => {
     if (!puedeAdministrar) return;
-    fetch('/api/usuarios').then(r => (r.ok ? r.json() : null)).then(d => { if (d?.usuarios) setSolicitudesPendientes(d.usuarios.filter((u: any) => u.pendiente).length); }).catch(() => {});
+    actualizarContadores();
+    const t = setInterval(actualizarContadores, 60000);
+    return () => clearInterval(t);
   }, [puedeAdministrar, vista]);
 
   // Observaciones que dejan los administradores sobre el trabajo de esta cuenta (se consultan cada minuto)
@@ -3770,7 +3960,7 @@ export default function PlanificadorExamenes() {
     window.fetch = async (...args) => {
       const res = await fetchOriginal(...args);
       const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-      if (res.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth/login')) window.location.href = '/login';
+      if (res.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth/login')) window.location.href = '/login?sesion=expirada';
       return res;
     };
     fetchOriginal('/api/auth/me').then(r => (r.ok ? r.json() : Promise.reject())).then((u: UsuarioSesion) => { setUsuario(u); setVistaActual(u.rol === 'USUARIO' ? 'planificacion' : 'estadisticas'); }).catch(() => { window.location.href = '/login'; });
@@ -3986,6 +4176,9 @@ const guardarPlanificacionEnBD = async () => {
       </div>
     );
   }
+
+  // Entró con una clave temporal: no puede usar el sistema hasta elegir una nueva
+  if (usuario.debeCambiarPassword) return <CambioPasswordObligatorio usuario={usuario} onLogout={cerrarSesion} />;
 
   return (
     <div className="flex flex-col h-screen bg-[#161722] text-[#b0b0c0] overflow-hidden">

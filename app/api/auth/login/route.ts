@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { crearToken, COOKIE_SESION, DURACION_SESION_SEG } from '@/lib/session'
 import { verifyPassword, hashPassword } from '@/lib/password'
-import { bloqueado, registrarFallo, limpiar } from '@/lib/rateLimit'
+import { bloqueado, registrarFallo, limpiar, minutosRestantes } from '@/lib/rateLimit'
+import { ipDe, opcionesCookieSesion } from '@/lib/cookies'
 import { registrarActividad } from '@/lib/actividad'
 
 // Hash de relleno para que el tiempo de respuesta sea similar exista o no el usuario
@@ -18,9 +19,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Ingresa tu correo y contraseña.' }, { status: 400 })
     }
 
-    const clave = email
-    if (bloqueado(clave)) {
-      return NextResponse.json({ error: 'Demasiados intentos. Intenta de nuevo en 15 minutos.' }, { status: 429 })
+    // Dos límites: por conexión+correo (5 intentos) y por correo (20). Así alguien que adivine claves
+    // desde su propia conexión no puede dejar bloqueada a la persona real, que entra desde otra.
+    const claveIp = `${ipDe(request)}|${email}`
+    const claveCorreo = `correo:${email}`
+    const bloqueo = bloqueado(claveIp, 5) ? claveIp : bloqueado(claveCorreo, 20) ? claveCorreo : null
+    if (bloqueo) {
+      return NextResponse.json({ error: `Demasiados intentos fallidos. Intenta de nuevo en ${minutosRestantes(bloqueo)} minuto(s).` }, { status: 429 })
     }
 
     const usuario = await prisma.usuario.findUnique({ where: { email } })
@@ -28,7 +33,7 @@ export async function POST(request: Request) {
     const ok = await verifyPassword(password, usuario?.passwordHash ?? hashRelleno)
 
     if (!usuario || !ok) {
-      registrarFallo(clave)
+      registrarFallo(claveIp); registrarFallo(claveCorreo)
       // Solo se registra si la cuenta existe (así el historial no se puede inundar con correos inventados)
       if (usuario) await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'LOGIN_FALLIDO', entidad: 'Sesión', detalle: 'Contraseña incorrecta' })
       return NextResponse.json({ error: 'Correo o contraseña incorrectos.' }, { status: 401 })
@@ -40,17 +45,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tu cuenta está desactivada. Contacta al administrador.' }, { status: 403 })
     }
 
-    limpiar(clave)
+    limpiar(claveIp); limpiar(claveCorreo)
     await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'LOGIN', entidad: 'Sesión', detalle: 'Inició sesión' })
     const token = await crearToken({ sub: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol })
-    const res = NextResponse.json({ id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol })
-    res.cookies.set(COOKIE_SESION, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: DURACION_SESION_SEG,
-    })
+    const res = NextResponse.json({ id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, debeCambiarPassword: usuario.debeCambiarPassword })
+    res.cookies.set(COOKIE_SESION, token, opcionesCookieSesion(request, DURACION_SESION_SEG))
     return res
   } catch (error: any) {
     console.error(error)

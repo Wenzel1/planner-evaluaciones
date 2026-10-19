@@ -27,3 +27,17 @@ export function validarPassword(password: string): string | null {
   if (!/[A-Za-z]/.test(p) || !/[0-9]/.test(p)) return 'La contraseña debe combinar letras y números.'
   return null
 }
+
+// Teléfono: se ignoran espacios, guiones y paréntesis; 7 a 15 dígitos, puede empezar con +
+export const normalizarTelefono = (t: string) => (t || '').replace(/[\s().-]/g, '')
+export function validarTelefono(telefono: string): string | null {
+  if (!/^\+?\d{7,15}$/.test(normalizarTelefono(telefono))) return 'El teléfono debe tener entre 7 y 15 dígitos (puede empezar con +).'
+  return null
+}
+
+// Cédula: se ignoran puntos, espacios y guiones; solo dígitos, entre 6 y 12
+export const normalizarCedula = (c: string) => (c || '').replace(/[\s.-]/g, '')
+export function validarCedula(cedula: string): string | null {
+  if (!/^\d{6,12}$/.test(normalizarCedula(cedula))) return 'La cédula debe tener entre 6 y 12 dígitos (solo números).'
+  return null
+}

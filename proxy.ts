@@ -1,8 +1,9 @@
 // proxy.ts (Next.js 16+). Va en la raíz del proyecto, junto a package.json; si usas carpeta src/, va en src/proxy.ts
 import { NextResponse, type NextRequest } from 'next/server'
+import { opcionesCookieSesion } from '@/lib/cookies'
 import { COOKIE_SESION, DURACION_SESION_SEG, verificarToken, esAdminOSuperadmin, debeRenovar, renovarToken } from '@/lib/session'
 
-const RUTAS_PUBLICAS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/auth/setup', '/api/auth/registro']
+const RUTAS_PUBLICAS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/auth/setup', '/api/auth/registro', '/api/auth/recuperar']
 
 // Cabeceras de seguridad para todas las respuestas.
 // (La protección contra que otra web incruste la tuya en un iframe solo se activa en producción,
@@ -49,13 +50,7 @@ export async function proxy(request: NextRequest) {
 
   // Sesión deslizante: si la persona sigue trabajando, se le entrega una cookie nueva (con tope de 24 h desde el login)
   if (debeRenovar(sesion)) {
-    respuesta.cookies.set(COOKIE_SESION, await renovarToken(sesion), {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: DURACION_SESION_SEG,
-    })
+    respuesta.cookies.set(COOKIE_SESION, await renovarToken(sesion), opcionesCookieSesion(request, DURACION_SESION_SEG))
   }
   return respuesta
 }
