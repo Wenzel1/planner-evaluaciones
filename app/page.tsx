@@ -2710,8 +2710,6 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Agregar al inicio de DragDropSecciones, después de los otros useState:
-  const [sendPressTimer, setSendPressTimer] = useState<NodeJS.Timeout | null>(null);
-  const [isLongPressing, setIsLongPressing] = useState(false);
   const handleCardClick = (seccionId: string) => { setExpandedId(expandedId === seccionId ? null : seccionId); };
   const handleClosePdf = () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(null); setPdfAbierto(false); setMostrarMenuEnvio(false); agregarNotificacion('🗑️ Plan eliminado.'); };
 
@@ -2753,52 +2751,22 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               </a>
 
               {/* ENVIAR — Click simple: nada. Mantener presionado 500ms: muestra ventana */}
-              <Tooltip text="Mantén presionado para enviar">
+              <Tooltip text={mostrarMenuEnvio ? 'Volver al plan' : 'Enviar por WhatsApp'}>
                 <button
-                  onMouseDown={() => {
-                    setSendPressTimer(setTimeout(() => {
-                      setIsLongPressing(true);
-                      if (pdfAbierto) setMostrarMenuEnvio(true);
-                      else {
-                        setPdfAbierto(true);
-                        setTimeout(() => setMostrarMenuEnvio(true), 300);
-                      }
-                    }, 500));
+                  onClick={() => {
+                    // Un toque abre (o cierra) la ventana de envío; si el plan estaba contraído, primero lo despliega
+                    if (mostrarMenuEnvio) { setMostrarMenuEnvio(false); return; }
+                    if (pdfAbierto) setMostrarMenuEnvio(true);
+                    else { setPdfAbierto(true); setTimeout(() => setMostrarMenuEnvio(true), 250); }
                   }}
-                  onMouseUp={() => {
-                    if (sendPressTimer) { clearTimeout(sendPressTimer); setSendPressTimer(null); }
-                    // Click simple → no hace nada (queda vacío como pediste)
-                    setTimeout(() => setIsLongPressing(false), 100);
-                  }}
-                  onMouseLeave={() => {
-                    if (sendPressTimer) { clearTimeout(sendPressTimer); setSendPressTimer(null); }
-                    setIsLongPressing(false);
-                  }}
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    setSendPressTimer(setTimeout(() => {
-                      setIsLongPressing(true);
-                      if (pdfAbierto) setMostrarMenuEnvio(true);
-                      else {
-                        setPdfAbierto(true);
-                        setTimeout(() => setMostrarMenuEnvio(true), 300);
-                      }
-                    }, 500));
-                  }}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    if (sendPressTimer) { clearTimeout(sendPressTimer); setSendPressTimer(null); }
-                    setTimeout(() => setIsLongPressing(false), 100);
-                  }}
-                  className={`p-1.5 rounded-lg border transition-all duration-200 ${
+                  aria-label="Enviar el plan por WhatsApp"
+                  className={`p-1.5 rounded-lg border transition-all duration-200 active:scale-95 ${
                     mostrarMenuEnvio
                       ? 'bg-sky-500/20 text-sky-400 border-sky-500/40'
-                      : isLongPressing
-                        ? 'bg-sky-500/15 text-sky-400 border-sky-500/30 scale-110'
-                        : 'text-[#8a8b9e] hover:text-sky-400 border-transparent active:scale-95'
+                      : 'text-[#8a8b9e] hover:text-sky-400 hover:bg-sky-500/10 border-transparent'
                   }`}
                 >
-                  <Send className={`w-4 h-4 transition-transform ${isLongPressing ? 'scale-110' : ''}`} />
+                  <Send className="w-4 h-4" />
                 </button>
               </Tooltip>
 
