@@ -150,6 +150,12 @@ model Evaluacion {
   updatedAt             DateTime        @updatedAt
   calificaciones        Calificacion[]
   grupoSeccion String @default("A") // sección de estudiantes (A, B, C, D...) a la que pertenece
+
+  // Estado de realización: PROGRAMADA | REALIZADA | REPROGRAMADA | CANCELADA
+  // ("Por confirmar" no se guarda: es una PROGRAMADA cuya fecha ya pasó)
+  estado        String    @default("PROGRAMADA")
+  estadoEn      DateTime?
+  recordatorios RecordatorioEnviado[]
 }
 
 model CriterioRubrica {
@@ -310,4 +316,51 @@ model ConfiguracionSistema {
   datos          Json
   actualizadoPor String?
   updatedAt      DateTime @updatedAt
+}
+
+// Recordatorios por WhatsApp ya enviados (3 días, 1 día y 2 horas antes). Si la evaluación cambia de fecha,
+// la fecha nueva cuenta como distinta y los recordatorios se vuelven a enviar.
+model RecordatorioEnviado {
+  id              String     @id @default(cuid())
+  evaluacionId    String
+  evaluacion      Evaluacion @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  tipo            String     // '3D' | '1D' | '2H'
+  fechaEvaluacion DateTime
+  enviados        Int        @default(0)
+  createdAt       DateTime   @default(now())
+
+  @@unique([evaluacionId, tipo, fechaEvaluacion])
+}
+
+// Copia del Plan de Acción que se compartió por WhatsApp. El PDF se genera una vez y se guarda aquí;
+// los estudiantes lo reciben mediante un enlace con un token imposible de adivinar.
+model PlanCompartido {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  usuarioId String
+  seccion   String
+  materia   String
+  datos     Json
+  pdf       Bytes?
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
+}
+
+// Cada mensaje de WhatsApp enviado a un estudiante (plan de acción o recordatorio) y su resultado.
+model EnvioWhatsApp {
+  id           String    @id
+  loteId       String
+  usuarioId    String    // profesor dueño
+  tipo         String    // 'PLAN' | 'RECORDATORIO'
+  estudianteId String?
+  nombre       String
+  telefono     String
+  estado       String    @default("PENDIENTE") // PENDIENTE | ENVIADO | FALLIDO
+  error        String?
+  createdAt    DateTime  @default(now())
+  enviadoEn    DateTime?
+
+  @@index([loteId])
+  @@index([usuarioId, createdAt])
 }

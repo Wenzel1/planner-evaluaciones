@@ -2,7 +2,28 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
-import { enviarAPapelera, detectarEliminadas } from '@/lib/papelera'
+import { enviarAPapelera } from '@/lib/papelera'
+
+// Campos de una evaluación tal como se guardan (sin el estado: ese se cambia con /api/evaluaciones/:id/estado)
+function datosEvaluacion(ev: any, index: number) {
+  return {
+    nombre: String(ev.nombre ?? '').slice(0, 300),
+    tipoPregunta: ev.tipoPregunta || 'MULTIPLE_CHOICE',
+    nivelBloom: ev.nivelBloom || 'APLICAR',
+    peso: ev.peso == null || ev.peso === '' ? null : Math.round(Number(ev.peso)),
+    cantidadPreguntas: ev.cantidadPreguntas || 0,
+    contenidosEvaluados: ev.contenidosEvaluados || [],
+    tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos ?? null,
+    tipoActividad: ev.tipoActividad || null,
+    descripcion: ev.descripcion || null,
+    cantidadGrupos: ev.cantidadGrupos ?? null,
+    personasPorGrupo: ev.personasPorGrupo ?? null,
+    orden: ev.orden ?? index,
+    enfoque: ev.enfoque || null,
+    fecha: ev.fecha && !isNaN(new Date(ev.fecha).getTime()) ? new Date(ev.fecha) : null,
+    grupoSeccion: ev.grupoSeccion || 'A',
+  }
+}
 
 // Obtiene el dueño de una planificación (el dueño de su materia)
 async function duenoDePlanificacion(id: string) {
@@ -76,6 +97,7 @@ export async function PUT(
 
     // Todo el guardado va en una sola transacción: o se guarda completo, o no se toca nada
     let eliminadas: any[] = []
+    const idsNuevos: Record<string, string> = {} // id que usaba la pantalla → id real en la base de datos
     await prisma.$transaction(async (tx) => {
     // Actualizar campos principales
     await tx.planificacion.update({
@@ -89,36 +111,26 @@ export async function PUT(
       },
     })
 
-    // Sincronizar evaluaciones
+    // Sincronizar evaluaciones: las que ya existen se ACTUALIZAN (conservan su id, su estado, sus calificaciones
+    // y sus recordatorios); las nuevas se crean; las que ya no vienen van a la papelera.
     if (Array.isArray(body.evaluaciones)) {
-      // Se deduce qué evaluaciones ya no vienen para guardarlas en la papelera (30 días)
       const existentes = await tx.evaluacion.findMany({ where: { planificacionId: id } })
-      eliminadas = detectarEliminadas(existentes, body.evaluaciones)
-      await tx.evaluacion.deleteMany({ where: { planificacionId: id } })
-      await tx.planificacion.update({
-        where: { id },
-        data: {
-          evaluaciones: {
-            create: body.evaluaciones.map((ev: any, index: number) => ({
-              nombre: ev.nombre,
-              tipoPregunta: ev.tipoPregunta || 'MULTIPLE_CHOICE',
-              nivelBloom: ev.nivelBloom || 'APLICAR',
-              peso: ev.peso == null || ev.peso === '' ? null : Math.round(Number(ev.peso)),
-              cantidadPreguntas: ev.cantidadPreguntas || 0,
-              contenidosEvaluados: ev.contenidosEvaluados || [],
-              tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos ?? null,
-              tipoActividad: ev.tipoActividad || null,
-              descripcion: ev.descripcion || null,
-              cantidadGrupos: ev.cantidadGrupos ?? null,
-              personasPorGrupo: ev.personasPorGrupo ?? null,
-              orden: ev.orden ?? index,
-              enfoque: ev.enfoque || null,
-              fecha: ev.fecha ? new Date(ev.fecha) : null,
-              grupoSeccion: ev.grupoSeccion || 'A',
-            })),
-          },
-        },
-      })
+      const porId = new Map<string, (typeof existentes)[number]>(existentes.map(e => [e.id, e]))
+      const conservar = new Set<string>()
+      for (const [index, ev] of (body.evaluaciones as any[]).entries()) {
+        const datos = datosEvaluacion(ev, index)
+        const previa = ev?.id ? porId.get(String(ev.id)) : undefined
+        if (previa && !conservar.has(previa.id)) {
+          await tx.evaluacion.update({ where: { id: previa.id }, data: datos })
+          conservar.add(previa.id)
+        } else {
+          const creada = await tx.evaluacion.create({ data: { ...datos, planificacionId: id } })
+          conservar.add(creada.id)
+          if (ev?.id) idsNuevos[String(ev.id)] = creada.id
+        }
+      }
+      eliminadas = existentes.filter(e => !conservar.has(e.id))
+      if (eliminadas.length > 0) await tx.evaluacion.deleteMany({ where: { id: { in: eliminadas.map(e => e.id) } } })
     }
 
     // Sincronizar rúbrica
@@ -188,7 +200,7 @@ export async function PUT(
     })
 
     await registrarActividad({ actor, accion: 'EDITAR', entidad: 'Plan', detalle: `Actualizó el plan de "${dueno.materiaNombre}"${body.evaluaciones ? ` (${body.evaluaciones.length} evaluaciones)` : ''}` })
-    return NextResponse.json(actualizada)
+    return NextResponse.json({ ...actualizada, idsNuevos })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Error al actualizar' }, { status: 500 })

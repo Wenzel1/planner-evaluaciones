@@ -3,6 +3,26 @@ import prisma from '@/lib/prisma';
 import { requerirActor, quiereTodos, verificarAcceso } from '@/lib/permisos';
 import { registrarActividad } from '@/lib/actividad';
 
+function datosEvaluacion(ev: any, index: number) {
+  return {
+    nombre: String(ev.nombre ?? '').slice(0, 300),
+    tipoPregunta: ev.tipoPregunta || 'MULTIPLE_CHOICE',
+    nivelBloom: ev.nivelBloom || 'APLICAR',
+    peso: ev.peso == null || ev.peso === '' ? null : Math.round(Number(ev.peso)),
+    cantidadPreguntas: ev.cantidadPreguntas || 0,
+    contenidosEvaluados: ev.contenidosEvaluados || [],
+    tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos ?? null,
+    tipoActividad: ev.tipoActividad || null,
+    descripcion: ev.descripcion || null,
+    cantidadGrupos: ev.cantidadGrupos ?? null,
+    personasPorGrupo: ev.personasPorGrupo ?? null,
+    orden: ev.orden ?? index,
+    enfoque: ev.enfoque || null,
+    fecha: ev.fecha && !isNaN(new Date(ev.fecha).getTime()) ? new Date(ev.fecha) : null,
+    grupoSeccion: ev.grupoSeccion || 'A',
+  }
+}
+
 // GET /api/planificaciones?materiaId=xxx  (solo las del usuario; ADMIN/SUPERADMIN pueden pedir ?todos=1)
 export async function GET(request: Request) {
   try {
@@ -54,7 +74,9 @@ export async function POST(request: Request) {
     const denegado = verificarAcceso(actor, materia.usuarioId, 'escribir')
     if (denegado) return denegado
 
-    const planificacion = await prisma.planificacion.create({
+    const idsNuevos: Record<string, string> = {} // id que usaba la pantalla → id real en la base de datos
+    const creado = await prisma.$transaction(async (tx) => {
+    const plan = await tx.planificacion.create({
       data: {
         version: body.version || 1,
         estado: body.estado || 'BORRADOR',
@@ -62,25 +84,6 @@ export async function POST(request: Request) {
         tipoExamen: body.tipoExamen || 'MIXTO',
         duracionMinutos: body.duracionMinutos || 0,
         materiaId: body.materiaId,
-        evaluaciones: {
-          create: (body.evaluaciones || []).map((ev: any, index: number) => ({
-            nombre: ev.nombre,
-            tipoPregunta: ev.tipoPregunta || 'MULTIPLE_CHOICE',
-            peso: ev.peso == null || ev.peso === '' ? null : Math.round(Number(ev.peso)),
-            cantidadPreguntas: ev.cantidadPreguntas || 0,
-            contenidosEvaluados: ev.contenidosEvaluados || [],
-            nivelBloom: ev.nivelBloom || 'APLICAR',
-            tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos ?? null,
-            tipoActividad: ev.tipoActividad || null,
-            descripcion: ev.descripcion || null,
-            cantidadGrupos: ev.cantidadGrupos ?? null,
-            personasPorGrupo: ev.personasPorGrupo ?? null,
-            orden: ev.orden ?? index,
-            enfoque: ev.enfoque || null,
-            fecha: ev.fecha ? new Date(ev.fecha) : null,
-            grupoSeccion: ev.grupoSeccion || 'A',
-          })),
-        },
         rubrica: {
           create: (body.rubrica || []).map((crit: any) => ({
             nombre: crit.nombre,
@@ -96,15 +99,26 @@ export async function POST(request: Request) {
           })),
         },
       },
+      select: { id: true },
+    })
+    for (const [index, ev] of ((body.evaluaciones || []) as any[]).entries()) {
+      const c = await tx.evaluacion.create({ data: { ...datosEvaluacion(ev, index), planificacionId: plan.id } })
+      if (ev?.id) idsNuevos[String(ev.id)] = c.id
+    }
+    return plan
+    }, { timeout: 20000 })
+
+    const planificacion = await prisma.planificacion.findUniqueOrThrow({
+      where: { id: creado.id },
       include: {
-        evaluaciones: true,
+        evaluaciones: { orderBy: { orden: 'asc' } },
         rubrica: { include: { niveles: true } },
         materia: true,
       },
     })
 
     await registrarActividad({ actor, accion: 'CREAR', entidad: 'Plan', detalle: `Plan de "${planificacion.materia.nombre}" (${planificacion.evaluaciones.length} evaluaciones)` })
-    return NextResponse.json(planificacion, { status: 201 })
+    return NextResponse.json({ ...planificacion, idsNuevos }, { status: 201 })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Error al crear planificación' }, { status: 500 })
