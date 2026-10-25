@@ -393,6 +393,27 @@ function escaparHTML(texto: string): string {
   return String(texto ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Casilla (1 a 4) de una evaluación propuesta por el agente: usa su "tipo" ("Evaluación 3" → 3) o su posición
+function casillaDeEvaluacion(p: any, idx: number): number {
+  const m = String(p?.tipo ?? '').match(/(\d+)/);
+  const n = m ? parseInt(m[1], 10) : idx + 1;
+  return Math.min(4, Math.max(1, Number.isFinite(n) ? n : idx + 1));
+}
+
+// Une una edición parcial del agente (p. ej. solo la Evaluación 2) con la propuesta que ya estaba en pantalla
+// Solo se une si el profesor pidió CAMBIAR algo; si pidió crear evaluaciones nuevas, la propuesta se reemplaza.
+const PIDE_EDITAR = /\b(cambia\w*|edita\w*|modifica\w*|ajusta\w*|corrige\w*|actualiza\w*|reemplaza\w*|b[aá]ja\w*|s[uú]be\w*|aumenta\w*|reduce\w*|quita\w*|agrega\w*|añade\w*)\b/i;
+function unirPropuesta(anterior: any, nueva: any, mensaje = ''): any {
+  const nuevas = (nueva?.evaluaciones || []).slice(0, 4);
+  const previas = anterior?.evaluaciones || [];
+  const esParcial = previas.length > 0 && nuevas.length < previas.length && PIDE_EDITAR.test(mensaje) && nuevas.every((p: any) => /\d/.test(String(p?.tipo ?? '')));
+  if (!esParcial) return { ...nueva, evaluaciones: nuevas };
+  const porCasilla = new Map<number, any>();
+  previas.forEach((p: any, i: number) => porCasilla.set(casillaDeEvaluacion(p, i), { ...p, tipo: p.tipo || `Evaluación ${i + 1}` }));
+  nuevas.forEach((p: any, i: number) => porCasilla.set(casillaDeEvaluacion(p, i), p));
+  return { ...anterior, ...nueva, evaluaciones: [...porCasilla.entries()].sort((a, b) => a[0] - b[0]).map(([, p]) => p) };
+}
+
 function limpiarTexto(texto: string): string {
   if (!texto) return ''; let clean = texto;
   while (/^Evaluaci[oó]n\s+\d+\s*:\s*/i.test(clean)) { clean = clean.replace(/^Evaluaci[oó]n\s+\d+\s*:\s*/i, ''); }
@@ -3131,7 +3152,7 @@ if (sonCuatro && generarPDF) {
     // Chat apagado o mensaje demasiado largo (configurado por el superadmin). Los comandos locales de arriba siguen funcionando.
     if (config && !config.chat.activo) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: '⏸️ ' + config.chat.mensajeInactivo, completo: true, id: `agent-${Date.now()}` }]); return; }
     if (config && msg.length > config.chat.maxCaracteresMensaje) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: `✂️ Tu mensaje tiene ${msg.length} caracteres y el máximo permitido es ${config.chat.maxCaracteresMensaje}. Acórtalo e inténtalo de nuevo.`, completo: true, id: `agent-${Date.now()}` }]); return; }
-    if (esSolicitudPlanAccion(msg) && !propuestaPendienteLocal) { if (esNegacion(msg)) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, no generaré el plan de acción.', completo: true, id: `agent-${Date.now()}` }]); return; } try { const response = await fetch(`${urlChat}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(tiempoChat), body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes, sessionId: usuarioId, config: configParaN8n, accion: 'plan_accion' }) }); const data = await response.json(); setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'Error de conexión.', completo: true, id: `error-${Date.now()}` }]); } return; }
+    if (esSolicitudPlanAccion(msg) && !propuestaPendienteLocal) { if (esNegacion(msg)) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, no generaré el plan de acción.', completo: true, id: `agent-${Date.now()}` }]); return; } try { const response = await fetch(`${urlChat}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(tiempoChat), body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes, sessionId: usuarioId, config: configParaN8n, accion: 'plan_accion' }) }); const data = await response.json(); setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { datosExtraidos = unirPropuesta(propuestaPendienteLocal, datosExtraidos, msg); setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'Error de conexión.', completo: true, id: `error-${Date.now()}` }]); } return; }
     try { const response = await fetch(`${urlChat}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(tiempoChat), body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes, sessionId: usuarioId, config: configParaN8n }) }); const data = await response.json(); setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { if (esNegacion(msg)) { setPropuestaPendienteLocal(null); setPropuestaPendiente(null); if (limpiarYScroll) limpiarYScroll(); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, he descartado los resultados de la evaluación.', completo: true, id: `agent-${Date.now()}` }]); } else { setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'Error de conexión.', completo: true, id: `error-${Date.now()}` }]); }
   };
 
@@ -3393,9 +3414,15 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 
   useEffect(() => {
     if (propuestaPendiente?.evaluaciones) {
-      const count = propuestaPendiente.evaluaciones.length; setNumEvaluaciones(count); 
-      const fechaBase = new Date(); const fechas = calcularFechasEvaluaciones(fechaBase, count);
-      propuestaPendiente.evaluaciones.forEach((p, idx) => {
+      const lista = propuestaPendiente.evaluaciones.slice(0, 4);
+      const casillas = lista.map((p, idx) => casillaDeEvaluacion(p, idx));
+      const mayor = Math.max(1, ...casillas);
+      // Plan completo → muestra justo esas casillas; edición de una sola → conserva las que ya estaban visibles
+      const esCompleta = casillas.every((c, i) => c === i + 1);
+      setNumEvaluaciones(prev => (esCompleta ? lista.length : Math.max(prev, mayor)));
+      const fechaBase = new Date(); const fechas = calcularFechasEvaluaciones(fechaBase, Math.max(mayor, lista.length));
+      lista.forEach((p, i) => {
+        const idx = casillas[i] - 1;
         let fechaExamen = fechas[idx] || new Date();
         if (p.fecha && p.hora) fechaExamen = new Date(`${p.fecha}T${p.hora}:00`);
         else if (p.fecha) fechaExamen = new Date(p.fecha);
