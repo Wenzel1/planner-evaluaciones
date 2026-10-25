@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { opcionesCookieSesion } from '@/lib/cookies'
 import { COOKIE_SESION, DURACION_SESION_SEG, verificarToken, esAdminOSuperadmin, debeRenovar, renovarToken } from '@/lib/session'
 
-const RUTAS_PUBLICAS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/auth/setup', '/api/auth/registro', '/api/auth/recuperar']
+const RUTAS_PUBLICAS = ['/login', '/api/auth/login', '/api/auth/logout', '/api/auth/setup', '/api/auth/registro', '/api/auth/recuperar', '/api/auth/verificar-telefono', '/api/auth/reenviar-codigo',]
 
 // Cabeceras de seguridad para todas las respuestas.
 // (La protección contra que otra web incruste la tuya en un iframe solo se activa en producción,
