@@ -182,7 +182,20 @@ const KEYWORDS_SE = {
     'supabase','firebase','prisma','drizzle','github actions','argocd',
     'cloud native','serverless function','api gateway','webina','webassembly',
     'wasm','hot-reloading','telemetria','telemetría','open-telemetry','otel',
-    'ci/cd pipeline','mocking','data pipeline','etl'
+    'ci/cd pipeline','mocking','data pipeline','etl',
+
+    // --- Temas frecuentes de la carrera que antes no sumaban puntos ---
+    'diagrama de flujo','diagramas de flujo','pseudocodigo','pseudocódigo','poo',
+    'orientada a objetos','orientado a objetos','modelado','modelo entidad relacion',
+    'modelo entidad relación','entidad relacion','entidad relación','normalizacion','normalización',
+    'bpmn','casos de uso','ciclo de vida del software','sdlc','ia agentica','ia agéntica',
+    'agentes de ia','redes neuronales','vision por computadora','visión por computadora',
+    'chatbot','app movil','app móvil','aplicacion movil','aplicación móvil','android','ios',
+    'flutter','kotlin','swift','php','c++','scrum master','product owner','ux','ui',
+    'usabilidad','accesibilidad web','scraping','automatizacion','automatización','script',
+    'prueba','pruebas','defecto','bug','transaccion','transacción','concurrencia','escalabilidad',
+    'requisitos funcionales','arquitectura limpia','control de versiones','repositorio',
+    'next.js','node.js','vue.js','react.js','nest.js','nestjs','tailwind','modal','formulario web'
   ],
   debil: [
     // --- Tus palabras originales ---
@@ -269,57 +282,78 @@ const TERMINOS_BLOQUEADOS = [
 ];
 
 
-function validarContenidoSE(texto: string): { valido: boolean; error: string; puntuacion: number } {
-  if (!texto || texto.trim().length < 5) {
-    return { valido: false, error: 'El contenido debe tener al menos 5 caracteres.', puntuacion: 0 };
+// ---------- Validación de temas de Ingeniería de Software ----------
+// Reglas:
+//  - Se comparan PALABRAS COMPLETAS (antes "fe" bloqueaba "defectos" y "dios" bloqueaba "estudios").
+//  - Las palabras técnicas mandan: "API REST para un sistema de ventas" es válido aunque diga "ventas".
+//  - Bloqueo duro solo en casos claros: texto sin sentido o tema ajeno SIN ninguna palabra técnica.
+//  - En los casos dudosos se devuelve una "advertencia": el profesor puede guardar igual si confirma.
+const normalizarSE = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const escaparRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+// Palabra técnica: coincide al inicio de una palabra ("api" → "apis", "patron" → "patrones").
+// Las siglas cortas (≤ 3 letras) deben ser la palabra completa, para que "go" no sume en "algoritmo".
+const crearRegexClave = (kw: string) => {
+  const t = normalizarSE(kw).trim().split(/\s+/).map(escaparRegExp).join('(?:s|es)?\\s+');
+  return new RegExp(kw.length <= 3 ? `(^|[^a-z0-9])${t}s?(?![a-z0-9])` : `(^|[^a-z0-9])${t}`);
+};
+// Término ajeno: palabra completa, con plural opcional ("venta" → "ventas", pero NO "ventana")
+const crearRegexBloqueado = (term: string) => new RegExp(`(^|[^a-z0-9])${escaparRegExp(normalizarSE(term))}(s|es)?(?![a-z0-9])`);
+const REGEX_SE = {
+  fuerte: KEYWORDS_SE.fuerte.map(crearRegexClave),
+  medio: KEYWORDS_SE.medio.map(crearRegexClave),
+  debil: KEYWORDS_SE.debil.map(crearRegexClave),
+};
+// "estado" y "derecho" también son palabras técnicas/normales ("gestión de estado", "panel derecho"): no se bloquean
+const REGEX_BLOQUEADOS = TERMINOS_BLOQUEADOS
+  .filter(t => !['estado', 'derecho'].includes(t))
+  .map(t => ({ termino: t, re: crearRegexBloqueado(t) }));
+
+const TEMAS_VALIDOS = 'arquitectura, patrones de diseño, metodologías ágiles, testing, DevOps, CI/CD, bases de datos, APIs, seguridad, calidad de código, lenguajes de programación, diagramas, IA aplicada, etc.';
+
+function validarContenidoSE(texto: string): { valido: boolean; error: string; puntuacion: number; advertencia?: string } {
+  const limpio = (texto || '').trim();
+  if (limpio.length < 3) {
+    return { valido: false, error: 'Escribe al menos 3 caracteres.', puntuacion: 0 };
+  }
+  // Solo números o símbolos
+  if (!/[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]/.test(limpio)) {
+    return { valido: false, error: 'No se permiten solo números o símbolos. Escribe un tema de Ingeniería de Software.', puntuacion: 0 };
+  }
+  // Texto sin sentido: una letra repetida muchas veces ("aaaaaa") o una palabra larga sin vocales ("qwrtzxv")
+  if (/(.)\1{4,}/.test(limpio) || /[b-df-hj-np-tv-z]{6,}/i.test(normalizarSE(limpio))) {
+    return { valido: false, error: 'El texto no parece un tema válido. Revisa lo que escribiste.', puntuacion: 0 };
   }
 
-  const textoLower = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-  // Solo números
-  if (/^\d+$/.test(texto.trim())) {
-    return { valido: false, error: 'No se permiten solo números. Ingresa un tema de Ingeniería de Software.', puntuacion: 0 };
-  }
-
-  // Caracteres aleatorios cortos
-  if (/^[a-zA-Z0-9\s]{1,12}$/.test(texto.trim())) {
-    return { valido: false, error: 'El contenido es demasiado corto o no parece un tema válido de Ingeniería de Software.', puntuacion: 0 };
-  }
-
-  // Términos bloqueados
-  for (const termino of TERMINOS_BLOQUEADOS) {
-    const t = termino.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (textoLower.includes(t)) {
-      return {
-        valido: false,
-        error: `"${termino}" no es un tema válido de Ingeniería de Software. Solo se permiten contenidos relacionados con desarrollo, arquitectura, metodologías ágiles, testing, DevOps, bases de datos, APIs, seguridad, calidad de código, etc.`,
-        puntuacion: 0,
-      };
-    }
-  }
-
-  // Calcular puntuación
+  const t = normalizarSE(limpio);
   let puntuacion = 0;
+  for (const re of REGEX_SE.fuerte) if (re.test(t)) puntuacion += 3;
+  for (const re of REGEX_SE.medio) if (re.test(t)) puntuacion += 2;
+  for (const re of REGEX_SE.debil) if (re.test(t)) puntuacion += 1;
 
-  for (const kw of KEYWORDS_SE.fuerte) {
-    if (textoLower.includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) puntuacion += 3;
-  }
-  for (const kw of KEYWORDS_SE.medio) {
-    if (textoLower.includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) puntuacion += 2;
-  }
-  for (const kw of KEYWORDS_SE.debil) {
-    if (textoLower.includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) puntuacion += 1;
-  }
+  // Con suficientes palabras técnicas es válido, mencione lo que mencione (dominio del proyecto: ventas, hospital, banco...)
+  if (puntuacion >= 3) return { valido: true, error: '', puntuacion };
 
-  if (puntuacion < 3) {
+  const ajeno = REGEX_BLOQUEADOS.find(b => b.re.test(t));
+  // Una palabra técnica clara y nada ajeno también es válido ("Next.js con Prisma", "Ventana modal en la interfaz")
+  if (puntuacion >= 2 && !ajeno) return { valido: true, error: '', puntuacion };
+  // Tema claramente ajeno y sin ninguna palabra técnica → se bloquea
+  if (ajeno && puntuacion < 2) {
     return {
       valido: false,
-      error: 'Este contenido no parece relacionado con Ingeniería de Software. Temas válidos: arquitectura, patrones de diseño, metodologías ágiles, testing, DevOps, CI/CD, bases de datos, APIs, seguridad, calidad de código, lenguajes de programación, frameworks, etc.',
+      error: `"${ajeno.termino}" no parece un tema de Ingeniería de Software. Si es el dominio de un proyecto, agrega el enfoque técnico (ej: "Sistema de ${ajeno.termino} con API REST"). Temas válidos: ${TEMAS_VALIDOS}`,
       puntuacion,
     };
   }
 
-  return { valido: true, error: '', puntuacion };
+  // Caso dudoso: se permite guardar si el profesor confirma
+  return {
+    valido: true,
+    error: '',
+    puntuacion,
+    advertencia: ajeno
+      ? `menciona "${ajeno.termino}" y tiene pocas palabras técnicas`
+      : 'no tiene términos reconocidos de Ingeniería de Software',
+  };
 }
 
 // Valida que el enfoque sea exactamente uno de la lista permitida
@@ -3623,13 +3657,16 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     // manualmente por el usuario), se omite la validación de palabras clave para ese campo.
     const nuevosErrores: ErroresEvaluacion = {};
 
+    const advertencias: string[] = [];
     if (ev.materia.trim() && !ev.origenAgente?.materia) {
       const rMateria = validarContenidoSE(ev.materia);
       if (!rMateria.valido) nuevosErrores.materia = rMateria.error;
+      else if (rMateria.advertencia) advertencias.push(`• Contenido: ${rMateria.advertencia}`);
     }
     if (ev.tipoActividad.trim() && !ev.origenAgente?.tipoActividad) {
       const rTipo = validarContenidoSE(ev.tipoActividad);
       if (!rTipo.valido) nuevosErrores.tipoActividad = rTipo.error;
+      // La estrategia ("Taller", "Debate"...) suele no tener palabras técnicas: no se advierte por eso
     }
     if (ev.enfoque?.trim()) {
       const rEnfoque = validarEnfoque(ev.enfoque);
@@ -3638,11 +3675,15 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     if (ev.descripcion?.trim() && !ev.origenAgente?.descripcion) {
       const rDesc = validarContenidoSE(ev.descripcion);
       if (!rDesc.valido) nuevosErrores.descripcion = rDesc.error;
+      else if (rDesc.advertencia) advertencias.push(`• Descripción: ${rDesc.advertencia}`);
     }
 
     if (Object.keys(nuevosErrores).length > 0) {
       setEv(prev => ({ ...prev, errores: nuevosErrores }));
-      agregarNotificacion('❌ Corrige los errores antes de guardar. Solo se permiten temas de Ingeniería de Software.');
+      agregarNotificacion('❌ Corrige los campos marcados en rojo antes de guardar.');
+      return;
+    }
+    if (advertencias.length > 0 && !window.confirm(`Esto no parece del todo un tema de Ingeniería de Software:\n\n${advertencias.join('\n')}\n\n¿Quieres guardarla igual?`)) {
       return;
     }
     // === FIN VALIDACIÓN ===
