@@ -134,8 +134,9 @@ export default function LoginPage() {
         const r = await fetch('/api/auth/verificar-telefono', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, codigo }) })
         const d = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(d.error || 'No se pudo verificar el código.')
-        setModo('login'); setCodigo(''); setReenvioEn(0)
         setAviso(d.mensaje || 'WhatsApp confirmado.')
+        if (d.entrar) { window.location.href = '/'; return } // la sesión ya quedó abierta
+        setModo('login'); setCodigo(''); setReenvioEn(0)
         return
       }
 
@@ -158,14 +159,14 @@ export default function LoginPage() {
         if (d.verificar) {
           irAVerificar(
             d.enviado
-              ? 'Solicitud enviada. Te mandamos un código de 6 dígitos por WhatsApp para confirmar tu número.'
-              : 'Solicitud enviada, pero no pudimos mandar el WhatsApp. Pulsa «Reenviar código» en un momento.',
+              ? 'Cuenta creada. Te mandamos un código de 6 dígitos por WhatsApp para activarla.'
+              : 'Cuenta creada, pero no pudimos mandar el WhatsApp. Pulsa «Reenviar código» en un momento.',
             d.enviado ? 60 : 0,
             d.telefonoFinal || '',
           )
         } else {
           setModo('login'); setPassword(''); setConfirmar('')
-          setAviso('Solicitud enviada. Un administrador debe aprobar tu cuenta antes de que puedas iniciar sesión.')
+          setAviso('Cuenta creada. Ya puedes iniciar sesión.')
         }
         return
       }
@@ -198,7 +199,7 @@ export default function LoginPage() {
   const titulo = modoSetup ? 'Configuración inicial' : modo === 'registro' ? 'Crea tu cuenta de profesor' : modo === 'recuperar' ? 'Recuperar contraseña' : modo === 'verificar' ? 'Confirma tu WhatsApp' : 'Bienvenido de nuevo'
   const subtitulo = modoSetup
     ? 'Crea la cuenta del superadmin para comenzar.'
-    : modo === 'registro' ? 'Un administrador revisará y aprobará tu solicitud.'
+    : modo === 'registro' ? 'Te enviaremos un código por WhatsApp para activar tu cuenta.'
     : modo === 'recuperar' ? 'Escribe tu correo. El superadmin te contactará por teléfono con una clave temporal.'
     : modo === 'verificar' ? `Escribe el código de 6 dígitos que enviamos a tu WhatsApp${telefonoFinal ? ` (número terminado en ${telefonoFinal})` : ''}. Vence en 10 minutos.`
     : 'Inicia sesión para continuar con tu planificación.'
@@ -384,7 +385,7 @@ export default function LoginPage() {
                 </AnimatePresence>
 
                 <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="submit" disabled={enviando} className="w-full py-3 bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white font-semibold text-sm rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 disabled:opacity-60">
-                  {enviando ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Procesando...</>) : modoSetup ? (<><ShieldCheck className="w-4 h-4" />Crear superadmin y entrar</>) : modo === 'registro' ? (<><UserPlus className="w-4 h-4" />Solicitar cuenta</>) : modo === 'recuperar' ? (<><KeyRound className="w-4 h-4" />Avisar al superadmin</>) : modo === 'verificar' ? (<><ShieldCheck className="w-4 h-4" />Confirmar código</>) : (<><LogIn className="w-4 h-4" />Iniciar sesión</>)}
+                  {enviando ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Procesando...</>) : modoSetup ? (<><ShieldCheck className="w-4 h-4" />Crear superadmin y entrar</>) : modo === 'registro' ? (<><UserPlus className="w-4 h-4" />Crear cuenta</>) : modo === 'recuperar' ? (<><KeyRound className="w-4 h-4" />Avisar al superadmin</>) : modo === 'verificar' ? (<><ShieldCheck className="w-4 h-4" />Confirmar y entrar</>) : (<><LogIn className="w-4 h-4" />Iniciar sesión</>)}
                 </motion.button>
 
                 {(modo === 'recuperar' || modo === 'verificar') && (

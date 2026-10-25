@@ -42,7 +42,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Primero confirma tu WhatsApp con el código de 6 dígitos que te enviamos.', codigo: 'VERIFICAR_TELEFONO' }, { status: 403 })
     }
     if (usuario.pendiente) {
-      return NextResponse.json({ error: 'Tu cuenta está pendiente de aprobación. Un administrador debe activarla antes de que puedas entrar.' }, { status: 403 })
+      // Ya confirmó su WhatsApp: no hace falta aprobación manual, se activa al entrar
+      await prisma.usuario.update({ where: { id: usuario.id }, data: { pendiente: false, activo: true } })
+      usuario.pendiente = false
+      usuario.activo = true
     }
     if (!usuario.activo) {
       return NextResponse.json({ error: 'Tu cuenta está desactivada. Contacta al administrador.' }, { status: 403 })

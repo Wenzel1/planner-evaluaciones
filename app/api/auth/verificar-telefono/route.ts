@@ -2,14 +2,25 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { validarEmail } from '@/lib/validacionesUsuario'
 import { bloqueado, registrarFallo, limpiar, minutosRestantes } from '@/lib/rateLimit'
-import { ipDe } from '@/lib/cookies'
+import { ipDe, opcionesCookieSesion } from '@/lib/cookies'
 import { registrarActividad } from '@/lib/actividad'
 import { codigoCoincide, CODIGO_MAX_INTENTOS } from '@/lib/codigoWhatsapp'
+import { crearToken, COOKIE_SESION, DURACION_SESION_SEG } from '@/lib/session'
 
-const LISTO = 'WhatsApp confirmado. Un administrador debe aprobar tu cuenta; te avisaremos cuando puedas entrar.'
+const LISTO = '¡Listo! WhatsApp confirmado. Entrando al sistema...'
+
+// Activa la cuenta y abre la sesión (mismo token y cookie que el login)
+async function activarYEntrar(request: Request, usuario: { id: string; nombre: string; email: string; rol: any }) {
+  await prisma.usuario.update({ where: { id: usuario.id }, data: { pendiente: false, activo: true } })
+  const token = await crearToken({ sub: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol })
+  const res = NextResponse.json({ ok: true, entrar: true, mensaje: LISTO })
+  res.cookies.set(COOKIE_SESION, token, opcionesCookieSesion(request, DURACION_SESION_SEG))
+  return res
+}
 
 // POST /api/auth/verificar-telefono  { email, codigo }  (público)
 // Confirma el número de WhatsApp de una cuenta recién registrada con el código de 6 dígitos.
+// Ya no hace falta la aprobación de un administrador: al confirmar, la cuenta se activa y se inicia la sesión.
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}))
@@ -31,7 +42,7 @@ export async function POST(request: Request) {
       registrarFallo(claveIp)
       return NextResponse.json({ error: 'Código incorrecto o vencido.' }, { status: 400 })
     }
-    if (usuario.telefonoVerificado) return NextResponse.json({ ok: true, mensaje: LISTO })
+    if (usuario.telefonoVerificado) return await activarYEntrar(request, usuario)
 
     if (!usuario.codigoHash || !usuario.codigoExpira || usuario.codigoExpira.getTime() < Date.now()) {
       return NextResponse.json({ error: 'El código venció. Pulsa «Reenviar código» para recibir uno nuevo.' }, { status: 400 })
@@ -52,8 +63,8 @@ export async function POST(request: Request) {
       where: { id: usuario.id },
       data: { telefonoVerificado: true, codigoHash: null, codigoExpira: null, codigoIntentos: 0 },
     })
-    await registrarActividad({ usuarioNombre: usuario.nombre, accion: 'VERIFICAR', entidad: 'Usuario', detalle: `Confirmó su WhatsApp (${usuario.email})` })
-    return NextResponse.json({ ok: true, mensaje: LISTO })
+    await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'VERIFICAR', entidad: 'Usuario', detalle: `Confirmó su WhatsApp y activó su cuenta (${usuario.email})` })
+    return await activarYEntrar(request, usuario)
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'No se pudo verificar el código. Intenta de nuevo.' }, { status: 500 })
