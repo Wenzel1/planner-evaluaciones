@@ -2606,7 +2606,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <Tooltip text={isSelected ? 'Quitar de la selección' : 'Seleccionar para el plan de acción'}>
+        <Tooltip text={isSelected ? 'Incluida en el Plan de Acción (clic para quitarla)' : 'Fuera del Plan de Acción (clic para incluirla)'}>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); if (onToggleSelect) onToggleSelect(seccion.id); }}
@@ -2973,7 +2973,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
 // ============================================
 // AGENTE PANEL (CON SCROLL MEJORADO)
 // ============================================
-function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
+function AgentePanel({ seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
   // Atajos del encabezado del chat: llevan al panel de la derecha (en el celular el chat se oculta para dejarlo ver)
   const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
   const [mensaje, setMensaje] = useState(''); 
@@ -3090,11 +3090,14 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
       else if (p.fecha) fechaExamen = new Date(p.fecha);
       return { id: `eval${idx+1}-${Date.now()}`, nombre: `${p.tipo || `Evaluación ${idx+1}`}: ${limpiarTexto(p.materia)}`, tipoPregunta: 'desarrollo', peso: p.peso ?? null, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'aplicar', tiempoEstimadoMinutos: p.duracionMinutos ?? null, tipoActividad: p.tipoActividad || undefined, descripcion: p.descripcion || '', cantidadGrupos: p.cantidadGrupos ?? undefined, personasPorGrupo: p.personasPorGrupo ?? undefined, enfoque: p.enfoque || undefined, fecha: fechaExamen };
     });
+    // Las evaluaciones del chat se guardan en la sección que está abierta en el planificador
+    nuevasSecciones.forEach(n => { n.grupoSeccion = seccionActiva; });
     setPlanificacion((prev: PlanificacionExamen) => {
       let secciones = [...prev.secciones];
       nuevasSecciones.forEach((nueva, idx) => {
         const tipoBuscado = (propuestaPendienteLocal.evaluaciones[idx]?.tipo || `Evaluación ${idx + 1}`).toLowerCase();
-        const indiceExistente = secciones.findIndex(s => s.nombre.toLowerCase().startsWith(`${tipoBuscado}:`));
+        // Solo se reemplaza una evaluación con el mismo número DENTRO de la misma sección (antes podía pisar la de otra sección)
+        const indiceExistente = secciones.findIndex(s => (s.grupoSeccion || 'A') === seccionActiva && s.nombre.toLowerCase().startsWith(`${tipoBuscado}:`));
         if (indiceExistente !== -1) {
           // Ya existe una evaluación con ese mismo número/tipo → se actualiza en su lugar (edición)
           secciones[indiceExistente] = { ...nueva, id: secciones[indiceExistente].id, grupoSeccion: secciones[indiceExistente].grupoSeccion };
@@ -3201,17 +3204,17 @@ if (sonCuatro && generarPDF) {
 // ============================================
 type PanelDerechoHandle = { limpiarYScroll: () => void; };
 interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; debeCambiarPassword?: boolean; }
-interface PanelDerechoProps { chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
+interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
 
-const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
+const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
   const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
-  // --- Selección múltiple de tarjetas para "Generar Plan de Acción" ---
-  // Si no hay ninguna tarjeta seleccionada, el plan se genera con TODAS las evaluaciones.
-  const [tarjetasSeleccionadas, setTarjetasSeleccionadas] = useState<string[]>([]);
+  // --- Tarjetas incluidas en el "Plan de Acción" ---
+  // Todas empiezan incluidas (círculo morado). Al desmarcar una, sale del plan; al marcarla, vuelve a entrar.
+  const [tarjetasExcluidas, setTarjetasExcluidas] = useState<string[]>([]);
   const toggleTarjetaSeleccionada = (id: string) => {
-    setTarjetasSeleccionadas(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setTarjetasExcluidas(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
   // --- Secciones/paralelos (A, B, C...) del grupo de estudiantes que comparten la materia ---
   const [seccionesDisponibles, setSeccionesDisponibles] = useState<string[]>(['A', 'B', 'C']);
@@ -3221,6 +3224,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     setSeccionesDisponibles(prev => { const faltan = [...letras].filter(l => !prev.includes(l)); return faltan.length ? [...prev, ...faltan].sort() : prev; });
   }, [planificacion.secciones]);
   const [seccionActiva, setSeccionActiva] = useState<string>('A');
+  useEffect(() => { onSeccionActivaCambia?.(seccionActiva); }, [seccionActiva]); // el chat guarda en la sección que estás viendo
   const agregarNuevaSeccion = () => {
     // Genera la siguiente letra disponible después de la última (A, B, C, D...)
     const ultima = seccionesDisponibles[seccionesDisponibles.length - 1] || 'A';
@@ -3229,11 +3233,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     const nuevaLetra = String.fromCharCode(siguienteCodigo);
     setSeccionesDisponibles(prev => [...prev, nuevaLetra]);
     setSeccionActiva(nuevaLetra);
-    setTarjetasSeleccionadas([]);
   };
   const cambiarSeccionActiva = (letra: string) => {
     setSeccionActiva(letra);
-    setTarjetasSeleccionadas([]); // al cambiar de sección, la selección de tarjetas no debe arrastrarse
   };
   const eliminarSeccionActiva = () => {
     if (seccionesDisponibles.length <= 1) {
@@ -3247,7 +3249,6 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     sincronizarConBD(estadoActualizado);
     setSeccionesDisponibles(restantes);
     setSeccionActiva(restantes[0]);
-    setTarjetasSeleccionadas([]);
     // Limpia también el plan de acción propio de la sección eliminada
     setPdfPorSeccion(prev => { const copia = { ...prev }; delete copia[letra]; return copia; });
     setPdfAbiertoPorSeccion(prev => { const copia = { ...prev }; delete copia[letra]; return copia; });
@@ -3255,10 +3256,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   };
   // Evaluaciones que pertenecen a la sección activa (A, B, C...)
   const seccionesFiltradas = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva);
-  // Si hay tarjetas seleccionadas (círculo morado) se usan solo esas; si no, se usan TODAS las de la sección activa
-  const seccionesParaPlan = tarjetasSeleccionadas.length > 0
-    ? seccionesFiltradas.filter((s: SeccionExamen) => tarjetasSeleccionadas.includes(s.id))
-    : seccionesFiltradas;
+  // El plan usa solo las evaluaciones de la sección activa que siguen marcadas
+  const seccionesParaPlan = seccionesFiltradas.filter((s: SeccionExamen) => !tarjetasExcluidas.includes(s.id));
+  const idsSeleccionados = seccionesParaPlan.map((s: SeccionExamen) => s.id);
   const tarjetaRef = useRef<HTMLDivElement>(null);
   const [scrollToSections, setScrollToSections] = useState(false);
   const [pdfPorSeccion, setPdfPorSeccion] = useState<Record<string, string | null>>({});
@@ -3268,6 +3268,30 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const pdfUrlLocal = pdfPorSeccion[seccionActiva] ?? null;
   const pdfAbiertoLocal = pdfAbiertoPorSeccion[seccionActiva] ?? false;
   const [cargandoPdf, setCargandoPdf] = useState(false);
+  // Genera el Plan de Acción de la sección activa con la lista indicada (PDF por n8n; si falla, versión HTML)
+  const generarPlanAccion = async (lista: SeccionExamen[], silencioso = false) => {
+    if (lista.length === 0) { if (!silencioso) alert('No hay evaluaciones marcadas para generar el plan.'); return; }
+    setCargandoPdf(true);
+    try {
+      await new Promise(resolve => requestAnimationFrame(resolve)); // deja que se pinte el spinner
+      let urlFinal: string | null = null;
+      if (generarPDF) { try { urlFinal = await generarPDF(lista); } catch { console.log('n8n no disponible'); } }
+      if (!urlFinal) {
+        const html = generarPlanVisual(lista);
+        if (html) urlFinal = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+      }
+      if (urlFinal) {
+        setPdfUrl(urlFinal);
+        if (!silencioso) setPdfAbierto(false);
+        agregarNotificacion(silencioso ? '🔄 Plan de Acción actualizado con las evaluaciones marcadas.' : '📄 Plan de Acción generado correctamente.');
+      }
+    } catch (err) {
+      console.error(err);
+      agregarNotificacion('❌ Error al generar el Plan de Acción.');
+    } finally {
+      setCargandoPdf(false);
+    }
+  };
   const [campanaActiva, setCampanaActiva] = useState(false);
   const [mostrarMenuEnvio, setMostrarMenuEnvio] = useState(false);
   const [enviarA, setEnviarA] = useState<'profesor' | 'estudiantes' | null>(null);
@@ -3324,6 +3348,16 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 
   const limpiarYScroll = () => { setEvaluacion1({...evalInit}); setEvaluacion2({...evalInit}); setEvaluacion3({...evalInit}); setEvaluacion4({...evalInit}); setNumEvaluaciones(1); setScrollToSections(true); setVista('planificacion'); setGlow1(false); setGlow2(false); setGlow3(false); setGlow4(false); };
   useImperativeHandle(ref, () => ({ limpiarYScroll }), [limpiarYScroll]);
+
+  // Al marcar o desmarcar una tarjeta, el Plan de Acción ya generado de esta sección se rehace (espera 1 s por si marcas varias)
+  const regenerarRef = useRef<() => void>(() => {});
+  regenerarRef.current = () => { if (pdfUrlLocal && seccionesParaPlan.length > 0 && !cargandoPdf) generarPlanAccion(seccionesParaPlan, true); };
+  const primeraVezExcluidas = useRef(true);
+  useEffect(() => {
+    if (primeraVezExcluidas.current) { primeraVezExcluidas.current = false; return; }
+    const t = setTimeout(() => regenerarRef.current(), 1000);
+    return () => clearTimeout(t);
+  }, [tarjetasExcluidas]);
     // Función para guardar en Supabase sin interrumpir la UI
   // ----- Guardado en la base de datos -----
   // Los guardados pasan por una cola (uno a la vez): antes, dos guardados seguidos podían crear materias duplicadas
@@ -3626,10 +3660,11 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     // 2. Guardar en la BD
     sincronizarConBD(estadoActualizado);
     
-    // 3. Si hay 4 evaluaciones, generar el PDF automáticamente
-    if (estadoActualizado.secciones.length === 4 && generarPDF) {
+    // 3. Si la sección activa llegó a 4 evaluaciones, generar su Plan de Acción automáticamente (solo con las de ESTA sección)
+    const deEstaSeccion = estadoActualizado.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva && !tarjetasExcluidas.includes(s.id));
+    if (deEstaSeccion.length === 4 && generarPDF) {
       agregarNotificacion('📄 Generando Plan de Acción...');
-      const url = await generarPDF(estadoActualizado.secciones);
+      const url = await generarPDF(deEstaSeccion);
       if (url) agregarNotificacion('✅ Plan de Acción generado (4 evaluaciones).');
     }
     
@@ -3869,9 +3904,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                         </button>
                       </Tooltip>
                     </div>
-                    {tarjetasSeleccionadas.length > 0 && (
-                      <span className="text-[11px] px-2 py-1 rounded-full bg-[#a855f7]/10 text-[#c084fc] border border-[#a855f7]/30 font-medium">
-                        {tarjetasSeleccionadas.length} seleccionada{tarjetasSeleccionadas.length > 1 ? 's' : ''}
+                    {seccionesFiltradas.length > 0 && (
+                      <span className={`text-[11px] px-2 py-1 rounded-full border font-medium ${seccionesParaPlan.length === seccionesFiltradas.length ? 'bg-[#a855f7]/10 text-[#c084fc] border-[#a855f7]/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`} title="Las tarjetas con el círculo morado entran en el Plan de Acción">
+                        {seccionesParaPlan.length} de {seccionesFiltradas.length} en el plan
                       </span>
                     )}
                   </div>
@@ -3879,59 +3914,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                     <motion.button 
                         whileHover={{ scale: 1.02 }} 
                         whileTap={{ scale: 0.98 }}
-                        onClick={async () => {
-  if (seccionesParaPlan.length === 0) {
-    alert('No hay evaluaciones guardadas para generar el plan.');
-    return;
-  }
-
-  setCargandoPdf(true);
-
-  try {
-
-    // Esperar un frame para que React pinte el spinner
-    await new Promise(resolve => requestAnimationFrame(resolve));
-
-    let urlFinal: string | null = null;
-
-    // Intentar generar PDF (solo con las tarjetas seleccionadas, o todas las de la sección activa si no hay selección)
-    if (generarPDF) {
-      try {
-        urlFinal = await generarPDF(seccionesParaPlan);
-      } catch (e) {
-        console.log("n8n no disponible");
-      }
-    }
-
-    // Si no hubo PDF, generar HTML visual
-    if (!urlFinal) {
-      const html = generarPlanVisual(seccionesParaPlan);
-
-      if (html) {
-        const blob = new Blob([html], {
-          type: "text/html;charset=utf-8"
-        });
-
-        urlFinal = URL.createObjectURL(blob);
-      }
-    }
-
-    if (urlFinal) {
-      setPdfUrl(urlFinal);
-
-      // Mantener cerrado
-      setPdfAbierto(false);
-
-      agregarNotificacion("📄 Plan de Acción generado correctamente.");
-    }
-
-  } catch (err) {
-    console.error(err);
-    agregarNotificacion("❌ Error al generar el Plan de Acción.");
-  } finally {
-    setCargandoPdf(false);
-  }
-}}
+                        onClick={() => generarPlanAccion(seccionesParaPlan)}
                         disabled={seccionesParaPlan.length === 0 || cargandoPdf} 
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           seccionesParaPlan.length === 0 || cargandoPdf 
@@ -3967,10 +3950,10 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const estadoActualizado = { ...planificacion, secciones: planificacion.secciones.filter(s => s.id !== id) };
   setPlanificacion(estadoActualizado);
   sincronizarConBD(estadoActualizado);
-  setTarjetasSeleccionadas(prev => prev.filter(x => x !== id));
+  setTarjetasExcluidas(prev => prev.filter(x => x !== id));
   agregarNotificacion(`🗑️ Evaluación eliminada de la BD.`); 
 }}
-                      selectedIds={tarjetasSeleccionadas} onToggleSelect={toggleTarjetaSeleccionada}
+                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada}
                       mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
                       mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
   pdfAbierto={pdfAbiertoLocal}
@@ -4208,6 +4191,7 @@ const guardarPlanificacionEnBD = async () => {
   const esMovil = anchoPantalla < 768;
   const anchoChat = Math.min(640, Math.round(anchoPantalla * 0.45));
   const [propuestaPendiente, setPropuestaPendiente] = useState<PropuestaEvaluacion | null>(null);
+  const [seccionPlanificador, setSeccionPlanificador] = useState<string>('A'); // sección (A, B, C...) abierta en el planificador
   const [vistaActual, setVistaActual] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'>('estadisticas');
   const [planificacion, setPlanificacion] = useState<PlanificacionExamen>({ id: '1', version: 1, estado: 'borrador', fechaExamen: new Date(), tipoExamen: 'mixto', duracionMinutos: 0, materia: 'Ing Software', secciones: [], rubrica: [], comentariosAgente: [{ id: 'c1', tipo: 'info', mensaje: 'Sube un archivo o escribe en el chat para comenzar la planificación.', timestamp: new Date() }] });
     // CARGAR EVALUACIONES DESDE LA BD AL REFRESCAR
@@ -4334,8 +4318,9 @@ const guardarPlanificacionEnBD = async () => {
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
-                <AgentePanel expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
+                <AgentePanel seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
         <PanelDerecho 
+          onSeccionActivaCambia={setSeccionPlanificador}
           chatAbierto={agenteExpandido}
           onAbrirChat={() => setAgenteExpandido(true)}
           usuario={usuario}
