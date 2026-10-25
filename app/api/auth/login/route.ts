@@ -38,6 +38,9 @@ export async function POST(request: Request) {
       if (usuario) await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'LOGIN_FALLIDO', entidad: 'Sesión', detalle: 'Contraseña incorrecta' })
       return NextResponse.json({ error: 'Correo o contraseña incorrectos.' }, { status: 401 })
     }
+    if (usuario.pendiente && !usuario.telefonoVerificado) {
+      return NextResponse.json({ error: 'Primero confirma tu WhatsApp con el código de 6 dígitos que te enviamos.', codigo: 'VERIFICAR_TELEFONO' }, { status: 403 })
+    }
     if (usuario.pendiente) {
       return NextResponse.json({ error: 'Tu cuenta está pendiente de aprobación. Un administrador debe activarla antes de que puedas entrar.' }, { status: 403 })
     }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requerirActor, bloquearSiSuperadmin } from '@/lib/permisos'
+import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 
 const MAX_FILAS = 500
@@ -13,8 +13,6 @@ export async function POST(request: Request) {
   try {
     const { actor, error } = await requerirActor(request)
     if (error) return error
-    const bloqueado = bloquearSiSuperadmin(actor)
-    if (bloqueado) return bloqueado
 
     const body = await request.json()
     const filas: any[] | null = Array.isArray(body.estudiantes) ? body.estudiantes : null

@@ -8,9 +8,9 @@ import { enviarAPapelera, detectarEliminadas } from '@/lib/papelera'
 async function duenoDePlanificacion(id: string) {
   const p = await prisma.planificacion.findUnique({
     where: { id },
-    select: { materia: { select: { usuarioId: true, nombre: true } } },
+    select: { materia: { select: { id: true, usuarioId: true, nombre: true } } },
   })
-  return p ? { usuarioId: p.materia.usuarioId, materiaNombre: p.materia.nombre } : null
+  return p ? { usuarioId: p.materia.usuarioId, materiaNombre: p.materia.nombre, materiaId: p.materia.id } : null
 }
 
 // GET /api/planificaciones/:id
@@ -67,26 +67,35 @@ export async function PUT(
 
     const body = await request.json()
 
+    // Si la persona cambió el nombre de la materia en Configuración, se guarda también en la materia
+    const nombreNuevo = typeof body.materiaNombre === 'string' ? body.materiaNombre.trim().slice(0, 120) : ''
+    if (nombreNuevo && nombreNuevo !== dueno.materiaNombre) {
+      await prisma.materia.update({ where: { id: dueno.materiaId }, data: { nombre: nombreNuevo } })
+      dueno.materiaNombre = nombreNuevo
+    }
+
+    // Todo el guardado va en una sola transacción: o se guarda completo, o no se toca nada
+    let eliminadas: any[] = []
+    await prisma.$transaction(async (tx) => {
     // Actualizar campos principales
-    await prisma.planificacion.update({
+    await tx.planificacion.update({
       where: { id },
       data: {
         version: body.version ?? undefined,
         estado: body.estado ?? undefined,
-        fechaExamen: body.fechaExamen ? new Date(body.fechaExamen) : undefined,
+        fechaExamen: body.fechaExamen && !isNaN(new Date(body.fechaExamen).getTime()) ? new Date(body.fechaExamen) : undefined,
         tipoExamen: body.tipoExamen ?? undefined,
         duracionMinutos: body.duracionMinutos ?? undefined,
       },
     })
 
     // Sincronizar evaluaciones
-    let eliminadas: any[] = []
-    if (body.evaluaciones) {
+    if (Array.isArray(body.evaluaciones)) {
       // Se deduce qué evaluaciones ya no vienen para guardarlas en la papelera (30 días)
-      const existentes = await prisma.evaluacion.findMany({ where: { planificacionId: id } })
+      const existentes = await tx.evaluacion.findMany({ where: { planificacionId: id } })
       eliminadas = detectarEliminadas(existentes, body.evaluaciones)
-      await prisma.evaluacion.deleteMany({ where: { planificacionId: id } })
-      await prisma.planificacion.update({
+      await tx.evaluacion.deleteMany({ where: { planificacionId: id } })
+      await tx.planificacion.update({
         where: { id },
         data: {
           evaluaciones: {
@@ -94,7 +103,7 @@ export async function PUT(
               nombre: ev.nombre,
               tipoPregunta: ev.tipoPregunta || 'MULTIPLE_CHOICE',
               nivelBloom: ev.nivelBloom || 'APLICAR',
-              peso: ev.peso,
+              peso: ev.peso == null || ev.peso === '' ? null : Math.round(Number(ev.peso)),
               cantidadPreguntas: ev.cantidadPreguntas || 0,
               contenidosEvaluados: ev.contenidosEvaluados || [],
               tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos ?? null,
@@ -112,39 +121,21 @@ export async function PUT(
       })
     }
 
-    if (eliminadas.length > 0) {
-      await enviarAPapelera(eliminadas.map((ev) => ({
-        usuarioId: actor.id,
-        tipo: 'EVALUACION' as const,
-        nombre: ev.nombre,
-        contexto: dueno.materiaNombre,
-        eliminadoPorId: actor.id,
-        eliminadoPorNombre: actor.nombre,
-        datos: {
-          planificacionId: id, grupoSeccion: ev.grupoSeccion, nombre: ev.nombre, tipoPregunta: ev.tipoPregunta, nivelBloom: ev.nivelBloom,
-          peso: ev.peso, cantidadPreguntas: ev.cantidadPreguntas, contenidosEvaluados: ev.contenidosEvaluados,
-          tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
-          cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden, enfoque: ev.enfoque,
-          fecha: ev.fecha ? ev.fecha.toISOString() : null,
-        },
-      })))
-    }
-
     // Sincronizar rúbrica
-    if (body.rubrica !== undefined) {
-      const existingCriterios = await prisma.criterioRubrica.findMany({
+    if (Array.isArray(body.rubrica)) {
+      const existingCriterios = await tx.criterioRubrica.findMany({
         where: { planificacionId: id },
         select: { id: true },
       })
       if (existingCriterios.length > 0) {
-        await prisma.nivelDesempeno.deleteMany({
+        await tx.nivelDesempeno.deleteMany({
           where: { criterioId: { in: existingCriterios.map(c => c.id) } },
         })
       }
-      await prisma.criterioRubrica.deleteMany({ where: { planificacionId: id } })
+      await tx.criterioRubrica.deleteMany({ where: { planificacionId: id } })
 
       if (body.rubrica.length > 0) {
-        await prisma.planificacion.update({
+        await tx.planificacion.update({
           where: { id },
           data: {
             rubrica: {
@@ -164,6 +155,25 @@ export async function PUT(
           },
         })
       }
+    }
+    }, { timeout: 20000 })
+
+    if (eliminadas.length > 0) {
+      await enviarAPapelera(eliminadas.map((ev) => ({
+        usuarioId: dueno.usuarioId ?? actor.id, // la papelera es del dueño del plan, aunque lo guarde el superadmin
+        tipo: 'EVALUACION' as const,
+        nombre: ev.nombre,
+        contexto: dueno.materiaNombre,
+        eliminadoPorId: actor.id,
+        eliminadoPorNombre: actor.nombre,
+        datos: {
+          planificacionId: id, grupoSeccion: ev.grupoSeccion, nombre: ev.nombre, tipoPregunta: ev.tipoPregunta, nivelBloom: ev.nivelBloom,
+          peso: ev.peso, cantidadPreguntas: ev.cantidadPreguntas, contenidosEvaluados: ev.contenidosEvaluados,
+          tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
+          cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden, enfoque: ev.enfoque,
+          fecha: ev.fecha ? ev.fecha.toISOString() : null,
+        },
+      })))
     }
 
     // Retornar actualizada

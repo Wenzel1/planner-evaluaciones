@@ -26,7 +26,7 @@ import {
   UsersRound, UserCheck, FileSearch, Layout, Puzzle, Gamepad2,
   Presentation, Handshake, Globe, Scale, BookType, ClipboardCheck,
   MessageCircleQuestion, Eye as EyeIcon, Speech, Download,
-  UserCog, ShieldCheck, RefreshCw, Upload
+  UserCog, ShieldCheck, RefreshCw, Upload, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 
 // Agregar esto debajo de los imports de lucide-react
@@ -35,6 +35,7 @@ import StreamInput from "@/components/StreamInput";
 import StreamTextarea from "@/components/StreamTextarea";
 import { validarNombre, validarEmail, validarPassword, validarTelefono, validarCedula } from '@/lib/validacionesUsuario';
 import { csvAEstudiantes, plantillaCSV } from '@/lib/csvEstudiantes';
+import { calcularAlertas } from '@/lib/alertas';
 
 // ============================================
 // TIPOS
@@ -376,13 +377,20 @@ function validarTipoActividad(texto: string): { valido: boolean; error: string }
   return { valido: true, error: '' };
 }
 
-function Tooltip({ text, children }: { text: string, children: React.ReactNode }) {
+function Tooltip({ text, children, lado = 'arriba', alinear = 'centro' }: { text: string; children: React.ReactNode; lado?: 'arriba' | 'abajo'; alinear?: 'centro' | 'derecha' }) {
+  const vertical = lado === 'abajo' ? 'top-full mt-2' : 'bottom-full mb-2';
+  const horizontal = alinear === 'derecha' ? 'right-0' : 'left-1/2 -translate-x-1/2';
   return (
     <div className="relative group inline-flex items-center">
       {children}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-[#0d0e14] text-[#d8d8e2] text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-[#313248]">{text}</div>
+      <div role="tooltip" className={`absolute ${vertical} ${horizontal} px-2 py-1 bg-[#0d0e14] text-[#d8d8e2] text-[10px] rounded-md opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-[#313248]`}>{text}</div>
     </div>
   );
+}
+
+// Escapa HTML antes de usar dangerouslySetInnerHTML (evita que el texto del agente o del usuario inyecte etiquetas)
+function escaparHTML(texto: string): string {
+  return String(texto ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function limpiarTexto(texto: string): string {
@@ -404,21 +412,38 @@ function extraerJSONDelTexto(texto: string): any {
   return null;
 }
 const formatMessage = (text: string) => {
-  if (!text) return ''; const t = limpiarBloqueJSON(text);
-  return t.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#e0e0e8] font-semibold">$1</strong>')
-    .replace(/\n\n/g, '<br/><br/>').replace(/\n/g, '<br/>')
-    .replace(/^\- (.*$)/gm, '<div class="flex gap-2 ml-2 my-0.5"><span class="text-[#818cf8]">•</span><span>$1</span></div>')
-    .replace(/^\* (.*$)/gm, '<div class="flex gap-2 ml-2 my-0.5"><span class="text-[#818cf8]">•</span><span>$1</span></div>')
-    .replace(/^### (.*$)/gm, '<h4 class="text-[#c0c0d0] font-semibold mt-4 mb-1">$1</h4>')
-    .replace(/^## (.*$)/gm, '<h3 class="text-[#d0d0d8] font-semibold mt-5 mb-2">$1</h3>')
-    .replace(/^# (.*$)/gm, '<h2 class="text-[#e0e0e8] font-bold mt-5 mb-3">$1</h2>')
-    .replace(/^---$/gm, '<hr class="border-[#313248] my-4"/>');
+  if (!text) return ''; const t = escaparHTML(limpiarBloqueJSON(text));
+  return t
+    .replace(/^[-*] (.*)$/gm, '<div class="flex gap-2 ml-2 my-0.5"><span class="text-[#818cf8]">•</span><span>$1</span></div>')
+    .replace(/^### (.*)$/gm, '<h4 class="text-[#c0c0d0] font-semibold mt-4 mb-1">$1</h4>')
+    .replace(/^## (.*)$/gm, '<h3 class="text-[#d0d0d8] font-semibold mt-5 mb-2">$1</h3>')
+    .replace(/^# (.*)$/gm, '<h2 class="text-[#e0e0e8] font-bold mt-5 mb-3">$1</h2>')
+    .replace(/^---$/gm, '<hr class="border-[#313248] my-4"/>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#e0e0e8] font-semibold">$1</strong>')
+    .replace(/(<\/(?:div|h2|h3|h4)>|<hr[^>]*\/>)\n/g, '$1')
+    .replace(/\n/g, '<br/>');
 };
 
 // TypewriterText con soporte para auto-scroll
 function TypewriterText({ text, onComplete, onUpdate }: { text: string; onComplete?: () => void; onUpdate?: () => void }) {
   const [d, setD] = useState(''); const [c, setC] = useState(0); const [i, setI] = useState(false); const r = useRef<NodeJS.Timeout | null>(null);
-  useEffect(() => { if (!text) { onComplete?.(); return; } const t = limpiarBloqueJSON(text); setD(''); setC(0); setI(false); r.current = setInterval(() => { setC(p => { if (p >= t.length) { if (r.current) clearInterval(r.current); setI(true); setTimeout(() => onComplete?.(), 0); return p; } else { onUpdate?.(); return p + 1; } }); }, 1); return () => { if (r.current) clearInterval(r.current); }; }, [text, onComplete, onUpdate]);
+  const onCompleteRef = useRef(onComplete); const onUpdateRef = useRef(onUpdate);
+  useEffect(() => { onCompleteRef.current = onComplete; onUpdateRef.current = onUpdate; });
+  useEffect(() => {
+    if (!text) { onCompleteRef.current?.(); return; }
+    const t = limpiarBloqueJSON(text);
+    // Velocidad constante en tiempo: textos largos avanzan varios caracteres por paso (~2 s máximo)
+    const paso = Math.max(1, Math.ceil(t.length / 120));
+    setD(''); setC(0); setI(false);
+    let actual = 0; let terminado = false;
+    r.current = setInterval(() => {
+      actual = Math.min(t.length, actual + paso);
+      setC(actual);
+      onUpdateRef.current?.();
+      if (actual >= t.length && !terminado) { terminado = true; if (r.current) clearInterval(r.current); setI(true); setTimeout(() => onCompleteRef.current?.(), 0); }
+    }, 16);
+    return () => { if (r.current) clearInterval(r.current); };
+  }, [text]);
   useEffect(() => { if (!text) return; const t = limpiarBloqueJSON(text); setD(formatMessage(t.slice(0, c))); }, [c, text]);
   if (!text) return null;
   return (<span className="inline leading-relaxed"><span dangerouslySetInnerHTML={{ __html: d }} />{!i && (<motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.6, repeat: Infinity, repeatType: "reverse" }} className="inline-block w-[2.5px] h-[1.2em] bg-[#818cf8] rounded-full ml-[1px] align-text-bottom" />)}</span>);
@@ -517,6 +542,21 @@ const ESTILO_ROL: Record<string, string> = {
 };
 
 // ============================================
+// CONFIGURACIÓN DEL SISTEMA (valores que usa el navegador)
+// ============================================
+interface ConfigChat { activo: boolean; mensajeInactivo: string; webhookUrl: string; modelo: string; temperatura: number; maxTokens: number; ventanaMemoria: number; maxCaracteresMensaje: number; timeoutSegundos: number; instruccionesExtra: string }
+interface ConfigCliente { chat: ConfigChat; planificador: { maxGrupos: number; maxPersonasPorGrupo: number } }
+interface ConfigCompleta extends ConfigCliente { acceso: { registroAbierto: boolean; diasPapelera: number } }
+const CONFIG_CLIENTE_DEFECTO: ConfigCliente = {
+  chat: { activo: true, mensajeInactivo: 'El asistente está desactivado temporalmente. Inténtalo de nuevo más tarde.', webhookUrl: '', modelo: '', temperatura: 0.4, maxTokens: 0, ventanaMemoria: 9, maxCaracteresMensaje: 2000, timeoutSegundos: 60, instruccionesExtra: '' },
+  planificador: { maxGrupos: 20, maxPersonasPorGrupo: 300 },
+};
+const CONFIG_COMPLETA_DEFECTO: ConfigCompleta = { ...CONFIG_CLIENTE_DEFECTO, acceso: { registroAbierto: true, diasPapelera: 30 } };
+// Límites del planificador: se actualizan al cargar la configuración (los formularios los leen al dibujarse)
+const LIMITES = { grupos: 20, personas: 300 };
+function aplicarConfig(c: ConfigCliente) { LIMITES.grupos = c.planificador.maxGrupos; LIMITES.personas = c.planificador.maxPersonasPorGrupo; }
+
+// ============================================
 // CAMBIO OBLIGATORIO DE CONTRASEÑA (cuenta con clave temporal)
 // ============================================
 function CambioPasswordObligatorio({ usuario, onLogout }: { usuario: UsuarioSesion; onLogout: () => void }) {
@@ -565,6 +605,18 @@ function CambioPasswordObligatorio({ usuario, onLogout }: { usuario: UsuarioSesi
   );
 }
 
+// Ancho de la pantalla (se actualiza al girar el celular o cambiar el tamaño de la ventana)
+function useAnchoPantalla(): number {
+  const [ancho, setAncho] = useState<number>(() => (typeof window === 'undefined' ? 1280 : window.innerWidth));
+  useEffect(() => {
+    const actualizar = () => setAncho(window.innerWidth);
+    actualizar();
+    window.addEventListener('resize', actualizar);
+    return () => window.removeEventListener('resize', actualizar);
+  }, []);
+  return ancho;
+}
+
 // Colores y textos por rol (la franja superior y las etiquetas cambian según quién entró)
 const TEMA_ROL: Record<'SUPERADMIN' | 'ADMIN' | 'USUARIO', { etiqueta: string; descripcion: string; barra: string; fondo: string; texto: string; borde: string }> = {
   SUPERADMIN: { etiqueta: 'MODO SUPERADMIN', descripcion: 'Administración del sistema', barra: 'from-fuchsia-600 via-fuchsia-500 to-purple-500', fondo: 'bg-fuchsia-500/10', texto: 'text-fuchsia-300', borde: 'border-fuchsia-500/30' },
@@ -584,12 +636,11 @@ function BandaRol({ rol }: { rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO' }) {
   );
 }
 
-function DashboardPorRol({ planificacion, usuario }: { planificacion: PlanificacionExamen; usuario?: UsuarioSesion | null }) {
-  const [modo, setModo] = useState<'mio' | 'equipo'>(usuario?.rol === 'ADMIN' ? 'equipo' : 'mio');
+function DashboardPorRol({ planificacion, usuario, onMiTrabajo }: { planificacion: PlanificacionExamen; usuario?: UsuarioSesion | null; onMiTrabajo?: () => void }) {
+  const [modo, setModo] = useState<'mio' | 'equipo'>(usuario?.rol === 'ADMIN' || usuario?.rol === 'SUPERADMIN' ? 'equipo' : 'mio');
   const esSuper = usuario?.rol === 'SUPERADMIN';
   const esAdminPlus = esSuper || usuario?.rol === 'ADMIN';
   if (!esAdminPlus) return <Dashboard planificacion={planificacion} />;
-  if (esSuper) return <DashboardEquipo esSuper />; // el superadmin no tiene planificador propio
 
   const opciones = [
     { id: 'mio' as const, label: 'Mi trabajo', icon: BarChart3 },
@@ -599,7 +650,7 @@ function DashboardPorRol({ planificacion, usuario }: { planificacion: Planificac
     <div className="space-y-5">
       <div className="inline-flex items-center gap-1 p-1 bg-[#161722] border border-[#282a3f] rounded-xl">
         {opciones.map(o => (
-          <button key={o.id} onClick={() => setModo(o.id)} className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${modo === o.id ? 'text-[#c7d2fe]' : 'text-[#8a8b9e] hover:text-[#b0b0c4]'}`}>
+          <button key={o.id} onClick={() => { setModo(o.id); if (o.id === 'mio' && esSuper) onMiTrabajo?.(); }} className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${modo === o.id ? 'text-[#c7d2fe]' : 'text-[#8a8b9e] hover:text-[#b0b0c4]'}`}>
             {modo === o.id && <motion.div layoutId="pill-dashboard-modo" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-lg" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />}
             <o.icon className="relative z-10 w-4 h-4" /><span className="relative z-10">{o.label}</span>
           </button>
@@ -615,7 +666,7 @@ function DashboardPorRol({ planificacion, usuario }: { planificacion: Planificac
 }
 
 function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
-  interface EvalResumen { id: string; nombre: string; peso: number | null; tipoActividad: string | null; fecha: string | null }
+  interface EvalResumen { id: string; grupoSeccion: string; descripcion: string | null; enfoque: string | null; nivelBloom: string | null; tiempoEstimadoMinutos: number | null; cantidadGrupos: number | null; personasPorGrupo: number | null; nombre: string; peso: number | null; tipoActividad: string | null; fecha: string | null }
   interface ObsResumen { id: string; autorNombre: string; evaluacionNombre: string | null; mensaje: string; leida: boolean; createdAt: string }
   interface MateriaResumen { id: string; nombre: string; fechaExamen: string | null; evaluaciones: EvalResumen[]; observaciones: ObsResumen[] }
   interface FilaResumen { id: string; nombre: string; email: string; rol: string; activo: boolean; pendiente: boolean; materias: MateriaResumen[]; totalMaterias: number; totalEvaluaciones: number; totalEstudiantes: number; ultimaActividad: string | null }
@@ -630,6 +681,82 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
   const [busqueda, setBusqueda] = useState('');
   const [abierto, setAbierto] = useState<string | null>(null);
   const [confirmandoEval, setConfirmandoEval] = useState<string | null>(null);
+
+  // ----- Supervisión: contenido completo de las evaluaciones, edición (solo superadmin) y estudiantes de cada profesor -----
+  interface EstudianteSup { id: string; nombre: string; email: string; telefono: string | null; grupo: string; estado: string }
+  const [evalAbierta, setEvalAbierta] = useState<string | null>(null);
+  const [edicion, setEdicion] = useState<{ id: string; campos: Record<string, string>; error: string; guardando: boolean } | null>(null);
+  const [estudiantesDe, setEstudiantesDe] = useState<Record<string, EstudianteSup[] | 'cargando' | 'error'>>({});
+  const [confirmandoEst, setConfirmandoEst] = useState<string | null>(null);
+  const [edicionEst, setEdicionEst] = useState<{ id: string; duenoId: string; campos: Record<string, string>; error: string; guardando: boolean } | null>(null);
+  const [mostrarAlertas, setMostrarAlertas] = useState(!esSuper); // el superadmin la ve cerrada al entrar; el admin, abierta como antes
+  const ETIQUETA_ALERTA: Record<string, string> = { sinMaterias: 'SIN MATERIAS', peso: 'PESOS', choque: 'FECHAS', proxima: 'PRÓXIMA', observacion: 'OBSERVACIÓN' };
+
+  const aFechaInput = (iso: string | null) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const cambiarCampo = (k: string, v: string) => setEdicion(prev => (prev ? { ...prev, campos: { ...prev.campos, [k]: v } } : prev));
+  const iniciarEdicion = (ev: EvalResumen) => setEdicion({
+    id: ev.id, error: '', guardando: false,
+    campos: {
+      nombre: ev.nombre, peso: ev.peso != null ? String(ev.peso) : '', fecha: aFechaInput(ev.fecha), tipoActividad: ev.tipoActividad || '', enfoque: ev.enfoque || '',
+      tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos != null ? String(ev.tiempoEstimadoMinutos) : '', cantidadGrupos: ev.cantidadGrupos != null ? String(ev.cantidadGrupos) : '',
+      personasPorGrupo: ev.personasPorGrupo != null ? String(ev.personasPorGrupo) : '', grupoSeccion: ev.grupoSeccion || 'A', descripcion: ev.descripcion || '',
+    },
+  });
+  const guardarEdicion = async () => {
+    if (!edicion) return;
+    const c = edicion.campos;
+    const numero = (v: string) => (v === '' ? null : Number(v));
+    setEdicion({ ...edicion, guardando: true, error: '' });
+    try {
+      const r = await fetch(`/api/evaluaciones/${edicion.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: c.nombre, peso: numero(c.peso), fecha: c.fecha === '' ? null : new Date(c.fecha + 'T00:00:00').toISOString(), tipoActividad: c.tipoActividad, enfoque: c.enfoque,
+          tiempoEstimadoMinutos: numero(c.tiempoEstimadoMinutos), cantidadGrupos: numero(c.cantidadGrupos), personasPorGrupo: numero(c.personasPorGrupo), grupoSeccion: c.grupoSeccion, descripcion: c.descripcion,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setEdicion({ ...edicion, guardando: false, error: d.error || 'No se pudo guardar.' }); return; }
+      setEdicion(null);
+      await cargar();
+    } catch { setEdicion({ ...edicion, guardando: false, error: 'No se pudo conectar con el servidor.' }); }
+  };
+
+  const cargarEstudiantes = async (duenoId: string) => {
+    setEstudiantesDe(prev => ({ ...prev, [duenoId]: 'cargando' }));
+    try {
+      const r = await fetch(`/api/estudiantes?todos=1&duenoId=${duenoId}`);
+      if (!r.ok) throw new Error('error');
+      const lista = await r.json();
+      setEstudiantesDe(prev => ({ ...prev, [duenoId]: lista }));
+    } catch { setEstudiantesDe(prev => ({ ...prev, [duenoId]: 'error' })); }
+  };
+  const eliminarEstudiante = async (est: EstudianteSup, duenoId: string) => {
+    if (confirmandoEst !== est.id) { setConfirmandoEst(est.id); setTimeout(() => setConfirmandoEst(prev => (prev === est.id ? null : prev)), 3000); return; }
+    setConfirmandoEst(null);
+    const r = await fetch(`/api/estudiantes?id=${est.id}`, { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || 'No se pudo eliminar al estudiante.'); return; }
+    await cargarEstudiantes(duenoId);
+    await cargar();
+  };
+  const guardarEstudiante = async () => {
+    if (!edicionEst) return;
+    const c = edicionEst.campos;
+    setEdicionEst({ ...edicionEst, guardando: true, error: '' });
+    try {
+      const r = await fetch('/api/estudiantes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: edicionEst.id, nombre: c.nombre, email: c.email, telefono: c.telefono, grupo: c.grupo }) });
+      const d = await r.json();
+      if (!r.ok) { setEdicionEst({ ...edicionEst, guardando: false, error: d.error || 'No se pudo guardar.' }); return; }
+      const dueno = edicionEst.duenoId;
+      setEdicionEst(null);
+      await cargarEstudiantes(dueno);
+    } catch { setEdicionEst({ ...edicionEst, guardando: false, error: 'No se pudo conectar con el servidor.' }); }
+  };
+  const alertas = datos ? calcularAlertas(datos.usuarios as any) : [];
   // Observaciones: el admin escribe una nota sobre una evaluación (o sobre la materia) y el profesor la recibe
   const [composer, setComposer] = useState<{ materiaId: string; evaluacionNombre: string | null } | null>(null);
   const [textoObs, setTextoObs] = useState('');
@@ -704,7 +831,7 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-[#d0d0da] flex items-center gap-3"><UsersIcon className="w-6 h-6 text-[#818cf8]" />{esSuper ? 'Todo el sistema' : 'Todos los profesores'}</h2>
-          <p className="text-sm text-[#8a8b9e] mt-1">Revisa el trabajo de cada cuenta. Puedes eliminar evaluaciones como moderación; editarlas es exclusivo de su dueño.</p>
+          <p className="text-sm text-[#8a8b9e] mt-1">{esSuper ? 'Control total: revisa, edita y elimina el trabajo y los estudiantes de cualquier profesor.' : 'Revisa el trabajo y los estudiantes de cada profesor. Puedes eliminarlos como moderación; editarlos es del superadmin.'}</p>
         </div>
         <button onClick={cargar} disabled={cargando} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 disabled:opacity-60">
           <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />Actualizar
@@ -713,6 +840,27 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
 
       {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
       {cargando && !datos && <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>}
+
+      <AnimatePresence>
+        {edicionEst && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4" onClick={() => setEdicionEst(null)}>
+            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-2xl space-y-3">
+              <h3 className="text-base font-semibold text-[#e0e0ec]">Editar estudiante</h3>
+              {([['nombre', 'Nombre completo'], ['email', 'Correo'], ['telefono', 'Teléfono']] as const).map(([k, et]) => (
+                <input key={k} value={edicionEst.campos[k]} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, [k]: e.target.value } })} placeholder={et} className="w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]" />
+              ))}
+              <select value={edicionEst.campos.grupo} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, grupo: e.target.value } })} className="w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec]">
+                {['A', 'B', 'C', 'D'].map(g => <option key={g} value={g}>Grupo {g}</option>)}
+              </select>
+              {edicionEst.error && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{edicionEst.error}</span></p>}
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setEdicionEst(null)} className="flex-1 py-2.5 text-sm text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-xl">Cancelar</button>
+                <button onClick={guardarEstudiante} disabled={edicionEst.guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl disabled:opacity-60">{edicionEst.guardando ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {datos && (
         <>
@@ -734,6 +882,29 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
                 <div className="bg-[#191a26] border border-[#282a3f] rounded-lg p-3"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADAS</span><p className="text-xl font-bold text-[#d0d0da] mt-2">{datos.totales.cuentas.desactivadas}</p></div>
                 <div className="bg-[#191a26] border border-[#282a3f] rounded-lg p-3"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">PENDIENTES</span><p className="text-xl font-bold text-[#d0d0da] mt-2">{datos.totales.cuentas.pendientes}</p></div>
               </div>
+            </div>
+          )}
+
+          {alertas.length > 0 && (
+            <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+              <button onClick={() => setMostrarAlertas(v => !v)} className="w-full px-4 py-3 flex items-center gap-2 text-left hover:bg-[#232438] transition-colors">
+                <AlertCircle className="w-4 h-4 text-amber-300" />
+                <span className="text-sm font-semibold text-[#d0d0da]">Atención y próximas evaluaciones</span>
+                <span className="text-xs text-[#8a8b9e]">{alertas.filter(a => a.tipo !== 'proxima').length} por revisar · {alertas.filter(a => a.tipo === 'proxima').length} próximas (14 días)</span>
+                <span className="ml-auto text-[#8a8b9e]">{mostrarAlertas ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
+              </button>
+              {mostrarAlertas && (
+                <div className="border-t border-[#313248] divide-y divide-[#313248] max-h-72 overflow-y-auto">
+                  {alertas.slice(0, 40).map((a, i) => (
+                    <div key={i} className="px-4 py-2.5 flex items-start gap-3 text-xs">
+                      <span className={`mt-0.5 px-2 py-0.5 rounded-full border text-[10px] font-semibold whitespace-nowrap ${a.gravedad === 'alta' ? 'bg-red-500/10 text-red-300 border-red-500/30' : a.gravedad === 'media' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-blue-500/10 text-blue-300 border-blue-500/30'}`}>{ETIQUETA_ALERTA[a.tipo]}</span>
+                      <span className="flex-1 text-[#c0c0cc] break-words"><strong className="text-[#d0d0da]">{a.usuario}</strong> · {limpiarTexto(a.texto)}</span>
+                      {a.fecha && <span className="text-[#8a8b9e] whitespace-nowrap">{new Date(a.fecha).toLocaleDateString()}</span>}
+                    </div>
+                  ))}
+                  {alertas.length > 40 && <div className="px-4 py-2 text-[11px] text-[#6a6b7e]">... y {alertas.length - 40} más.</div>}
+                </div>
+              )}
             </div>
           )}
 
@@ -775,6 +946,23 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
                           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden bg-[#191a26]">
                             <div className="p-4 space-y-4">
                               <p className="sm:hidden text-xs text-[#8a8b9e]">{u.totalMaterias} materia(s) · {u.totalEvaluaciones} evaluación(es) · {u.totalEstudiantes} estudiante(s)</p>
+                              <div>
+                                <button onClick={() => { const est = estudiantesDe[u.id]; if (!est || est === 'error') cargarEstudiantes(u.id); else setEstudiantesDe(prev => { const copia = { ...prev }; delete copia[u.id]; return copia; }); }} className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-200"><GraduationCap className="w-4 h-4" />{estudiantesDe[u.id] && estudiantesDe[u.id] !== 'error' ? 'Ocultar estudiantes' : `Ver estudiantes (${u.totalEstudiantes})`}</button>
+                                {estudiantesDe[u.id] === 'cargando' && <p className="text-xs text-[#8a8b9e] mt-2">Cargando...</p>}
+                                {estudiantesDe[u.id] === 'error' && <p className="text-xs text-red-400 mt-2">No se pudo cargar la lista.</p>}
+                                {Array.isArray(estudiantesDe[u.id]) && (
+                                  <div className="mt-2 space-y-1.5">
+                                    {(estudiantesDe[u.id] as EstudianteSup[]).length === 0 ? <p className="text-xs text-[#6a6b7e]">No tiene estudiantes.</p> : (estudiantesDe[u.id] as EstudianteSup[]).map(est => (
+                                      <div key={est.id} className="flex items-center gap-3 bg-[#1f2035] border border-[#282a3f] rounded-lg px-3 py-2 text-xs">
+                                        <div className="flex-1 min-w-0 truncate"><span className="text-[#d0d0da]">{est.nombre}</span><span className="text-[#8a8b9e]"> · {est.email}{est.telefono ? ` · ${est.telefono}` : ''}</span></div>
+                                        <span className="text-[#a5b4fc] font-semibold whitespace-nowrap">Grupo {est.grupo}</span>
+                                        {esSuper && <button onClick={() => setEdicionEst({ id: est.id, duenoId: u.id, error: '', guardando: false, campos: { nombre: est.nombre, email: est.email, telefono: est.telefono || '', grupo: est.grupo } })} title="Editar estudiante" className="p-1.5 text-[#6a6b7e] hover:text-[#818cf8] hover:bg-[#272839] rounded-md"><Pencil className="w-3.5 h-3.5" /></button>}
+                                        <button onClick={() => eliminarEstudiante(est, u.id)} title="Eliminar estudiante (moderación)" className={`px-1.5 py-1 rounded-md transition-colors ${confirmandoEst === est.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[#6a6b7e] hover:text-red-400 hover:bg-red-500/10'}`}>{confirmandoEst === est.id ? '¿Seguro?' : <Trash2 className="w-3.5 h-3.5" />}</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                               {u.materias.length === 0 ? (
                                 <p className="text-xs text-[#8a8b9e]">Aún no ha creado materias.</p>
                               ) : u.materias.map(m => (
@@ -794,7 +982,7 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
                                       {m.evaluaciones.map((ev, i) => (
                                         <div key={i}>
                                         <div className="flex items-center gap-3 bg-[#1f2035] border border-[#282a3f] rounded-lg px-3 py-2 text-xs">
-                                          <span className="flex-1 min-w-0 truncate text-[#d0d0da]">{limpiarTexto(ev.nombre)}</span>
+                                          <button onClick={() => setEvalAbierta(evalAbierta === ev.id ? null : ev.id)} className="flex-1 min-w-0 truncate text-left text-[#d0d0da] hover:text-white" title="Ver el contenido completo"><span className="text-[#a5b4fc] mr-1.5">[{ev.grupoSeccion || 'A'}]</span>{limpiarTexto(ev.nombre)}</button>
                                           {ev.tipoActividad && <span className="hidden sm:inline text-[#8a8b9e] truncate max-w-[140px]">🎯 {ev.tipoActividad}</span>}
                                           <span className="text-[#8a8b9e]">📅 {fecha(ev.fecha)}</span>
                                           <span className="font-semibold text-[#a5b4fc] w-10 text-right">{ev.peso != null ? `${ev.peso}%` : '—'}</span>
@@ -802,6 +990,40 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
                                           <button onClick={() => eliminarEvaluacion(ev.id)} title="Eliminar evaluación (moderación)" className={`px-1.5 py-1 rounded-md transition-colors ${confirmandoEval === ev.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[#6a6b7e] hover:text-red-400 hover:bg-red-500/10'}`}>{confirmandoEval === ev.id ? '¿Seguro?' : <Trash2 className="w-3.5 h-3.5" />}</button>
                                         </div>
                                         {esComposer(m.id, ev.nombre) && formularioObservacion}
+                                        {evalAbierta === ev.id && (
+                                          <div className="mt-1.5 mb-2 bg-[#191a26] border border-[#313248] rounded-lg p-3 text-xs space-y-3">
+                                            {edicion?.id === ev.id ? (
+                                              <>
+                                                <p className="text-[11px] text-amber-300">Al guardar, el profesor recibirá una observación automática con lo que cambiaste.</p>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                  {([['nombre', 'Nombre', 'text', 'col-span-2'], ['peso', 'Peso (%)', 'number', ''], ['fecha', 'Fecha', 'date', ''], ['tipoActividad', 'Tipo de actividad', 'text', ''], ['enfoque', 'Enfoque', 'text', ''], ['tiempoEstimadoMinutos', 'Duración (min)', 'number', ''], ['grupoSeccion', 'Sección', 'text', ''], ['cantidadGrupos', 'Grupos', 'number', ''], ['personasPorGrupo', 'Personas/grupo', 'number', '']] as const).map(([k, et, tipo, extra]) => (
+                                                    <label key={k} className={`block ${extra}`}><span className="text-[10px] uppercase tracking-wider text-[#6a6b7e]">{et}</span><input type={tipo} value={edicion.campos[k]} onChange={(e) => cambiarCampo(k, e.target.value)} maxLength={k === 'grupoSeccion' ? 1 : undefined} className="mt-1 w-full bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] focus:outline-none focus:border-[#818cf8]" /></label>
+                                                  ))}
+                                                </div>
+                                                <label className="block"><span className="text-[10px] uppercase tracking-wider text-[#6a6b7e]">Descripción</span><textarea value={edicion.campos.descripcion} onChange={(e) => cambiarCampo('descripcion', e.target.value)} rows={4} maxLength={4000} className="mt-1 w-full bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] focus:outline-none focus:border-[#818cf8]" /></label>
+                                                {edicion.error && <p className="text-red-400 text-[11px]">{edicion.error}</p>}
+                                                <div className="flex gap-2 justify-end">
+                                                  <button onClick={() => setEdicion(null)} className="px-3 py-1.5 text-xs text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-lg">Cancelar</button>
+                                                  <button onClick={guardarEdicion} disabled={edicion.guardando} className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-lg disabled:opacity-60">{edicion.guardando ? 'Guardando...' : 'Guardar cambios'}</button>
+                                                </div>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1.5 text-[#9a9bb0]">
+                                                  <span>Sección: <b className="text-[#d0d0da]">{ev.grupoSeccion || 'A'}</b></span>
+                                                  <span>Tipo: <b className="text-[#d0d0da]">{ev.tipoActividad || '—'}</b></span>
+                                                  <span>Duración: <b className="text-[#d0d0da]">{ev.tiempoEstimadoMinutos != null ? `${ev.tiempoEstimadoMinutos} min` : '—'}</b></span>
+                                                  <span>Nivel Bloom: <b className="text-[#d0d0da]">{ev.nivelBloom || '—'}</b></span>
+                                                  <span>Grupos: <b className="text-[#d0d0da]">{ev.cantidadGrupos ?? '—'}</b></span>
+                                                  <span>Personas/grupo: <b className="text-[#d0d0da]">{ev.personasPorGrupo ?? '—'}</b></span>
+                                                  <span className="col-span-2">Enfoque: <b className="text-[#d0d0da]">{ev.enfoque || '—'}</b></span>
+                                                </div>
+                                                <div><p className="text-[10px] uppercase tracking-wider text-[#6a6b7e] mb-1">Descripción</p><p className="text-[#c0c0cc] whitespace-pre-wrap break-words">{ev.descripcion || 'Sin descripción.'}</p></div>
+                                                {esSuper && <button onClick={() => iniciarEdicion(ev)} className="flex items-center gap-1.5 text-[11px] text-[#a5b4fc] hover:text-[#c7d2fe]"><Pencil className="w-3.5 h-3.5" />Editar esta evaluación</button>}
+                                              </>
+                                            )}
+                                          </div>
+                                        )}
                                         </div>
                                       ))}
                                     </div>
@@ -924,13 +1146,13 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
   const INFO_ROL = {
     SUPERADMIN: {
       badge: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30',
-      descripcion: 'Administras el sistema; no creas evaluaciones.',
-      permisos: ['Crear, editar y eliminar cuentas de administradores y profesores', 'Restablecer la contraseña de cualquier cuenta', 'Ver el trabajo de todos los profesores y eliminar evaluaciones como moderación', 'Consultar el registro de actividad'],
+      descripcion: 'Control total del sistema.',
+      permisos: ['Crear, editar y eliminar cuentas de administradores y profesores', 'Atender las solicitudes de "olvidé mi contraseña"', 'Ver, editar y eliminar el trabajo y los estudiantes de cualquier profesor', 'Configurar el chat, el modelo de lenguaje y los límites del sistema', 'Consultar el registro de actividad', 'Usar el planificador y el chat como cualquier profesor'],
     },
     ADMIN: {
       badge: 'bg-[#818cf8]/10 text-[#a5b4fc] border-[#818cf8]/30',
       descripcion: 'Supervisas a los profesores y administras sus cuentas.',
-      permisos: ['Crear, editar, desactivar y eliminar cuentas de profesores (rol USUARIO)', 'Ver el trabajo de todos los profesores y eliminar evaluaciones como moderación', 'No puedes modificar a otros administradores ni al superadmin', 'Gestionar tus propias materias, estudiantes y evaluaciones'],
+      permisos: ['Crear, editar, desactivar y eliminar cuentas de profesores (rol USUARIO)', 'Ver el trabajo y los estudiantes de todos los profesores, y eliminarlos como moderación (editarlos es del superadmin)', 'No puedes modificar a otros administradores ni al superadmin', 'Gestionar tus propias materias, estudiantes y evaluaciones'],
     },
     USUARIO: {
       badge: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
@@ -1016,7 +1238,7 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Teléfono</label>
-            <input type="tel" value={telefono} onChange={(e) => { setTelefono(e.target.value); setExito(''); }} placeholder="Ej: 300 123 4567" className={`${inputCls} ${errores.telefono ? 'border-red-500/50' : ''}`} />
+            <input type="tel" value={telefono} onChange={(e) => { setTelefono(e.target.value); setExito(''); }} placeholder="Ej: 0412 123 4567" className={`${inputCls} ${errores.telefono ? 'border-red-500/50' : ''}`} />
             {errores.telefono && <p className="text-red-400 text-[11px] mt-1">{errores.telefono}</p>}
             <p className="text-[11px] text-[#6a6b7e] mt-1">Por este número el administrador puede contactarte (por ejemplo, para entregarte una clave temporal).</p>
           </div>
@@ -1080,6 +1302,7 @@ const ESTILO_ACCION: Record<string, string> = {
   RESTAURAR: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
   RECUPERAR: 'bg-pink-500/10 text-pink-300 border-pink-500/30',
   RESTABLECER: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30',
+  VERIFICAR: 'bg-green-500/10 text-green-300 border-green-500/30',
 };
 
 function ActividadPanel() {
@@ -1109,7 +1332,7 @@ function ActividadPanel() {
   };
   useEffect(() => { cargar(1); }, [accion, buscarAplicado]);
 
-  const acciones = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT', 'REGISTRO', 'APROBAR', 'RECHAZAR', 'CREAR', 'EDITAR', 'ELIMINAR', 'OBSERVAR', 'RESTAURAR', 'RECUPERAR', 'RESTABLECER'];
+  const acciones = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT', 'REGISTRO', 'APROBAR', 'RECHAZAR', 'CREAR', 'EDITAR', 'ELIMINAR', 'OBSERVAR', 'RESTAURAR', 'RECUPERAR', 'RESTABLECER', 'VERIFICAR'];
   const inputCls = 'bg-[#272839] border border-[#313248] rounded-xl px-3 py-2 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
 
   return (
@@ -1323,11 +1546,150 @@ function PapeleraPanel({ usuario }: { usuario?: UsuarioSesion | null }) {
 }
 
 // ============================================
+// CONFIGURACIÓN DEL SISTEMA (solo SUPERADMIN): chat, modelo de lenguaje, límites del planificador y acceso
+// ============================================
+function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => void }) {
+  const [cfg, setCfg] = useState<ConfigCompleta | null>(null);
+  const [original, setOriginal] = useState('');
+  const [meta, setMeta] = useState<{ por: string | null; en: string | null }>({ por: null, en: null });
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+  const [exito, setExito] = useState('');
+
+  const cargar = async () => {
+    setCargando(true); setError('');
+    try {
+      const r = await fetch('/api/configuracion');
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'No se pudo cargar la configuración.');
+      setCfg(d.config); setOriginal(JSON.stringify(d.config)); setMeta({ por: d.actualizadoPor, en: d.actualizadoEn });
+    } catch (e: any) { setError(e.message || 'No se pudo cargar la configuración.'); }
+    finally { setCargando(false); }
+  };
+  useEffect(() => { cargar(); }, []);
+
+  const sucia = !!cfg && JSON.stringify(cfg) !== original;
+  const cambiarChat = (p: Partial<ConfigChat>) => cfg && setCfg({ ...cfg, chat: { ...cfg.chat, ...p } });
+  const cambiarPlan = (p: Partial<ConfigCompleta['planificador']>) => cfg && setCfg({ ...cfg, planificador: { ...cfg.planificador, ...p } });
+  const cambiarAcceso = (p: Partial<ConfigCompleta['acceso']>) => cfg && setCfg({ ...cfg, acceso: { ...cfg.acceso, ...p } });
+
+  const guardar = async () => {
+    if (!cfg) return;
+    setGuardando(true); setError(''); setExito('');
+    try {
+      const r = await fetch('/api/configuracion', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config: cfg }) });
+      const d = await r.json();
+      if (!r.ok) { setError(d.error || 'No se pudo guardar la configuración.'); return; }
+      setCfg(d.config); setOriginal(JSON.stringify(d.config));
+      setExito(d.cambios?.length ? 'Configuración guardada. Se aplica de inmediato a todos los usuarios.' : 'No había cambios que guardar.');
+      onGuardada({ chat: d.config.chat, planificador: d.config.planificador });
+      await cargar();
+    } catch { setError('No se pudo conectar con el servidor.'); }
+    finally { setGuardando(false); }
+  };
+
+  const campo = 'w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
+  const etiqueta = 'text-xs font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5';
+  const ayuda = 'text-[11px] text-[#6a6b7e] mt-1';
+  const tarjeta = 'bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 space-y-5';
+
+  const Interruptor = ({ activo, onChange, texto, detalle }: { activo: boolean; onChange: (v: boolean) => void; texto: string; detalle?: string }) => (
+    <div className="flex items-start justify-between gap-4">
+      <div><p className="text-sm text-[#d0d0da] font-medium">{texto}</p>{detalle && <p className={ayuda}>{detalle}</p>}</div>
+      <button type="button" role="switch" aria-checked={activo} onClick={() => onChange(!activo)} className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${activo ? 'bg-[#818cf8]' : 'bg-[#313248]'}`}>
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${activo ? 'translate-x-5' : ''}`} />
+      </button>
+    </div>
+  );
+
+  if (cargando && !cfg) return <div className="p-10 text-center text-sm text-[#8a8b9e]">Cargando configuración...</div>;
+  if (!cfg) return <p className="text-red-400 text-sm">{error || 'No se pudo cargar la configuración.'}</p>;
+
+  return (
+    <div className="space-y-5 pb-24">
+      <div>
+        <h2 className="text-lg font-semibold text-[#e0e0ec] flex items-center gap-2"><Settings className="w-5 h-5 text-[#818cf8]" />Configuración del sistema</h2>
+        <p className="text-xs text-[#8a8b9e] mt-0.5">Solo el superadmin ve esta pantalla. {meta.por ? `Última modificación: ${meta.por}${meta.en ? `, ${new Date(meta.en).toLocaleString()}` : ''}.` : 'Todavía no se ha modificado: se usan los valores por defecto.'}</p>
+      </div>
+
+      {/* ---------- CHAT ---------- */}
+      <div className={tarjeta}>
+        <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#a5b4fc]" />Chat y modelo de lenguaje</h3>
+        <Interruptor activo={cfg.chat.activo} onChange={(v) => cambiarChat({ activo: v })} texto="Asistente activado" detalle="Si lo apagas, el chat no responde y los usuarios ven el mensaje de abajo. Los comandos de guardar y eliminar siguen funcionando." />
+        {!cfg.chat.activo && (
+          <div><label className={etiqueta}>Mensaje cuando está apagado</label><input value={cfg.chat.mensajeInactivo} onChange={(e) => cambiarChat({ mensajeInactivo: e.target.value })} maxLength={300} className={campo} /></div>
+        )}
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={etiqueta}>Modelo de lenguaje</label>
+            <input list="modelos-sugeridos" value={cfg.chat.modelo} onChange={(e) => cambiarChat({ modelo: e.target.value })} placeholder="(el que tiene el flujo de n8n)" className={campo} />
+            <datalist id="modelos-sugeridos"><option value="models/gemini-2.5-flash" /><option value="models/gemini-2.5-pro" /><option value="models/gemini-2.0-flash" /></datalist>
+            <p className={ayuda}>Déjalo vacío para usar el modelo que ya tiene n8n. Los nombres de ejemplo pueden no existir en tu cuenta; si el chat falla tras cambiarlo, vacíalo.</p>
+          </div>
+          <div>
+            <label className={etiqueta}>Dirección de n8n</label>
+            <input value={cfg.chat.webhookUrl} onChange={(e) => cambiarChat({ webhookUrl: e.target.value })} placeholder="(la variable NEXT_PUBLIC_N8N_URL)" className={campo} />
+            <p className={ayuda}>Ejemplo: http://localhost:5678. También la usa la generación del plan en PDF.</p>
+          </div>
+        </div>
+        <div>
+          <label className={etiqueta}>Creatividad (temperatura): {cfg.chat.temperatura.toFixed(2)}</label>
+          <input type="range" min={0} max={1} step={0.05} value={cfg.chat.temperatura} onChange={(e) => cambiarChat({ temperatura: parseFloat(e.target.value) })} className="w-full accent-[#818cf8]" />
+          <p className={ayuda}>Más bajo = respuestas más precisas y repetibles. Más alto = más variadas y creativas.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div><label className={etiqueta}>Largo de respuesta</label><input type="number" min={0} max={32000} value={cfg.chat.maxTokens} onChange={(e) => cambiarChat({ maxTokens: parseInt(e.target.value) || 0 })} className={campo} /><p className={ayuda}>Tokens máx. 0 = automático.</p></div>
+          <div><label className={etiqueta}>Memoria</label><input type="number" min={1} max={30} value={cfg.chat.ventanaMemoria} onChange={(e) => cambiarChat({ ventanaMemoria: parseInt(e.target.value) || 1 })} className={campo} /><p className={ayuda}>Mensajes que recuerda.</p></div>
+          <div><label className={etiqueta}>Máx. caracteres</label><input type="number" min={100} max={5000} value={cfg.chat.maxCaracteresMensaje} onChange={(e) => cambiarChat({ maxCaracteresMensaje: parseInt(e.target.value) || 100 })} className={campo} /><p className={ayuda}>Por mensaje del usuario.</p></div>
+          <div><label className={etiqueta}>Espera máx. (s)</label><input type="number" min={10} max={180} value={cfg.chat.timeoutSegundos} onChange={(e) => cambiarChat({ timeoutSegundos: parseInt(e.target.value) || 10 })} className={campo} /><p className={ayuda}>Antes de rendirse.</p></div>
+        </div>
+        <div>
+          <label className={etiqueta}>Instrucciones adicionales para el agente</label>
+          <textarea value={cfg.chat.instruccionesExtra} onChange={(e) => cambiarChat({ instruccionesExtra: e.target.value })} maxLength={1500} rows={4} placeholder="Ej: Responde siempre en tono formal y usa ejemplos de ingeniería de software." className={campo} />
+          <p className={ayuda}>{cfg.chat.instruccionesExtra.length}/1500 · Se le entregan al agente junto con cada mensaje, sin tocar su prompt base.</p>
+        </div>
+        <div className="flex items-start gap-2 text-xs text-[#9a9bb0] bg-[#161722] border border-[#282a3f] rounded-xl p-3">
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#a5b4fc]" />
+          <span>Estos valores viajan a n8n con cada mensaje. Para que el <strong className="text-[#c0c0cc]">modelo, la creatividad, la memoria y las instrucciones</strong> se apliquen, importa en n8n el flujo <code className="text-emerald-300">My_workflow_configurable.json</code>. Con el flujo antiguo siguen funcionando el interruptor, el límite de caracteres, la espera máxima y la dirección.</span>
+        </div>
+      </div>
+
+      {/* ---------- PLANIFICADOR ---------- */}
+      <div className={tarjeta}>
+        <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><ClipboardList className="w-4 h-4 text-[#a5b4fc]" />Límites del planificador</h3>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div><label className={etiqueta}>Máximo de grupos por evaluación</label><input type="number" min={1} max={100} value={cfg.planificador.maxGrupos} onChange={(e) => cambiarPlan({ maxGrupos: parseInt(e.target.value) || 1 })} className={campo} /></div>
+          <div><label className={etiqueta}>Máximo de personas por grupo</label><input type="number" min={1} max={1000} value={cfg.planificador.maxPersonasPorGrupo} onChange={(e) => cambiarPlan({ maxPersonasPorGrupo: parseInt(e.target.value) || 1 })} className={campo} /></div>
+        </div>
+      </div>
+
+      {/* ---------- ACCESO ---------- */}
+      <div className={tarjeta}>
+        <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#a5b4fc]" />Acceso y datos</h3>
+        <Interruptor activo={cfg.acceso.registroAbierto} onChange={(v) => cambiarAcceso({ registroAbierto: v })} texto="Registro público abierto" detalle="Permite que los profesores soliciten su cuenta desde el login. Ciérralo cuando ya estén todos; las cuentas las seguirás creando desde Usuarios." />
+        <div className="max-w-xs"><label className={etiqueta}>Días que se conserva la papelera</label><input type="number" min={7} max={90} value={cfg.acceso.diasPapelera} onChange={(e) => cambiarAcceso({ diasPapelera: parseInt(e.target.value) || 7 })} className={campo} /><p className={ayuda}>Entre 7 y 90 días.</p></div>
+      </div>
+
+      {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
+      {exito && <p className="text-emerald-400 text-sm flex items-start gap-2"><CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{exito}</span></p>}
+
+      <div className="sticky bottom-4 flex items-center gap-3 bg-[#1d1e2e]/95 backdrop-blur border border-[#313248] rounded-2xl p-3 shadow-2xl">
+        <span className={`text-xs flex-1 ${sucia ? 'text-amber-300' : 'text-[#8a8b9e]'}`}>{sucia ? 'Hay cambios sin guardar.' : 'Todo guardado.'}</span>
+        <button onClick={() => { setCfg(JSON.parse(original)); setError(''); setExito(''); }} disabled={!sucia || guardando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-xl disabled:opacity-40">Descartar</button>
+        <button onClick={() => { setCfg(CONFIG_COMPLETA_DEFECTO); setExito(''); }} disabled={guardando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-xl disabled:opacity-40">Valores por defecto</button>
+        <button onClick={guardar} disabled={!sucia || guardando} className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl disabled:opacity-40">{guardando ? 'Guardando...' : 'Guardar cambios'}</button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // PANEL DE USUARIOS (solo ADMIN y SUPERADMIN)
 // ============================================
 function UsuariosPanel() {
   type RolU = 'SUPERADMIN' | 'ADMIN' | 'USUARIO';
-  interface UsuarioFila { id: string; nombre: string; email: string; rol: RolU; activo: boolean; pendiente: boolean; telefono: string | null; cedula: string | null; debeCambiarPassword: boolean; }
+  interface UsuarioFila { id: string; nombre: string; email: string; rol: RolU; activo: boolean; pendiente: boolean; telefono: string | null; cedula: string | null; debeCambiarPassword: boolean; telefonoVerificado?: boolean; }
   interface RecuperacionFila { id: string; createdAt: string; usuario: { id: string; nombre: string; email: string; telefono: string | null; cedula: string | null; rol: RolU } }
   const [usuarios, setUsuarios] = useState<UsuarioFila[]>([]);
   const [actor, setActor] = useState<{ id: string; rol: RolU } | null>(null);
@@ -1520,8 +1882,10 @@ function UsuariosPanel() {
                   <div key={u.id} className="p-4 flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-amber-300" /></div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-[#d0d0da] truncate">{u.nombre}</div>
-                      <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · CC ${u.cedula}` : ''}</div>
+                      <div className="text-sm font-medium text-[#d0d0da] truncate flex items-center gap-2">{u.nombre}{u.telefonoVerificado
+                        ? <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-300 border-emerald-500/30">WhatsApp verificado</span>
+                        : <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30" title="La persona todavía no escribió el código que le llegó por WhatsApp">WhatsApp sin verificar</span>}</div>
+                      <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · C.I. ${u.cedula}` : ''}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => aprobar(u)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors"><CheckCircle className="w-3.5 h-3.5" />Aprobar</button>
@@ -1739,7 +2103,7 @@ function EstudiantesPanel() {
   };
 
   const filteredEstudiantes = estudiantes.filter(e => {
-    const matchSearch = e.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || e.email.toLowerCase().includes(searchTerm.toLowerCase()) || e.telefono.includes(searchTerm);
+    const matchSearch = e.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || e.email.toLowerCase().includes(searchTerm.toLowerCase()) || (e.telefono || '').includes(searchTerm);
     const matchFilter = filter === 'todos' || e.estado === filter;
     return matchSearch && matchFilter;
   });
@@ -1783,7 +2147,10 @@ function EstudiantesPanel() {
     }
   };
 
+  const [confirmandoBorrar, setConfirmandoBorrar] = useState<string | null>(null);
   const eliminarEstudiante = async (id: string) => {
+    if (confirmandoBorrar !== id) { setConfirmandoBorrar(id); setTimeout(() => setConfirmandoBorrar(prev => (prev === id ? null : prev)), 3000); return; }
+    setConfirmandoBorrar(null);
     try {
       await apiEstudiantes.eliminar(id);
       await recargarEstudiantes();
@@ -1857,7 +2224,7 @@ function EstudiantesPanel() {
                   <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <Tooltip text="Editar"><button onClick={() => { setEditando({...est}); setErroresEdit({}); }} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#818cf8]/10 rounded-lg transition-all"><Pencil className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text="Eliminar"><button onClick={() => eliminarEstudiante(est.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button></Tooltip>
+                      {confirmandoBorrar === est.id ? (<button onClick={() => eliminarEstudiante(est.id)} className="px-2 py-1 text-xs font-semibold text-red-300 bg-red-500/15 border border-red-500/30 rounded-lg">¿Seguro?</button>) : (<Tooltip text="Eliminar"><button onClick={() => eliminarEstudiante(est.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button></Tooltip>)}
                     </div>
                   </td>
                 </tr>
@@ -1877,7 +2244,7 @@ function EstudiantesPanel() {
               <div className="space-y-4">
                 <div><label className={labelBase}>Nombre completo</label><input type="text" value={nuevoNombre} onChange={(e) => { setNuevoNombre(e.target.value); setErroresNuevo(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.nombre ? 'border-red-500/50' : ''}`} placeholder="Ej: Juan Pérez" />{erroresNuevo.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.nombre}</p>}</div>
                 <div><label className={labelBase}>Correo electrónico</label><input type="email" value={nuevoEmail} onChange={(e) => { setNuevoEmail(e.target.value); setErroresNuevo(p => ({...p, email: validarCampo('email', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.email ? 'border-red-500/50' : ''}`} placeholder="juan@email.com" />{erroresNuevo.email && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.email}</p>}</div>
-                <div><label className={labelBase}>Teléfono</label><input type="number" inputMode="numeric" value={nuevoTelefono} onChange={(e) => { setNuevoTelefono(e.target.value); setErroresNuevo(p => ({...p, telefono: validarCampo('telefono', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.telefono ? 'border-red-500/50' : ''}`} placeholder="0412-1234567" />{erroresNuevo.telefono && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.telefono}</p>}</div>
+                <div><label className={labelBase}>Teléfono</label><input type="tel" inputMode="numeric" value={nuevoTelefono} onChange={(e) => { setNuevoTelefono(e.target.value); setErroresNuevo(p => ({...p, telefono: validarCampo('telefono', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.telefono ? 'border-red-500/50' : ''}`} placeholder="04121234567" />{erroresNuevo.telefono && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.telefono}</p>}</div>
                 <div><label className={labelBase}>Grupo</label><select value={nuevoGrupo} onChange={(e) => setNuevoGrupo(e.target.value)} className={inputBase}><option value="A">Grupo A</option><option value="B">Grupo B</option><option value="C">Grupo C</option><option value="D">Grupo D</option></select></div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -1898,7 +2265,7 @@ function EstudiantesPanel() {
               <div className="space-y-4">
                 <div><label className={labelBase}>Nombre completo</label><input type="text" value={editando.nombre} onChange={(e) => { setEditando({...editando, nombre: e.target.value}); setErroresEdit(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresEdit.nombre ? 'border-red-500/50' : ''}`} />{erroresEdit.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.nombre}</p>}</div>
                 <div><label className={labelBase}>Correo electrónico</label><input type="email" value={editando.email} onChange={(e) => { setEditando({...editando, email: e.target.value}); setErroresEdit(p => ({...p, email: validarCampo('email', e.target.value)})); }} className={`${inputBase} ${erroresEdit.email ? 'border-red-500/50' : ''}`} />{erroresEdit.email && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.email}</p>}</div>
-                <div><label className={labelBase}>Teléfono</label><input type="number" inputMode="numeric" value={editando.telefono} onChange={(e) => { setEditando({...editando, telefono: e.target.value}); setErroresEdit(p => ({...p, telefono: validarCampo('telefono', e.target.value)})); }} className={`${inputBase} ${erroresEdit.telefono ? 'border-red-500/50' : ''}`} />{erroresEdit.telefono && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.telefono}</p>}</div>
+                <div><label className={labelBase}>Teléfono</label><input type="tel" inputMode="numeric" value={editando.telefono || ''} onChange={(e) => { setEditando({...editando, telefono: e.target.value}); setErroresEdit(p => ({...p, telefono: validarCampo('telefono', e.target.value)})); }} className={`${inputBase} ${erroresEdit.telefono ? 'border-red-500/50' : ''}`} />{erroresEdit.telefono && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.telefono}</p>}</div>
                 <div><label className={labelBase}>Grupo</label><select value={editando.grupo} onChange={(e) => setEditando({...editando, grupo: e.target.value})} className={inputBase}><option value="A">Grupo A</option><option value="B">Grupo B</option><option value="C">Grupo C</option><option value="D">Grupo D</option></select></div>
                 <div><label className={labelBase}>Estado</label><select value={editando.estado} onChange={(e) => setEditando({...editando, estado: e.target.value as any})} className={inputBase}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
               </div>
@@ -1913,335 +2280,6 @@ function EstudiantesPanel() {
     </div>
   );
 }
-// ============================================
-// NUEVA PESTAÑA DE RÚBRICA MEJORADA
-// ============================================
-const nivelesDefecto: NivelDesempeno[] = [
-  { id: 'n1', nombre: 'Excelente', puntaje: 4, descripcion: 'Demuestra dominio excepcional del criterio, superando ampliamente los objetivos.' },
-  { id: 'n2', nombre: 'Bueno', puntaje: 3, descripcion: 'Cumple completamente con los requisitos del criterio de manera satisfactoria.' },
-  { id: 'n3', nombre: 'Regular', puntaje: 2, descripcion: 'Cumple parcialmente con los requisitos, presenta algunas deficiencias.' },
-  { id: 'n4', nombre: 'Deficiente', puntaje: 1, descripcion: 'No cumple con los requisitos mínimos del criterio.' },
-];
-
-function RubricaPanel({ planificacion, setPlanificacion }: { planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>> }) {
-  const [showCriterioModal, setShowCriterioModal] = useState(false);
-  const [editingCriterio, setEditingCriterio] = useState<CriterioRubrica | null>(null);
-  const [criterioNombre, setCriterioNombre] = useState('');
-  const [criterioDescripcion, setCriterioDescripcion] = useState('');
-  const [criterioPeso, setCriterioPeso] = useState(0);
-  const [criterioNiveles, setCriterioNiveles] = useState<NivelDesempeno[]>([...nivelesDefecto]);
-  const [showPreview, setShowPreview] = useState(false);
-
-  const pesoTotal = planificacion.rubrica.reduce((acc, c) => acc + (c.peso || 0), 0);
-  const pesoCorrecto = pesoTotal === 100;
-
-  const abrirModalNuevo = () => {
-    setEditingCriterio(null);
-    setCriterioNombre('');
-    setCriterioDescripcion('');
-    setCriterioPeso(0);
-    setCriterioNiveles([...nivelesDefecto]);
-    setShowCriterioModal(true);
-  };
-
-  const abrirModalEditar = (criterio: CriterioRubrica) => {
-    setEditingCriterio(criterio);
-    setCriterioNombre(criterio.nombre);
-    setCriterioDescripcion(criterio.descripcion);
-    setCriterioPeso(criterio.peso);
-    setCriterioNiveles(criterio.niveles ? [...criterio.niveles] : [...nivelesDefecto]);
-    setShowCriterioModal(true);
-  };
-
-  const guardarCriterio = () => {
-    if (!criterioNombre.trim()) {
-      alert('El nombre del criterio es obligatorio.');
-      return;
-    }
-    if (criterioPeso <= 0) {
-      alert('El peso debe ser mayor a 0.');
-      return;
-    }
-
-    const nuevoCriterio: CriterioRubrica = {
-      id: editingCriterio ? editingCriterio.id : `crit-${Date.now()}`,
-      nombre: criterioNombre.trim(),
-      descripcion: criterioDescripcion.trim(),
-      peso: criterioPeso,
-      niveles: criterioNiveles,
-    };
-
-    if (editingCriterio) {
-      setPlanificacion(prev => ({
-        ...prev,
-        rubrica: prev.rubrica.map(c => c.id === editingCriterio.id ? nuevoCriterio : c)
-      }));
-    } else {
-      setPlanificacion(prev => ({
-        ...prev,
-        rubrica: [...prev.rubrica, nuevoCriterio]
-      }));
-    }
-    setShowCriterioModal(false);
-  };
-
-  const eliminarCriterio = (id: string) => {
-    setPlanificacion(prev => ({
-      ...prev,
-      rubrica: prev.rubrica.filter(c => c.id !== id)
-    }));
-  };
-
-  const generarEjemplo = () => {
-    setPlanificacion(prev => ({
-      ...prev,
-      rubrica: [
-        { id: `crit-1`, nombre: 'Calidad del Contenido', peso: 35, descripcion: 'Evalúa la profundidad, precisión y relevancia del contenido presentado.', niveles: [...nivelesDefecto] },
-        { id: `crit-2`, nombre: 'Estructura y Organización', peso: 25, descripcion: 'Mide la claridad, coherencia y lógica en la organización de las ideas.', niveles: [...nivelesDefecto] },
-        { id: `crit-3`, nombre: 'Presentación y Comunicación', peso: 20, descripcion: 'Valora la calidad de la exposición oral, apoyo visual y lenguaje utilizado.', niveles: [...nivelesDefecto] },
-        { id: `crit-4`, nombre: 'Trabajo en Equipo', peso: 20, descripcion: 'Evalúa la colaboración, distribución de tareas y sinergia del grupo.', niveles: [...nivelesDefecto] },
-      ]
-    }));
-  };
-
-  const limpiarRubrica = () => {
-    setPlanificacion(prev => ({ ...prev, rubrica: [] }));
-  };
-
-  const exportarRubricaCSV = () => {
-    const headers = ["Criterio", "Descripcion", "Peso (%)", ...nivelesDefecto.map(n => `${n.nombre} (${n.puntaje}pts)`)];
-    const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
-    const rows = planificacion.rubrica.map(c => [
-      escapeCSV(c.nombre),
-      escapeCSV(c.descripcion),
-      c.peso,
-      ...nivelesDefecto.map(n => escapeCSV((c.niveles || nivelesDefecto).find(nv => nv.id === n.id)?.descripcion || ''))
-    ].join(","));
-    const csvContent = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", "rubrica.csv");
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-  };
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-[#d0d0da] flex items-center gap-3">
-            <ClipboardCheck className="w-6 h-6 text-[#818cf8]" />
-            Diseño de Rúbrica
-          </h2>
-          <p className="text-sm text-[#8a8b9e] mt-1">
-            {planificacion.rubrica.length} criterios · Peso total: {pesoTotal}%
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Tooltip text="Generar rúbrica de ejemplo">
-            <button onClick={generarEjemplo} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-medium rounded-lg transition-all border border-amber-500/20">
-              <Sparkles className="w-3.5 h-3.5" /> Ejemplo
-            </button>
-          </Tooltip>
-          <Tooltip text="Ver vista previa">
-            <button onClick={() => setShowPreview(!showPreview)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${showPreview ? 'bg-[#818cf8]/10 text-[#818cf8] border-[#818cf8]/30' : 'bg-[#272839] text-[#b0b0c4] border-[#313248]'}`}>
-              <EyeIcon className="w-3.5 h-3.5" /> Vista previa
-            </button>
-          </Tooltip>
-          <Tooltip text="Exportar a CSV">
-            <button onClick={exportarRubricaCSV} disabled={planificacion.rubrica.length === 0} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-lg transition-all border border-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Download className="w-3.5 h-3.5" /> CSV
-            </button>
-          </Tooltip>
-          <Tooltip text="Limpiar rúbrica">
-            <button onClick={limpiarRubrica} disabled={planificacion.rubrica.length === 0} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium rounded-lg transition-all border border-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
-              <Trash2 className="w-3.5 h-3.5" /> Limpiar
-            </button>
-          </Tooltip>
-          <motion.button 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={abrirModalNuevo}
-            className="flex items-center gap-2 px-4 py-2 bg-[#818cf8] hover:bg-[#6366f1] text-white text-sm font-medium rounded-xl transition-all shadow-md"
-          >
-            <Plus className="w-4 h-4" /> Agregar criterio
-          </motion.button>
-        </div>
-      </div>
-
-      {/* Barra de progreso del peso total */}
-      <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-[#8a8b9e] font-medium">Peso total de la rúbrica</span>
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${pesoCorrecto ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-            {pesoTotal}% {pesoCorrecto ? '✓' : `(falta ${100 - pesoTotal}%)`}
-          </span>
-        </div>
-        <div className="w-full h-2.5 bg-[#313248] rounded-full overflow-hidden">
-          <motion.div 
-            className={`h-full rounded-full ${pesoCorrecto ? 'bg-emerald-500' : pesoTotal > 100 ? 'bg-red-500' : 'bg-amber-500'}`}
-            animate={{ width: `${Math.min(pesoTotal, 100)}%` }}
-            transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-          />
-        </div>
-      </div>
-
-      {/* Lista de criterios */}
-      <div className="space-y-3">
-        <AnimatePresence mode="popLayout">
-          {planificacion.rubrica.map((criterio, idx) => (
-            <motion.div 
-              key={criterio.id}
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className="bg-[#1f2035] border border-[#313248] rounded-xl p-4 hover:border-[#414258] transition-colors"
-            >
-              <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-lg bg-[#272839] flex items-center justify-center text-sm text-[#818cf8] font-bold flex-shrink-0 mt-0.5">
-                  {idx + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="text-sm font-semibold text-[#d0d0da]">{criterio.nombre}</h4>
-                    <span className="text-xs bg-[#818cf8]/10 text-[#818cf8] px-2 py-0.5 rounded-full font-medium">
-                      {criterio.peso}%
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#8a8b9e] line-clamp-2">{criterio.descripcion || 'Sin descripción'}</p>
-                  {/* Barra de peso individual */}
-                  <div className="mt-2 w-full h-1.5 bg-[#313248] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#818cf8]/60 rounded-full" style={{ width: `${criterio.peso}%` }} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <Tooltip text="Editar criterio">
-                    <button onClick={() => abrirModalEditar(criterio)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg transition-colors">
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  </Tooltip>
-                  <Tooltip text="Eliminar criterio">
-                    <button onClick={() => eliminarCriterio(criterio.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </Tooltip>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        {planificacion.rubrica.length === 0 && (
-          <div className="text-center py-12 text-[#8a8b9e] border border-dashed border-[#313248] rounded-xl">
-            <ClipboardCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No hay criterios definidos. Crea una rúbrica o genera un ejemplo.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Vista previa de la rúbrica como matriz */}
-      <AnimatePresence>
-        {showPreview && planificacion.rubrica.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-[#1f2035] border border-[#313248] rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-[#313248] bg-[#191a26]">
-                <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2">
-                  <EyeIcon className="w-4 h-4 text-[#818cf8]" /> Vista previa de la rúbrica
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-[#1a1b2e]">
-                      <th className="p-3 text-left text-xs font-medium text-[#8a8b9e] border-b border-[#313248]">Criterio</th>
-                      <th className="p-3 text-left text-xs font-medium text-[#8a8b9e] border-b border-[#313248]">Peso</th>
-                      {(planificacion.rubrica[0]?.niveles || nivelesDefecto).map(nivel => (
-                        <th key={nivel.id} className="p-3 text-center text-xs font-medium text-[#8a8b9e] border-b border-[#313248]">
-                          {nivel.nombre}<br/>
-                          <span className="text-[#818cf8]">{nivel.puntaje} pts</span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#313248]">
-                    {planificacion.rubrica.map(criterio => (
-                      <tr key={criterio.id} className="hover:bg-[#272839]/50">
-                        <td className="p-3 text-[#d0d0da] font-medium">{criterio.nombre}</td>
-                        <td className="p-3 text-[#818cf8] font-bold">{criterio.peso}%</td>
-                        {(criterio.niveles || nivelesDefecto).map(nivel => (
-                          <td key={nivel.id} className="p-3 text-xs text-[#b0b0c4] text-center max-w-[200px]">
-                            {nivel.descripcion}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Modal para agregar/editar criterio */}
-      <AnimatePresence>
-        {showCriterioModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-            onClick={(e) => { if (e.target === e.currentTarget) setShowCriterioModal(false); }}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className="bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar p-6"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-semibold text-[#d0d0da] flex items-center gap-2">
-                  <ClipboardCheck className="w-5 h-5 text-[#818cf8]" />
-                  {editingCriterio ? 'Editar criterio' : 'Nuevo criterio'}
-                </h3>
-                <button onClick={() => setShowCriterioModal(false)} className="p-1.5 text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#272839] rounded-lg transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className={labelBase}>Nombre del criterio</label>
-                  <input type="text" value={criterioNombre} onChange={(e) => setCriterioNombre(e.target.value)} className={inputBase} placeholder="Ej: Calidad del contenido" />
-                </div>
-                <div>
-                  <label className={labelBase}>Descripción</label>
-                  <textarea value={criterioDescripcion} onChange={(e) => setCriterioDescripcion(e.target.value)} className={`${textareaBase} min-h-[80px]`} placeholder="Describe qué evalúa este criterio..." rows={3} />
-                </div>
-                <div>
-                  <label className={labelBase}>Peso (%)</label>
-                  <input type="number" value={criterioPeso} onChange={(e) => setCriterioPeso(parseInt(e.target.value) || 0)} className={smallInput} placeholder="0" min="0" max="100" />
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button onClick={() => setShowCriterioModal(false)} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#272839] hover:bg-[#313248] rounded-xl transition-colors">Cancelar</button>
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={guardarCriterio} className="px-5 py-2 bg-[#818cf8] hover:bg-[#6366f1] text-white text-sm font-medium rounded-xl transition-all shadow-md flex items-center gap-2">
-                  <Save className="w-4 h-4" /> {editingCriterio ? 'Actualizar' : 'Guardar'}
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 // ============================================
 // CAMPANITA NOTIFICACIONES MEJORADA
 // ============================================
@@ -2267,7 +2305,7 @@ function CampanitaNotificacionesFlotante({ notificaciones, setNotificaciones, ca
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
-            className="absolute right-0 mt-2 w-[420px] max-h-[500px] overflow-hidden bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 z-50"
+            className="absolute right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-[420px] max-h-[500px] overflow-hidden bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 z-50"
           >
             <div className="p-4 border-b border-[#282a3f] bg-[#191a26] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2">
@@ -2540,7 +2578,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
       className="bg-[#1f2035] rounded-xl border border-[#313248] hover:border-[#414258] select-none relative"
     >
-      <div className="p-3 flex items-center gap-3">
+      <div className="p-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
         <div
           onPointerDown={(e) => dragControls.start(e)}
           className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[#272839] transition-colors text-[#6a6b7e] touch-none"
@@ -2556,7 +2594,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
             {index + 1}
           </button>
         </Tooltip>
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={onToggleExpand}>
+        <div className="flex-1 min-w-[140px] cursor-pointer" onClick={onToggleExpand}>
           <div className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8] flex-shrink-0" /><h4 className="text-sm text-[#d0d0da] font-medium truncate">{nombreLimpio}</h4></div>
           <div className="flex flex-wrap gap-3 mt-0.5 text-xs text-[#b0b0c4]">
             {seccion.peso != null && <span>{seccion.peso}%</span>}
@@ -2567,7 +2605,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
             {seccion.fecha && <span>📅 {new Date(seccion.fecha).toLocaleDateString()}</span>}
           </div>
         </div>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
           <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
           <Tooltip text="Enviar"><button onClick={() => onEnviar(seccion)} disabled={enviando} className="p-1.5 text-[#8a8b9e] hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">{enviando ? <div className="w-4 h-4 border-2 border-t-emerald-400 rounded-full animate-spin" /> : <Send className="w-4 h-4" />}</button></Tooltip>
           <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
@@ -2620,31 +2658,6 @@ function EnfoqueCombobox({ value, onChange }: { value: string; onChange: (v: str
 // ============================================
 function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1, limpiarEvaluacion1, evaluacion2, setEvaluacion2, guardarEvaluacion2, limpiarEvaluacion2, evaluacion3, setEvaluacion3, guardarEvaluacion3, limpiarEvaluacion3, evaluacion4, setEvaluacion4, guardarEvaluacion4, limpiarEvaluacion4, numEvaluaciones, setNumEvaluaciones, justFilled1, justFilled2, justFilled3, justFilled4, totalEstudiantes = 8 }: any) {
 
-  // Hook para efecto de streaming en inputs
-  function useStreamingValue(target: string, isActive: boolean, speed = 15) {
-    const [displayed, setDisplayed] = useState('');
-    const indexRef = useRef(0);
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
-    useEffect(() => {
-      if (!isActive) {
-        setDisplayed(target);
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        return;
-      }
-      indexRef.current = 0;
-      setDisplayed('');
-      intervalRef.current = setInterval(() => {
-        if (indexRef.current < target.length) {
-          setDisplayed(target.slice(0, indexRef.current + 1));
-          indexRef.current++;
-        } else {
-          if (intervalRef.current) clearInterval(intervalRef.current);
-        }
-      }, speed);
-      return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-    }, [target, isActive, speed]);
-    return displayed;
-  }
   const renderFormulario = (ev: EvaluacionFormulario, setEv: Dispatch<SetStateAction<EvaluacionFormulario>>, guardar: () => void, limpiar: () => void, titulo: string, index: number, isGlowing: boolean) => {
 
     const validarCampoAlBlur = (campo: 'materia' | 'tipoActividad' | 'enfoque' | 'descripcion', valor: string) => {
@@ -2790,10 +2803,10 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
           <input
             type="number"
             min={0}
-            max={20}
+            max={LIMITES.grupos}
             value={ev.cantidadGrupos ?? ''}
             onChange={(e) => {
-              const grupos = e.target.value ? Math.min(20, Math.max(0, parseInt(e.target.value))) : null;
+              const grupos = e.target.value ? Math.min(LIMITES.grupos, Math.max(0, parseInt(e.target.value))) : null;
               const personas = grupos ? calcularPersonasPorGrupo(totalEstudiantes, grupos) : null;
               setEv({...ev, cantidadGrupos: grupos, personasPorGrupo: personas});
             }}
@@ -2806,10 +2819,10 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
           <input
             type="number"
             min={0}
-            max={300}
+            max={LIMITES.personas}
             value={ev.personasPorGrupo ?? ''}
             onChange={(e) => {
-              const personas = e.target.value ? Math.min(300, Math.max(0, parseInt(e.target.value))) : null;
+              const personas = e.target.value ? Math.min(LIMITES.personas, Math.max(0, parseInt(e.target.value))) : null;
               const { cantidadGrupos } = calcularDistribucionGrupos(totalEstudiantes, personas);
               setEv({...ev, personasPorGrupo: personas, cantidadGrupos: cantidadGrupos || null});
             }}
@@ -2939,8 +2952,14 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
 // ============================================
 // AGENTE PANEL (CON SCROLL MEJORADO)
 // ============================================
-function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8 }: any) {
+function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
+  // Atajos del encabezado del chat: llevan al panel de la derecha (en el celular el chat se oculta para dejarlo ver)
+  const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
   const [mensaje, setMensaje] = useState(''); 
+  // Configuración del superadmin: dirección de n8n, tiempo máximo y lo que se le pide al modelo en cada mensaje
+  const urlChat: string = config?.chat?.webhookUrl || process.env.NEXT_PUBLIC_N8N_URL || 'http://localhost:5678';
+  const tiempoChat: number = (config?.chat?.timeoutSegundos ?? 60) * 1000;
+  const configParaN8n = config ? { modelo: config.chat.modelo, temperatura: config.chat.temperatura, maxTokens: config.chat.maxTokens, ventanaMemoria: config.chat.ventanaMemoria, instruccionesExtra: config.chat.instruccionesExtra } : undefined;
   const [pensando, setPensando] = useState(false); 
   const [escribiendo, setEscribiendo] = useState(false); 
   const [historial, setHistorial] = useState<Mensaje[]>([]);
@@ -2951,6 +2970,11 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
   const isChatStarted = historial.length > 0; 
   const [navegarAlPlan, setNavegarAlPlan] = useState(false);
   const [propuestaPendienteLocal, setPropuestaPendienteLocal] = useState<any>(null);
+  const hayPropuestaRef = useRef(false);
+  useEffect(() => { hayPropuestaRef.current = !!propuestaPendienteLocal; }, [propuestaPendienteLocal]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // El cuadro de texto crece con el contenido (hasta 160px)
+  useEffect(() => { const t = textareaRef.current; if (!t) return; t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 120)}px`; }, [mensaje]);
 
   const [isRecording, setIsRecording] = useState(false);
   const [transcribiendo, setTranscribiendo] = useState(false);
@@ -2972,7 +2996,8 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
   const scrollToBottom = (forzar = false) => {
     if (forzar) isAtBottomRef.current = true;
     if (isAtBottomRef.current) {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const el = chatContainerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
     }
   };
 
@@ -3002,7 +3027,7 @@ function AgentePanel({ expandido, setExpandido, planificacion, setPlanificacion,
     setTimeout(() => { 
       setEscribiendo(false); 
       setHistorial(prev => prev.map(m => m.id === mensajeId ? { ...m, completo: true } : m)); 
-      setNavegarAlPlan(true); 
+      if (hayPropuestaRef.current) setNavegarAlPlan(true); 
     }, 0); 
   }, []);
 
@@ -3103,16 +3128,36 @@ if (sonCuatro && generarPDF) {
     if (propuestaPendienteLocal && esNegacion(msg)) { setPensando(false); cancelarPropuesta(); return; }
     if (propuestaPendienteLocal && esConfirmacionGuardado(msg)) { setPensando(false); const resultado = await guardarEvaluacionesDirecto(); setHistorial(prev => [...prev, { rol: 'agent', contenido: resultado.success ? resultado.mensaje : '⚠️ ' + resultado.mensaje, completo: true, id: `agent-${Date.now()}` }]); if (resultado.success) { setNavegarAlPlan(true); setVistaPanel('planificacion'); } return; }
     if ((msg.trim().toLowerCase() === 'aceptar' || msg.trim().toLowerCase() === 'si' || msg.trim().toLowerCase() === 'sí') && propuestaPendienteLocal) { setPensando(false); const resultado = await guardarEvaluacionesDirecto(); setHistorial(prev => [...prev, { rol: 'agent', contenido: resultado.success ? resultado.mensaje : '⚠️ ' + resultado.mensaje, completo: true, id: `agent-${Date.now()}` }]); if (resultado.success) { setNavegarAlPlan(true); setVistaPanel('planificacion'); } return; }
-    if (esSolicitudPlanAccion(msg) && !propuestaPendienteLocal) { if (esNegacion(msg)) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, no generaré el plan de acción.', completo: true, id: `agent-${Date.now()}` }]); return; } try { const response = await fetch(`${process.env.NEXT_PUBLIC_N8N_URL}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes, accion: 'plan_accion' }) }); const data = await response.json(); setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'Error de conexión.', completo: true, id: `error-${Date.now()}` }]); } return; }
-    try { const response = await fetch(`${process.env.NEXT_PUBLIC_N8N_URL}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes }) }); const data = await response.json(); setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { if (esNegacion(msg)) { setPropuestaPendienteLocal(null); setPropuestaPendiente(null); if (limpiarYScroll) limpiarYScroll(); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, he descartado los resultados de la evaluación.', completo: true, id: `agent-${Date.now()}` }]); } else { setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'Error de conexión.', completo: true, id: `error-${Date.now()}` }]); }
+    // Chat apagado o mensaje demasiado largo (configurado por el superadmin). Los comandos locales de arriba siguen funcionando.
+    if (config && !config.chat.activo) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: '⏸️ ' + config.chat.mensajeInactivo, completo: true, id: `agent-${Date.now()}` }]); return; }
+    if (config && msg.length > config.chat.maxCaracteresMensaje) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: `✂️ Tu mensaje tiene ${msg.length} caracteres y el máximo permitido es ${config.chat.maxCaracteresMensaje}. Acórtalo e inténtalo de nuevo.`, completo: true, id: `agent-${Date.now()}` }]); return; }
+    if (esSolicitudPlanAccion(msg) && !propuestaPendienteLocal) { if (esNegacion(msg)) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, no generaré el plan de acción.', completo: true, id: `agent-${Date.now()}` }]); return; } try { const response = await fetch(`${urlChat}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(tiempoChat), body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes, sessionId: usuarioId, config: configParaN8n, accion: 'plan_accion' }) }); const data = await response.json(); setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'Error de conexión.', completo: true, id: `error-${Date.now()}` }]); } return; }
+    try { const response = await fetch(`${urlChat}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(tiempoChat), body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes, sessionId: usuarioId, config: configParaN8n }) }); const data = await response.json(); setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { if (esNegacion(msg)) { setPropuestaPendienteLocal(null); setPropuestaPendiente(null); if (limpiarYScroll) limpiarYScroll(); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, he descartado los resultados de la evaluación.', completo: true, id: `agent-${Date.now()}` }]); } else { setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'Error de conexión.', completo: true, id: `error-${Date.now()}` }]); }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
 
   const handleMicClick = async () => {
     if (isRecording) { if (mediaRecorderRef.current) mediaRecorderRef.current.stop(); setIsRecording(false); } else {
-      try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const mediaRecorder = new MediaRecorder(stream); audioChunksRef.current = []; mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); }; mediaRecorder.onstop = async () => { setTranscribiendo(true); const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob, 'audio.webm'); try { const res = await fetch(`${process.env.NEXT_PUBLIC_N8N_URL}/webhook/voice`, { method: 'POST', body: formData }); const data = await res.json(); if (data.text) setMensaje(prev => prev ? prev + " " + data.text : data.text); } catch (err) { alert("Error al transcribir."); } finally { setTranscribiendo(false); } }; mediaRecorder.start(); mediaRecorderRef.current = mediaRecorder; setIsRecording(true); } catch (err) { alert("No se pudo acceder al micrófono."); }
+      try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const mediaRecorder = new MediaRecorder(stream); audioChunksRef.current = []; mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); }; mediaRecorder.onstop = async () => { stream.getTracks().forEach(t => t.stop()); setTranscribiendo(true); const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob, 'audio.webm'); try { const res = await fetch(`${urlChat}/webhook/voice`, { method: 'POST', body: formData }); const data = await res.json(); if (data.text) setMensaje(prev => prev ? prev + " " + data.text : data.text); } catch (err) { alert("Error al transcribir."); } finally { setTranscribiendo(false); } }; mediaRecorder.start(); mediaRecorderRef.current = mediaRecorder; setIsRecording(true); } catch (err) { alert("No se pudo acceder al micrófono."); }
     }
+  };
+
+  const chatInactivo = !!config && !config.chat.activo;
+  const ocupado = pensando || escribiendo || transcribiendo;
+  const estadoTexto = chatInactivo ? 'Desactivado' : pensando ? 'Pensando...' : escribiendo ? 'Escribiendo...' : isRecording ? 'Escuchando...' : transcribiendo ? 'Transcribiendo...' : 'En línea';
+  const limiteCaracteres: number = config?.chat?.maxCaracteresMensaje ?? 2000;
+
+  const adjuntarArchivo = async (archivo?: File) => {
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!archivo) return;
+    if (!/\.(txt|csv|md)$/i.test(archivo.name)) { setHistorial(prev => [...prev, { rol: 'agent', contenido: '📎 Por ahora solo puedo leer archivos de texto (.txt, .csv o .md).', completo: true, id: `agent-${Date.now()}` }]); return; }
+    try {
+      const texto = (await archivo.text()).trim();
+      if (!texto) return;
+      setMensaje(prev => (prev ? prev + '\n\n' : '') + `Contenido de «${archivo.name}»:\n` + texto.slice(0, limiteCaracteres));
+      textareaRef.current?.focus();
+    } catch { setHistorial(prev => [...prev, { rol: 'agent', contenido: '📎 No se pudo leer el archivo.', completo: true, id: `agent-${Date.now()}` }]); }
   };
 
   const renderOpciones = (contenido: string) => {
@@ -3122,10 +3167,10 @@ if (sonCuatro && generarPDF) {
   };
 
   return (
-    <motion.div animate={{ width: expandido ? 640 : 0, opacity: expandido ? 1 : 0 }} transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }} className="border-r border-[#282a3f] flex flex-col h-full bg-[#191a26] overflow-hidden" style={{ minWidth: expandido ? 640 : 0 }}>
-      <div className="px-6 py-4 border-b border-[#282a3f] flex items-center gap-3 bg-gradient-to-r from-[#191a26] to-[#1f2035]"><div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center shadow-lg shadow-[#818cf8]/30"><Bot className="w-5 h-5 text-white" /></div><div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-[#191a26] flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div><div><h2 className="text-sm font-semibold text-[#d0d0da] font-['Inter'] flex items-center gap-2">Agente planificador de evaluaciones<span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">IA</span></h2><p className="text-xs text-[#8a8b9e] flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>{isChatStarted ? 'Procesando...' : 'Listo'}</p></div></div>
-      {!isChatStarted ? (<div className="flex-1 flex flex-col items-center justify-center px-6"><motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="flex flex-col items-center text-center"><div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#818cf8]/20 to-[#6366f1]/20 flex items-center justify-center border-2 border-[#818cf8]/30 mb-6 shadow-2xl shadow-[#818cf8]/20"><Sparkle className="w-10 h-10 text-[#818cf8]" /></div><h1 className="text-2xl font-bold text-[#d0d0da] font-['Inter'] mb-2">Agente planificador de evaluaciones</h1><p className="text-sm text-[#8a8b9e] font-['Inter'] max-w-sm">Escribe el tema que quieres evaluar o usa el micrófono para hablar.</p></motion.div></div>) : (<div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 overflow-y-auto px-6 py-5 space-y-6 custom-scrollbar"><AnimatePresence>{historial.map((msg) => (<motion.div key={msg.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>{msg.rol === 'agent' ? (<div className="flex items-start gap-3 max-w-[90%]"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="text-base text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">{msg.completo ? (<div><div dangerouslySetInnerHTML={{ __html: formatMessage(msg.contenido) }} />{renderOpciones(msg.contenido)}</div>) : (<TypewriterText text={msg.contenido} onComplete={() => onTypewriterComplete(msg.id)} onUpdate={scrollToBottom} />)}</div></div>) : (<div className="max-w-[85%] px-5 py-3 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-base leading-relaxed font-['Inter'] border border-[#818cf8]/20">{msg.contenido}</div>)}</motion.div>))}</AnimatePresence>{pensando && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-start gap-3 justify-start"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="px-4 py-3.5 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-1.5 mt-0.5">{[0,1,2].map(i => (<motion.span key={i} className="w-2 h-2 bg-[#818cf8] rounded-full" animate={{ y: [0, -5, 0], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }} />))}</div></motion.div>)}<div ref={chatEndRef} /></div>)}
-      <div className="p-5 border-t border-[#282a3f] bg-gradient-to-t from-[#161722] to-transparent"><div className="relative"><motion.div className="absolute -inset-1 rounded-2xl opacity-70" animate={{ opacity: [0.4, 0.6, 0.4] }} transition={{ duration: 4, repeat: Infinity }} style={{ background: 'linear-gradient(90deg, #818cf8, #6366f1, #818cf8)', filter: 'blur(12px)' }} /><motion.div className="relative flex items-end gap-2.5 bg-[#1f2035] border border-[#313248] rounded-2xl px-4 py-3 focus-within:border-[#818cf8]/60 transition-all duration-300 shadow-lg shadow-black/20"><motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} onClick={() => fileInputRef.current?.click()} className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></motion.button><input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.txt,.csv,.xlsx" /><Tooltip text={isRecording ? "Detener grabación" : "Hablar (n8n transcribe)"}><motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo} className={`p-2 rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-t-red-400 rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3 h-3 bg-red-500 rounded-sm"></div>) : (<Mic className="w-5 h-5" />)}</motion.button></Tooltip><div className="flex-1 relative"><textarea value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={transcribiendo ? "Transcribiendo..." : "Escribe tu consulta..."} rows={1} className="w-full bg-transparent text-base text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-1.5 font-['Inter'] min-h-[40px] max-h-[120px]" style={{ lineHeight: '1.5' }} /></div><motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.88 }} onClick={() => handleSend()} disabled={!mensaje.trim() || pensando || escribiendo} className={`p-2.5 rounded-xl transition-all flex-shrink-0 self-end ${mensaje.trim() && !pensando && !escribiendo ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></motion.button></motion.div></div></div>
+    <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[#282a3f] flex flex-col bg-[#191a26] overflow-hidden' : 'relative border-r border-[#282a3f] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[#191a26] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
+      <div className="flex-shrink-0 px-3 sm:px-6 py-4 border-b border-[#282a3f] flex items-center gap-3 bg-gradient-to-r from-[#191a26] to-[#1f2035]"><div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center shadow-lg shadow-[#818cf8]/30"><Bot className="w-5 h-5 text-white" /></div><div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-[#191a26] flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div><div className="min-w-0"><h2 className="text-sm font-semibold text-[#d0d0da] font-['Inter'] flex items-center gap-2 flex-wrap">Agente planificador de evaluaciones<span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">IA</span></h2><p className="text-xs text-[#8a8b9e] flex items-center gap-1.5"><span className={`w-1.5 h-1.5 rounded-full inline-block ${chatInactivo ? 'bg-[#6a6b7e]' : ocupado ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-pulse'}`}></span>{estadoTexto}</p></div><div className="ml-auto flex items-center gap-2 flex-shrink-0"><div className="flex items-center gap-0.5 p-1 bg-[#161722]/80 border border-[#282a3f] rounded-xl">{esSuperadmin && (<Tooltip text="Configuración del agente" lado="abajo"><button onClick={() => irAPanel('sistema')} aria-label="Configuración del agente" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Settings className="w-4 h-4" /></button></Tooltip>)}<Tooltip text="Planificador de evaluaciones" lado="abajo"><button onClick={() => irAPanel('planificacion')} aria-label="Planificador de evaluaciones" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><ClipboardList className="w-4 h-4" /></button></Tooltip></div><Tooltip text={esMovil ? 'Ocultar chat' : 'Ocultar chat (Ctrl+B)'} lado="abajo" alinear="derecha"><motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={() => setExpandido(false)} aria-label="Ocultar el chat" className="group/ocultar w-9 h-9 flex items-center justify-center rounded-xl border border-[#818cf8]/25 bg-gradient-to-br from-[#818cf8]/15 to-[#6366f1]/5 text-[#a5b4fc] hover:text-white hover:border-[#818cf8]/60 hover:from-[#818cf8]/40 hover:to-[#6366f1]/25 hover:shadow-lg hover:shadow-[#818cf8]/25 transition-all"><PanelLeftClose className="w-[18px] h-[18px] transition-transform duration-200 group-hover/ocultar:-translate-x-0.5" /></motion.button></Tooltip></div></div>
+      {!isChatStarted ? (<div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-6 py-6 custom-scrollbar"><motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="flex flex-col items-center text-center"><div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#818cf8]/20 to-[#6366f1]/20 flex items-center justify-center border-2 border-[#818cf8]/30 mb-6 shadow-2xl shadow-[#818cf8]/20"><Sparkle className="w-10 h-10 text-[#818cf8]" /></div><h1 className="text-2xl font-bold text-[#d0d0da] font-['Inter'] mb-2">Agente planificador de evaluaciones</h1><p className="text-sm text-[#8a8b9e] font-['Inter'] max-w-sm">Escribe el tema que quieres evaluar o usa el micrófono para hablar.</p></motion.div></div>) : (<div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-5 space-y-6 custom-scrollbar"><AnimatePresence>{historial.map((msg) => (<motion.div key={msg.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>{msg.rol === 'agent' ? (<div className="flex items-start gap-3 max-w-[90%]"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="text-base text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">{msg.completo ? (<div><div dangerouslySetInnerHTML={{ __html: formatMessage(msg.contenido) }} />{renderOpciones(msg.contenido)}</div>) : (<TypewriterText text={msg.contenido} onComplete={() => onTypewriterComplete(msg.id)} onUpdate={scrollToBottom} />)}</div></div>) : (<div className="max-w-[85%] px-5 py-3 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-base leading-relaxed font-['Inter'] border border-[#818cf8]/20"><span className="whitespace-pre-wrap break-words">{msg.contenido}</span></div>)}</motion.div>))}</AnimatePresence>{pensando && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-start gap-3 justify-start"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="px-4 py-3.5 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-1.5 mt-0.5">{[0,1,2].map(i => (<motion.span key={i} className="w-2 h-2 bg-[#818cf8] rounded-full" animate={{ y: [0, -5, 0], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }} />))}</div></motion.div>)}<div ref={chatEndRef} /></div>)}
+      <div className="flex-shrink-0 p-3 sm:p-5 border-t border-[#282a3f] bg-gradient-to-t from-[#161722] to-transparent"><div className="relative"><motion.div className="absolute -inset-1 rounded-2xl opacity-70" animate={{ opacity: [0.4, 0.6, 0.4] }} transition={{ duration: 4, repeat: Infinity }} style={{ background: 'linear-gradient(90deg, #818cf8, #6366f1, #818cf8)', filter: 'blur(12px)' }} /><motion.div className="relative flex items-end gap-2.5 bg-[#1f2035] border border-[#313248] rounded-2xl px-4 py-3 focus-within:border-[#818cf8]/60 transition-all duration-300 shadow-lg shadow-black/20"><motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar archivo de texto" title="Adjuntar texto (.txt, .csv, .md)" className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></motion.button><input ref={fileInputRef} type="file" className="hidden" accept=".txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} /><Tooltip text={isRecording ? "Detener grabación" : "Hablar (n8n transcribe)"}><motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo} className={`p-2 rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-t-red-400 rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3 h-3 bg-red-500 rounded-sm"></div>) : (<Mic className="w-5 h-5" />)}</motion.button></Tooltip><div className="flex-1 relative"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={transcribiendo ? "Transcribiendo..." : "Escribe tu consulta..."} rows={1} className="w-full bg-transparent text-base text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-1.5 font-['Inter'] min-h-[40px] max-h-[120px]" style={{ lineHeight: '1.5' }} /></div><motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.88 }} onClick={() => handleSend()} disabled={!mensaje.trim() || pensando || escribiendo} className={`p-2.5 rounded-xl transition-all flex-shrink-0 self-end ${mensaje.trim() && !pensando && !escribiendo ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></motion.button></motion.div></div></div>
     </motion.div>
   );
 }
@@ -3135,10 +3180,10 @@ if (sonCuatro && generarPDF) {
 // ============================================
 type PanelDerechoHandle = { limpiarYScroll: () => void; };
 interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; debeCambiarPassword?: boolean; }
-interface PanelDerechoProps { usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera'; onCambiarVista: (v: 'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
+interface PanelDerechoProps { chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
 
-const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ usuario, onLogout, onUsuarioActualizado, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
-  const [vista, setVista] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera'>(vistaInicial);
+const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
+  const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
   // --- Selección múltiple de tarjetas para "Generar Plan de Acción" ---
@@ -3259,50 +3304,92 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const limpiarYScroll = () => { setEvaluacion1({...evalInit}); setEvaluacion2({...evalInit}); setEvaluacion3({...evalInit}); setEvaluacion4({...evalInit}); setNumEvaluaciones(1); setScrollToSections(true); setVista('planificacion'); setGlow1(false); setGlow2(false); setGlow3(false); setGlow4(false); };
   useImperativeHandle(ref, () => ({ limpiarYScroll }), [limpiarYScroll]);
     // Función para guardar en Supabase sin interrumpir la UI
-  const sincronizarConBD = async (planActualizada: PlanificacionExamen) => {
+  // ----- Guardado en la base de datos -----
+  // Los guardados pasan por una cola (uno a la vez): antes, dos guardados seguidos podían crear materias duplicadas
+  // o perder cambios. planIdRef guarda el id del plan al instante, sin esperar a que React actualice el estado.
+  const planIdRef = useRef<string | null>(planificacionId);
+  useEffect(() => { planIdRef.current = planificacionId; }, [planificacionId]);
+  const colaSync = useRef<Promise<void>>(Promise.resolve());
+  const ultimaFirma = useRef<string | null>(null);
+  const [estadoGuardado, setEstadoGuardado] = useState<'inactivo' | 'guardando' | 'guardado' | 'error'>('inactivo');
+
+  const firmaDePlan = (p: PlanificacionExamen) => JSON.stringify([
+    p.materia, p.estado, p.tipoExamen, new Date(p.fechaExamen).getTime(), p.duracionMinutos,
+    p.secciones.map(s => [s.nombre, s.tipoPregunta, s.nivelBloom, s.peso, s.cantidadPreguntas, s.contenidosEvaluados, s.tiempoEstimadoMinutos, s.tipoActividad, s.descripcion, s.cantidadGrupos, s.personasPorGrupo, s.orden, s.enfoque, s.fecha ? new Date(s.fecha).getTime() : null, s.grupoSeccion || 'A']),
+    p.rubrica,
+  ]);
+
+  const sincronizarInterno = async (planActualizada: PlanificacionExamen) => {
+    const firma = firmaDePlan(planActualizada);
+    setEstadoGuardado('guardando');
     try {
-      let idMateriaActual = planificacionId;
-      if (!idMateriaActual) {
-        const nuevaMateria = await fetch('/api/materias', {
+      const planId = planIdRef.current;
+      let materiaId: string | undefined;
+      if (!planId) {
+        // Primera vez: se crea la materia y luego el plan
+        const resMateria = await fetch('/api/materias', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nombre: planActualizada.materia || 'Nueva Asignatura', codigo: `MAT-${Date.now()}` }),
-        }).then(res => res.json());
-        idMateriaActual = nuevaMateria.id;
-        setPlanificacionId(idMateriaActual);
+        });
+        const nuevaMateria = await resMateria.json();
+        if (!resMateria.ok || !nuevaMateria.id) throw new Error(nuevaMateria.error || 'No se pudo crear la materia');
+        materiaId = nuevaMateria.id;
       }
 
-      if (idMateriaActual) {
-        const dataParaDB = {
-          materiaId: idMateriaActual,
-          estado: planActualizada.estado.toUpperCase(),
-          tipoExamen: planActualizada.tipoExamen.toUpperCase(),
-          fechaExamen: planActualizada.fechaExamen.toISOString(),
-          duracionMinutos: planActualizada.duracionMinutos,
-          evaluaciones: planActualizada.secciones.map((ev, idx) => ({
-            nombre: ev.nombre, tipoPregunta: ev.tipoPregunta.toUpperCase(), nivelBloom: ev.nivelBloom.toUpperCase(),
-            peso: ev.peso, cantidadPreguntas: ev.cantidadPreguntas, contenidosEvaluados: ev.contenidosEvaluados,
-            tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
-            cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden ?? idx,
-            enfoque: ev.enfoque, fecha: ev.fecha ? ev.fecha.toISOString() : null, grupoSeccion: ev.grupoSeccion || 'A',
-          })),
-          rubrica: planActualizada.rubrica.map(crit => ({
-            nombre: crit.nombre, peso: crit.peso, descripcion: crit.descripcion,
-            niveles: (crit.niveles || []).map(niv => ({ nombre: niv.nombre, puntaje: niv.puntaje, descripcion: niv.descripcion })),
-          })),
-        };
+      const dataParaDB = {
+        ...(materiaId ? { materiaId } : {}),
+        materiaNombre: planActualizada.materia,
+        estado: planActualizada.estado.toUpperCase(),
+        tipoExamen: planActualizada.tipoExamen.toUpperCase(),
+        fechaExamen: planActualizada.fechaExamen.toISOString(),
+        duracionMinutos: planActualizada.duracionMinutos,
+        evaluaciones: planActualizada.secciones.map((ev, idx) => ({
+          nombre: ev.nombre, tipoPregunta: ev.tipoPregunta.toUpperCase(), nivelBloom: ev.nivelBloom.toUpperCase(),
+          peso: ev.peso, cantidadPreguntas: ev.cantidadPreguntas, contenidosEvaluados: ev.contenidosEvaluados,
+          tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
+          cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden ?? idx,
+          enfoque: ev.enfoque, fecha: ev.fecha ? ev.fecha.toISOString() : null, grupoSeccion: ev.grupoSeccion || 'A',
+        })),
+        rubrica: planActualizada.rubrica.map(crit => ({
+          nombre: crit.nombre, peso: crit.peso, descripcion: crit.descripcion,
+          niveles: (crit.niveles || []).map(niv => ({ nombre: niv.nombre, puntaje: niv.puntaje, descripcion: niv.descripcion })),
+        })),
+      };
 
-        if (planificacionId) {
-          await fetch(`/api/planificaciones/${planificacionId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dataParaDB) });
-        } else {
-          const nueva = await fetch('/api/planificaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dataParaDB) }).then(res => res.json());
-          setPlanificacionId(nueva.id);
-        }
-      }
+      const respuesta = planId
+        ? await fetch(`/api/planificaciones/${planId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dataParaDB) })
+        : await fetch('/api/planificaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dataParaDB) });
+      const cuerpo = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok) throw new Error(cuerpo.error || 'No se pudo guardar el plan');
+      if (!planId && cuerpo.id) { planIdRef.current = cuerpo.id; setPlanificacionId(cuerpo.id); }
+
+      ultimaFirma.current = firma;
+      setEstadoGuardado('guardado');
     } catch (error) {
-      console.error("Error guardando en BD:", error);
+      console.error('Error guardando en BD:', error);
+      setEstadoGuardado('error');
+      agregarNotificacion('⚠️ No se pudo guardar en la base de datos. Revisa tu conexión: se reintentará con el próximo cambio.');
     }
   };
+
+  const sincronizarConBD = (planActualizada: PlanificacionExamen): Promise<void> => {
+    const tarea = colaSync.current.then(() => sincronizarInterno(planActualizada));
+    colaSync.current = tarea.catch(() => {});
+    return tarea;
+  };
+
+  // Guardado automático: cualquier cambio en el plan (configuración, borrados hechos desde el chat, etc.) se guarda solo.
+  // El punto de partida es lo que se cargó de la base de datos; si no cambió nada, no se guarda.
+  useEffect(() => {
+    if (!datosCargados) return;
+    const firma = firmaDePlan(planificacion);
+    if (ultimaFirma.current === null) { ultimaFirma.current = firma; return; }
+    if (firma === ultimaFirma.current) return;
+    if (!planIdRef.current && planificacion.secciones.length === 0) return; // todavía no hay nada que guardar
+    const temporizador = setTimeout(() => { sincronizarConBD(planificacion); }, 1200);
+    return () => clearTimeout(temporizador);
+  }, [planificacion, datosCargados]);
 
   useEffect(() => {
     if (propuestaPendiente?.evaluaciones) {
@@ -3342,6 +3429,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     else if (esEval2) setEvaluacion2(datosBase);
     else if (esEval3) setEvaluacion3(datosBase);
     else setEvaluacion4(datosBase);
+    const numFormulario = esEval1 ? 1 : esEval2 ? 2 : esEval3 ? 3 : 4;
+    setNumEvaluaciones(prev => Math.max(prev, numFormulario));
+    setVista('planificacion');
     // Desliza suavemente hacia los campos de la evaluación para que el usuario
     // vea de inmediato los datos cargados, sin tener que buscarlos manualmente.
     scrollToTarjeta();
@@ -3356,15 +3446,14 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const generarPlanVisual = (seccionesOverride?: SeccionExamen[]): string | null => {
     const seccionesPlan = seccionesOverride ?? planificacion.secciones;
     if (seccionesPlan.length === 0) return null;
-    const nombreMateria = planificacion.materia || 'Asignatura';
+    const nombreMateria = escaparHTML(planificacion.materia || 'Asignatura');
     const fechaPlan = planificacion.fechaExamen ? new Date(planificacion.fechaExamen).toLocaleDateString() : 'Por definir';
     
-    const renderFila = (sec: SeccionExamen, i: number) => {
-      const nombreLimpio = sec.nombre?.replace(/^(Evaluación [1-4]:|Evaluacion [1-4]:)\s*/i, '') || 'Sin Nombre';
-      const descripcion = sec.descripcion || '';
-      return `<tr key="${sec.id || i}">
-        <td style="p: 16px; font-medium; color: #334155;">${nombreLimpio}</td>
-        <td style="padding: 16px; color: #475569;">${sec.tipoActividad || 'Desarrollo'}</td>
+    const renderFila = (sec: SeccionExamen) => {
+      const nombreLimpio = escaparHTML(limpiarTexto(sec.nombre || '') || 'Sin Nombre');
+      return `<tr>
+        <td style="padding: 16px; font-weight: 500; color: #334155;">${nombreLimpio}</td>
+        <td style="padding: 16px; color: #475569;">${escaparHTML(sec.tipoActividad || 'Desarrollo')}</td>
         <td style="padding: 16px; text-align: center; font-weight: 700; color: #1e3a8a;">${sec.peso || 0}%</td>
         <td style="padding: 16px; text-align: center; color: #475569;">${sec.fecha ? new Date(sec.fecha).toLocaleDateString() : fechaPlan}</td>
       </tr>`;
@@ -3376,13 +3465,13 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
         <h3 style="font-size: 14px; font-weight: 700; color: #1e3a8a; margin: 0 0 12px 0;">📋 Especificaciones</h3>
         <div style="display: grid; gap: 16px;">
           ${seccionesPlan.map((sec, i) => {
-            const n = sec.nombre?.replace(/^(Evaluación [1-4]:|Evaluacion [1-4]:)\s*/i, '') || 'Sin Nombre';
-            return sec.descripcion ? `<div key="${sec.id || i}" style="background: #f8fafc; padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px;">
+            const n = escaparHTML(limpiarTexto(sec.nombre || '') || 'Sin Nombre');
+            return sec.descripcion ? `<div style="background: #f8fafc; padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px;">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                 <span style="font-size: 12px; font-weight: 700; color: #94a3b8;">#${i + 1}</span>
                 <span style="font-weight: 600; color: #1e293b;">${n}</span>
               </div>
-              <p style="font-size: 14px; color: #475569; white-space: pre-wrap;">${sec.descripcion}</p>
+              <p style="font-size: 14px; color: #475569; white-space: pre-wrap;">${escaparHTML(sec.descripcion)}</p>
             </div>` : '';
           }).join('')}
         </div>
@@ -3435,7 +3524,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
         </tr>
       </thead>
       <tbody>
-        ${seccionesPlan.map((sec, idx) => renderFila(sec, idx))}
+        ${seccionesPlan.map(sec => renderFila(sec)).join('')}
       </tbody>
     </table>
     ${renderDescripciones}
@@ -3550,8 +3639,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const esSuperadmin = usuario?.rol === 'SUPERADMIN';
   // Si un USUARIO intenta llegar a una vista de administración (ej. por el chat), se le devuelve al Dashboard
   useEffect(() => { if (!puedeAdministrar && vista === 'usuarios') setVista('estadisticas'); }, [puedeAdministrar, vista]);
-  useEffect(() => { if (!esSuperadmin && vista === 'actividad') setVista('estadisticas'); }, [esSuperadmin, vista]);
-  useEffect(() => { if (esSuperadmin && ['planificacion', 'rubrica', 'estudiantes', 'configuracion', 'papelera'].includes(vista)) setVista('estadisticas'); }, [esSuperadmin, vista]);
+  useEffect(() => { if (!esSuperadmin && (vista === 'actividad' || vista === 'sistema')) setVista('estadisticas'); }, [esSuperadmin, vista]);
   // Cantidad de cuentas esperando aprobación (para el contador rojo de la pestaña Usuarios)
   const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
   const recuperacionesPrevias = useRef<number | null>(null);
@@ -3610,32 +3698,45 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     await fetch('/api/observaciones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id } : { todas: true }) });
     await cargarObservaciones();
   };
-  const todasLasTabs = [
-    { id: 'estadisticas' as const, label: 'Dashboard', icon: BarChart3 }, 
-    { id: 'planificacion' as const, label: 'Planificador', icon: ClipboardList }, 
-    { id: 'rubrica' as const, label: 'Rúbrica', icon: FileText }, 
-    { id: 'estudiantes' as const, label: 'Estudiantes', icon: Users },
-    { id: 'papelera' as const, label: 'Papelera', icon: Trash2 },
-    ...(puedeAdministrar ? [
-      { id: 'usuarios' as const, label: 'Usuarios', icon: UserCog, badge: solicitudesPendientes }
-    ] : []),
-    ...(esSuperadmin ? [
-      { id: 'actividad' as const, label: 'Actividad', icon: Activity }
-    ] : [])
-  ];
-  // El superadmin administra el sistema: no tiene planificador, rúbrica ni estudiantes propios
-  const tabs = esSuperadmin ? todasLasTabs.filter(tb => ['estadisticas', 'usuarios', 'actividad'].includes(tb.id)) : todasLasTabs;
+  // Pestañas ordenadas por rol. 'admin' = supervisión del sistema; 'trabajo' = el espacio propio de la persona.
+  // El superadmin no tiene la pestaña Planificador: lo abre desde el ícono del chat, junto a la configuración del agente.
+  type Pestana = { id: 'planificacion' | 'estadisticas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
+  const tabDashboard: Pestana = { id: 'estadisticas', label: 'Dashboard', icon: BarChart3, grupo: puedeAdministrar ? 'admin' : 'trabajo' };
+  const tabPlanificador: Pestana = { id: 'planificacion', label: 'Planificador', icon: ClipboardList, grupo: 'trabajo' };
+  const tabEstudiantes: Pestana = { id: 'estudiantes', label: 'Estudiantes', icon: Users, grupo: 'trabajo' };
+  const tabPapelera: Pestana = { id: 'papelera', label: 'Papelera', icon: Trash2, grupo: 'trabajo' };
+  const tabUsuarios: Pestana = { id: 'usuarios', label: 'Usuarios', icon: UserCog, grupo: 'admin', badge: solicitudesPendientes };
+  const tabActividad: Pestana = { id: 'actividad', label: 'Actividad', icon: Activity, grupo: 'admin' };
+  const tabs: Pestana[] = esSuperadmin
+    ? [tabDashboard, tabUsuarios, tabActividad, tabEstudiantes, tabPapelera]
+    : puedeAdministrar
+      ? [tabDashboard, tabUsuarios, tabPlanificador, tabEstudiantes, tabPapelera]
+      : [tabPlanificador, tabDashboard, tabEstudiantes, tabPapelera];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <style>{` input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } input[type="number"] { -moz-appearance: textfield; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } `}</style>
-      <div className="px-4 py-3 border-b border-[#282a3f] flex flex-wrap items-center gap-1 md:gap-2 bg-[#161722]">
-        {tabs.map(tab => (<motion.button key={tab.id} onClick={() => setVista(tab.id)} className={`relative flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className="relative z-10 hidden sm:inline">{tab.label}</span>{(tab as any).badge > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{(tab as any).badge}</span>)}</motion.button>))}
+    <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+      <style>{` input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } input[type="number"] { -moz-appearance: textfield; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } .sin-barra { scrollbar-width: none; } .sin-barra::-webkit-scrollbar { display: none; } `}</style>
+      <div className="px-2 sm:px-4 py-2 sm:py-3 border-b border-[#282a3f] flex items-center gap-2 bg-[#161722] flex-shrink-0">
+        <AnimatePresence initial={false}>
+          {!chatAbierto && onAbrirChat && (
+            <motion.div key="abrir-chat" initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.2 }} className="flex-shrink-0 flex items-center gap-2 overflow-hidden">
+              <Tooltip text="Mostrar chat (Ctrl+B)" lado="abajo">
+                <motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={onAbrirChat} aria-label="Mostrar el chat" className="group/abrir w-9 h-9 flex items-center justify-center rounded-xl border border-[#818cf8]/25 bg-gradient-to-br from-[#818cf8]/15 to-[#6366f1]/5 text-[#a5b4fc] hover:text-white hover:border-[#818cf8]/60 hover:from-[#818cf8]/40 hover:to-[#6366f1]/25 hover:shadow-lg hover:shadow-[#818cf8]/25 transition-all">
+                  <PanelLeftOpen className="w-[18px] h-[18px] transition-transform duration-200 group-hover/abrir:translate-x-0.5" />
+                </motion.button>
+              </Tooltip>
+              <span className="w-px h-6 bg-[#313248]" aria-hidden="true" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div className="flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra">
+        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[#313248] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} className={`relative flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className="relative z-10 hidden sm:inline">{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
+        </div>
         {/* Botón de configuración junto a la campanita */}
-        <div className="ml-auto flex items-center gap-2">
-          {!esSuperadmin && (
+        <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
           <motion.button
             onClick={() => setVista('configuracion')}
+            title="Configuración del plan"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === 'configuracion' ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}
@@ -3644,9 +3745,8 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
               <motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />
             )}
             <Settings className="w-4 h-4 relative z-10" />
-            <span className="relative z-10 hidden sm:inline">Config</span>
+            <span className="relative z-10 hidden lg:inline">Config. del plan</span>
           </motion.button>
-          )}
           <CampanitaNotificacionesFlotante notificaciones={notificaciones} setNotificaciones={setNotificaciones} campanaActiva={campanaActiva} setCampanaActiva={setCampanaActiva} />
           {usuario && (
             <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[#282a3f]">
@@ -3666,9 +3766,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-[#161722]">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 custom-scrollbar bg-[#161722]">
         <AnimatePresence mode="wait">
-          {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><DashboardPorRol planificacion={planificacion} usuario={usuario} /></motion.div>)}
+          {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><DashboardPorRol planificacion={planificacion} usuario={usuario} onMiTrabajo={() => { if (typeof window !== 'undefined' && window.innerWidth >= 768) onAbrirChat?.(); }} /></motion.div>)}
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
                 <ObservacionesRecibidas items={observaciones} onLeer={marcarObservacionLeida} />
@@ -3858,9 +3958,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
               {planificacion.comentariosAgente.length > 0 && (<div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[#818cf8]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[#9090a4] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
             </motion.div>
           )}
-          {vista === 'rubrica' && (<motion.div key="rubrica" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-5xl mx-auto"><RubricaPanel planificacion={planificacion} setPlanificacion={setPlanificacion} /></motion.div>)}
           {vista === 'estudiantes' && (<motion.div key="estudiantes" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><EstudiantesPanel /></motion.div>)}
-          {vista === 'papelera' && !esSuperadmin && (<motion.div key="papelera" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-4xl mx-auto"><PapeleraPanel usuario={usuario} /></motion.div>)}
+          {vista === 'papelera' && (<motion.div key="papelera" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-4xl mx-auto"><PapeleraPanel usuario={usuario} /></motion.div>)}
+          {vista === 'sistema' && esSuperadmin && (<motion.div key="sistema" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-4xl mx-auto"><ConfigSistemaPanel onGuardada={(c) => onConfigActualizada && onConfigActualizada(c)} /></motion.div>)}
           {vista === 'actividad' && esSuperadmin && (<motion.div key="actividad" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><ActividadPanel /></motion.div>)}
           {vista === 'perfil' && (<motion.div key="perfil" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-3xl mx-auto"><PerfilPanel usuario={usuario} onActualizado={onUsuarioActualizado} /></motion.div>)}
           {vista === 'usuarios' && puedeAdministrar && (<motion.div key="usuarios" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><UsuariosPanel /></motion.div>)}
@@ -3871,7 +3971,10 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                   <h2 className="text-xl font-bold text-[#d0d0da] flex items-center gap-3 mb-1">
                     <Settings className="w-6 h-6 text-[#818cf8]" /> Configuración del plan
                   </h2>
-                  <p className="text-sm text-[#8a8b9e]">Ajusta los parámetros generales de la planificación.</p>
+                  <p className="text-sm text-[#8a8b9e]">Ajusta los parámetros generales de la planificación. Los cambios se guardan solos.</p>
+                  <p className={`text-xs mt-2 flex items-center gap-1.5 ${estadoGuardado === 'error' ? 'text-red-300' : estadoGuardado === 'guardando' ? 'text-amber-300' : 'text-emerald-300'}`}>
+                    {estadoGuardado === 'guardando' ? 'Guardando...' : estadoGuardado === 'error' ? (<>No se pudo guardar. <button type="button" onClick={() => sincronizarConBD(planificacion)} className="underline">Reintentar</button></>) : estadoGuardado === 'guardado' ? (<><CheckCircle className="w-3.5 h-3.5" />Guardado</>) : ''}
+                  </p>
                 </div>
                 <div className="space-y-4">
                   <div>
@@ -3879,6 +3982,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                     <input
                       type="text"
                       value={planificacion.materia}
+                      maxLength={120}
                       onChange={(e) => setPlanificacion(prev => ({ ...prev, materia: e.target.value }))}
                       className={inputBase}
                       placeholder="Ej: Ingeniería de Software"
@@ -3910,7 +4014,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                     <input
                       type="number"
                       value={planificacion.duracionMinutos}
-                      onChange={(e) => setPlanificacion(prev => ({ ...prev, duracionMinutos: parseInt(e.target.value) || 0 }))}
+                      onChange={(e) => setPlanificacion(prev => ({ ...prev, duracionMinutos: Math.min(600, Math.max(0, parseInt(e.target.value) || 0)) }))}
                       className={smallInput}
                       placeholder="0"
                     />
@@ -3954,6 +4058,13 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 export default function PlanificadorExamenes() {
   // ===== SESIÓN / ROLES =====
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(null);
+  const [configSistema, setConfigSistema] = useState<ConfigCliente | null>(null);
+  const [datosCargados, setDatosCargados] = useState(false);
+  const aplicarYGuardarConfig = (c: ConfigCliente) => { aplicarConfig(c); setConfigSistema(c); };
+  useEffect(() => {
+    if (!usuario) return;
+    fetch('/api/configuracion').then(r => (r.ok ? r.json() : null)).then(d => aplicarYGuardarConfig(d?.config ?? CONFIG_CLIENTE_DEFECTO)).catch(() => aplicarYGuardarConfig(CONFIG_CLIENTE_DEFECTO));
+  }, [usuario?.id]);
   useEffect(() => {
     // Si la sesión expira mientras se usa la app, cualquier llamada a /api responde 401 → volver al login
     const fetchOriginal = window.fetch;
@@ -3963,7 +4074,7 @@ export default function PlanificadorExamenes() {
       if (res.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth/login')) window.location.href = '/login?sesion=expirada';
       return res;
     };
-    fetchOriginal('/api/auth/me').then(r => (r.ok ? r.json() : Promise.reject())).then((u: UsuarioSesion) => { setUsuario(u); setVistaActual(u.rol === 'USUARIO' ? 'planificacion' : 'estadisticas'); }).catch(() => { window.location.href = '/login'; });
+    fetchOriginal('/api/auth/me').then(r => (r.ok ? r.json() : Promise.reject())).then((u: UsuarioSesion) => { setUsuario(u); setVistaActual(u.rol === 'USUARIO' ? 'planificacion' : 'estadisticas'); if (u.rol !== 'SUPERADMIN' && window.innerWidth >= 768) setAgenteExpandido(true); }).catch(() => { window.location.href = '/login'; });
     return () => { window.fetch = fetchOriginal; };
   }, []);
   const cerrarSesion = async () => {
@@ -4063,9 +4174,14 @@ const guardarPlanificacionEnBD = async () => {
   }
 };
 // ===== FIN CONEXIÓN BD =====
-  const [agenteExpandido, setAgenteExpandido] = useState(true);
+  // El chat empieza abierto en computador y cerrado en celular
+  // El chat empieza cerrado; al cargar la sesión se abre para todos menos el superadmin (y nunca solo en el celular)
+  const [agenteExpandido, setAgenteExpandido] = useState<boolean>(false);
+  const anchoPantalla = useAnchoPantalla();
+  const esMovil = anchoPantalla < 768;
+  const anchoChat = Math.min(640, Math.round(anchoPantalla * 0.45));
   const [propuestaPendiente, setPropuestaPendiente] = useState<PropuestaEvaluacion | null>(null);
-  const [vistaActual, setVistaActual] = useState<'planificacion' | 'rubrica' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera'>('estadisticas');
+  const [vistaActual, setVistaActual] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'>('estadisticas');
   const [planificacion, setPlanificacion] = useState<PlanificacionExamen>({ id: '1', version: 1, estado: 'borrador', fechaExamen: new Date(), tipoExamen: 'mixto', duracionMinutos: 0, materia: 'Ing Software', secciones: [], rubrica: [], comentariosAgente: [{ id: 'c1', tipo: 'info', mensaje: 'Sube un archivo o escribe en el chat para comenzar la planificación.', timestamp: new Date() }] });
     // CARGAR EVALUACIONES DESDE LA BD AL REFRESCAR
   useEffect(() => {
@@ -4076,7 +4192,9 @@ const guardarPlanificacionEnBD = async () => {
         if (materias.length === 0) return; // Primera vez, no hay nada que cargar
 
         // 2. Buscar la materia "Ing Software" o usar la primera
-        const materiaActual = materias.find((m: any) => m.nombre === 'Ing Software') || materias[0];
+        // Se abre la materia con actividad más reciente (antes se buscaba una llamada 'Ing Software')
+        const actividadDe = (m: any) => new Date(m.planificaciones?.[0]?.updatedAt || m.planificaciones?.[0]?.createdAt || m.createdAt || 0).getTime();
+        const materiaActual = [...materias].sort((a: any, b: any) => actividadDe(b) - actividadDe(a))[0];
         
         // 3. Buscar las planificaciones de esa materia
         const planes = await fetch(`/api/planificaciones?materiaId=${materiaActual.id}`).then(r => r.json());
@@ -4132,6 +4250,8 @@ const guardarPlanificacionEnBD = async () => {
       } catch (error) {
         // Es la primera vez que entras, no hay datos en la BD, eso es normal
         console.log("Iniciando sin datos previos en la Base de Datos.");
+      } finally {
+        setDatosCargados(true); // desde aquí los cambios del plan se guardan solos
       }
     };
     
@@ -4144,10 +4264,11 @@ const guardarPlanificacionEnBD = async () => {
 
   const agregarNotificacion = (mensaje: string) => { console.log('📢 Notificación:', mensaje); };
 
+  const urlN8n = configSistema?.chat.webhookUrl || process.env.NEXT_PUBLIC_N8N_URL || 'http://localhost:5678';
   const generarPDF = async (secciones?: SeccionExamen[]): Promise<string | null> => {
     const seccionesParaPDF = secciones || planificacion.secciones;
     if (seccionesParaPDF.length === 0) { alert('No hay evaluaciones guardadas'); return null; }
-    try { const response = await fetch('http://localhost:5678/webhook/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'pdf', examenData: { fechaExamen: planificacion.fechaExamen.toISOString(), materia: planificacion.materia || 'Asignatura', tipoExamen: planificacion.tipoExamen || 'mixto', duracionMinutos: planificacion.duracionMinutos || 0, secciones: seccionesParaPDF.map(sec => ({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, tiempoEstimadoMinutos: sec.tiempoEstimadoMinutos, peso: sec.peso, cantidadGrupos: sec.cantidadGrupos, personasPorGrupo: sec.personasPorGrupo, descripcion: sec.descripcion, enfoque: sec.enfoque, nivelBloom: sec.nivelBloom, fecha: sec.fecha })) } }) }); if (!response.ok) throw new Error('Error al generar PDF'); const blob = await response.blob(); const url = URL.createObjectURL(blob); setPdfUrl(url); setPdfAbierto(false); agregarNotificacion('📄 Plan de acción generado correctamente.'); return url; } catch (error) { console.error('Error al generar PDF con n8n (se usará el plan visual local):', error); return null; }
+    try { const response = await fetch(`${urlN8n}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'pdf', examenData: { profesor: usuario?.nombre || '', fechaExamen: planificacion.fechaExamen.toISOString(), materia: planificacion.materia || 'Asignatura', tipoExamen: planificacion.tipoExamen || 'mixto', duracionMinutos: planificacion.duracionMinutos || 0, secciones: seccionesParaPDF.map(sec => ({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, tiempoEstimadoMinutos: sec.tiempoEstimadoMinutos, peso: sec.peso, cantidadGrupos: sec.cantidadGrupos, personasPorGrupo: sec.personasPorGrupo, descripcion: sec.descripcion, enfoque: sec.enfoque, nivelBloom: sec.nivelBloom, fecha: sec.fecha })) } }) }); if (!response.ok) throw new Error('Error al generar PDF'); const blob = await response.blob(); const url = URL.createObjectURL(blob); setPdfUrl(url); setPdfAbierto(false); agregarNotificacion('📄 Plan de acción generado correctamente.'); return url; } catch (error) { console.error('Error al generar PDF con n8n (se usará el plan visual local):', error); return null; }
   };
 
   const aceptarPropuesta = async () => { return { success: true }; };
@@ -4179,19 +4300,22 @@ const guardarPlanificacionEnBD = async () => {
 
   // Entró con una clave temporal: no puede usar el sistema hasta elegir una nueva
   if (usuario.debeCambiarPassword) return <CambioPasswordObligatorio usuario={usuario} onLogout={cerrarSesion} />;
+  if (!configSistema) return (<div className="flex h-screen items-center justify-center bg-[#161722]"><div className="w-8 h-8 border-2 border-[#313248] border-t-[#818cf8] rounded-full animate-spin" /></div>);
 
   return (
-    <div className="flex flex-col h-screen bg-[#161722] text-[#b0b0c0] overflow-hidden">
-      <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } `}</style>
+    <div className="fixed inset-0 flex flex-col bg-[#161722] text-[#b0b0c0] overflow-hidden">
+      <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
-      <div className="flex-1 flex overflow-hidden min-h-0">
-                {usuario.rol !== 'SUPERADMIN' && (
-                <AgentePanel expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} />
-                )}
+      <div className="flex-1 flex overflow-hidden min-h-0 h-full">
+                <AgentePanel expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
         <PanelDerecho 
+          chatAbierto={agenteExpandido}
+          onAbrirChat={() => setAgenteExpandido(true)}
           usuario={usuario}
           onLogout={cerrarSesion}
           onUsuarioActualizado={setUsuario}
+          onConfigActualizada={aplicarYGuardarConfig}
+          datosCargados={datosCargados}
           ref={panelDerechoRef} 
           planificacion={planificacion} 
           setPlanificacion={setPlanificacion} 

@@ -6,6 +6,8 @@ import { bloqueado, registrarFallo, minutosRestantes } from '@/lib/rateLimit'
 import { ipDe } from '@/lib/cookies'
 import { mensajeDuplicado } from '@/lib/duplicados'
 import { registrarActividad } from '@/lib/actividad'
+import { leerConfig } from '@/lib/configuracion'
+import { nuevoCodigoParaGuardar, enviarCodigoWhatsApp } from '@/lib/codigoWhatsapp'
 
 // POST /api/auth/registro  (público)
 // Un profesor solicita su cuenta desde la pantalla de login. La cuenta se crea SIEMPRE con rol USUARIO
@@ -32,6 +34,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'El sistema aún no está configurado. Crea primero la cuenta de superadmin.' }, { status: 403 })
     }
 
+    // El superadmin puede cerrar el registro público cuando ya estén todos los profesores
+    if (!(await leerConfig()).acceso.registroAbierto) {
+      return NextResponse.json({ error: 'El registro de nuevas cuentas está cerrado. Pídele acceso al administrador del sistema.' }, { status: 403 })
+    }
+
     // Límite de solicitudes por conexión para evitar que se llene el sistema de cuentas falsas
     const clave = `registro:${ipDe(request)}`
     if (bloqueado(clave)) {
@@ -39,22 +46,30 @@ export async function POST(request: Request) {
     }
     registrarFallo(clave)
 
+    // Código de 6 dígitos para confirmar el WhatsApp (se guarda cifrado)
+    const { codigo, data: datosCodigo } = nuevoCodigoParaGuardar()
+    const telefonoNormalizado = normalizarTelefono(telefono)
+
     await prisma.usuario.create({
       data: {
+        ...datosCodigo,
         nombre,
         email,
         passwordHash: await hashPassword(password),
         rol: 'USUARIO',
         activo: false,
         pendiente: true,
-        telefono: normalizarTelefono(telefono),
+        telefono: telefonoNormalizado,
         cedula: normalizarCedula(cedula),
         consentimientoEn: new Date(),
       },
       select: { id: true },
     })
     await registrarActividad({ usuarioNombre: nombre, accion: 'REGISTRO', entidad: 'Usuario', detalle: `Solicitó una cuenta (${email})` })
-    return NextResponse.json({ ok: true }, { status: 201 })
+
+    const enviado = await enviarCodigoWhatsApp({ telefono: telefonoNormalizado, nombre, codigo })
+    // verificar: true → el login pasa a la pantalla "Escribe el código"
+    return NextResponse.json({ ok: true, verificar: true, enviado, telefonoFinal: telefonoNormalizado.slice(-4) }, { status: 201 })
   } catch (e: any) {
     if (e.code === 'P2002') return NextResponse.json({ error: mensajeDuplicado(e) }, { status: 409 })
     console.error(e)

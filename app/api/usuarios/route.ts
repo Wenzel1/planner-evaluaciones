@@ -6,7 +6,7 @@ import { validarNombre, validarEmail, validarPassword, validarTelefono, validarC
 import { mensajeDuplicado } from '@/lib/duplicados'
 import { registrarActividad } from '@/lib/actividad'
 
-const SELECT = { id: true, nombre: true, email: true, rol: true, activo: true, pendiente: true, telefono: true, cedula: true, debeCambiarPassword: true, createdAt: true } as const
+const SELECT = { id: true, nombre: true, email: true, rol: true, activo: true, pendiente: true, telefono: true, cedula: true, debeCambiarPassword: true, telefonoVerificado: true, createdAt: true } as const
 
 // Reglas:
 //  - SUPERADMIN: gestiona a todos (no puede eliminarse/desactivarse/degradarse a sí mismo ni dejar el sistema sin superadmin).

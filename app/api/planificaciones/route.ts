@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma';
-import { requerirActor, quiereTodos, verificarAcceso, bloquearSiSuperadmin } from '@/lib/permisos';
+import { requerirActor, quiereTodos, verificarAcceso } from '@/lib/permisos';
 import { registrarActividad } from '@/lib/actividad';
 
 // GET /api/planificaciones?materiaId=xxx  (solo las del usuario; ADMIN/SUPERADMIN pueden pedir ?todos=1)
@@ -39,12 +39,13 @@ export async function POST(request: Request) {
   try {
     const { actor, error } = await requerirActor(request)
     if (error) return error
-    const bloqueado = bloquearSiSuperadmin(actor)
-    if (bloqueado) return bloqueado
     const body = await request.json()
 
     if (!body.materiaId) {
       return NextResponse.json({ error: 'materiaId es obligatorio' }, { status: 400 })
+    }
+    if (!body.fechaExamen || isNaN(new Date(body.fechaExamen).getTime())) {
+      return NextResponse.json({ error: 'La fecha del examen no es válida.' }, { status: 400 })
     }
 
     // La materia debe pertenecer al usuario (o ser SUPERADMIN)
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
           create: (body.evaluaciones || []).map((ev: any, index: number) => ({
             nombre: ev.nombre,
             tipoPregunta: ev.tipoPregunta || 'MULTIPLE_CHOICE',
-            peso: ev.peso ?? null,
+            peso: ev.peso == null || ev.peso === '' ? null : Math.round(Number(ev.peso)),
             cantidadPreguntas: ev.cantidadPreguntas || 0,
             contenidosEvaluados: ev.contenidosEvaluados || [],
             nivelBloom: ev.nivelBloom || 'APLICAR',

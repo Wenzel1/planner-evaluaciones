@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requerirActor, quiereTodos, verificarAcceso, bloquearSiSuperadmin } from '@/lib/permisos'
+import { requerirActor, quiereTodos, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarAPapelera } from '@/lib/papelera'
 
@@ -17,8 +17,9 @@ export async function GET(request: Request) {
 
     const where: any = {}
     if (!todos) where.usuarioId = actor.id
+    else if (searchParams.get('duenoId')) where.usuarioId = searchParams.get('duenoId') // un admin mira los estudiantes de un profesor
     if (grupo) where.grupo = grupo
-    if (estado) where.estado = estado.toUpperCase()
+    if (estado && ['ACTIVO', 'INACTIVO'].includes(estado.toUpperCase())) where.estado = estado.toUpperCase()
     if (buscar) {
       where.OR = [
         { nombre: { contains: buscar, mode: 'insensitive' } },
@@ -44,19 +45,22 @@ export async function POST(request: Request) {
   try {
     const { actor, error } = await requerirActor(request)
     if (error) return error
-    const bloqueado = bloquearSiSuperadmin(actor)
-    if (bloqueado) return bloqueado
     const body = await request.json()
 
     // Validaciones
-    if (!body.nombre || body.nombre.trim().length < 3) {
+    if (typeof body.nombre !== 'string' || body.nombre.trim().length < 3) {
       return NextResponse.json({ error: 'El nombre debe tener al menos 3 caracteres.' }, { status: 400 })
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!body.email || !emailRegex.test(body.email)) {
+    if (typeof body.email !== 'string' || !emailRegex.test(body.email.trim())) {
       return NextResponse.json({ error: 'El correo electrónico no es válido.' }, { status: 400 })
     }
-    if (!body.telefono || body.telefono.trim().length < 7) {
+    const telefono = String(body.telefono ?? '').trim()
+    const grupo = String(body.grupo || 'A').trim().toUpperCase()
+    const estado = body.estado ? String(body.estado).trim().toUpperCase() : undefined
+    if (!/^[A-Z]$/.test(grupo)) return NextResponse.json({ error: 'El grupo debe ser una letra (A, B, C...).' }, { status: 400 })
+    if (estado && estado !== 'ACTIVO' && estado !== 'INACTIVO') return NextResponse.json({ error: 'Estado no válido.' }, { status: 400 })
+    if (telefono.length < 7) {
       return NextResponse.json({ error: 'El teléfono debe tener al menos 7 dígitos.' }, { status: 400 })
     }
 
@@ -64,9 +68,9 @@ export async function POST(request: Request) {
       data: {
         nombre: body.nombre.trim(),
         email: body.email.trim().toLowerCase(),
-        telefono: body.telefono.trim(),
-        grupo: body.grupo || 'A',
-        estado: body.estado || 'ACTIVO',
+        telefono,
+        grupo,
+        estado: (estado as any) || 'ACTIVO',
         usuarioId: actor.id,
       },
     })
@@ -98,14 +102,19 @@ export async function PUT(request: Request) {
     if (denegado) return denegado
     
     // Validaciones
-    if (!body.nombre || body.nombre.trim().length < 3) {
+    if (typeof body.nombre !== 'string' || body.nombre.trim().length < 3) {
       return NextResponse.json({ error: 'El nombre debe tener al menos 3 caracteres.' }, { status: 400 })
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!body.email || !emailRegex.test(body.email)) {
+    if (typeof body.email !== 'string' || !emailRegex.test(body.email.trim())) {
       return NextResponse.json({ error: 'El correo electrónico no es válido.' }, { status: 400 })
     }
-    if (!body.telefono || body.telefono.trim().length < 7) {
+    const telefono = String(body.telefono ?? '').trim()
+    const grupo = String(body.grupo || 'A').trim().toUpperCase()
+    const estado = body.estado ? String(body.estado).trim().toUpperCase() : undefined
+    if (!/^[A-Z]$/.test(grupo)) return NextResponse.json({ error: 'El grupo debe ser una letra (A, B, C...).' }, { status: 400 })
+    if (estado && estado !== 'ACTIVO' && estado !== 'INACTIVO') return NextResponse.json({ error: 'Estado no válido.' }, { status: 400 })
+    if (telefono.length < 7) {
       return NextResponse.json({ error: 'El teléfono debe tener al menos 7 dígitos.' }, { status: 400 })
     }
 
@@ -114,9 +123,9 @@ export async function PUT(request: Request) {
       data: {
         nombre: body.nombre.trim(),
         email: body.email.trim().toLowerCase(),
-        telefono: body.telefono.trim(),
-        grupo: body.grupo || 'A',
-        estado: body.estado ? body.estado.toUpperCase() : undefined,
+        telefono,
+        grupo,
+        estado: (estado as any) ?? undefined,
       },
     })
     await registrarActividad({ actor, accion: 'EDITAR', entidad: 'Estudiante', detalle: `Editó a ${estudiante.nombre}` })
@@ -141,7 +150,7 @@ export async function DELETE(request: Request) {
 
     const existente = await prisma.estudiante.findUnique({ where: { id } })
     if (!existente) return NextResponse.json({ error: 'Estudiante no encontrado' }, { status: 404 })
-    const denegado = verificarAcceso(actor, existente.usuarioId, 'escribir')
+    const denegado = verificarAcceso(actor, existente.usuarioId, 'eliminar')
     if (denegado) return denegado
 
     if (existente.usuarioId) {

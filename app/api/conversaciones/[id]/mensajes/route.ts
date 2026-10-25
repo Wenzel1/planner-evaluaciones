@@ -21,11 +21,15 @@ export async function POST(
     if (denegado) return denegado
 
     const body = await request.json()
+    const rol = String(body.rol ?? '').toUpperCase()
+    const contenido = String(body.contenido ?? '').trim()
+    if (rol !== 'USER' && rol !== 'AGENT') return NextResponse.json({ error: 'Rol de mensaje no válido.' }, { status: 400 })
+    if (!contenido) return NextResponse.json({ error: 'El mensaje está vacío.' }, { status: 400 })
 
     const mensaje = await prisma.mensaje.create({
       data: {
-        rol: body.rol,
-        contenido: body.contenido,
+        rol: rol as any,
+        contenido,
         completo: body.completo ?? true,
         conversacionId: id, // 🌟 Cambiado de params.id a id
       },

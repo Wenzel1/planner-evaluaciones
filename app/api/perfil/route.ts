@@ -96,7 +96,9 @@ export async function PUT(request: Request) {
     if (cambiaPassword) {
       data.passwordHash = await hashPassword(passwordNueva)
       data.debeCambiarPassword = false
-      data.sesionesDesde = new Date() // las demás sesiones abiertas con la clave anterior se cierran
+      // Las demás sesiones abiertas con la clave anterior se cierran. Se redondea al segundo anterior porque el token
+      // nuevo guarda la hora en segundos; con milisegundos podía quedar "más viejo" que esta marca e invalidarse solo.
+      data.sesionesDesde = new Date(Math.floor(Date.now() / 1000) * 1000 - 1000)
     }
 
     const u = await prisma.usuario.update({

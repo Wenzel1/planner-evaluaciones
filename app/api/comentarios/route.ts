@@ -8,6 +8,10 @@ export async function POST(request: Request) {
     const { actor, error } = await requerirActor(request)
     if (error) return error
     const body = await request.json()
+    const tipo = String(body.tipo ?? '').toUpperCase()
+    const mensaje = String(body.mensaje ?? '').trim()
+    if (!['SUGERENCIA', 'ALERTA', 'INFO', 'EXITO'].includes(tipo)) return NextResponse.json({ error: 'Tipo de comentario no válido.' }, { status: 400 })
+    if (!mensaje) return NextResponse.json({ error: 'El comentario está vacío.' }, { status: 400 })
 
     // Si el comentario se asocia a una planificación, esa planificación debe ser del usuario
     if (body.planificacionId) {
@@ -22,8 +26,8 @@ export async function POST(request: Request) {
 
     const comentario = await prisma.comentarioAgente.create({
       data: {
-        tipo: body.tipo,
-        mensaje: body.mensaje,
+        tipo: tipo as any,
+        mensaje,
         planificacionId: body.planificacionId || null,
       },
     })

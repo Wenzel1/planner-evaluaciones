@@ -4,7 +4,7 @@
 // Se toma solo la planificación MÁS RECIENTE de cada materia, igual que hace el planificador.
 
 export interface UsuarioBase { id: string; nombre: string; email: string; rol: string; activo: boolean; pendiente: boolean; createdAt: Date }
-export interface EvaluacionBase { id: string; nombre: string; peso: number | null; tipoActividad: string | null; fecha: Date | null; tiempoEstimadoMinutos: number | null }
+export interface EvaluacionBase { id: string; nombre: string; peso: number | null; tipoActividad: string | null; fecha: Date | null; tiempoEstimadoMinutos: number | null; grupoSeccion: string; descripcion: string | null; enfoque: string | null; nivelBloom: string | null; cantidadGrupos: number | null; personasPorGrupo: number | null }
 export interface PlanificacionBase { fechaExamen: Date; updatedAt: Date; evaluaciones: EvaluacionBase[] }
 export interface ObservacionBase { id: string; autorNombre: string; evaluacionNombre: string | null; mensaje: string; leida: boolean; createdAt: Date }
 export interface MateriaBase { id: string; nombre: string; usuarioId: string | null; planificaciones: PlanificacionBase[]; observaciones?: ObservacionBase[] } // planificaciones: la más reciente primero

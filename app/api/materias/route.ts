@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { requerirActor, quiereTodos, bloquearSiSuperadmin } from '@/lib/permisos';
+import { requerirActor, quiereTodos } from '@/lib/permisos';
 import { registrarActividad } from '@/lib/actividad';
 
 // GET /api/materias — Listar las materias del usuario (ADMIN/SUPERADMIN pueden pedir ?todos=1)
@@ -38,13 +38,12 @@ export async function POST(request: Request) {
     const { actor, error } = await requerirActor(request);
     if (error) return error;
 
-    const bloqueado = bloquearSiSuperadmin(actor);
-    if (bloqueado) return bloqueado;
-
     const body = await request.json();
+    const nombre = String(body.nombre ?? '').trim().slice(0, 120);
+    if (!nombre) return NextResponse.json({ error: 'El nombre de la materia es obligatorio.' }, { status: 400 });
     const materia = await prisma.materia.create({
       data: {
-        nombre: body.nombre,
+        nombre,
         descripcion: body.descripcion || null,
         codigo: body.codigo || null,
         usuarioId: actor.id,

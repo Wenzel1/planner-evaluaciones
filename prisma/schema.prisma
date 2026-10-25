@@ -80,6 +80,12 @@ model Usuario {
   debeCambiarPassword Boolean @default(false) // true = entró con una clave temporal y debe elegir una nueva antes de usar el sistema
   sesionesDesde DateTime?                 // las sesiones iniciadas antes de esta fecha dejan de valer (se usa al restablecer claves)
   consentimientoEn DateTime?              // cuándo aceptó el tratamiento de sus datos personales
+  // Verificación del teléfono por WhatsApp al registrarse (el código se guarda cifrado, nunca en texto plano)
+  telefonoVerificado Boolean  @default(false)
+  codigoHash         String?
+  codigoExpira       DateTime?
+  codigoIntentos     Int       @default(0)
+  codigoEnviadoEn    DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -296,4 +302,12 @@ model SolicitudRecuperacion {
   atendidaEn  DateTime?
 
   @@index([estado, createdAt])
+}
+
+// Configuración del sistema (chat y modelo de lenguaje, límites del planificador, acceso). Un solo registro: id = 'principal'.
+model ConfiguracionSistema {
+  id             String   @id
+  datos          Json
+  actualizadoPor String?
+  updatedAt      DateTime @updatedAt
 }

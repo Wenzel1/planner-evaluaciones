@@ -3,7 +3,7 @@
 import prisma from '@/lib/prisma'
 
 export const DIAS_PAPELERA = 30
-export const fechaLimitePapelera = (ahora: Date = new Date()) => new Date(ahora.getTime() - DIAS_PAPELERA * 24 * 60 * 60 * 1000)
+export const fechaLimitePapelera = (ahora: Date = new Date(), dias: number = DIAS_PAPELERA) => new Date(ahora.getTime() - dias * 24 * 60 * 60 * 1000)
 
 export interface EntradaPapelera {
   usuarioId: string

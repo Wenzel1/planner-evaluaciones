@@ -8,6 +8,10 @@ export async function POST(request: Request) {
     const { actor, error } = await requerirActor(request)
     if (error) return error
     const body = await request.json()
+    const rol = String(body.rol || 'USER').toUpperCase()
+    const contenido = String(body.contenido ?? '').trim()
+    if (rol !== 'USER' && rol !== 'AGENT') return NextResponse.json({ error: 'Rol de mensaje no válido.' }, { status: 400 })
+    if (!contenido) return NextResponse.json({ error: 'El mensaje está vacío.' }, { status: 400 })
 
     // Si la conversación se asocia a una planificación, esa planificación debe ser del usuario
     if (body.planificacionId) {
@@ -27,8 +31,8 @@ export async function POST(request: Request) {
         usuarioId: actor.id,
         mensajes: {
           create: {
-            rol: body.rol || 'USER',
-            contenido: body.contenido,
+            rol: rol as any,
+            contenido,
             completo: body.completo ?? true,
           },
         },

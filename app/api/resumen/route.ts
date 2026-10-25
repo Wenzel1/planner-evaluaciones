@@ -34,7 +34,7 @@ export async function GET(request: Request) {
               updatedAt: true,
               evaluaciones: {
                 orderBy: { orden: 'asc' },
-                select: { id: true, nombre: true, peso: true, tipoActividad: true, fecha: true, tiempoEstimadoMinutos: true },
+                select: { id: true, nombre: true, peso: true, tipoActividad: true, fecha: true, tiempoEstimadoMinutos: true, grupoSeccion: true, descripcion: true, enfoque: true, nivelBloom: true, cantidadGrupos: true, personasPorGrupo: true },
               },
             },
           },
