@@ -5,6 +5,9 @@ import { bloqueado, registrarFallo, minutosRestantes } from '@/lib/rateLimit'
 import { ipDe } from '@/lib/cookies'
 import { nuevoCodigoParaGuardar, enviarCodigoWhatsApp, REENVIO_SEGUNDOS } from '@/lib/codigoWhatsapp'
 
+// Render (plan gratis) puede tardar en despertar a n8n: se da margen a la función en Vercel
+export const maxDuration = 60
+
 // POST /api/auth/reenviar-codigo  { email }  (público)
 // Genera un código nuevo (el anterior deja de servir) y lo envía otra vez por WhatsApp.
 export async function POST(request: Request) {

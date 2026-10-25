@@ -9,6 +9,9 @@ import { registrarActividad } from '@/lib/actividad'
 import { leerConfig } from '@/lib/configuracion'
 import { nuevoCodigoParaGuardar, enviarCodigoWhatsApp } from '@/lib/codigoWhatsapp'
 
+// Render (plan gratis) puede tardar en despertar a n8n: se da margen a la función en Vercel
+export const maxDuration = 60
+
 // POST /api/auth/registro  (público)
 // Un profesor solicita su cuenta desde la pantalla de login. La cuenta se crea SIEMPRE con rol USUARIO
 // y en estado "pendiente": no puede iniciar sesión hasta que un ADMIN o SUPERADMIN la apruebe.
