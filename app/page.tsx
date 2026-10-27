@@ -3931,6 +3931,50 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     setPdfAbiertoPorSeccion(prev => { const copia = { ...prev }; delete copia[letra]; return copia; });
     agregarNotificacion(`🗑️ Sección ${letra} eliminada.`);
   };
+  // --- Copiar el plan de la sección activa a otra sección (A → B, C...) ---
+  const [copiaAbierta, setCopiaAbierta] = useState(false);
+  const [copiaDestino, setCopiaDestino] = useState('');
+  const [copiaModo, setCopiaModo] = useState<'agregar' | 'reemplazar'>('agregar');
+  const [copiaDias, setCopiaDias] = useState('0');
+  const siguienteLetraLibre = (() => {
+    const ultima = seccionesDisponibles[seccionesDisponibles.length - 1] || 'A';
+    const c = ultima.charCodeAt(0) + 1;
+    return c > 'Z'.charCodeAt(0) ? null : String.fromCharCode(c);
+  })();
+  const abrirCopia = () => {
+    const otra = seccionesDisponibles.find(l => l !== seccionActiva) || siguienteLetraLibre || '';
+    setCopiaDestino(otra); setCopiaModo('agregar'); setCopiaDias('0'); setCopiaAbierta(true);
+  };
+  const copiarPlanASeccion = () => {
+    const destino = copiaDestino;
+    const origen = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva && !tarjetasExcluidas.includes(s.id));
+    if (!destino || destino === seccionActiva || origen.length === 0) return;
+    const enDestino = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === destino);
+    if (copiaModo === 'reemplazar' && enDestino.length > 0) {
+      const realizadas = enDestino.filter((s: SeccionExamen) => String(s.estado || '').toUpperCase() === 'REALIZADA').length;
+      const aviso = `Se borrarán las ${enDestino.length} evaluación(es) que ya tiene la Sección ${destino}${realizadas ? ` (incluidas ${realizadas} ya realizada(s))` : ''} y se pondrán las copias. ¿Continuar?`;
+      if (!window.confirm(aviso)) return;
+    }
+    const dias = Math.max(-365, Math.min(365, parseInt(copiaDias, 10) || 0));
+    const base = Date.now();
+    const copias: SeccionExamen[] = origen.map((s: SeccionExamen, i: number) => {
+      const { estado: _estado, ...resto } = s;
+      const fecha = s.fecha ? new Date(new Date(s.fecha).getTime() + dias * 86400000) : undefined;
+      return { ...resto, id: `copia${destino}-${base}-${i}`, grupoSeccion: destino, fecha };
+    });
+    const conservadas = copiaModo === 'reemplazar' ? planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') !== destino) : planificacion.secciones;
+    const nuevasSecciones = [...conservadas, ...copias].map((s, idx) => ({ ...s, orden: idx }));
+    setPlanificacion({ ...planificacion, secciones: nuevasSecciones }); // el guardado automático lo sube a la base de datos
+    if (!seccionesDisponibles.includes(destino)) setSeccionesDisponibles(prev => [...prev, destino].sort());
+    // El plan de acción viejo de la sección destino ya no corresponde
+    setPdfPorSeccion(prev => { const copia = { ...prev }; delete copia[destino]; return copia; });
+    setPdfAbiertoPorSeccion(prev => { const copia = { ...prev }; delete copia[destino]; return copia; });
+    const pesoTotal = nuevasSecciones.filter(s => s.grupoSeccion === destino).reduce((t, s) => t + (Number(s.peso) || 0), 0);
+    agregarNotificacion(`📋 ${copias.length} evaluación(es) copiadas de la Sección ${seccionActiva} a la Sección ${destino}${dias ? ` (fechas corridas ${dias > 0 ? '+' : ''}${dias} día(s))` : ''}.`);
+    if (pesoTotal > 100) agregarNotificacion(`⚠️ La Sección ${destino} ahora suma ${pesoTotal}% de peso. Revisa los porcentajes.`);
+    setCopiaAbierta(false);
+    setSeccionActiva(destino);
+  };
   // Evaluaciones que pertenecen a la sección activa (A, B, C...)
   const seccionesFiltradas = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva);
   // El plan usa solo las evaluaciones de la sección activa que siguen marcadas
@@ -4635,6 +4679,68 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                         </button>
                       </Tooltip>
                     </div>
+                    {seccionesParaPlan.length > 0 && (
+                      <div className="relative">
+                        <Tooltip text={`Copiar el plan de la Sección ${seccionActiva} a otra sección`}>
+                          <button type="button" onClick={() => (copiaAbierta ? setCopiaAbierta(false) : abrirCopia())}
+                            className={`h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${copiaAbierta ? 'bg-[#818cf8]/15 border-[#818cf8]/50 text-[#c7d2fe]' : 'bg-[#161722] border-[#313248] text-[#a0a0b8] hover:text-white hover:border-[#818cf8]/50'}`}>
+                            <Copy className="w-3.5 h-3.5" />Copiar a…
+                          </button>
+                        </Tooltip>
+                        <AnimatePresence>
+                          {copiaAbierta && (
+                            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }}
+                              className="absolute left-0 top-11 z-40 w-[290px] max-w-[calc(100vw-32px)] bg-[#1c1d2a] border border-[#313248] rounded-xl shadow-2xl p-4 space-y-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-semibold text-white">Copiar plan de la Sección {seccionActiva}</p>
+                                  <p className="text-[11px] text-[#8a8b9e] mt-0.5">{seccionesParaPlan.length} evaluación(es) marcadas con el círculo morado</p>
+                                </div>
+                                <button type="button" onClick={() => setCopiaAbierta(false)} className="text-[#6a6b7e] hover:text-white"><X className="w-4 h-4" /></button>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wider text-[#6a6b7e] mb-1.5">Copiar a</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {[...seccionesDisponibles.filter(l => l !== seccionActiva), ...(siguienteLetraLibre ? [siguienteLetraLibre] : [])].map(l => {
+                                    const nueva = !seccionesDisponibles.includes(l);
+                                    const cuantas = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === l).length;
+                                    return (
+                                      <button key={l} type="button" onClick={() => setCopiaDestino(l)} title={nueva ? 'Crea esta sección nueva' : `${cuantas} evaluación(es) ahora`}
+                                        className={`h-8 px-2.5 rounded-md border text-xs font-semibold transition-colors ${copiaDestino === l ? 'bg-[#818cf8] border-[#818cf8] text-white' : 'bg-[#232430] border-[#313248] text-[#a0a0b8] hover:text-white'}`}>
+                                        {nueva ? `+ ${l} (nueva)` : `${l}${cuantas ? ` · ${cuantas}` : ''}`}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              {copiaDestino && planificacion.secciones.some((s: SeccionExamen) => (s.grupoSeccion || 'A') === copiaDestino) && (
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wider text-[#6a6b7e] mb-1.5">La Sección {copiaDestino} ya tiene evaluaciones</p>
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    {([['agregar', 'Agregar'], ['reemplazar', 'Reemplazar']] as const).map(([v, t]) => (
+                                      <button key={v} type="button" onClick={() => setCopiaModo(v)}
+                                        className={`h-8 rounded-md border text-xs font-medium transition-colors ${copiaModo === v ? (v === 'reemplazar' ? 'bg-red-500/15 border-red-500/40 text-red-300' : 'bg-[#818cf8]/15 border-[#818cf8]/50 text-[#c7d2fe]') : 'bg-[#232430] border-[#313248] text-[#a0a0b8] hover:text-white'}`}>{t}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              <label className="block">
+                                <span className="text-[10px] uppercase tracking-wider text-[#6a6b7e]">Correr las fechas (días)</span>
+                                <div className="mt-1.5 flex items-center gap-2">
+                                  <input type="number" min={-365} max={365} value={copiaDias} onChange={(e) => setCopiaDias(e.target.value)}
+                                    className="w-20 bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] focus:outline-none focus:border-[#818cf8]" />
+                                  <span className="text-[11px] text-[#8a8b9e]">0 = mismas fechas · 1 = un día después</span>
+                                </div>
+                              </label>
+                              <button type="button" onClick={copiarPlanASeccion} disabled={!copiaDestino}
+                                className="w-full h-9 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40 transition-colors">
+                                <Copy className="w-3.5 h-3.5" />Copiar a la Sección {copiaDestino || '…'}
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
                     {seccionesFiltradas.length > 0 && (
                       <span className={`text-[11px] px-2 py-1 rounded-full border font-medium ${seccionesParaPlan.length === seccionesFiltradas.length ? 'bg-[#a855f7]/10 text-[#c084fc] border-[#a855f7]/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`} title="Las tarjetas con el círculo morado entran en el Plan de Acción">
                         {seccionesParaPlan.length} de {seccionesFiltradas.length} en el plan
