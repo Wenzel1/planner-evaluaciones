@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarLoteN8n, nuevoId, origenApp, primerNombre, type MensajeLote } from '@/lib/whatsappLotes'
+import { normalizarRubrica } from '@/lib/rubrica'
 import { obtenerPdfPlan, nombreArchivoPlan } from '@/lib/planCompartido'
 
 export const maxDuration = 60
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
             peso: Number(s.peso) || 0, fecha: s.fecha || null, descripcion: String(s.descripcion ?? '').slice(0, 6000),
             enfoque: s.enfoque ?? null, tiempoEstimadoMinutos: s.tiempoEstimadoMinutos ?? null,
             cantidadGrupos: s.cantidadGrupos ?? null, personasPorGrupo: s.personasPorGrupo ?? null,
+            rubrica: normalizarRubrica(s.rubrica),
           })),
         },
       },

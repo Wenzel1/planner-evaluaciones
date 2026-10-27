@@ -1,6 +1,7 @@
 // Genera el PDF del Plan de Acción dentro de la app (sin html2pdf ni n8n).
 // Usa pdf-lib (instalar con: npm install pdf-lib). Funciona en Vercel sin navegador.
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import { NIVELES_RUBRICA, normalizarRubrica, puntosNivel, textoPuntos, totalRubrica } from './rubrica'
 
 export interface SeccionPdf {
   nombre?: string | null
@@ -8,6 +9,7 @@ export interface SeccionPdf {
   peso?: number | string | null
   fecha?: string | Date | null
   descripcion?: string | null
+  rubrica?: unknown
 }
 export interface DatosPlanPdf {
   materia?: string | null
@@ -179,6 +181,57 @@ export async function generarPdfPlan(datos: DatosPlanPdf): Promise<Uint8Array> {
       }
       y -= 12
     })
+  }
+
+  // ---------- Rúbricas ----------
+  const conRubrica = secciones.map((sec, i) => ({ sec, i, r: normalizarRubrica(sec.rubrica) })).filter(x => x.r)
+  if (conRubrica.length > 0) {
+    y -= 10
+    asegurar(60)
+    escribir('RÚBRICAS DE EVALUACIÓN', MARGEN, 12, negrita, TEXTO)
+    y -= 22
+    const anchoCrit = 112
+    const anchoNivel = (anchoUtil - anchoCrit) / NIVELES_RUBRICA.length
+    const T = 7.5, INTER = 9.5
+    for (const { sec, i, r } of conRubrica) {
+      const rub = r!
+      const titulo = partir(`${i + 1}. ${nombreLimpio(sec.nombre)}  -  Total: ${textoPuntos(totalRubrica(rub))} pts`, negrita, 10.5, anchoUtil)
+      asegurar(titulo.length * 14 + 60)
+      for (const l of titulo) { escribir(l, MARGEN, 10.5, negrita, AZUL); y -= 14 }
+      y -= 2
+      const cabecera = () => {
+        pagina.drawRectangle({ x: MARGEN, y: y - 7, width: anchoUtil, height: 20, color: FONDO, borderColor: GRIS_CLARO, borderWidth: 0.8 })
+        pagina.drawText('CRITERIO', { x: MARGEN + 6, y, size: 7.5, font: negrita, color: GRIS })
+        NIVELES_RUBRICA.forEach((n, k) => {
+          const t = n.toUpperCase(); const w = negrita.widthOfTextAtSize(t, 7.5)
+          pagina.drawText(t, { x: MARGEN + anchoCrit + k * anchoNivel + (anchoNivel - w) / 2, y, size: 7.5, font: negrita, color: GRIS })
+        })
+        y -= 17
+      }
+      cabecera()
+      for (const c of rub.criterios) {
+        const colCrit = [...partir(limpiar(c.nombre), negrita, 8, anchoCrit - 10), `${textoPuntos(c.puntos)} pts`]
+        const colNiv = c.descripciones.map(d => partir(limpiar(d) || '-', normal, T, anchoNivel - 10))
+        const filas = Math.max(colCrit.length, ...colNiv.map(l => l.length + 1))
+        const alto = filas * INTER + 10
+        if (y - alto < MARGEN + 20) { nuevaPagina(); cabecera() }
+        pagina.drawRectangle({ x: MARGEN, y: y - alto + 10, width: anchoUtil, height: alto, borderColor: GRIS_CLARO, borderWidth: 0.6 })
+        for (let k = 1; k <= NIVELES_RUBRICA.length; k++) {
+          const x = MARGEN + anchoCrit + (k - 1) * anchoNivel
+          pagina.drawLine({ start: { x, y: y + 10 }, end: { x, y: y - alto + 10 }, thickness: 0.6, color: GRIS_CLARO })
+        }
+        let yy = y - 2
+        colCrit.forEach((l, k) => { pagina.drawText(l, { x: MARGEN + 6, y: yy, size: 8, font: negrita, color: k === colCrit.length - 1 ? AZUL : TEXTO }); yy -= INTER })
+        colNiv.forEach((lineas, k) => {
+          const x = MARGEN + anchoCrit + k * anchoNivel + 5
+          let y2 = y - 2
+          pagina.drawText(`${textoPuntos(puntosNivel(c.puntos, k))} pts`, { x, y: y2, size: T, font: negrita, color: AZUL }); y2 -= INTER
+          for (const l of lineas) { pagina.drawText(l, { x, y: y2, size: T, font: normal, color: GRIS }); y2 -= INTER }
+        })
+        y -= alto
+      }
+      y -= 16
+    }
   }
 
   // ---------- Firmas ----------

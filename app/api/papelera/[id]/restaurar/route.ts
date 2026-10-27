@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { normalizarRubrica } from '@/lib/rubrica'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 
@@ -51,6 +52,7 @@ export async function POST(
           enfoque: d.enfoque ?? null,
           fecha: d.fecha ? new Date(d.fecha) : null,
           grupoSeccion: d.grupoSeccion || 'A',
+          ...(normalizarRubrica(d.rubrica) ? { rubrica: normalizarRubrica(d.rubrica) as any } : {}),
         },
       })
     } else {

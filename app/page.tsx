@@ -35,6 +35,7 @@ import StreamInput from "@/components/StreamInput";
 import StreamTextarea from "@/components/StreamTextarea";
 import { validarNombre, validarEmail, validarPassword, validarTelefono, validarCedula } from '@/lib/validacionesUsuario';
 import { csvAEstudiantes, plantillaCSV } from '@/lib/csvEstudiantes';
+import { NIVELES_RUBRICA, normalizarRubrica, puntosNivel, rubricaSugerida, textoPuntos, totalRubrica, type RubricaEval } from '@/lib/rubrica';
 import { calcularAlertas } from '@/lib/alertas';
 
 // ============================================
@@ -51,6 +52,8 @@ interface SeccionExamen {
   grupoSeccion?: string;
   // PROGRAMADA | REALIZADA | REPROGRAMADA | CANCELADA (se cambia con /api/evaluaciones/:id/estado)
   estado?: string;
+  // Rúbrica propia de la evaluación (criterios × Excelente/Bueno/Regular/Deficiente)
+  rubrica?: RubricaEval | null;
 }
 interface CriterioRubrica {
   id: string; nombre: string; peso: number; descripcion: string;
@@ -2590,7 +2593,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
             secciones: lista.map(s => ({
               nombre: s.nombre, tipoActividad: s.tipoActividad, peso: s.peso, fecha: s.fecha ? new Date(s.fecha).toISOString() : null,
               descripcion: s.descripcion, enfoque: s.enfoque, tiempoEstimadoMinutos: s.tiempoEstimadoMinutos,
-              cantidadGrupos: s.cantidadGrupos, personasPorGrupo: s.personasPorGrupo,
+              cantidadGrupos: s.cantidadGrupos, personasPorGrupo: s.personasPorGrupo, rubrica: s.rubrica ?? null,
             })),
           },
         }),
@@ -3103,7 +3106,8 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
   );
 }
 
-function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado }: any) {
+function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica }: any) {
+  const [rubricaDe, setRubricaDe] = useState<SeccionExamen | null>(null);
   // Vista previa del plan: SOLO las evaluaciones de la sección activa que están marcadas
   const listaPlan: SeccionExamen[] = Array.isArray(seccionesPlan) ? seccionesPlan : secciones;
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
@@ -3237,10 +3241,16 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               onEnviar={handleEnviarTarjeta}
               enviando={enviandoId === seccion.id}
               onCambiarEstado={onCambiarEstado}
+              onRubrica={onGuardarRubrica ? setRubricaDe : undefined}
             />
           );
         })}
       </Reorder.Group>
+      <AnimatePresence>
+        {rubricaDe && onGuardarRubrica && (
+          <EditorRubrica key={rubricaDe.id} seccion={rubricaDe} onCerrar={() => setRubricaDe(null)} onGuardar={(r) => { onGuardarRubrica(rubricaDe, r); setRubricaDe(null); }} />
+        )}
+      </AnimatePresence>
       <div className="space-y-2">
         {secciones.length === 0 && (<div className="text-center py-8 text-[#8a8b9e] border border-dashed border-[#313248] rounded-xl"><p className="text-sm">No hay evaluaciones</p></div>)}
       </div>
@@ -3257,12 +3267,124 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
 }
 
 // ============================================
+// EDITOR DE RÚBRICA (por evaluación)
+// ============================================
+const COLOR_NIVEL = ['text-emerald-300', 'text-sky-300', 'text-amber-300', 'text-red-300'];
+function EditorRubrica({ seccion, onGuardar, onCerrar }: { seccion: SeccionExamen; onGuardar: (r: RubricaEval | null) => void; onCerrar: () => void }) {
+  const existente = normalizarRubrica(seccion.rubrica);
+  const [criterios, setCriterios] = useState(() => (existente || rubricaSugerida(seccion)).criterios.map(c => ({ ...c, puntos: String(c.puntos), descripciones: [...c.descripciones] })));
+  const [editado, setEditado] = useState(false);
+  const [abierto, setAbierto] = useState<number | null>(0);
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    window.addEventListener('keydown', tecla);
+    const overflow = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', tecla); document.body.style.overflow = overflow; };
+  }, []);
+  const total = criterios.reduce((t, c) => t + (Number(c.puntos) || 0), 0);
+  const cambiar = (i: number, cambio: Partial<{ nombre: string; puntos: string; descripciones: string[] }>) => {
+    setEditado(true);
+    setCriterios(prev => prev.map((c, k) => (k === i ? { ...c, ...cambio } : c)));
+  };
+  const sugerir = () => {
+    if (editado && !window.confirm('Se reemplazará lo que escribiste por una rúbrica sugerida. ¿Continuar?')) return;
+    setCriterios(rubricaSugerida(seccion).criterios.map(c => ({ ...c, puntos: String(c.puntos), descripciones: [...c.descripciones] })));
+    setEditado(false); setAbierto(0);
+  };
+  const ajustarA20 = () => {
+    if (total <= 0) return;
+    const nuevos = criterios.map(c => ({ ...c, puntos: Math.max(0.5, Math.round(((Number(c.puntos) || 0) / total) * 20 * 2) / 2) }));
+    const dif = Math.round((20 - nuevos.reduce((t, c) => t + c.puntos, 0)) * 2) / 2;
+    if (nuevos.length) nuevos[0].puntos = Math.max(0.5, nuevos[0].puntos + dif);
+    setCriterios(nuevos.map(c => ({ ...c, puntos: String(c.puntos) }))); setEditado(true);
+  };
+  const agregar = () => {
+    if (criterios.length >= 8) return;
+    setCriterios(prev => [...prev, { nombre: 'Nuevo criterio', puntos: '2', descripciones: ['', '', '', ''] }]);
+    setAbierto(criterios.length); setEditado(true);
+  };
+  const quitar = (i: number) => { setCriterios(prev => prev.filter((_, k) => k !== i)); setAbierto(null); setEditado(true); };
+  const guardar = () => {
+    const r = normalizarRubrica({ criterios: criterios.map(c => ({ ...c, puntos: Number(c.puntos) || 0 })) });
+    if (!r) { alert('Agrega al menos un criterio con nombre.'); return; }
+    onGuardar(r);
+  };
+  const campo = 'w-full bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]';
+  return createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
+      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+        className="w-full max-w-3xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><ClipboardCheck className="w-5 h-5 text-[#a5b4fc]" /></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-semibold text-white">Rúbrica de evaluación</p>
+            <p className="text-xs text-[#8a8b9e] truncate">{limpiarTexto(seccion.nombre)}{seccion.tipoActividad ? ` · ${seccion.tipoActividad}` : ''}</p>
+          </div>
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${total === 20 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`} title="La escala usual es de 20 puntos">{textoPuntos(total)} / 20 pts</span>
+          <button type="button" onClick={onCerrar} className="p-1 text-[#6a6b7e] hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="px-5 py-2.5 border-b border-[#313248] flex flex-wrap items-center gap-2 bg-[#181926]">
+          <button type="button" onClick={sugerir} className="h-8 px-3 rounded-lg bg-[#818cf8]/15 border border-[#818cf8]/40 text-[#c7d2fe] text-xs font-medium flex items-center gap-1.5 hover:bg-[#818cf8]/25"><Sparkles className="w-3.5 h-3.5" />{existente || editado ? 'Sugerir otra vez' : 'Sugerida según la actividad'}</button>
+          <button type="button" onClick={agregar} disabled={criterios.length >= 8} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#a0a0b8] text-xs font-medium flex items-center gap-1.5 hover:text-white disabled:opacity-40"><Plus className="w-3.5 h-3.5" />Agregar criterio</button>
+          {total !== 20 && total > 0 && <button type="button" onClick={ajustarA20} className="h-8 px-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium hover:bg-amber-500/20">Ajustar a 20 pts</button>}
+          <span className="text-[11px] text-[#6a6b7e] ml-auto hidden sm:inline">Niveles: Excelente 100% · Bueno 75% · Regular 50% · Deficiente 25%</span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2.5">
+          {criterios.length === 0 && <p className="text-sm text-[#8a8b9e] text-center py-8">Sin criterios. Usa “Sugerida” o “Agregar criterio”.</p>}
+          {criterios.map((c, i) => (
+            <div key={i} className={`rounded-xl border transition-colors ${abierto === i ? 'border-[#818cf8]/50 bg-[#20213a]' : 'border-[#313248] bg-[#1f2035]'}`}>
+              <div className="flex items-center gap-2 p-2.5">
+                <span className="w-6 h-6 rounded-full bg-[#272839] text-[#a5b4fc] text-[11px] font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                <input value={c.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} maxLength={120} placeholder="Nombre del criterio" className={`${campo} flex-1 min-w-0 font-medium`} />
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <input type="number" min={0} max={100} step={0.5} value={c.puntos} onChange={(e) => cambiar(i, { puntos: e.target.value })} className={`${campo} w-16 text-center`} />
+                  <span className="text-[11px] text-[#8a8b9e]">pts</span>
+                </div>
+                <button type="button" onClick={() => setAbierto(abierto === i ? null : i)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] rounded-lg" title="Ver niveles">{abierto === i ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
+                <button type="button" onClick={() => quitar(i)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 rounded-lg" title="Quitar criterio"><Trash2 className="w-4 h-4" /></button>
+              </div>
+              <AnimatePresence initial={false}>
+                {abierto === i && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 px-2.5 pb-3">
+                      {NIVELES_RUBRICA.map((nivel, k) => (
+                        <label key={nivel} className="block">
+                          <span className={`text-[11px] font-semibold ${COLOR_NIVEL[k]}`}>{nivel} <span className="text-[#6a6b7e] font-normal">· {textoPuntos(puntosNivel(Number(c.puntos) || 0, k))} pts</span></span>
+                          <textarea value={c.descripciones[k]} onChange={(e) => cambiar(i, { descripciones: c.descripciones.map((d, j) => (j === k ? e.target.value : d)) })} rows={2} maxLength={400} placeholder={`Qué hace el estudiante en nivel ${nivel.toLowerCase()}`} className={`${campo} mt-1 resize-none`} />
+                        </label>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
+        </div>
+
+        <div className="px-5 py-3 border-t border-[#313248] flex flex-wrap items-center gap-2">
+          {existente && <button type="button" onClick={() => { if (window.confirm('¿Quitar la rúbrica de esta evaluación?')) onGuardar(null); }} className="h-9 px-3 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/10">Quitar rúbrica</button>}
+          <span className="text-[11px] text-[#6a6b7e] hidden sm:inline">Sale en el PDF del plan de acción.</span>
+          <div className="ml-auto flex gap-2">
+            <button type="button" onClick={onCerrar} className="h-9 px-4 rounded-lg bg-[#232430] border border-[#313248] text-[#a0a0b8] text-xs font-medium hover:text-white">Cancelar</button>
+            <button type="button" onClick={guardar} className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5"><Save className="w-3.5 h-3.5" />Guardar rúbrica</button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// ============================================
 // TARJETA DE EVALUACIÓN (draggable individual, fluida con Framer Motion)
 // ============================================
-function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado }: {
+function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica }: {
   seccion: SeccionExamen; index: number; isSelected: boolean; onToggleSelect?: (id: string) => void;
   expanded: boolean; onToggleExpand: () => void; onEdit: (s: SeccionExamen) => void; onDelete: (id: string) => void;
   onEnviar: (s: SeccionExamen) => void; enviando: boolean; onCambiarEstado?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean>;
+  onRubrica?: (s: SeccionExamen) => void;
 }) {
   const dragControls = useDragControls();
   const nombreLimpio = limpiarTexto(seccion.nombre);
@@ -3301,10 +3423,12 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
             {seccion.tiempoEstimadoMinutos && <span>⏱️ {seccion.tiempoEstimadoMinutos} min</span>}
             {seccion.cantidadGrupos && <span>👥 {seccion.cantidadGrupos} grupos</span>}
             {seccion.fecha && <span>📅 {new Date(seccion.fecha).toLocaleDateString()}</span>}
+            {seccion.rubrica && seccion.rubrica.criterios?.length > 0 && <span className="text-[#a5b4fc]">📋 Rúbrica {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
           </div>
         </div>
         <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
           <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
+          {onRubrica && <Tooltip text={seccion.rubrica ? 'Ver o editar la rúbrica' : 'Crear rúbrica'}><button onClick={() => onRubrica(seccion)} className={`p-1.5 rounded-lg ${seccion.rubrica ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><ClipboardCheck className="w-4 h-4" /></button></Tooltip>}
           <Tooltip text="Enviar"><button onClick={() => onEnviar(seccion)} disabled={enviando} className="p-1.5 text-[#8a8b9e] hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">{enviando ? <div className="w-4 h-4 border-2 border-t-emerald-400 rounded-full animate-spin" /> : <Send className="w-4 h-4" />}</button></Tooltip>
           <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
           <Tooltip text="Eliminar"><button onClick={() => onDelete(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
@@ -3777,7 +3901,7 @@ function AgentePanel({ seccionActiva = 'A', expandido, setExpandido, planificaci
         const indiceExistente = secciones.findIndex(s => (s.grupoSeccion || 'A') === seccionActiva && s.nombre.toLowerCase().startsWith(`${tipoBuscado}:`));
         if (indiceExistente !== -1) {
           // Ya existe una evaluación con ese mismo número/tipo → se actualiza en su lugar (edición)
-          secciones[indiceExistente] = { ...nueva, id: secciones[indiceExistente].id, grupoSeccion: secciones[indiceExistente].grupoSeccion };
+          secciones[indiceExistente] = { ...nueva, id: secciones[indiceExistente].id, grupoSeccion: secciones[indiceExistente].grupoSeccion, rubrica: secciones[indiceExistente].rubrica };
         } else {
           secciones = [...secciones, nueva];
         }
@@ -3991,6 +4115,13 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const [cargandoPdf, setCargandoPdf] = useState(false);
   // Cambia la fecha desde el calendario (arrastrar o "Cambiar fecha"). El guardado automático la lleva a la base de datos
   // y los recordatorios de WhatsApp se calculan con la fecha nueva.
+  const guardarRubricaEvaluacion = (sec: SeccionExamen, rubrica: RubricaEval | null) => {
+    setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, rubrica } : s) })); // se guarda sola
+    // El plan de acción ya generado de esta sección queda viejo: se vuelve a generar al abrirlo
+    const letra = sec.grupoSeccion || 'A';
+    setPdfPorSeccion(prev => { const copia = { ...prev }; delete copia[letra]; return copia; });
+    agregarNotificacion(rubrica ? `📋 Rúbrica de "${limpiarTexto(sec.nombre)}" guardada (${textoPuntos(totalRubrica(rubrica))} pts).` : `🗑️ Rúbrica de "${limpiarTexto(sec.nombre)}" quitada.`);
+  };
   const cambiarFechaEvaluacion = (sec: SeccionExamen, fecha: Date) => {
     setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, fecha } : s) }));
     agregarNotificacion(`📅 "${limpiarTexto(sec.nombre)}" ahora es el ${fecha.toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}.`);
@@ -4115,7 +4246,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 
   const firmaDePlan = (p: PlanificacionExamen) => JSON.stringify([
     p.materia, p.estado, p.tipoExamen, new Date(p.fechaExamen).getTime(), p.duracionMinutos,
-    p.secciones.map(s => [s.nombre, s.tipoPregunta, s.nivelBloom, s.peso, s.cantidadPreguntas, s.contenidosEvaluados, s.tiempoEstimadoMinutos, s.tipoActividad, s.descripcion, s.cantidadGrupos, s.personasPorGrupo, s.orden, s.enfoque, s.fecha ? new Date(s.fecha).getTime() : null, s.grupoSeccion || 'A']),
+    p.secciones.map(s => [s.nombre, s.tipoPregunta, s.nivelBloom, s.peso, s.cantidadPreguntas, s.contenidosEvaluados, s.tiempoEstimadoMinutos, s.tipoActividad, s.descripcion, s.cantidadGrupos, s.personasPorGrupo, s.orden, s.enfoque, s.fecha ? new Date(s.fecha).getTime() : null, s.grupoSeccion || 'A', s.rubrica ?? null]),
     p.rubrica,
   ]);
 
@@ -4151,6 +4282,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
           cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden ?? idx,
           enfoque: ev.enfoque, fecha: ev.fecha ? ev.fecha.toISOString() : null, grupoSeccion: ev.grupoSeccion || 'A',
+          rubrica: ev.rubrica, // undefined = no se toca; null = se borra
         })),
         rubrica: planActualizada.rubrica.map(crit => ({
           nombre: crit.nombre, peso: crit.peso, descripcion: crit.descripcion,
@@ -4365,7 +4497,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const crearSeccion = (evalData: EvaluacionFormulario, tipo: string, idPrefix: string): SeccionExamen => {
     const materiaLimpia = limpiarTexto(evalData.materia);
     const duracionMin = evalData.duracionUnidad === 'hrs' ? (evalData.duracionMinutos || 0) * 60 : evalData.duracionMinutos;
-    return { id: evalData.editandoId || `${idPrefix}-${Date.now()}`, nombre: `${tipo}: ${materiaLimpia}`, tipoPregunta: 'desarrollo', peso: evalData.peso, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'comprender', tiempoEstimadoMinutos: duracionMin, tipoActividad: evalData.tipoActividad || undefined, descripcion: evalData.descripcion, cantidadGrupos: evalData.cantidadGrupos ?? undefined, personasPorGrupo: evalData.personasPorGrupo ?? undefined, orden: planificacion.secciones.length, enfoque: evalData.enfoque || undefined, fecha: evalData.fecha, grupoSeccion: evalData.editandoId ? (planificacion.secciones.find(s => s.id === evalData.editandoId)?.grupoSeccion || seccionActiva) : seccionActiva };
+    return { id: evalData.editandoId || `${idPrefix}-${Date.now()}`, nombre: `${tipo}: ${materiaLimpia}`, tipoPregunta: 'desarrollo', peso: evalData.peso, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'comprender', tiempoEstimadoMinutos: duracionMin, tipoActividad: evalData.tipoActividad || undefined, descripcion: evalData.descripcion, cantidadGrupos: evalData.cantidadGrupos ?? undefined, personasPorGrupo: evalData.personasPorGrupo ?? undefined, orden: planificacion.secciones.length, enfoque: evalData.enfoque || undefined, fecha: evalData.fecha, grupoSeccion: evalData.editandoId ? (planificacion.secciones.find(s => s.id === evalData.editandoId)?.grupoSeccion || seccionActiva) : seccionActiva, rubrica: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.rubrica : undefined };
   };
 
             const guardarEval = async (ev: EvaluacionFormulario, tipo: string, prefix: string, limpiar: () => void, setEv: (updater: (prev: EvaluacionFormulario) => EvaluacionFormulario) => void) => {
@@ -4795,7 +4927,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   setTarjetasExcluidas(prev => prev.filter(x => x !== id));
   agregarNotificacion(`🗑️ Evaluación eliminada de la BD.`); 
 }}
-                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion}
+                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion} onGuardarRubrica={guardarRubricaEvaluacion}
                       mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
                       mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
   pdfAbierto={pdfAbiertoLocal}
@@ -4988,6 +5120,7 @@ const guardarPlanificacionEnBD = async () => {
         enfoque: ev.enfoque,
         fecha: ev.fecha ? ev.fecha.toISOString() : null,
         grupoSeccion: ev.grupoSeccion || 'A',
+        rubrica: ev.rubrica,
       })),
       rubrica: planificacion.rubrica.map(crit => ({
         nombre: crit.nombre,
@@ -5086,6 +5219,7 @@ const guardarPlanificacionEnBD = async () => {
               fecha: ev.fecha ? new Date(ev.fecha) : undefined,
               grupoSeccion: ev.grupoSeccion || 'A',
               estado: ev.estado || 'PROGRAMADA',
+              rubrica: normalizarRubrica(ev.rubrica),
             })),
             rubrica: (ultimoPlan.rubrica || []).map((crit: any) => ({
               id: crit.id,
@@ -5122,7 +5256,7 @@ const guardarPlanificacionEnBD = async () => {
   const generarPDF = async (secciones?: SeccionExamen[]): Promise<string | null> => {
     const seccionesParaPDF = secciones || planificacion.secciones;
     if (seccionesParaPDF.length === 0) { alert('No hay evaluaciones guardadas'); return null; }
-    try { const response = await fetch('/api/plan-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ examenData: { seccion: seccionesParaPDF[0]?.grupoSeccion || null, profesor: usuario?.nombre || '', fechaExamen: planificacion.fechaExamen.toISOString(), materia: planificacion.materia || 'Asignatura', tipoExamen: planificacion.tipoExamen || 'mixto', duracionMinutos: planificacion.duracionMinutos || 0, secciones: seccionesParaPDF.map(sec => ({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, tiempoEstimadoMinutos: sec.tiempoEstimadoMinutos, peso: sec.peso, cantidadGrupos: sec.cantidadGrupos, personasPorGrupo: sec.personasPorGrupo, descripcion: sec.descripcion, enfoque: sec.enfoque, nivelBloom: sec.nivelBloom, fecha: sec.fecha })) } }) }); if (!response.ok || !(response.headers.get('content-type') || '').includes('pdf')) throw new Error('Error al generar PDF'); const blob = await response.blob(); const url = URL.createObjectURL(blob); setPdfUrl(url); setPdfAbierto(false); agregarNotificacion('📄 Plan de acción generado correctamente.'); return url; } catch (error) { console.error('Error al generar el PDF (se usará el plan visual local):', error); return null; }
+    try { const response = await fetch('/api/plan-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ examenData: { seccion: seccionesParaPDF[0]?.grupoSeccion || null, profesor: usuario?.nombre || '', fechaExamen: planificacion.fechaExamen.toISOString(), materia: planificacion.materia || 'Asignatura', tipoExamen: planificacion.tipoExamen || 'mixto', duracionMinutos: planificacion.duracionMinutos || 0, secciones: seccionesParaPDF.map(sec => ({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, tiempoEstimadoMinutos: sec.tiempoEstimadoMinutos, peso: sec.peso, cantidadGrupos: sec.cantidadGrupos, personasPorGrupo: sec.personasPorGrupo, descripcion: sec.descripcion, enfoque: sec.enfoque, nivelBloom: sec.nivelBloom, fecha: sec.fecha, rubrica: sec.rubrica ?? null })) } }) }); if (!response.ok || !(response.headers.get('content-type') || '').includes('pdf')) throw new Error('Error al generar PDF'); const blob = await response.blob(); const url = URL.createObjectURL(blob); setPdfUrl(url); setPdfAbierto(false); agregarNotificacion('📄 Plan de acción generado correctamente.'); return url; } catch (error) { console.error('Error al generar el PDF (se usará el plan visual local):', error); return null; }
   };
 
   const aceptarPropuesta = async () => { return { success: true }; };

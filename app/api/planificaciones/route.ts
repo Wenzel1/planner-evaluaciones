@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
+import { normalizarRubrica } from '@/lib/rubrica'
 import prisma from '@/lib/prisma';
 import { requerirActor, quiereTodos, verificarAcceso } from '@/lib/permisos';
 import { registrarActividad } from '@/lib/actividad';
@@ -20,6 +22,8 @@ function datosEvaluacion(ev: any, index: number) {
     enfoque: ev.enfoque || null,
     fecha: ev.fecha && !isNaN(new Date(ev.fecha).getTime()) ? new Date(ev.fecha) : null,
     grupoSeccion: ev.grupoSeccion || 'A',
+    // Si no viene la rúbrica, no se toca la que ya tenía; null la borra
+    ...(ev.rubrica !== undefined ? { rubrica: normalizarRubrica(ev.rubrica) ?? Prisma.DbNull } : {}),
   }
 }
 

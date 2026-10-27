@@ -156,6 +156,9 @@ model Evaluacion {
   estado        String    @default("PROGRAMADA")
   estadoEn      DateTime?
   recordatorios RecordatorioEnviado[]
+
+  // Rúbrica propia de esta evaluación: { criterios: [{ nombre, puntos, descripciones: [Excelente, Bueno, Regular, Deficiente] }] }
+  rubrica       Json?
 }
 
 model CriterioRubrica {
