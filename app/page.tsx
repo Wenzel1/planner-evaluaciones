@@ -2695,6 +2695,414 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
   );
 }
 
+// ============================================
+// CALENDARIO DE EVALUACIONES
+// ============================================
+// Colores por sección (clases completas para que Tailwind las detecte)
+const COLORES_SECCION: Record<string, { chip: string; punto: string; borde: string; texto: string }> = {
+  A: { chip: 'bg-indigo-500/20 text-indigo-200 border-indigo-400/40', punto: 'bg-indigo-400', borde: 'border-indigo-400/50', texto: 'text-indigo-300' },
+  B: { chip: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40', punto: 'bg-emerald-400', borde: 'border-emerald-400/50', texto: 'text-emerald-300' },
+  C: { chip: 'bg-amber-500/20 text-amber-200 border-amber-400/40', punto: 'bg-amber-400', borde: 'border-amber-400/50', texto: 'text-amber-300' },
+  D: { chip: 'bg-pink-500/20 text-pink-200 border-pink-400/40', punto: 'bg-pink-400', borde: 'border-pink-400/50', texto: 'text-pink-300' },
+  E: { chip: 'bg-sky-500/20 text-sky-200 border-sky-400/40', punto: 'bg-sky-400', borde: 'border-sky-400/50', texto: 'text-sky-300' },
+  F: { chip: 'bg-violet-500/20 text-violet-200 border-violet-400/40', punto: 'bg-violet-400', borde: 'border-violet-400/50', texto: 'text-violet-300' },
+};
+const colorSeccion = (letra?: string) => COLORES_SECCION[(letra || 'A').toUpperCase()] || { chip: 'bg-slate-500/20 text-slate-200 border-slate-400/40', punto: 'bg-slate-400', borde: 'border-slate-400/50', texto: 'text-slate-300' };
+
+const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+// Clave de día en hora local: "2026-10-26"
+function claveDia(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// Lunes de la semana de esa fecha (clave)
+function claveSemana(d: Date): string {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dia = (x.getDay() + 6) % 7; // 0 = lunes
+  x.setDate(x.getDate() - dia);
+  return claveDia(x);
+}
+// 42 días (6 semanas, de lunes a domingo) que cubren el mes
+function diasDelMes(anio: number, mes: number): Date[] {
+  const primero = new Date(anio, mes, 1);
+  const inicio = new Date(primero);
+  inicio.setDate(1 - ((primero.getDay() + 6) % 7));
+  return Array.from({ length: 42 }, (_, i) => new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i));
+}
+
+interface ChoqueCalendario { tipo: 'dia' | 'semana'; seccion: string; clave: string; evaluaciones: SeccionExamen[] }
+// Choques por sección: 2+ evaluaciones el mismo día, o más de 2 en la misma semana (las canceladas no cuentan)
+function detectarChoques(lista: SeccionExamen[]): ChoqueCalendario[] {
+  const porDia = new Map<string, SeccionExamen[]>();
+  const porSemana = new Map<string, SeccionExamen[]>();
+  for (const s of lista) {
+    if (!s.fecha || String(s.estado || '').toUpperCase() === 'CANCELADA') continue;
+    const f = new Date(s.fecha);
+    if (isNaN(f.getTime())) continue;
+    const sec = (s.grupoSeccion || 'A').toUpperCase();
+    const kd = `${sec}|${claveDia(f)}`, ks = `${sec}|${claveSemana(f)}`;
+    porDia.set(kd, [...(porDia.get(kd) || []), s]);
+    porSemana.set(ks, [...(porSemana.get(ks) || []), s]);
+  }
+  const choques: ChoqueCalendario[] = [];
+  porDia.forEach((evs, k) => { if (evs.length >= 2) { const [seccion, clave] = k.split('|'); choques.push({ tipo: 'dia', seccion, clave, evaluaciones: evs }); } });
+  porSemana.forEach((evs, k) => { if (evs.length > 2) { const [seccion, clave] = k.split('|'); choques.push({ tipo: 'semana', seccion, clave, evaluaciones: evs }); } });
+  return choques.sort((a, b) => a.clave.localeCompare(b.clave));
+}
+
+// ---------- Exportar a calendario (.ics) y Google Calendar ----------
+const pad2 = (n: number) => String(n).padStart(2, '0');
+function fechaIcs(d: Date): string {
+  return `${d.getUTCFullYear()}${pad2(d.getUTCMonth() + 1)}${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}${pad2(d.getUTCMinutes())}00Z`;
+}
+function textoIcs(t: string): string {
+  return String(t || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+// Las líneas de un .ics no deben pasar de 75 caracteres: se parten con "salto + espacio"
+function plegarIcs(linea: string): string {
+  if (linea.length <= 73) return linea;
+  const partes: string[] = [];
+  for (let i = 0; i < linea.length; i += 73) partes.push((i === 0 ? '' : ' ') + linea.slice(i, i + 73));
+  return partes.join('\r\n');
+}
+function duracionMin(s: SeccionExamen): number {
+  const m = Number(s.tiempoEstimadoMinutos);
+  return Number.isFinite(m) && m > 0 ? Math.min(m, 600) : 60;
+}
+function tituloEvento(s: SeccionExamen, materia: string): string {
+  return `${limpiarTexto(s.nombre)} · ${materia} (Sección ${(s.grupoSeccion || 'A').toUpperCase()})`;
+}
+function detalleEvento(s: SeccionExamen): string {
+  return [s.tipoActividad ? `Estrategia: ${s.tipoActividad}` : '', s.peso != null ? `Peso: ${s.peso}%` : '', s.enfoque ? `Enfoque: ${s.enfoque}` : ''].filter(Boolean).join('\n');
+}
+function generarIcs(lista: SeccionExamen[], materia: string): string {
+  const ahora = fechaIcs(new Date());
+  const lineas = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Planificador de Evaluaciones//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    `X-WR-CALNAME:${textoIcs(`Evaluaciones - ${materia}`)}`,
+  ];
+  for (const s of lista) {
+    if (!s.fecha || String(s.estado || '').toUpperCase() === 'CANCELADA') continue;
+    const ini = new Date(s.fecha);
+    if (isNaN(ini.getTime())) continue;
+    const fin = new Date(ini.getTime() + duracionMin(s) * 60000);
+    lineas.push(
+      'BEGIN:VEVENT',
+      `UID:${textoIcs(s.id)}@planificador-evaluaciones`,
+      `DTSTAMP:${ahora}`,
+      `DTSTART:${fechaIcs(ini)}`,
+      `DTEND:${fechaIcs(fin)}`,
+      `SUMMARY:${textoIcs(tituloEvento(s, materia))}`,
+      `DESCRIPTION:${textoIcs(detalleEvento(s))}`,
+      'BEGIN:VALARM', 'TRIGGER:-P1D', 'ACTION:DISPLAY', 'DESCRIPTION:Evaluación mañana', 'END:VALARM',
+      'END:VEVENT',
+    );
+  }
+  lineas.push('END:VCALENDAR');
+  return lineas.map(plegarIcs).join('\r\n') + '\r\n';
+}
+function enlaceGoogleCalendar(s: SeccionExamen, materia: string): string | null {
+  if (!s.fecha) return null;
+  const ini = new Date(s.fecha);
+  if (isNaN(ini.getTime())) return null;
+  const fin = new Date(ini.getTime() + duracionMin(s) * 60000);
+  const q = new URLSearchParams({ action: 'TEMPLATE', text: tituloEvento(s, materia), dates: `${fechaIcs(ini)}/${fechaIcs(fin)}`, details: detalleEvento(s) });
+  return `https://calendar.google.com/calendar/render?${q.toString()}`;
+}
+
+function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, onIrAPlanificador, agregarNotificacion }: {
+  secciones: SeccionExamen[]; materia: string;
+  onCambiarFecha: (s: SeccionExamen, fecha: Date) => void;
+  onCambiarEstado?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean>;
+  onIrAPlanificador: (s: SeccionExamen) => void;
+  agregarNotificacion: (m: string) => void;
+}) {
+  const hoy = new Date();
+  const [mesVista, setMesVista] = useState(() => ({ anio: hoy.getFullYear(), mes: hoy.getMonth() }));
+  const [ocultas, setOcultas] = useState<string[]>([]);
+  const [diaSel, setDiaSel] = useState<string | null>(null);
+  const [selId, setSelId] = useState<string | null>(null);
+  const [arrastrando, setArrastrando] = useState<string | null>(null);
+  const [destino, setDestino] = useState<string | null>(null);
+  const [nuevaFecha, setNuevaFecha] = useState('');
+  const [verChoques, setVerChoques] = useState(false);
+
+  const letras = Array.from(new Set(secciones.map(s => (s.grupoSeccion || 'A').toUpperCase()))).sort();
+  const visibles = secciones.filter(s => !ocultas.includes((s.grupoSeccion || 'A').toUpperCase()));
+  const conFecha = visibles.filter(s => s.fecha && !isNaN(new Date(s.fecha).getTime()));
+  const sinFecha = visibles.filter(s => !s.fecha || isNaN(new Date(s.fecha).getTime()));
+  const choques = detectarChoques(visibles);
+  const diasConChoque = new Set(choques.filter(c => c.tipo === 'dia').map(c => c.clave));
+  const semanasConChoque = new Set(choques.filter(c => c.tipo === 'semana').map(c => c.clave));
+
+  const porDia = new Map<string, SeccionExamen[]>();
+  for (const s of conFecha) {
+    const k = claveDia(new Date(s.fecha as Date));
+    porDia.set(k, [...(porDia.get(k) || []), s].sort((a, b) => new Date(a.fecha as Date).getTime() - new Date(b.fecha as Date).getTime()));
+  }
+  const dias = diasDelMes(mesVista.anio, mesVista.mes);
+  const sel = secciones.find(s => s.id === selId) || null;
+  const hoyClave = claveDia(hoy);
+
+  const cambiarMes = (delta: number) => setMesVista(p => { const d = new Date(p.anio, p.mes + delta, 1); return { anio: d.getFullYear(), mes: d.getMonth() }; });
+  const irHoy = () => { setMesVista({ anio: hoy.getFullYear(), mes: hoy.getMonth() }); setDiaSel(hoyClave); };
+  const esMovible = (s: SeccionExamen) => !['REALIZADA', 'CANCELADA'].includes(String(s.estado || '').toUpperCase());
+  const horaTexto = (d: Date) => d.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' });
+
+  // Mueve la evaluación a otro día conservando su hora (8:00 si no tenía fecha)
+  const moverADia = (id: string, dia: Date) => {
+    const s = secciones.find(x => x.id === id);
+    if (!s) return;
+    if (!esMovible(s)) { agregarNotificacion('Las evaluaciones realizadas o canceladas no se pueden mover.'); return; }
+    const base = s.fecha ? new Date(s.fecha) : null;
+    const nueva = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), base ? base.getHours() : 8, base ? base.getMinutes() : 0);
+    if (nueva.getTime() < Date.now()) { agregarNotificacion('⚠️ No puedes mover una evaluación a una fecha que ya pasó.'); return; }
+    if (base && claveDia(base) === claveDia(nueva)) return;
+    onCambiarFecha(s, nueva);
+    setSelId(s.id); setDiaSel(claveDia(nueva));
+  };
+
+  const exportarIcs = () => {
+    const lista = conFecha.filter(s => String(s.estado || '').toUpperCase() !== 'CANCELADA');
+    if (lista.length === 0) { agregarNotificacion('No hay evaluaciones con fecha para exportar.'); return; }
+    const blob = new Blob([generarIcs(lista, materia)], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `evaluaciones_${materia.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_').slice(0, 40) || 'plan'}.ics`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    agregarNotificacion(`📅 Se descargó el calendario con ${lista.length} evaluación(es). Ábrelo para agregarlas a Google Calendar o al calendario del celular.`);
+  };
+
+  const listaLateral = diaSel
+    ? (porDia.get(diaSel) || [])
+    : conFecha.filter(s => new Date(s.fecha as Date).getTime() >= new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime())
+        .sort((a, b) => new Date(a.fecha as Date).getTime() - new Date(b.fecha as Date).getTime()).slice(0, 8);
+
+  const renderChip = (s: SeccionExamen, compacto = false) => {
+    const c = colorSeccion(s.grupoSeccion);
+    const est = estadoVisibleEvaluacion(s);
+    const f = s.fecha ? new Date(s.fecha) : null;
+    const movible = esMovible(s);
+    const tachado = String(s.estado || '').toUpperCase() === 'CANCELADA';
+    return (
+      <div
+        key={s.id}
+        draggable={movible}
+        onDragStart={(e) => { e.dataTransfer.setData('text/plain', s.id); e.dataTransfer.effectAllowed = 'move'; setArrastrando(s.id); }}
+        onDragEnd={() => { setArrastrando(null); setDestino(null); }}
+        onClick={(e) => { e.stopPropagation(); setSelId(s.id); if (f) setDiaSel(claveDia(f)); setNuevaFecha(''); }}
+        title={`${limpiarTexto(s.nombre)} · Sección ${(s.grupoSeccion || 'A').toUpperCase()} · ${est.texto}${movible ? ' · Arrástrala para cambiar el día' : ''}`}
+        className={`border rounded-md px-1.5 py-0.5 text-[10px] leading-tight cursor-pointer select-none transition-all ${c.chip} ${movible ? 'active:cursor-grabbing' : 'opacity-70'} ${selId === s.id ? 'ring-1 ring-white/60' : ''} ${arrastrando === s.id ? 'opacity-40' : ''}`}
+      >
+        <div className={`flex items-center gap-1 min-w-0 ${tachado ? 'line-through' : ''}`}>
+          <span className="flex-shrink-0">{est.texto.split(' ')[0]}</span>
+          {!compacto && f && <span className="flex-shrink-0 opacity-80">{horaTexto(f)}</span>}
+          <span className="truncate font-medium">{limpiarTexto(s.nombre)}</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Encabezado */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <CalendarDays className="w-6 h-6 text-[#818cf8] flex-shrink-0" />
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-[#e0e0ec]">Calendario de evaluaciones</h2>
+            <p className="text-xs text-[#8a8b9e] truncate">{materia} · Arrastra una evaluación a otro día para cambiar su fecha</p>
+          </div>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={exportarIcs} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[#1f2035] border border-[#313248] text-[#c7d2fe] hover:border-[#818cf8]/50 hover:bg-[#818cf8]/10 transition-colors" title="Descarga un archivo .ics para Google Calendar o el calendario del celular">
+            <Download className="w-4 h-4" />Exportar calendario
+          </button>
+        </div>
+      </div>
+
+      {/* Navegación + filtros */}
+      <div className="flex flex-wrap items-center gap-2 bg-[#1d1e2e] border border-[#313248] rounded-2xl p-2">
+        <button onClick={() => cambiarMes(-1)} className="p-2 rounded-lg text-[#b0b0c4] hover:bg-[#272839]" aria-label="Mes anterior"><ChevronLeft className="w-4 h-4" /></button>
+        <span className="min-w-[150px] text-center text-sm font-semibold text-[#e0e0ec]">{MESES[mesVista.mes]} {mesVista.anio}</span>
+        <button onClick={() => cambiarMes(1)} className="p-2 rounded-lg text-[#b0b0c4] hover:bg-[#272839]" aria-label="Mes siguiente"><ChevronRight className="w-4 h-4" /></button>
+        <button onClick={irHoy} className="px-3 py-1.5 text-xs rounded-lg bg-[#272839] text-[#d0d0da] hover:bg-[#2e2f42]">Hoy</button>
+        <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+          {letras.length === 0 && <span className="text-xs text-[#6a6b7e] px-2">Sin evaluaciones todavía</span>}
+          {letras.map(l => {
+            const c = colorSeccion(l); const oculta = ocultas.includes(l);
+            return (
+              <button key={l} onClick={() => setOcultas(p => p.includes(l) ? p.filter(x => x !== l) : [...p, l])}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${oculta ? 'border-[#313248] text-[#6a6b7e] line-through' : `${c.borde} ${c.texto} bg-white/5`}`}
+                title={oculta ? `Mostrar sección ${l}` : `Ocultar sección ${l}`}>
+                <span className={`w-2 h-2 rounded-full ${oculta ? 'bg-[#4a4b5e]' : c.punto}`} />Sección {l}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Avisos de choques */}
+      {choques.length > 0 && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 overflow-hidden">
+          <button onClick={() => setVerChoques(v => !v)} className="w-full px-4 py-2.5 flex items-center gap-2 text-left">
+            <AlertCircle className="w-4 h-4 text-red-300 flex-shrink-0" />
+            <span className="text-sm font-semibold text-red-200">{choques.length} posible{choques.length === 1 ? '' : 's'} choque{choques.length === 1 ? '' : 's'} de fechas</span>
+            <span className="text-xs text-red-300/80 hidden sm:inline">· misma sección con 2 evaluaciones el mismo día o más de 2 en una semana</span>
+            <span className="ml-auto text-red-300">{verChoques ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
+          </button>
+          {verChoques && (
+            <ul className="px-4 pb-3 space-y-1.5">
+              {choques.map((c, i) => {
+                const [a, m, d] = c.clave.split('-').map(Number);
+                const fecha = new Date(a, m - 1, d).toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' });
+                return (
+                  <li key={i} className="text-xs text-red-100/90">
+                    <strong>Sección {c.seccion}</strong> · {c.tipo === 'dia' ? `el ${fecha}` : `la semana del ${fecha}`}: {c.evaluaciones.map(e => limpiarTexto(e.nombre)).join(', ')}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Evaluaciones sin fecha: se pueden arrastrar al calendario */}
+      {sinFecha.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[#8a8b9e]">Sin fecha (arrástralas a un día):</span>
+          {sinFecha.map(s => <div key={s.id} className="max-w-[220px]">{renderChip(s, true)}</div>)}
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-[1fr_300px] gap-4">
+        {/* Cuadrícula del mes */}
+        <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-[#313248]">
+            {DIAS_SEMANA.map(d => <div key={d} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-[#8a8b9e]">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7">
+            {dias.map((dia, i) => {
+              const k = claveDia(dia);
+              const delMes = dia.getMonth() === mesVista.mes;
+              const evs = porDia.get(k) || [];
+              const pasado = k < hoyClave;
+              const choque = letras.some(l => diasConChoque.has(k) && evs.filter(e => (e.grupoSeccion || 'A').toUpperCase() === l && String(e.estado || '').toUpperCase() !== 'CANCELADA').length >= 2);
+              const semanaCargada = i % 7 === 0 && Array.from(semanasConChoque).includes(k);
+              const esDestino = destino === k;
+              return (
+                <div
+                  key={k}
+                  onClick={() => { setDiaSel(k === diaSel ? null : k); setSelId(null); }}
+                  onDragOver={(e) => { if (!pasado) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (destino !== k) setDestino(k); } }}
+                  onDragLeave={() => { if (destino === k) setDestino(null); }}
+                  onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); setDestino(null); setArrastrando(null); if (id) moverADia(id, dia); }}
+                  className={`relative min-h-[64px] sm:min-h-[96px] p-1 sm:p-1.5 border-b border-r border-[#282a3f] cursor-pointer transition-colors
+                    ${(i + 1) % 7 === 0 ? 'border-r-0' : ''} ${delMes ? '' : 'bg-black/20'} ${pasado ? 'opacity-60' : ''}
+                    ${diaSel === k ? 'bg-[#818cf8]/10' : 'hover:bg-[#232438]'} ${esDestino ? 'bg-[#818cf8]/20 ring-2 ring-inset ring-[#818cf8]' : ''}
+                    ${choque ? 'ring-1 ring-inset ring-red-500/60' : ''}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-[11px] w-6 h-6 flex items-center justify-center rounded-full ${k === hoyClave ? 'bg-[#818cf8] text-white font-bold' : delMes ? 'text-[#c0c0cc]' : 'text-[#5a5b6e]'}`}>{dia.getDate()}</span>
+                    {choque && <span className="text-[10px] text-red-300" title="Choque: 2 evaluaciones de la misma sección este día">⚠</span>}
+                    {semanaCargada && !choque && <span className="text-[10px] text-amber-300" title="Semana con más de 2 evaluaciones en una sección">●</span>}
+                  </div>
+                  {/* En pantallas grandes: etiquetas; en el celular: puntos de color */}
+                  <div className="hidden sm:flex flex-col gap-0.5">
+                    {evs.slice(0, 3).map(s => renderChip(s))}
+                    {evs.length > 3 && <span className="text-[10px] text-[#8a8b9e] pl-1">+{evs.length - 3} más</span>}
+                  </div>
+                  <div className="flex sm:hidden flex-wrap gap-0.5">
+                    {evs.map(s => <span key={s.id} className={`w-1.5 h-1.5 rounded-full ${colorSeccion(s.grupoSeccion).punto}`} />)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Panel lateral: detalle o lista del día / próximas */}
+        <div className="space-y-3">
+          {sel ? (() => {
+            const c = colorSeccion(sel.grupoSeccion);
+            const f = sel.fecha ? new Date(sel.fecha) : null;
+            const google = enlaceGoogleCalendar(sel, materia);
+            return (
+              <div className={`bg-[#1d1e2e] border ${c.borde} rounded-2xl p-4 space-y-3`}>
+                <div className="flex items-start gap-2">
+                  <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${c.punto}`} />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-[#e0e0ec]">{limpiarTexto(sel.nombre)}</h3>
+                    <p className="text-xs text-[#8a8b9e]">Sección {(sel.grupoSeccion || 'A').toUpperCase()}</p>
+                  </div>
+                  <button onClick={() => setSelId(null)} className="p-1 text-[#8a8b9e] hover:text-white rounded" aria-label="Cerrar"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="text-xs text-[#c0c0cc] space-y-1">
+                  <p>🗓️ {f ? f.toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }) : 'Sin fecha'}</p>
+                  {sel.tipoActividad && <p>🎯 {sel.tipoActividad}</p>}
+                  {sel.peso != null && <p>⚖️ Peso: {sel.peso}%</p>}
+                  {sel.tiempoEstimadoMinutos ? <p>⏱️ {sel.tiempoEstimadoMinutos} min</p> : null}
+                </div>
+                <div className="flex items-center gap-2"><span className="text-xs text-[#8a8b9e]">Estado:</span><SelectorEstadoEvaluacion seccion={sel} onCambiar={onCambiarEstado} /></div>
+                {esMovible(sel) && (
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-[#8a8b9e] block">Cambiar fecha y hora</label>
+                    <div className="flex gap-2">
+                      <input type="datetime-local" value={nuevaFecha || (f ? aInputFechaHora(f) : '')} onChange={(e) => setNuevaFecha(e.target.value)}
+                        className="flex-1 min-w-0 bg-[#272839] border border-[#313248] rounded-lg px-2 py-1.5 text-xs text-[#e0e0ec] [color-scheme:dark]" />
+                      <button disabled={!nuevaFecha} onClick={() => {
+                        const d = new Date(nuevaFecha);
+                        if (isNaN(d.getTime())) return;
+                        if (d.getTime() < Date.now()) { agregarNotificacion('⚠️ La nueva fecha debe ser futura.'); return; }
+                        onCambiarFecha(sel, d); setNuevaFecha(''); setDiaSel(claveDia(d)); setMesVista({ anio: d.getFullYear(), mes: d.getMonth() });
+                      }} className="px-3 py-1.5 text-xs rounded-lg bg-[#818cf8] text-white font-semibold disabled:opacity-40">Guardar</button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {google && <a href={google} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[#272839] text-[#c7d2fe] hover:bg-[#2e2f42]"><CalendarIcon className="w-3.5 h-3.5" />Google Calendar</a>}
+                  <button onClick={() => onIrAPlanificador(sel)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[#272839] text-[#c7d2fe] hover:bg-[#2e2f42]"><ClipboardList className="w-3.5 h-3.5" />Ver en el planificador</button>
+                </div>
+              </div>
+            );
+          })() : null}
+
+          <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#8a8b9e] mb-3">
+              {diaSel ? (() => { const [a, m, d] = diaSel.split('-').map(Number); return new Date(a, m - 1, d).toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' }); })() : 'Próximas evaluaciones'}
+            </h3>
+            {listaLateral.length === 0 ? (
+              <p className="text-xs text-[#6a6b7e]">{diaSel ? 'No hay evaluaciones este día.' : 'No hay evaluaciones próximas.'}</p>
+            ) : (
+              <div className="space-y-2">
+                {listaLateral.map(s => {
+                  const c = colorSeccion(s.grupoSeccion); const f = new Date(s.fecha as Date);
+                  return (
+                    <button key={s.id} onClick={() => { setSelId(s.id); setDiaSel(claveDia(f)); setNuevaFecha(''); }} className={`w-full text-left flex items-start gap-2 p-2 rounded-xl hover:bg-[#232438] ${selId === s.id ? 'bg-[#232438]' : ''}`}>
+                      <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${c.punto}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-[#e0e0ec] truncate">{limpiarTexto(s.nombre)}</p>
+                        <p className="text-[11px] text-[#8a8b9e]">{diaSel ? horaTexto(f) : f.toLocaleDateString('es-VE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + horaTexto(f)} · Sec. {(s.grupoSeccion || 'A').toUpperCase()}</p>
+                      </div>
+                      <span className="text-[10px] flex-shrink-0">{estadoVisibleEvaluacion(s).texto.split(' ')[0]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {diaSel && <button onClick={() => setDiaSel(null)} className="mt-3 text-[11px] text-[#a5b4fc] hover:text-[#c7d2fe]">Ver próximas evaluaciones</button>}
+          </div>
+
+          <p className="text-[11px] text-[#6a6b7e] px-1">💡 Al cambiar la fecha de una evaluación, los recordatorios de WhatsApp se ajustan solos a la nueva fecha.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado }: any) {
   // Vista previa del plan: SOLO las evaluaciones de la sección activa que están marcadas
   const listaPlan: SeccionExamen[] = Array.isArray(seccionesPlan) ? seccionesPlan : secciones;
@@ -3473,10 +3881,10 @@ if (sonCuatro && generarPDF) {
 // ============================================
 type PanelDerechoHandle = { limpiarYScroll: () => void; };
 interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; debeCambiarPassword?: boolean; }
-interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
+interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
 
 const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
-  const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'>(vistaInicial);
+  const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
   // --- Tarjetas incluidas en el "Plan de Acción" ---
@@ -3537,6 +3945,12 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const pdfUrlLocal = pdfPorSeccion[seccionActiva] ?? null;
   const pdfAbiertoLocal = pdfAbiertoPorSeccion[seccionActiva] ?? false;
   const [cargandoPdf, setCargandoPdf] = useState(false);
+  // Cambia la fecha desde el calendario (arrastrar o "Cambiar fecha"). El guardado automático la lleva a la base de datos
+  // y los recordatorios de WhatsApp se calculan con la fecha nueva.
+  const cambiarFechaEvaluacion = (sec: SeccionExamen, fecha: Date) => {
+    setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, fecha } : s) }));
+    agregarNotificacion(`📅 "${limpiarTexto(sec.nombre)}" ahora es el ${fecha.toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}.`);
+  };
   // Marca una evaluación como realizada / reprogramada / cancelada (se guarda al instante en la base de datos)
   const cambiarEstadoEvaluacion = async (sec: SeccionExamen, estado: string, fecha?: Date): Promise<boolean> => {
     try {
@@ -4066,18 +4480,19 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   };
   // Pestañas ordenadas por rol. 'admin' = supervisión del sistema; 'trabajo' = el espacio propio de la persona.
   // El superadmin no tiene la pestaña Planificador: lo abre desde el ícono del chat, junto a la configuración del agente.
-  type Pestana = { id: 'planificacion' | 'estadisticas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
+  type Pestana = { id: 'planificacion' | 'estadisticas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera' | 'calendario'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
   const tabDashboard: Pestana = { id: 'estadisticas', label: 'Dashboard', icon: BarChart3, grupo: puedeAdministrar ? 'admin' : 'trabajo' };
   const tabPlanificador: Pestana = { id: 'planificacion', label: 'Planificador', icon: ClipboardList, grupo: 'trabajo' };
   const tabEstudiantes: Pestana = { id: 'estudiantes', label: 'Estudiantes', icon: Users, grupo: 'trabajo' };
   const tabPapelera: Pestana = { id: 'papelera', label: 'Papelera', icon: Trash2, grupo: 'trabajo' };
   const tabUsuarios: Pestana = { id: 'usuarios', label: 'Usuarios', icon: UserCog, grupo: 'admin', badge: solicitudesPendientes };
   const tabActividad: Pestana = { id: 'actividad', label: 'Actividad', icon: Activity, grupo: 'admin' };
+  const tabCalendario: Pestana = { id: 'calendario', label: 'Calendario', icon: CalendarDays, grupo: 'trabajo' };
   const tabs: Pestana[] = esSuperadmin
-    ? [tabDashboard, tabUsuarios, tabActividad, tabEstudiantes, tabPapelera]
+    ? [tabDashboard, tabUsuarios, tabActividad, tabCalendario, tabEstudiantes, tabPapelera]
     : puedeAdministrar
-      ? [tabDashboard, tabUsuarios, tabPlanificador, tabEstudiantes, tabPapelera]
-      : [tabPlanificador, tabDashboard, tabEstudiantes, tabPapelera];
+      ? [tabDashboard, tabUsuarios, tabPlanificador, tabCalendario, tabEstudiantes, tabPapelera]
+      : [tabPlanificador, tabCalendario, tabDashboard, tabEstudiantes, tabPapelera];
 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
@@ -4134,6 +4549,18 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 custom-scrollbar bg-[#161722]">
         <AnimatePresence mode="wait">
+          {vista === 'calendario' && (
+            <motion.div key="calendario" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto">
+              <CalendarioPanel
+                secciones={planificacion.secciones}
+                materia={planificacion.materia || 'Asignatura'}
+                onCambiarFecha={cambiarFechaEvaluacion}
+                onCambiarEstado={cambiarEstadoEvaluacion}
+                onIrAPlanificador={(s: SeccionExamen) => { setSeccionActiva((s.grupoSeccion || 'A').toUpperCase()); setVista('planificacion'); setScrollToSections(true); }}
+                agregarNotificacion={agregarNotificacion}
+              />
+            </motion.div>
+          )}
           {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><DashboardPorRol planificacion={planificacion} usuario={usuario} onMiTrabajo={() => { if (typeof window !== 'undefined' && window.innerWidth >= 768) onAbrirChat?.(); }} /></motion.div>)}
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
@@ -4501,7 +4928,7 @@ const guardarPlanificacionEnBD = async () => {
   const anchoChat = Math.min(640, Math.round(anchoPantalla * 0.45));
   const [propuestaPendiente, setPropuestaPendiente] = useState<PropuestaEvaluacion | null>(null);
   const [seccionPlanificador, setSeccionPlanificador] = useState<string>('A'); // sección (A, B, C...) abierta en el planificador
-  const [vistaActual, setVistaActual] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema'>('estadisticas');
+  const [vistaActual, setVistaActual] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>('estadisticas');
   const [planificacion, setPlanificacion] = useState<PlanificacionExamen>({ id: '1', version: 1, estado: 'borrador', fechaExamen: new Date(), tipoExamen: 'mixto', duracionMinutos: 0, materia: 'Ing Software', secciones: [], rubrica: [], comentariosAgente: [{ id: 'c1', tipo: 'info', mensaje: 'Sube un archivo o escribe en el chat para comenzar la planificación.', timestamp: new Date() }] });
     // CARGAR EVALUACIONES DESDE LA BD AL REFRESCAR
   useEffect(() => {
