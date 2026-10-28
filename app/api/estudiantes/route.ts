@@ -30,10 +30,13 @@ export async function GET(request: Request) {
 
     const estudiantes = await prisma.estudiante.findMany({
       where,
-      ...(todos ? { include: { usuario: { select: { id: true, nombre: true } } } } : {}),
+      include: {
+        ...(todos ? { usuario: { select: { id: true, nombre: true } } } : {}),
+        _count: { select: { calificaciones: { where: { puntaje: { not: null } } } } }, // cuántas notas tiene
+      },
       orderBy: { nombre: 'asc' },
     })
-    return NextResponse.json(estudiantes)
+    return NextResponse.json(estudiantes.map(({ _count, ...e }: any) => ({ ...e, notasCargadas: _count?.calificaciones ?? 0 })))
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'Error al obtener estudiantes' }, { status: 500 })

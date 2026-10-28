@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
+import { recalcularPromedios } from '@/lib/notas'
 
 const ESTADOS = ['PROGRAMADA', 'REALIZADA', 'REPROGRAMADA', 'CANCELADA'] as const
 const ETIQUETA: Record<string, string> = { PROGRAMADA: 'programada', REALIZADA: 'realizada', REPROGRAMADA: 'reprogramada', CANCELADA: 'cancelada' }
@@ -33,6 +34,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       data.fecha = f
     }
     const actualizada = await prisma.evaluacion.update({ where: { id }, data, select: { id: true, estado: true, estadoEn: true, fecha: true } })
+    // Las canceladas no cuentan en el promedio: se recalcula a quienes tenían nota en ella
+    const conNota = await prisma.calificacion.findMany({ where: { evaluacionId: id }, select: { estudianteId: true } })
+    if (conNota.length) await recalcularPromedios(conNota.map(c => c.estudianteId))
     await registrarActividad({ actor, accion: 'EDITAR', entidad: 'Evaluación', detalle: `Marcó "${ev.nombre}" como ${ETIQUETA[estado]} (${ev.planificacion.materia.nombre})`.slice(0, 300) })
     return NextResponse.json(actualizada)
   } catch (e) {

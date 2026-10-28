@@ -206,8 +206,9 @@ model Estudiante {
 
 model Calificacion {
   id            String     @id @default(cuid())
-  puntaje       Float?
+  puntaje       Float?   // nota sobre 20
   observaciones String?
+  detalle       Json?    // nivel elegido en cada criterio de la rúbrica (0 Excelente … 3 Deficiente)
   estudianteId  String
   estudiante    Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
   evaluacionId  String
@@ -355,7 +356,7 @@ model EnvioWhatsApp {
   id           String    @id
   loteId       String
   usuarioId    String    // profesor dueño
-  tipo         String    // 'PLAN' | 'RECORDATORIO'
+  tipo         String    // 'PLAN' | 'RECORDATORIO' | 'NOTA'
   estudianteId String?
   nombre       String
   telefono     String

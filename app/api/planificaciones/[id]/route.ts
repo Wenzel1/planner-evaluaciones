@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarAPapelera } from '@/lib/papelera'
+import { recalcularPromedios } from '@/lib/notas'
 
 // Campos de una evaluación tal como se guardan (sin el estado: ese se cambia con /api/evaluaciones/:id/estado)
 function datosEvaluacion(ev: any, index: number) {
@@ -101,6 +102,7 @@ export async function PUT(
 
     // Todo el guardado va en una sola transacción: o se guarda completo, o no se toca nada
     let eliminadas: any[] = []
+    let conNotas: string[] = [] // estudiantes que tenían nota en evaluaciones borradas
     const idsNuevos: Record<string, string> = {} // id que usaba la pantalla → id real en la base de datos
     await prisma.$transaction(async (tx) => {
     // Actualizar campos principales
@@ -134,6 +136,7 @@ export async function PUT(
         }
       }
       eliminadas = existentes.filter(e => !conservar.has(e.id))
+      if (eliminadas.length > 0) conNotas = (await tx.calificacion.findMany({ where: { evaluacionId: { in: eliminadas.map(e => e.id) } }, select: { estudianteId: true } })).map(c => c.estudianteId)
       if (eliminadas.length > 0) await tx.evaluacion.deleteMany({ where: { id: { in: eliminadas.map(e => e.id) } } })
     }
 
@@ -174,6 +177,7 @@ export async function PUT(
     }
     }, { timeout: 20000 })
 
+    if (conNotas.length > 0) await recalcularPromedios(conNotas)
     if (eliminadas.length > 0) {
       await enviarAPapelera(eliminadas.map((ev) => ({
         usuarioId: dueno.usuarioId ?? actor.id, // la papelera es del dueño del plan, aunque lo guarde el superadmin

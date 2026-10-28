@@ -1180,6 +1180,7 @@ interface Estudiante {
   estado: 'activo' | 'inactivo';
   promedio: number;
   asistencia: number;
+  notasCargadas?: number; // cuántas evaluaciones tiene calificadas
 }
 
 const estudiantesIniciales: Estudiante[] = [
@@ -2178,8 +2179,10 @@ function EstudiantesPanel() {
 
   const totalEstudiantes = estudiantes.length;
   const totalActivos = estudiantes.filter(e => e.estado === 'activo').length;
-  const promedioGeneral = totalEstudiantes > 0 ? Math.round(estudiantes.reduce((acc, e) => acc + e.promedio, 0) / totalEstudiantes) : 0;
-  const asistenciaGeneral = totalEstudiantes > 0 ? Math.round(estudiantes.reduce((acc, e) => acc + e.asistencia, 0) / totalEstudiantes) : 0;
+  // Promedio (sobre 20) solo de quienes ya tienen notas; aprobado = 10 o más
+  const calificados = estudiantes.filter(e => (e.notasCargadas ?? 0) > 0);
+  const promedioGeneral = calificados.length > 0 ? calificados.reduce((acc, e) => acc + e.promedio, 0) / calificados.length : null;
+  const aprobados = calificados.filter(e => e.promedio >= 10).length;
   const grupos = [...new Set(estudiantes.map(e => e.grupo))];
 
   const agregarEstudiante = async () => {
@@ -2273,14 +2276,14 @@ function EstudiantesPanel() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Total</p><p className="text-lg font-bold text-[#d0d0da]">{totalEstudiantes}</p></div>
         <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Activos</p><p className="text-lg font-bold text-emerald-400">{totalActivos}</p></div>
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Promedio</p><p className="text-lg font-bold text-[#818cf8]">{promedioGeneral}%</p></div>
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Asistencia</p><p className="text-lg font-bold text-blue-400">{asistenciaGeneral}%</p></div>
+        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Promedio</p><p className="text-lg font-bold text-[#818cf8]">{promedioGeneral == null ? '—' : `${promedioGeneral.toFixed(1).replace('.', ',')}/20`}</p></div>
+        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Aprobados</p><p className="text-lg font-bold text-blue-400">{calificados.length === 0 ? '—' : `${aprobados} de ${calificados.length}`}</p></div>
       </div>
 
       <div className="bg-[#1f2035] border border-[#313248] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-[#8a8b9e] border-b border-[#313248] bg-[#191a26]"><th className="py-3 px-4 font-medium">Nombre</th><th className="py-3 px-4 font-medium">Correo</th><th className="py-3 px-4 font-medium">Teléfono</th><th className="py-3 px-4 font-medium">Grupo</th><th className="py-3 px-4 font-medium">Estado</th><th className="py-3 px-4 font-medium text-center">Acciones</th></tr></thead>
+            <thead><tr className="text-left text-xs text-[#8a8b9e] border-b border-[#313248] bg-[#191a26]"><th className="py-3 px-4 font-medium">Nombre</th><th className="py-3 px-4 font-medium">Correo</th><th className="py-3 px-4 font-medium">Teléfono</th><th className="py-3 px-4 font-medium">Grupo</th><th className="py-3 px-4 font-medium text-center">Promedio</th><th className="py-3 px-4 font-medium">Estado</th><th className="py-3 px-4 font-medium text-center">Acciones</th></tr></thead>
             <tbody className="divide-y divide-[#313248]">
               {filteredEstudiantes.map(est => (
                 <tr key={est.id} className="hover:bg-[#272839]/50 transition-colors">
@@ -2288,6 +2291,7 @@ function EstudiantesPanel() {
                   <td className="py-3 px-4 text-[#b0b0c4]">{est.email}</td>
                   <td className="py-3 px-4 text-[#b0b0c4]">{est.telefono}</td>
                   <td className="py-3 px-4"><span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[#818cf8]/10 text-[#818cf8] border border-[#818cf8]/20">{est.grupo}</span></td>
+                  <td className="py-3 px-4 text-center">{(est.notasCargadas ?? 0) > 0 ? (<span title={`Promedio ponderado de ${est.notasCargadas} evaluación(es)`} className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${est.promedio >= 10 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25' : 'bg-red-500/10 text-red-300 border-red-500/25'}`}>{est.promedio.toFixed(1).replace('.', ',')}</span>) : <span className="text-[#6a6b7e]">—</span>}</td>
                   <td className="py-3 px-4"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${est.estado === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}><span className={`w-1.5 h-1.5 rounded-full ${est.estado === 'activo' ? 'bg-emerald-400' : 'bg-red-400'}`}></span>{est.estado === 'activo' ? 'Activo' : 'Inactivo'}</span></td>
                   <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-1">
@@ -2297,7 +2301,7 @@ function EstudiantesPanel() {
                   </td>
                 </tr>
               ))}
-              {filteredEstudiantes.length === 0 && (<tr><td colSpan={6} className="py-8 text-center text-[#8a8b9e]">No hay estudiantes registrados</td></tr>)}
+              {filteredEstudiantes.length === 0 && (<tr><td colSpan={7} className="py-8 text-center text-[#8a8b9e]">No hay estudiantes registrados</td></tr>)}
             </tbody>
           </table>
         </div>
@@ -3106,8 +3110,9 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
   );
 }
 
-function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica }: any) {
+function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica, onEstadoLocal }: any) {
   const [rubricaDe, setRubricaDe] = useState<SeccionExamen | null>(null);
+  const [notasDe, setNotasDe] = useState<SeccionExamen | null>(null);
   // Vista previa del plan: SOLO las evaluaciones de la sección activa que están marcadas
   const listaPlan: SeccionExamen[] = Array.isArray(seccionesPlan) ? seccionesPlan : secciones;
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
@@ -3242,6 +3247,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               enviando={enviandoId === seccion.id}
               onCambiarEstado={onCambiarEstado}
               onRubrica={onGuardarRubrica ? setRubricaDe : undefined}
+              onNotas={setNotasDe}
             />
           );
         })}
@@ -3249,6 +3255,11 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
       <AnimatePresence>
         {rubricaDe && onGuardarRubrica && (
           <EditorRubrica key={rubricaDe.id} seccion={rubricaDe} onCerrar={() => setRubricaDe(null)} onGuardar={(r) => { onGuardarRubrica(rubricaDe, r); setRubricaDe(null); }} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {notasDe && (
+          <ModalNotas key={notasDe.id} seccion={notasDe} onCerrar={() => setNotasDe(null)} agregarNotificacion={agregarNotificacion} onEstadoCambiado={onEstadoLocal} />
         )}
       </AnimatePresence>
       <div className="space-y-2">
@@ -3378,13 +3389,246 @@ function EditorRubrica({ seccion, onGuardar, onCerrar }: { seccion: SeccionExame
 }
 
 // ============================================
+// NOTAS DE UNA EVALUACIÓN (escala de 1 a 20, con o sin rúbrica)
+// ============================================
+interface FilaNota { id: string; nombre: string; tieneTelefono: boolean; activo: boolean; puntaje: string; observaciones: string; detalle: (number | null)[]; verObs: boolean; guardado: string }
+const NIVEL_CORTO = ['Exc.', 'Bueno', 'Reg.', 'Def.'];
+const COLOR_BOTON_NIVEL = ['bg-emerald-500/20 border-emerald-500/50 text-emerald-200', 'bg-sky-500/20 border-sky-500/50 text-sky-200', 'bg-amber-500/20 border-amber-500/50 text-amber-200', 'bg-red-500/20 border-red-500/50 text-red-200'];
+const textoNota = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0$/, '').replace('.', ','));
+function notaDesdeRubrica(r: RubricaEval, detalle: (number | null)[]): number | null {
+  if (!detalle.some(x => x != null)) return null;
+  const total = totalRubrica(r) || 20;
+  const suma = r.criterios.reduce((t, c, i) => t + (detalle[i] != null ? puntosNivel(c.puntos, detalle[i] as number) : 0), 0);
+  return Math.round((suma / total) * 20 * 100) / 100;
+}
+function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }: { seccion: SeccionExamen; onCerrar: () => void; agregarNotificacion: (m: string) => void; onEstadoCambiado?: (id: string, estado: string) => void }) {
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
+  const [filas, setFilas] = useState<FilaNota[]>([]);
+  const [rubrica, setRubrica] = useState<RubricaEval | null>(null);
+  const [conRubrica, setConRubrica] = useState(false);
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [envio, setEnvio] = useState<{ total: number; enviados: number; fallidos: number } | null>(null);
+  const refs = useRef<Record<string, HTMLInputElement | null>>({});
+  const nombre = limpiarTexto(seccion.nombre);
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`);
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'No se pudieron cargar las notas.');
+        if (!vivo) return;
+        const rub = normalizarRubrica(d.evaluacion?.rubrica);
+        setRubrica(rub);
+        const lista: FilaNota[] = (d.estudiantes || []).map((e: any) => {
+          const p = e.puntaje == null ? '' : String(e.puntaje).replace('.', ',');
+          return { id: e.id, nombre: e.nombre, tieneTelefono: !!e.tieneTelefono, activo: e.activo !== false, puntaje: p, observaciones: e.observaciones || '', detalle: rub ? rub.criterios.map((_, i) => (Array.isArray(e.detalle) && Number.isInteger(e.detalle[i]) ? e.detalle[i] : null)) : [], verObs: !!e.observaciones, guardado: '' };
+        });
+        setFilas(lista.map(f => ({ ...f, guardado: firma(f) })));
+        // Con rúbrica por defecto si existe y nadie tiene nota puesta a mano
+        setConRubrica(!!rub && !lista.some(f => f.puntaje && !f.detalle.some(x => x != null)));
+      } catch (e: any) { if (vivo) setError(e.message); } finally { if (vivo) setCargando(false); }
+    })();
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    window.addEventListener('keydown', tecla);
+    const overflow = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    return () => { vivo = false; window.removeEventListener('keydown', tecla); document.body.style.overflow = overflow; };
+  }, [seccion.id]);
+
+  const numero = (t: string) => { const n = Number(String(t).replace(',', '.')); return t.trim() === '' || !Number.isFinite(n) ? null : n; };
+  const invalida = (f: FilaNota) => f.puntaje.trim() !== '' && (numero(f.puntaje) == null || (numero(f.puntaje) as number) < 0 || (numero(f.puntaje) as number) > 20);
+  const firma = (f: FilaNota) => { const n = numero(f.puntaje); return `${n == null ? '' : String(n).replace('.', ',')}|${f.observaciones.trim()}|${JSON.stringify(f.detalle.some(x => x != null) ? f.detalle : null)}`; };
+  const cambiadas = filas.filter(f => firma(f) !== f.guardado);
+  const hayErrores = filas.some(invalida);
+
+  const actualizar = (id: string, cambio: Partial<FilaNota>) => setFilas(prev => prev.map(f => (f.id === id ? { ...f, ...cambio } : f)));
+  const elegirNivel = (f: FilaNota, criterio: number, nivel: number) => {
+    if (!rubrica) return;
+    const detalle = f.detalle.map((x, i) => (i === criterio ? (x === nivel ? null : nivel) : x));
+    const nota = notaDesdeRubrica(rubrica, detalle);
+    actualizar(f.id, { detalle, puntaje: nota == null ? '' : String(nota).replace('.', ',') });
+  };
+  const siguiente = (id: string) => {
+    const i = filas.findIndex(f => f.id === id);
+    const prox = filas[i + 1];
+    if (prox) refs.current[prox.id]?.focus();
+  };
+
+  const notas = filas.map(f => numero(f.puntaje)).filter((n): n is number => n != null && n >= 0 && n <= 20);
+  const promedio = notas.length ? notas.reduce((t, n) => t + n, 0) / notas.length : null;
+  const aprobados = notas.filter(n => n >= 10).length;
+
+  const guardar = async () => {
+    if (hayErrores || cambiadas.length === 0) return;
+    setGuardando(true);
+    try {
+      const r = await fetch(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notas: cambiadas.map(f => ({ estudianteId: f.id, puntaje: numero(f.puntaje), observaciones: f.observaciones, detalle: f.detalle.some(x => x != null) ? f.detalle : null })) }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'No se pudieron guardar las notas.');
+      setFilas(prev => prev.map(f => ({ ...f, guardado: firma(f) })));
+      agregarNotificacion(`📝 Notas de "${nombre}" guardadas (${d.guardadas} con nota${d.borradas ? `, ${d.borradas} borrada(s)` : ''}).`);
+      if (d.estado && d.estado !== seccion.estado) onEstadoCambiado?.(seccion.id, d.estado);
+    } catch (e: any) { alert(e.message); } finally { setGuardando(false); }
+  };
+
+  const destinatarios = filas.filter(f => f.tieneTelefono && f.guardado.split('|')[0] !== '');
+  const enviar = async () => {
+    if (cambiadas.length > 0) { alert('Primero guarda las notas.'); return; }
+    if (destinatarios.length === 0) { alert('Nadie con nota guardada tiene teléfono.'); return; }
+    if (!window.confirm(`Se enviará por WhatsApp su nota a ${destinatarios.length} estudiante(s). Cada uno recibe solo la suya. ¿Continuar?`)) return;
+    setEnviando(true); setEnvio(null);
+    try {
+      const r = await fetch(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas/enviar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteIds: destinatarios.map(f => f.id) }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'No se pudieron enviar las notas.');
+      setEnvio({ total: d.total, enviados: 0, fallidos: 0 });
+      // Sigue el avance del envío (n8n manda de a uno con pausas)
+      for (let intento = 0; intento < 60; intento++) {
+        await new Promise(res => setTimeout(res, 3000));
+        const e = await fetch(`/api/whatsapp/envios?lote=${encodeURIComponent(d.loteId)}`).then(x => x.json()).catch(() => null);
+        if (!e?.items) continue;
+        const enviados = e.items.filter((i: any) => i.estado === 'ENVIADO').length;
+        const fallidos = e.items.filter((i: any) => i.estado === 'FALLIDO').length;
+        setEnvio({ total: e.items.length, enviados, fallidos });
+        if (enviados + fallidos >= e.items.length) break;
+      }
+      agregarNotificacion(`📲 Notas de "${nombre}" enviadas por WhatsApp.`);
+    } catch (e: any) { alert(e.message); } finally { setEnviando(false); }
+  };
+
+  const cerrar = () => { if (cambiadas.length > 0 && !window.confirm('Hay notas sin guardar. ¿Cerrar de todas formas?')) return; onCerrar(); };
+  const campo = 'bg-[#272839] border rounded-lg px-2.5 py-1.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none';
+
+  return createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrar(); }}>
+      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+        className="w-full max-w-2xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><GraduationCap className="w-5 h-5 text-emerald-300" /></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-semibold text-white">Notas</p>
+            <p className="text-xs text-[#8a8b9e] truncate">{nombre} · Sección {(seccion.grupoSeccion || 'A').toUpperCase()}{seccion.peso != null ? ` · ${seccion.peso}%` : ''}</p>
+          </div>
+          <button type="button" onClick={cerrar} className="p-1 text-[#6a6b7e] hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+
+        {!cargando && !error && filas.length > 0 && (
+          <div className="px-5 py-2.5 border-b border-[#313248] bg-[#181926] flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+            <span className="text-[#8a8b9e]">Calificados <b className="text-[#d0d0da]">{notas.length}/{filas.length}</b></span>
+            <span className="text-[#8a8b9e]">Promedio <b className="text-[#a5b4fc]">{promedio == null ? '—' : textoNota(Math.round(promedio * 100) / 100)}</b></span>
+            <span className="text-[#8a8b9e]">Aprobados <b className="text-emerald-300">{aprobados}</b></span>
+            {notas.length > 0 && <span className="text-[#8a8b9e]">Rango <b className="text-[#d0d0da]">{textoNota(Math.min(...notas))}–{textoNota(Math.max(...notas))}</b></span>}
+            {rubrica && (
+              <button type="button" onClick={() => setConRubrica(v => !v)} className={`ml-auto h-7 px-2.5 rounded-lg border font-medium flex items-center gap-1.5 transition-colors ${conRubrica ? 'bg-[#818cf8]/15 border-[#818cf8]/50 text-[#c7d2fe]' : 'bg-[#232430] border-[#313248] text-[#a0a0b8] hover:text-white'}`}>
+                <ClipboardCheck className="w-3.5 h-3.5" />{conRubrica ? 'Con rúbrica' : 'Nota directa'}
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+          {cargando && <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#8a8b9e]"><div className="w-4 h-4 border-2 border-[#818cf8] border-t-transparent rounded-full animate-spin" />Cargando estudiantes…</div>}
+          {error && <div className="m-2 flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />{error}</div>}
+          {!cargando && !error && filas.length === 0 && (
+            <div className="text-center py-12 text-sm text-[#8a8b9e]">No hay estudiantes activos en la Sección {(seccion.grupoSeccion || 'A').toUpperCase()}.<br />Agrégalos en la pestaña <b className="text-[#d0d0da]">Estudiantes</b> con el grupo {(seccion.grupoSeccion || 'A').toUpperCase()}.</div>
+          )}
+          <div className="space-y-1.5">
+            {filas.map((f, idx) => {
+              const n = numero(f.puntaje);
+              const mal = invalida(f);
+              const usarRubrica = conRubrica && !!rubrica;
+              const expandida = usarRubrica && abierta === f.id;
+              return (
+                <div key={f.id} className={`rounded-xl border transition-colors ${expandida ? 'border-[#818cf8]/50 bg-[#20213a]' : 'border-[#2a2b3d] bg-[#1f2035]'}`}>
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <span className="w-6 text-[11px] text-[#6a6b7e] text-right flex-shrink-0">{idx + 1}</span>
+                    <button type="button" onClick={() => usarRubrica && setAbierta(expandida ? null : f.id)} className={`flex-1 min-w-0 text-left text-sm truncate ${usarRubrica ? 'hover:text-white cursor-pointer' : 'cursor-default'} ${f.activo ? 'text-[#d0d0da]' : 'text-[#6a6b7e] line-through'}`} title={f.nombre}>
+                      {f.nombre}
+                      {usarRubrica && <span className="ml-2 text-[11px] text-[#6a6b7e]">{f.detalle.filter(x => x != null).length}/{rubrica!.criterios.length} criterios</span>}
+                    </button>
+                    {firma(f) !== f.guardado && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Sin guardar" />}
+                    <button type="button" onClick={() => actualizar(f.id, { verObs: !f.verObs })} className={`p-1.5 rounded-lg ${f.observaciones ? 'text-[#a5b4fc]' : 'text-[#6a6b7e] hover:text-[#a5b4fc]'}`} title="Observación"><MessageSquare className="w-4 h-4" /></button>
+                    <input ref={(el) => { refs.current[f.id] = el; }} inputMode="decimal" value={f.puntaje} readOnly={usarRubrica}
+                      onChange={(e) => actualizar(f.id, { puntaje: e.target.value.replace(/[^\d.,]/g, '').slice(0, 5) })}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); siguiente(f.id); } }}
+                      onClick={() => usarRubrica && setAbierta(f.id)}
+                      placeholder="—" className={`${campo} w-16 text-center font-semibold ${mal ? 'border-red-500 text-red-300' : n == null ? 'border-[#313248]' : n >= 10 ? 'border-emerald-500/40 text-emerald-200' : 'border-red-500/40 text-red-200'} ${usarRubrica ? 'cursor-pointer' : ''}`} />
+                    <span className="text-[11px] text-[#6a6b7e] w-6">/20</span>
+                  </div>
+                  {f.verObs && (
+                    <div className="px-3 pb-2 pl-11">
+                      <input value={f.observaciones} onChange={(e) => actualizar(f.id, { observaciones: e.target.value.slice(0, 500) })} placeholder="Observación (opcional, le llega con la nota)" className={`${campo} w-full text-xs border-[#313248] focus:border-[#818cf8]`} />
+                    </div>
+                  )}
+                  <AnimatePresence initial={false}>
+                    {expandida && rubrica && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                        <div className="px-3 pb-3 pl-11 space-y-2">
+                          {rubrica.criterios.map((c, ci) => (
+                            <div key={ci} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+                              <span className="text-xs text-[#b0b0c4] sm:w-44 truncate" title={c.nombre}>{c.nombre} <span className="text-[#6a6b7e]">({textoPuntos(c.puntos)})</span></span>
+                              <div className="flex gap-1 flex-1">
+                                {NIVELES_RUBRICA.map((nv, k) => (
+                                  <button key={nv} type="button" onClick={() => elegirNivel(f, ci, k)} title={c.descripciones[k] || nv}
+                                    className={`flex-1 h-7 rounded-md border text-[11px] font-medium transition-colors ${f.detalle[ci] === k ? COLOR_BOTON_NIVEL[k] : 'bg-[#232430] border-[#313248] text-[#8a8b9e] hover:text-white'}`}>
+                                    {NIVEL_CORTO[k]} {textoPuntos(puntosNivel(c.puntos, k))}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {!cargando && !error && filas.length > 0 && (
+          <div className="px-5 py-3 border-t border-[#313248] flex flex-wrap items-center gap-2">
+            {envio ? (
+              <span className="text-xs text-[#8a8b9e]">📲 Enviadas <b className="text-emerald-300">{envio.enviados}</b>/{envio.total}{envio.fallidos ? <> · <b className="text-red-300">{envio.fallidos}</b> fallidas</> : null}</span>
+            ) : (
+              <span className="text-[11px] text-[#6a6b7e] hidden sm:inline">{conRubrica && rubrica ? 'Toca un estudiante y elige el nivel de cada criterio.' : 'Enter pasa al siguiente. Deja vacío para quitar la nota.'}</span>
+            )}
+            <div className="ml-auto flex gap-2">
+              <button type="button" onClick={enviar} disabled={enviando || guardando || destinatarios.length === 0} title={destinatarios.length === 0 ? 'Guarda notas de estudiantes con teléfono' : `Enviar a ${destinatarios.length}`}
+                className="h-9 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center gap-1.5 hover:bg-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed">
+                {enviando ? <div className="w-3.5 h-3.5 border-2 border-emerald-300 border-t-transparent rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}Enviar por WhatsApp
+              </button>
+              <button type="button" onClick={guardar} disabled={guardando || hayErrores || cambiadas.length === 0}
+                className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
+                {guardando ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                {hayErrores ? 'Hay notas fuera de 0–20' : cambiadas.length ? `Guardar (${cambiadas.length})` : 'Guardado'}
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// ============================================
 // TARJETA DE EVALUACIÓN (draggable individual, fluida con Framer Motion)
 // ============================================
-function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica }: {
+function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas }: {
   seccion: SeccionExamen; index: number; isSelected: boolean; onToggleSelect?: (id: string) => void;
   expanded: boolean; onToggleExpand: () => void; onEdit: (s: SeccionExamen) => void; onDelete: (id: string) => void;
   onEnviar: (s: SeccionExamen) => void; enviando: boolean; onCambiarEstado?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean>;
   onRubrica?: (s: SeccionExamen) => void;
+  onNotas?: (s: SeccionExamen) => void;
 }) {
   const dragControls = useDragControls();
   const nombreLimpio = limpiarTexto(seccion.nombre);
@@ -3429,6 +3673,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
         <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
           <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
           {onRubrica && <Tooltip text={seccion.rubrica ? 'Ver o editar la rúbrica' : 'Crear rúbrica'}><button onClick={() => onRubrica(seccion)} className={`p-1.5 rounded-lg ${seccion.rubrica ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><ClipboardCheck className="w-4 h-4" /></button></Tooltip>}
+          {onNotas && String(seccion.estado || '').toUpperCase() !== 'CANCELADA' && <Tooltip text="Notas de los estudiantes"><button onClick={() => onNotas(seccion)} className="p-1.5 rounded-lg text-[#8a8b9e] hover:text-emerald-300 hover:bg-emerald-500/10"><GraduationCap className="w-4 h-4" /></button></Tooltip>}
           <Tooltip text="Enviar"><button onClick={() => onEnviar(seccion)} disabled={enviando} className="p-1.5 text-[#8a8b9e] hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">{enviando ? <div className="w-4 h-4 border-2 border-t-emerald-400 rounded-full animate-spin" /> : <Send className="w-4 h-4" />}</button></Tooltip>
           <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
           <Tooltip text="Eliminar"><button onClick={() => onDelete(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
@@ -4927,7 +5172,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   setTarjetasExcluidas(prev => prev.filter(x => x !== id));
   agregarNotificacion(`🗑️ Evaluación eliminada de la BD.`); 
 }}
-                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion} onGuardarRubrica={guardarRubricaEvaluacion}
+                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion} onGuardarRubrica={guardarRubricaEvaluacion} onEstadoLocal={(id: string, estado: string) => setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === id ? { ...s, estado } : s) }))}
                       mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
                       mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
   pdfAbierto={pdfAbiertoLocal}
