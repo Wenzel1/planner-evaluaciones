@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import prisma from '@/lib/prisma'
+import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
 import { enviarLoteN8n, fechaBonita, nombreLimpio, nuevoId, primerNombre, type MensajeLote } from '@/lib/whatsappLotes'
 
 export const maxDuration = 60
@@ -17,13 +18,13 @@ function tipoSegunTiempo(msFaltan: number): '3D' | '1D' | '2H' | null {
   return null
 }
 
-function texto(tipo: '3D' | '1D' | '2H', d: { nombre: string; evaluacion: string; materia: string; seccion: string; fecha: Date; peso: number | null; actividad: string | null }) {
+function texto(tipo: '3D' | '1D' | '2H', d: { nombre: string; evaluacion: string; materia: string; seccion: string; fecha: Date; peso: number | null; actividad: string | null; enlace: string }) {
   const cuando = fechaBonita(d.fecha)
   const extra = [d.actividad ? `Estrategia: ${d.actividad}` : '', d.peso != null ? `Peso: ${d.peso}%` : ''].filter(Boolean).join(' · ')
   const encabezado = tipo === '3D' ? '📅 *Recordatorio:* en 3 días tienes una evaluación'
     : tipo === '1D' ? '⏰ *Recordatorio:* mañana tienes una evaluación'
     : '🔔 *Recordatorio:* en 2 horas comienza tu evaluación'
-  return `Hola ${d.nombre} 👋\n${encabezado}.\n\n*${d.evaluacion}*\n${d.materia} · Sección ${d.seccion}\n🗓️ ${cuando}${extra ? `\n${extra}` : ''}\n\n¡Mucho éxito! 💪`
+  return `Hola ${d.nombre} 👋\n${encabezado}.\n\n*${d.evaluacion}*\n${d.materia} · Sección ${d.seccion}\n🗓️ ${cuando}${extra ? `\n${extra}` : ''}\n\n📚 Repasa los recursos y la rúbrica aquí:\n${d.enlace}\n\n¡Mucho éxito! 💪`
 }
 
 function autorizado(request: Request): boolean {
@@ -79,6 +80,7 @@ async function ejecutar(request: Request) {
         select: { id: true, nombre: true, telefono: true },
       })
       const loteId = nuevoId()
+      const tokens = await tokensDeEstudiantes(estudiantes.map(e => e.id))
       let cuenta = 0
       for (const est of estudiantes) {
         if ((est.telefono || '').replace(/\D/g, '').length < 7) continue
@@ -86,7 +88,7 @@ async function ejecutar(request: Request) {
         const id = nuevoId()
         mensajes.push({
           id, telefono: est.telefono as string,
-          texto: texto(tipo, { nombre: primerNombre(est.nombre), evaluacion: nombreLimpio(ev.nombre), materia: materia.nombre, seccion, fecha: ev.fecha, peso: ev.peso, actividad: ev.tipoActividad }),
+          texto: texto(tipo, { nombre: primerNombre(est.nombre), evaluacion: nombreLimpio(ev.nombre), materia: materia.nombre, seccion, fecha: ev.fecha, peso: ev.peso, actividad: ev.tipoActividad, enlace: urlPortal(request, tokens.get(est.id) as string) }),
         })
         filas.push({ id, loteId, usuarioId: materia.usuarioId, tipo: 'RECORDATORIO', estudianteId: est.id, nombre: est.nombre, telefono: est.telefono })
         cuenta++

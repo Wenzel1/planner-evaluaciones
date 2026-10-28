@@ -4,6 +4,7 @@ import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarLoteN8n, nombreLimpio, nuevoId, primerNombre, type MensajeLote } from '@/lib/whatsappLotes'
 import { NIVELES_RUBRICA, normalizarRubrica, puntosNivel, textoPuntos } from '@/lib/rubrica'
+import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
 import { NOTA_APROBATORIA, NOTA_MAXIMA, textoNota } from '@/lib/notas'
 
 export const maxDuration = 60
@@ -40,6 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const materia = ev.planificacion.materia.nombre
     const seccion = ev.grupoSeccion || 'A'
 
+    const tokens = await tokensDeEstudiantes(conTelefono.map(n => n.estudiante.id))
     const mensajes: MensajeLote[] = conTelefono.map(n => {
       const nota = n.puntaje as number
       const aprobado = nota >= NOTA_APROBATORIA
@@ -58,6 +60,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         })
       }
       if (n.observaciones) lineas.push('', `💬 ${n.observaciones}`)
+      lineas.push('', `📊 Todas tus notas y tu promedio: ${urlPortal(request, tokens.get(n.estudiante.id) as string)}`)
       lineas.push('', aprobado ? '¡Sigue así! 💪' : 'Puedes consultar con tu profesor cómo mejorar. ¡Ánimo! 💪')
       return { id: nuevoId(), telefono: n.estudiante.telefono as string, texto: lineas.join('\n') }
     })

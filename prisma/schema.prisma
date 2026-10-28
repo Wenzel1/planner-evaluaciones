@@ -159,6 +159,10 @@ model Evaluacion {
 
   // Rúbrica propia de esta evaluación: { criterios: [{ nombre, puntos, descripciones: [Excelente, Bueno, Regular, Deficiente] }] }
   rubrica       Json?
+
+  // Portal del estudiante: recursos de estudio [{ titulo, url }] y apertura manual antes de tiempo
+  recursos      Json?
+  abiertaManual Boolean   @default(false)
 }
 
 model CriterioRubrica {
@@ -196,6 +200,9 @@ model Estudiante {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   calificaciones Calificacion[]
+
+  // Enlace secreto de su página personal (/e/<token>). Se crea la primera vez que hace falta.
+  enlaceToken String? @unique
 
   // Dueño (profesor). El mismo estudiante puede existir en la lista de varios profesores.
   usuarioId String?

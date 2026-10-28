@@ -84,6 +84,19 @@ export default function LoginPage() {
     } finally { setReenviando(false) }
   }
 
+  // Si ya hay una sesión abierta (por ejemplo, se llegó aquí con el botón "atrás"), se entra directo a la app
+  useEffect(() => {
+    // Solo si /api/auth/me responde con un usuario de verdad (evita bucles si algo responde con una página HTML)
+    const comprobar = () => fetch('/api/auth/me', { cache: 'no-store' })
+      .then(r => (r.ok && (r.headers.get('content-type') || '').includes('json') ? r.json() : null))
+      .then(u => { if (u && u.id) window.location.replace('/') })
+      .catch(() => {})
+    if (new URLSearchParams(window.location.search).get('sesion') !== 'expirada') comprobar()
+    const alMostrar = (e: PageTransitionEvent) => { if (e.persisted) comprobar() }
+    window.addEventListener('pageshow', alMostrar)
+    return () => window.removeEventListener('pageshow', alMostrar)
+  }, [])
+
   useEffect(() => {
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sesion') === 'expirada') {
       setAviso('Tu sesión expiró o se cerró. Inicia sesión de nuevo para continuar.')
@@ -135,7 +148,7 @@ export default function LoginPage() {
         const d = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(d.error || 'No se pudo verificar el código.')
         setAviso(d.mensaje || 'WhatsApp confirmado.')
-        if (d.entrar) { window.location.href = '/'; return } // la sesión ya quedó abierta
+        if (d.entrar) { window.location.replace('/'); return } // la sesión ya quedó abierta
         setModo('login'); setCodigo(''); setReenvioEn(0)
         return
       }
@@ -181,7 +194,7 @@ export default function LoginPage() {
       const d = await r.json().catch(() => ({}))
       if (r.status === 403 && d.codigo === 'VERIFICAR_TELEFONO') { irAVerificar(d.error); return }
       if (!r.ok) throw new Error(d.error || 'No se pudo iniciar sesión.')
-      window.location.href = '/'
+      window.location.replace('/') // replace: el login no queda en el historial ("atrás" no vuelve aquí)
       return // se queda en "Procesando..." mientras la página cambia
     } catch (err: any) {
       fallar(err instanceof TypeError ? 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.' : err.message)

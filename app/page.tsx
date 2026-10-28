@@ -12,7 +12,7 @@ import {
   BarChart3, ClipboardList, Sparkles,
   Layers, Activity, BookMarked,
   MessageSquareMore, CalendarDays, ChevronLeft,
-  ChevronRight, LogOut, Copy, RotateCcw,
+  ChevronRight, LogOut, Copy, RotateCcw, ExternalLink, Lock, LockOpen,
   Maximize2, Minimize2, CornerDownLeft, FileText,
   Users, Paperclip, Menu, PanelLeft, PanelRight, Pencil,
   Settings, X, CheckCircle, AlertCircle, Info, Phone, User, Users as UsersIcon,
@@ -54,6 +54,9 @@ interface SeccionExamen {
   estado?: string;
   // Rúbrica propia de la evaluación (criterios × Excelente/Bueno/Regular/Deficiente)
   rubrica?: RubricaEval | null;
+  // Portal del estudiante: recursos de estudio y apertura antes de tiempo
+  recursos?: { titulo: string; url: string }[] | null;
+  abiertaManual?: boolean;
 }
 interface CriterioRubrica {
   id: string; nombre: string; peso: number; descripcion: string;
@@ -2218,6 +2221,28 @@ function EstudiantesPanel() {
     }
   };
 
+  // Página personal del estudiante (/e/<token>): ver, copiar o cambiar su enlace
+  const [enlaceCopiado, setEnlaceCopiado] = useState<string | null>(null);
+  const pedirEnlace = async (id: string, nuevo = false): Promise<string> => {
+    const r = await fetch(`/api/estudiantes/${encodeURIComponent(id)}/enlace`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nuevo }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.url) throw new Error(d.error || 'No se pudo obtener el enlace.');
+    return d.url;
+  };
+  const abrirPagina = async (est: Estudiante) => {
+    const ventana = window.open('', '_blank'); // se abre ya para que el navegador no la bloquee
+    try { const url = await pedirEnlace(est.id); if (ventana) ventana.location.href = url; else window.location.href = url; }
+    catch (e: any) { ventana?.close(); alert(e.message); }
+  };
+  const copiarEnlace = async (est: Estudiante, nuevo = false) => {
+    if (nuevo && !window.confirm(`Se creará un enlace nuevo para ${est.nombre} y el anterior dejará de funcionar. ¿Continuar?`)) return;
+    try {
+      const url = await pedirEnlace(est.id, nuevo);
+      try { await navigator.clipboard.writeText(url); } catch { window.prompt('Copia el enlace:', url); }
+      setEnlaceCopiado(est.id); setTimeout(() => setEnlaceCopiado(prev => (prev === est.id ? null : prev)), 2000);
+    } catch (e: any) { alert(e.message); }
+  };
+
   const [confirmandoBorrar, setConfirmandoBorrar] = useState<string | null>(null);
   const eliminarEstudiante = async (id: string) => {
     if (confirmandoBorrar !== id) { setConfirmandoBorrar(id); setTimeout(() => setConfirmandoBorrar(prev => (prev === id ? null : prev)), 3000); return; }
@@ -2295,6 +2320,9 @@ function EstudiantesPanel() {
                   <td className="py-3 px-4"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${est.estado === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}><span className={`w-1.5 h-1.5 rounded-full ${est.estado === 'activo' ? 'bg-emerald-400' : 'bg-red-400'}`}></span>{est.estado === 'activo' ? 'Activo' : 'Inactivo'}</span></td>
                   <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-1">
+                      <Tooltip text="Ver su página personal"><button onClick={() => abrirPagina(est)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#818cf8]/10 rounded-lg transition-all"><ExternalLink className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={enlaceCopiado === est.id ? '¡Copiado!' : 'Copiar su enlace'}><button onClick={() => copiarEnlace(est)} className={`p-1.5 rounded-lg transition-all ${enlaceCopiado === est.id ? 'text-emerald-400 bg-emerald-500/10' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#818cf8]/10'}`}>{enlaceCopiado === est.id ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button></Tooltip>
+                      <Tooltip text="Cambiar su enlace (el anterior deja de funcionar)"><button onClick={() => copiarEnlace(est, true)} className="p-1.5 text-[#8a8b9e] hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-all"><RefreshCw className="w-4 h-4" /></button></Tooltip>
                       <Tooltip text="Editar"><button onClick={() => { setEditando({...est}); setErroresEdit({}); }} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#818cf8]/10 rounded-lg transition-all"><Pencil className="w-4 h-4" /></button></Tooltip>
                       {confirmandoBorrar === est.id ? (<button onClick={() => eliminarEstudiante(est.id)} className="px-2 py-1 text-xs font-semibold text-red-300 bg-red-500/15 border border-red-500/30 rounded-lg">¿Seguro?</button>) : (<Tooltip text="Eliminar"><button onClick={() => eliminarEstudiante(est.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button></Tooltip>)}
                     </div>
@@ -2521,7 +2549,7 @@ function SelectorEstadoEvaluacion({ seccion, onCambiar }: { seccion: SeccionExam
 // ============================================
 // ENVIAR EL PLAN DE ACCIÓN POR WHATSAPP (estudiantes de la sección)
 // ============================================
-const MENSAJE_PLAN_DEFECTO = 'Hola {nombre} 👋\nTe comparto el plan de evaluación de *{materia}* (sección {seccion}). Revísalo con calma y guárdalo.';
+const MENSAJE_PLAN_DEFECTO = 'Hola {nombre} 👋\nYa está listo tu plan de evaluación de *{materia}* (sección {seccion}).\n\nAquí lo ves completo, con los recursos para estudiar y tus notas:\n{enlace}';
 
 function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, agregarNotificacion }: {
   seccion: string; lista: SeccionExamen[]; materia: string; fechaExamen: Date | string;
@@ -2591,7 +2619,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
       const r = await fetch('/api/whatsapp/enviar-plan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          seccion, estudianteIds: marcados, mensaje,
+          seccion, estudianteIds: marcados, mensaje, materia,
           plan: {
             materia, fechaExamen: new Date(fechaExamen).toISOString(),
             secciones: lista.map(s => ({
@@ -2623,7 +2651,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
         <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center"><Send className="w-5 h-5 text-emerald-300" /></div>
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-white">Enviar plan por WhatsApp · Sección {seccion}</h3>
-          <p className="text-xs text-[#8a8b9e]">Solo estudiantes activos del grupo {seccion} · {lista.length} evaluación(es) en el plan</p>
+          <p className="text-xs text-[#8a8b9e]">Cada estudiante activo del grupo {seccion} recibe el enlace a su página personal</p>
         </div>
         <button onClick={onCerrar} className="ml-auto p-1.5 text-[#8a8b9e] hover:text-white hover:bg-[#272839] rounded-lg" aria-label="Cerrar"><X className="w-4 h-4" /></button>
       </div>
@@ -2679,19 +2707,19 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
                   );
                 })}
               </div>
-              {sinTelefono > 0 && <p className="text-[11px] text-amber-300">{sinTelefono} estudiante(s) sin teléfono no recibirán el plan.</p>}
+              {sinTelefono > 0 && <p className="text-[11px] text-amber-300">{sinTelefono} estudiante(s) sin teléfono no recibirán el enlace (puedes copiárselo desde la pestaña Estudiantes).</p>}
               <div>
-                <label className="text-[11px] font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5">Mensaje que acompaña al PDF</label>
+                <label className="text-[11px] font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5">Mensaje</label>
                 <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={3} maxLength={900}
                   className="w-full bg-[#191a26] border border-[#313248] rounded-xl px-3 py-2 text-sm text-[#e0e0ec] outline-none focus:border-[#818cf8]/50 resize-none custom-scrollbar" />
-                <p className="text-[10px] text-[#6a6b7e] mt-1">{'{nombre}'} se cambia por el nombre de cada estudiante; {'{materia}'} y {'{seccion}'} también se reemplazan.</p>
+                <p className="text-[10px] text-[#6a6b7e] mt-1">{'{nombre}'} se cambia por el nombre de cada estudiante y {'{enlace}'} por SU enlace personal; {'{materia}'} y {'{seccion}'} también se reemplazan. Si quitas {'{enlace}'}, se agrega al final.</p>
               </div>
               {error && <p className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">{error}</p>}
               <div className="flex items-center justify-end gap-2">
                 <button onClick={onCerrar} className="px-4 py-2 text-sm rounded-xl bg-[#272839] hover:bg-[#2e2f42] text-[#b0b0c4]">Cancelar</button>
                 <button onClick={enviar} disabled={marcados.length === 0 || enviando}
                   className="px-4 py-2 text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-                  {enviando ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Preparando PDF...</>) : (<><Send className="w-4 h-4" />Enviar a {marcados.length} estudiante{marcados.length === 1 ? '' : 's'}</>)}
+                  {enviando ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Preparando enlaces...</>) : (<><Send className="w-4 h-4" />Enviar a {marcados.length} estudiante{marcados.length === 1 ? '' : 's'}</>)}
                 </button>
               </div>
             </>
@@ -3110,7 +3138,8 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
   );
 }
 
-function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica, onEstadoLocal }: any) {
+function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica, onEstadoLocal, onGuardarRecursos }: any) {
+  const [recursosDe, setRecursosDe] = useState<SeccionExamen | null>(null);
   const [rubricaDe, setRubricaDe] = useState<SeccionExamen | null>(null);
   const [notasDe, setNotasDe] = useState<SeccionExamen | null>(null);
   // Vista previa del plan: SOLO las evaluaciones de la sección activa que están marcadas
@@ -3248,6 +3277,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               onCambiarEstado={onCambiarEstado}
               onRubrica={onGuardarRubrica ? setRubricaDe : undefined}
               onNotas={setNotasDe}
+              onRecursos={onGuardarRecursos ? setRecursosDe : undefined}
             />
           );
         })}
@@ -3255,6 +3285,11 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
       <AnimatePresence>
         {rubricaDe && onGuardarRubrica && (
           <EditorRubrica key={rubricaDe.id} seccion={rubricaDe} onCerrar={() => setRubricaDe(null)} onGuardar={(r) => { onGuardarRubrica(rubricaDe, r); setRubricaDe(null); }} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {recursosDe && onGuardarRecursos && (
+          <EditorRecursos key={recursosDe.id} seccion={recursosDe} onCerrar={() => setRecursosDe(null)} onGuardar={(r, abrir) => { onGuardarRecursos(recursosDe, r, abrir); setRecursosDe(null); }} />
         )}
       </AnimatePresence>
       <AnimatePresence>
@@ -3621,14 +3656,92 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
 }
 
 // ============================================
+// RECURSOS PARA EL PORTAL DEL ESTUDIANTE (videos, páginas, documentos)
+// ============================================
+const DIAS_APERTURA_PORTAL = 7;
+function EditorRecursos({ seccion, onGuardar, onCerrar }: { seccion: SeccionExamen; onGuardar: (recursos: { titulo: string; url: string }[] | null, abiertaManual: boolean) => void; onCerrar: () => void }) {
+  const [filas, setFilas] = useState(() => (seccion.recursos?.length ? seccion.recursos : [{ titulo: '', url: '' }]).map(r => ({ ...r })));
+  const [abrirYa, setAbrirYa] = useState(!!seccion.abiertaManual);
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    window.addEventListener('keydown', tecla);
+    const overflow = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', tecla); document.body.style.overflow = overflow; };
+  }, []);
+  const urlValida = (u: string) => { const t = u.trim(); if (!t) return true; try { const x = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`); return /\./.test(x.hostname); } catch { return false; } };
+  const esVideo = (u: string) => /(youtube\.com|youtu\.be)\//i.test(u);
+  const hayErrores = filas.some(f => !urlValida(f.url));
+  const fecha = seccion.fecha ? new Date(seccion.fecha) : null;
+  const abreEl = fecha ? new Date(fecha.getTime() - DIAS_APERTURA_PORTAL * 86400000) : null;
+  const yaAbierta = !fecha || (abreEl as Date).getTime() <= Date.now() || String(seccion.estado || '').toUpperCase() === 'REALIZADA';
+  const guardar = () => {
+    if (hayErrores) return;
+    const lista = filas.map(f => ({ titulo: f.titulo.trim().slice(0, 120), url: f.url.trim() })).filter(f => f.url).map(f => ({ ...f, url: /^https?:\/\//i.test(f.url) ? f.url : `https://${f.url}` })).slice(0, 10);
+    onGuardar(lista.length ? lista : null, abrirYa);
+  };
+  const campo = 'w-full bg-[#272839] border rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]';
+  return createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
+      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+        className="w-full max-w-xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><Paperclip className="w-5 h-5 text-[#a5b4fc]" /></div>
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-semibold text-white">Recursos para los estudiantes</p>
+            <p className="text-xs text-[#8a8b9e] truncate">{limpiarTexto(seccion.nombre)} · Sección {(seccion.grupoSeccion || 'A').toUpperCase()}</p>
+          </div>
+          <button type="button" onClick={onCerrar} className="p-1 text-[#6a6b7e] hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <p className="text-xs text-[#9a9bb0]">Salen en la página personal de cada estudiante. Los videos de YouTube se ven ahí mismo; los demás enlaces se abren aparte.</p>
+          <div className="space-y-2.5">
+            {filas.map((f, i) => (
+              <div key={i} className="rounded-xl border border-[#313248] bg-[#1f2035] p-2.5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] w-12 flex-shrink-0 text-center">{f.url && esVideo(f.url) ? '▶️ Video' : '🔗 Enlace'}</span>
+                  <input value={f.titulo} onChange={(e) => setFilas(prev => prev.map((x, k) => (k === i ? { ...x, titulo: e.target.value } : x)))} maxLength={120} placeholder="Título (ej. Video: qué son los microservicios)" className={`${campo} border-[#313248]`} />
+                  <button type="button" onClick={() => setFilas(prev => prev.length === 1 ? [{ titulo: '', url: '' }] : prev.filter((_, k) => k !== i))} className="p-1.5 text-[#8a8b9e] hover:text-red-400 rounded-lg flex-shrink-0" title="Quitar"><Trash2 className="w-4 h-4" /></button>
+                </div>
+                <input value={f.url} onChange={(e) => setFilas(prev => prev.map((x, k) => (k === i ? { ...x, url: e.target.value } : x)))} maxLength={600} inputMode="url" placeholder="https://..." className={`${campo} ${urlValida(f.url) ? 'border-[#313248]' : 'border-red-500 text-red-300'}`} />
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => setFilas(prev => [...prev, { titulo: '', url: '' }])} disabled={filas.length >= 10} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#a0a0b8] text-xs font-medium flex items-center gap-1.5 hover:text-white disabled:opacity-40"><Plus className="w-3.5 h-3.5" />Agregar recurso</button>
+
+          <div className="rounded-xl border border-[#313248] bg-[#181926] p-3">
+            {yaAbierta ? (
+              <p className="text-xs text-emerald-300 flex items-center gap-2"><LockOpen className="w-4 h-4" />Los estudiantes ya pueden ver esta evaluación completa.</p>
+            ) : (
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input type="checkbox" checked={abrirYa} onChange={(e) => setAbrirYa(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#818cf8]" />
+                <span>
+                  <span className="text-sm text-[#d0d0da] font-medium flex items-center gap-1.5">{abrirYa ? <LockOpen className="w-4 h-4 text-emerald-300" /> : <Lock className="w-4 h-4 text-[#8a8b9e]" />}Abrirla ya para los estudiantes</span>
+                  <span className="block text-[11px] text-[#8a8b9e] mt-0.5">Si no, se abre sola {DIAS_APERTURA_PORTAL} días antes: el {abreEl!.toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}. Mientras tanto ven solo el nombre, la fecha y el peso.</span>
+                </span>
+              </label>
+            )}
+          </div>
+        </div>
+        <div className="px-5 py-3 border-t border-[#313248] flex items-center justify-end gap-2">
+          <button type="button" onClick={onCerrar} className="h-9 px-4 rounded-lg bg-[#232430] border border-[#313248] text-[#a0a0b8] text-xs font-medium hover:text-white">Cancelar</button>
+          <button type="button" onClick={guardar} disabled={hayErrores} className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"><Save className="w-3.5 h-3.5" />{hayErrores ? 'Revisa los enlaces' : 'Guardar'}</button>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// ============================================
 // TARJETA DE EVALUACIÓN (draggable individual, fluida con Framer Motion)
 // ============================================
-function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas }: {
+function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas, onRecursos }: {
   seccion: SeccionExamen; index: number; isSelected: boolean; onToggleSelect?: (id: string) => void;
   expanded: boolean; onToggleExpand: () => void; onEdit: (s: SeccionExamen) => void; onDelete: (id: string) => void;
   onEnviar: (s: SeccionExamen) => void; enviando: boolean; onCambiarEstado?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean>;
   onRubrica?: (s: SeccionExamen) => void;
   onNotas?: (s: SeccionExamen) => void;
+  onRecursos?: (s: SeccionExamen) => void;
 }) {
   const dragControls = useDragControls();
   const nombreLimpio = limpiarTexto(seccion.nombre);
@@ -3673,6 +3786,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
         <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
           <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
           {onRubrica && <Tooltip text={seccion.rubrica ? 'Ver o editar la rúbrica' : 'Crear rúbrica'}><button onClick={() => onRubrica(seccion)} className={`p-1.5 rounded-lg ${seccion.rubrica ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><ClipboardCheck className="w-4 h-4" /></button></Tooltip>}
+          {onRecursos && <Tooltip text={seccion.recursos?.length ? `${seccion.recursos.length} recurso(s) para los estudiantes` : 'Agregar recursos para los estudiantes'}><button onClick={() => onRecursos(seccion)} className={`relative p-1.5 rounded-lg ${seccion.recursos?.length ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><Paperclip className="w-4 h-4" />{seccion.abiertaManual && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400" title="Abierta antes de tiempo" />}</button></Tooltip>}
           {onNotas && String(seccion.estado || '').toUpperCase() !== 'CANCELADA' && <Tooltip text="Notas de los estudiantes"><button onClick={() => onNotas(seccion)} className="p-1.5 rounded-lg text-[#8a8b9e] hover:text-emerald-300 hover:bg-emerald-500/10"><GraduationCap className="w-4 h-4" /></button></Tooltip>}
           <Tooltip text="Enviar"><button onClick={() => onEnviar(seccion)} disabled={enviando} className="p-1.5 text-[#8a8b9e] hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">{enviando ? <div className="w-4 h-4 border-2 border-t-emerald-400 rounded-full animate-spin" /> : <Send className="w-4 h-4" />}</button></Tooltip>
           <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
@@ -4146,7 +4260,7 @@ function AgentePanel({ seccionActiva = 'A', expandido, setExpandido, planificaci
         const indiceExistente = secciones.findIndex(s => (s.grupoSeccion || 'A') === seccionActiva && s.nombre.toLowerCase().startsWith(`${tipoBuscado}:`));
         if (indiceExistente !== -1) {
           // Ya existe una evaluación con ese mismo número/tipo → se actualiza en su lugar (edición)
-          secciones[indiceExistente] = { ...nueva, id: secciones[indiceExistente].id, grupoSeccion: secciones[indiceExistente].grupoSeccion, rubrica: secciones[indiceExistente].rubrica };
+          secciones[indiceExistente] = { ...nueva, id: secciones[indiceExistente].id, grupoSeccion: secciones[indiceExistente].grupoSeccion, rubrica: secciones[indiceExistente].rubrica, recursos: secciones[indiceExistente].recursos, abiertaManual: secciones[indiceExistente].abiertaManual };
         } else {
           secciones = [...secciones, nueva];
         }
@@ -4360,6 +4474,10 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const [cargandoPdf, setCargandoPdf] = useState(false);
   // Cambia la fecha desde el calendario (arrastrar o "Cambiar fecha"). El guardado automático la lleva a la base de datos
   // y los recordatorios de WhatsApp se calculan con la fecha nueva.
+  const guardarRecursosEvaluacion = (sec: SeccionExamen, recursos: { titulo: string; url: string }[] | null, abiertaManual: boolean) => {
+    setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, recursos, abiertaManual } : s) })); // se guarda sola
+    agregarNotificacion(`📎 "${limpiarTexto(sec.nombre)}": ${recursos?.length ? `${recursos.length} recurso(s)` : 'sin recursos'}${abiertaManual ? ' · abierta para los estudiantes' : ''}.`);
+  };
   const guardarRubricaEvaluacion = (sec: SeccionExamen, rubrica: RubricaEval | null) => {
     setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, rubrica } : s) })); // se guarda sola
     // El plan de acción ya generado de esta sección queda viejo: se vuelve a generar al abrirlo
@@ -4449,7 +4567,29 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const [glow3, setGlow3] = useState(false);
   const [glow4, setGlow4] = useState(false);
 
+  // --- Botón "atrás" del navegador: cada pestaña queda en el historial, así "atrás" vuelve a la pestaña anterior
+  // en vez de salir de la app. Se conserva el estado interno de Next.js (history.state) para no romper su router.
+  const reemplazarHistorial = useRef(false);
+  const desdeHistorial = useRef(false);
   useEffect(() => { setVista(vistaInicial); }, [vistaInicial]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (desdeHistorial.current) { desdeHistorial.current = false; return; }
+    const estado = window.history.state || {};
+    if (estado.vistaApp === vista) return;
+    const nuevo = { ...estado, vistaApp: vista };
+    if (reemplazarHistorial.current || estado.vistaApp === undefined) window.history.replaceState(nuevo, '');
+    else window.history.pushState(nuevo, '');
+    reemplazarHistorial.current = false;
+  }, [vista]);
+  useEffect(() => {
+    const alVolver = (e: PopStateEvent) => {
+      const v = e.state?.vistaApp;
+      if (v) { desdeHistorial.current = true; setVista(v); }
+    };
+    window.addEventListener('popstate', alVolver);
+    return () => window.removeEventListener('popstate', alVolver);
+  }, []);
   useEffect(() => { onCambiarVista(vista); }, [vista, onCambiarVista]);
   useEffect(() => { if (pdfUrlProp !== undefined) setPdfPorSeccion(prev => ({ ...prev, [seccionActiva]: pdfUrlProp })); }, [pdfUrlProp]);
   useEffect(() => { if (pdfAbiertoProp !== undefined) setPdfAbiertoPorSeccion(prev => ({ ...prev, [seccionActiva]: pdfAbiertoProp })); }, [pdfAbiertoProp]);
@@ -4491,7 +4631,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 
   const firmaDePlan = (p: PlanificacionExamen) => JSON.stringify([
     p.materia, p.estado, p.tipoExamen, new Date(p.fechaExamen).getTime(), p.duracionMinutos,
-    p.secciones.map(s => [s.nombre, s.tipoPregunta, s.nivelBloom, s.peso, s.cantidadPreguntas, s.contenidosEvaluados, s.tiempoEstimadoMinutos, s.tipoActividad, s.descripcion, s.cantidadGrupos, s.personasPorGrupo, s.orden, s.enfoque, s.fecha ? new Date(s.fecha).getTime() : null, s.grupoSeccion || 'A', s.rubrica ?? null]),
+    p.secciones.map(s => [s.nombre, s.tipoPregunta, s.nivelBloom, s.peso, s.cantidadPreguntas, s.contenidosEvaluados, s.tiempoEstimadoMinutos, s.tipoActividad, s.descripcion, s.cantidadGrupos, s.personasPorGrupo, s.orden, s.enfoque, s.fecha ? new Date(s.fecha).getTime() : null, s.grupoSeccion || 'A', s.rubrica ?? null, s.recursos ?? null, !!s.abiertaManual]),
     p.rubrica,
   ]);
 
@@ -4528,6 +4668,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden ?? idx,
           enfoque: ev.enfoque, fecha: ev.fecha ? ev.fecha.toISOString() : null, grupoSeccion: ev.grupoSeccion || 'A',
           rubrica: ev.rubrica, // undefined = no se toca; null = se borra
+          recursos: ev.recursos, abiertaManual: ev.abiertaManual,
         })),
         rubrica: planActualizada.rubrica.map(crit => ({
           nombre: crit.nombre, peso: crit.peso, descripcion: crit.descripcion,
@@ -4742,7 +4883,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const crearSeccion = (evalData: EvaluacionFormulario, tipo: string, idPrefix: string): SeccionExamen => {
     const materiaLimpia = limpiarTexto(evalData.materia);
     const duracionMin = evalData.duracionUnidad === 'hrs' ? (evalData.duracionMinutos || 0) * 60 : evalData.duracionMinutos;
-    return { id: evalData.editandoId || `${idPrefix}-${Date.now()}`, nombre: `${tipo}: ${materiaLimpia}`, tipoPregunta: 'desarrollo', peso: evalData.peso, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'comprender', tiempoEstimadoMinutos: duracionMin, tipoActividad: evalData.tipoActividad || undefined, descripcion: evalData.descripcion, cantidadGrupos: evalData.cantidadGrupos ?? undefined, personasPorGrupo: evalData.personasPorGrupo ?? undefined, orden: planificacion.secciones.length, enfoque: evalData.enfoque || undefined, fecha: evalData.fecha, grupoSeccion: evalData.editandoId ? (planificacion.secciones.find(s => s.id === evalData.editandoId)?.grupoSeccion || seccionActiva) : seccionActiva, rubrica: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.rubrica : undefined };
+    return { id: evalData.editandoId || `${idPrefix}-${Date.now()}`, nombre: `${tipo}: ${materiaLimpia}`, tipoPregunta: 'desarrollo', peso: evalData.peso, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'comprender', tiempoEstimadoMinutos: duracionMin, tipoActividad: evalData.tipoActividad || undefined, descripcion: evalData.descripcion, cantidadGrupos: evalData.cantidadGrupos ?? undefined, personasPorGrupo: evalData.personasPorGrupo ?? undefined, orden: planificacion.secciones.length, enfoque: evalData.enfoque || undefined, fecha: evalData.fecha, grupoSeccion: evalData.editandoId ? (planificacion.secciones.find(s => s.id === evalData.editandoId)?.grupoSeccion || seccionActiva) : seccionActiva, rubrica: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.rubrica : undefined, recursos: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.recursos : undefined, abiertaManual: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.abiertaManual : undefined };
   };
 
             const guardarEval = async (ev: EvaluacionFormulario, tipo: string, prefix: string, limpiar: () => void, setEv: (updater: (prev: EvaluacionFormulario) => EvaluacionFormulario) => void) => {
@@ -4839,8 +4980,8 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const puedeAdministrar = usuario?.rol === 'ADMIN' || usuario?.rol === 'SUPERADMIN';
   const esSuperadmin = usuario?.rol === 'SUPERADMIN';
   // Si un USUARIO intenta llegar a una vista de administración (ej. por el chat), se le devuelve al Dashboard
-  useEffect(() => { if (!puedeAdministrar && vista === 'usuarios') setVista('estadisticas'); }, [puedeAdministrar, vista]);
-  useEffect(() => { if (!esSuperadmin && (vista === 'actividad' || vista === 'sistema')) setVista('estadisticas'); }, [esSuperadmin, vista]);
+  useEffect(() => { if (!puedeAdministrar && vista === 'usuarios') { reemplazarHistorial.current = true; setVista('estadisticas'); } }, [puedeAdministrar, vista]);
+  useEffect(() => { if (!esSuperadmin && (vista === 'actividad' || vista === 'sistema')) { reemplazarHistorial.current = true; setVista('estadisticas'); } }, [esSuperadmin, vista]);
   // Cantidad de cuentas esperando aprobación (para el contador rojo de la pestaña Usuarios)
   const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
   const recuperacionesPrevias = useRef<number | null>(null);
@@ -5172,7 +5313,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   setTarjetasExcluidas(prev => prev.filter(x => x !== id));
   agregarNotificacion(`🗑️ Evaluación eliminada de la BD.`); 
 }}
-                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion} onGuardarRubrica={guardarRubricaEvaluacion} onEstadoLocal={(id: string, estado: string) => setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === id ? { ...s, estado } : s) }))}
+                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion} onGuardarRubrica={guardarRubricaEvaluacion} onGuardarRecursos={guardarRecursosEvaluacion} onEstadoLocal={(id: string, estado: string) => setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === id ? { ...s, estado } : s) }))}
                       mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
                       mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
   pdfAbierto={pdfAbiertoLocal}
@@ -5300,15 +5441,21 @@ export default function PlanificadorExamenes() {
     window.fetch = async (...args) => {
       const res = await fetchOriginal(...args);
       const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
-      if (res.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth/login')) window.location.href = '/login?sesion=expirada';
+      if (res.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth/login')) window.location.replace('/login?sesion=expirada');
       return res;
     };
     fetchOriginal('/api/auth/me').then(r => (r.ok ? r.json() : Promise.reject())).then((u: UsuarioSesion) => { setUsuario(u); setVistaActual(u.rol === 'USUARIO' ? 'planificacion' : 'estadisticas'); if (u.rol !== 'SUPERADMIN' && window.innerWidth >= 768) setAgenteExpandido(true); }).catch(() => { window.location.href = '/login'; });
     return () => { window.fetch = fetchOriginal; };
   }, []);
   const cerrarSesion = async () => {
-    try { await fetch('/api/auth/logout', { method: 'POST' }); } finally { window.location.href = '/login'; }
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } finally { window.location.replace('/login'); } // replace: "atrás" no vuelve a la app cerrada
   };
+  // Si el navegador muestra la app desde su memoria (bfcache) después de cerrar sesión, se vuelve a comprobar la sesión
+  useEffect(() => {
+    const alMostrar = (e: PageTransitionEvent) => { if (e.persisted) fetch('/api/auth/me').then(r => { if (!r.ok) window.location.replace('/login'); }).catch(() => {}); };
+    window.addEventListener('pageshow', alMostrar);
+    return () => window.removeEventListener('pageshow', alMostrar);
+  }, []);
   // ===== FIN SESIÓN / ROLES =====
   // ===== INICIO CONEXIÓN BD =====
 const [planificacionId, setPlanificacionId] = useState<string | null>(null);
@@ -5366,6 +5513,8 @@ const guardarPlanificacionEnBD = async () => {
         fecha: ev.fecha ? ev.fecha.toISOString() : null,
         grupoSeccion: ev.grupoSeccion || 'A',
         rubrica: ev.rubrica,
+        recursos: ev.recursos,
+        abiertaManual: ev.abiertaManual,
       })),
       rubrica: planificacion.rubrica.map(crit => ({
         nombre: crit.nombre,
@@ -5465,6 +5614,8 @@ const guardarPlanificacionEnBD = async () => {
               grupoSeccion: ev.grupoSeccion || 'A',
               estado: ev.estado || 'PROGRAMADA',
               rubrica: normalizarRubrica(ev.rubrica),
+              recursos: Array.isArray(ev.recursos) ? ev.recursos : null,
+              abiertaManual: !!ev.abiertaManual,
             })),
             rubrica: (ultimoPlan.rubrica || []).map((crit: any) => ({
               id: crit.id,

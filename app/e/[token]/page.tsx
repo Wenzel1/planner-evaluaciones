@@ -1,0 +1,366 @@
+'use client';
+// Página personal del estudiante: /e/<token>
+// Muestra SU plan de evaluación, los recursos de lo que ya está abierto, la rúbrica y sus notas.
+import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  GraduationCap, Lock, Calendar, Clock, Users, Target, ChevronDown, Download, PlayCircle, ExternalLink,
+  CheckCircle2, CircleDot, Hourglass, ClipboardCheck, MessageSquare, AlertCircle, BookOpen, Sparkles,
+} from 'lucide-react';
+import { NIVELES_RUBRICA, puntosNivel, textoPuntos, type RubricaEval } from '@/lib/rubrica';
+
+interface Recurso { titulo: string; url: string }
+interface Nota { puntaje: number; observaciones: string | null; detalle: (number | null)[] | null }
+interface Evaluacion {
+  id: string; nombre: string; tipoActividad: string | null; enfoque: string | null; peso: number | null;
+  fecha: string | null; duracion: number | null; cantidadGrupos: number | null; personasPorGrupo: number | null;
+  estado: string; abierta: boolean; abreEl: string | null; descripcion: string | null;
+  recursos: Recurso[]; rubrica: RubricaEval | null; nota: Nota | null;
+}
+interface Materia { id: string; nombre: string; evaluaciones: Evaluacion[]; promedio: number | null }
+interface Datos { estudiante: { nombre: string; seccion: string }; profesor: string; materias: Materia[]; generado: string }
+
+const ZONA = 'America/Caracas';
+const fFecha = (d: string, op: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('es-VE', { timeZone: ZONA, ...op }).format(new Date(d));
+const fNota = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0$/, '').replace('.', ','));
+const DIA = 86400000;
+
+function cuandoFalta(fecha: string, ahora: number): string {
+  const ms = new Date(fecha).getTime() - ahora;
+  if (ms <= 0) return 'ya pasó';
+  const dias = Math.floor(ms / DIA);
+  if (dias === 0) { const h = Math.max(1, Math.round(ms / 3600000)); return h === 1 ? 'en 1 hora' : `en ${h} horas`; }
+  if (dias === 1) return 'mañana';
+  return `en ${dias} días`;
+}
+
+function idYouTube(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.replace(/^www\.|^m\./, '');
+    if (h === 'youtu.be') return u.pathname.slice(1, 12) || null;
+    if (h === 'youtube.com' || h === 'youtube-nocookie.com') {
+      if (u.searchParams.get('v')) return u.searchParams.get('v');
+      const m = u.pathname.match(/^\/(embed|shorts|live)\/([\w-]{6,})/);
+      if (m) return m[2];
+    }
+  } catch {}
+  return null;
+}
+const dominio = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
+
+type Situacion = 'calificada' | 'realizada' | 'proxima' | 'abierta' | 'bloqueada';
+function situacion(e: Evaluacion, ahora: number): Situacion {
+  if (e.nota) return 'calificada';
+  if (e.estado === 'REALIZADA' || (e.fecha && new Date(e.fecha).getTime() < ahora)) return 'realizada';
+  if (!e.abierta) return 'bloqueada';
+  return 'abierta';
+}
+
+const ESTILO: Record<Situacion, { texto: string; clase: string; Icono: any }> = {
+  calificada: { texto: 'Calificada', clase: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', Icono: CheckCircle2 },
+  realizada: { texto: 'Esperando nota', clase: 'bg-sky-500/10 text-sky-300 border-sky-500/30', Icono: Hourglass },
+  proxima: { texto: 'Próxima', clase: 'bg-[#818cf8]/15 text-[#c7d2fe] border-[#818cf8]/40', Icono: CircleDot },
+  abierta: { texto: 'Abierta', clase: 'bg-[#818cf8]/10 text-[#a5b4fc] border-[#818cf8]/30', Icono: CircleDot },
+  bloqueada: { texto: 'Bloqueada', clase: 'bg-[#272839] text-[#8a8b9e] border-[#313248]', Icono: Lock },
+};
+const COLOR_NIVEL = ['text-emerald-300', 'text-sky-300', 'text-amber-300', 'text-red-300'];
+const FONDO_NIVEL = ['bg-emerald-500/15 border-emerald-500/40', 'bg-sky-500/15 border-sky-500/40', 'bg-amber-500/15 border-amber-500/40', 'bg-red-500/15 border-red-500/40'];
+
+export default function PortalEstudiante() {
+  const { token } = useParams<{ token: string }>();
+  const [datos, setDatos] = useState<Datos | null>(null);
+  const [error, setError] = useState('');
+  const [materiaId, setMateriaId] = useState<string | null>(null);
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [ahora, setAhora] = useState(() => Date.now());
+
+  useEffect(() => {
+    let vivo = true;
+    fetch(`/api/portal/${encodeURIComponent(token)}`, { cache: 'no-store' })
+      .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo cargar tu plan.'); return d; })
+      .then((d: Datos) => { if (vivo) { setDatos(d); setMateriaId(d.materias[0]?.id ?? null); } })
+      .catch(e => { if (vivo) setError(e instanceof TypeError ? 'Sin conexión. Revisa tu internet e intenta de nuevo.' : e.message); });
+    const t = setInterval(() => setAhora(Date.now()), 60000);
+    return () => { vivo = false; clearInterval(t); };
+  }, [token]);
+
+  const materia = datos?.materias.find(m => m.id === materiaId) || datos?.materias[0] || null;
+  const lista = useMemo(() => {
+    if (!materia) return [];
+    let marcada = false;
+    return materia.evaluaciones.map(e => {
+      let s = situacion(e, ahora);
+      if (s === 'abierta' && !marcada) { s = 'proxima'; marcada = true; }
+      return { e, s };
+    });
+  }, [materia, ahora]);
+  const proxima = lista.find(x => x.s === 'proxima')?.e || lista.find(x => x.s === 'bloqueada')?.e || null;
+
+  // Abre por defecto la próxima evaluación
+  useEffect(() => { if (materia) setAbierta(lista.find(x => x.s === 'proxima')?.e.id ?? null); }, [materia?.id]);
+
+  if (error) return (
+    <Pantalla>
+      <div className="max-w-md mx-auto mt-24 text-center px-6">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-4"><AlertCircle className="w-7 h-7 text-red-300" /></div>
+        <h1 className="text-lg font-semibold text-white">No pudimos abrir tu plan</h1>
+        <p className="text-sm text-[#9a9bb0] mt-2">{error}</p>
+      </div>
+    </Pantalla>
+  );
+  if (!datos) return (
+    <Pantalla>
+      <div className="flex items-center justify-center gap-3 mt-32 text-[#9a9bb0] text-sm"><span className="w-5 h-5 border-2 border-[#818cf8] border-t-transparent rounded-full animate-spin" />Cargando tu plan…</div>
+    </Pantalla>
+  );
+
+  const primer = datos.estudiante.nombre.trim().split(/\s+/)[0];
+  const realizadas = lista.filter(x => x.s === 'calificada' || x.s === 'realizada').length;
+  const total = lista.length;
+
+  const irA = (id: string) => {
+    setAbierta(id);
+    setTimeout(() => document.getElementById(`ev-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+  const pdfHref = materia ? `/api/portal/${encodeURIComponent(token)}/pdf?materia=${encodeURIComponent(materia.id)}` : '#';
+
+  return (
+    <Pantalla>
+      {/* Celular: una sola columna. Computadora (lg): panel fijo a la izquierda con el estudiante y su resumen, evaluaciones a la derecha */}
+      <div className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 pb-16 lg:grid lg:grid-cols-[340px_1fr] lg:gap-10 xl:gap-14">
+        <aside className="lg:sticky lg:top-0 lg:self-start lg:max-h-screen lg:overflow-y-auto lg:pb-10 [scrollbar-width:none]">
+          {/* Encabezado: el estudiante es el protagonista */}
+          <header className="pt-8 sm:pt-12 pb-6">
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-[#818cf8] font-semibold">
+              <GraduationCap className="w-4 h-4" />Mi plan de evaluación
+            </div>
+            <h1 className="mt-3 text-3xl sm:text-4xl lg:text-[2.6rem] font-bold text-white leading-tight">Hola, {primer} 👋</h1>
+            <p className="mt-1 text-base sm:text-lg text-[#c7c8d8]">{datos.estudiante.nombre}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded-full bg-[#818cf8]/15 border border-[#818cf8]/35 text-[#c7d2fe] font-semibold">Sección {datos.estudiante.seccion}</span>
+              <span className="text-[#8a8b9e]">Prof. {datos.profesor}</span>
+            </div>
+          </header>
+
+          {datos.materias.length > 1 && (
+            <div className="flex lg:flex-col gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
+              {datos.materias.map(m => (
+                <button key={m.id} onClick={() => setMateriaId(m.id)} className={`shrink-0 h-9 px-4 rounded-xl text-sm font-medium border text-left transition-colors ${m.id === materia?.id ? 'bg-[#818cf8] border-[#818cf8] text-white' : 'bg-[#1c1d2a] border-[#2a2b3d] text-[#a0a0b8] hover:text-white'}`}>{m.nombre}</button>
+              ))}
+            </div>
+          )}
+
+          {materia && (
+            <>
+              {datos.materias.length === 1 && <p className="text-sm text-[#9a9bb0] mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8]" />{materia.nombre}</p>}
+
+              {/* Resumen */}
+              <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-2 gap-3 mb-8 lg:mb-6">
+                <div className="sm:col-span-1 lg:col-span-2 rounded-2xl border border-[#818cf8]/30 bg-gradient-to-br from-[#818cf8]/15 to-[#1c1d2a] p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-[#a5b4fc] font-semibold">Próxima evaluación</p>
+                  {proxima && proxima.fecha ? (
+                    <button type="button" onClick={() => irA(proxima.id)} className="text-left w-full">
+                      <p className="mt-1.5 text-white font-semibold leading-snug line-clamp-2">{proxima.nombre}</p>
+                      <p className="mt-1 text-sm text-[#c7d2fe]">{cuandoFalta(proxima.fecha, ahora)} · {fFecha(proxima.fecha, { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+                    </button>
+                  ) : <p className="mt-1.5 text-sm text-[#c7d2fe]">{total > 0 && realizadas === total ? '¡Terminaste todas! 🎉' : 'Sin fecha por ahora'}</p>}
+                </div>
+                <div className="rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-[#8a8b9e] font-semibold">Avance</p>
+                  <p className="mt-1.5 text-2xl font-bold text-white">{realizadas}<span className="text-base text-[#8a8b9e] font-medium"> / {total}</span></p>
+                  <div className="mt-2 h-1.5 rounded-full bg-[#272839] overflow-hidden"><div className="h-full rounded-full bg-[#818cf8]" style={{ width: `${total ? (realizadas / total) * 100 : 0}%` }} /></div>
+                </div>
+                <div className="rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-[#8a8b9e] font-semibold">Mi promedio</p>
+                  {materia.promedio != null ? (
+                    <p className={`mt-1.5 text-2xl font-bold ${materia.promedio >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(materia.promedio)}<span className="text-base text-[#8a8b9e] font-medium"> / 20</span></p>
+                  ) : <p className="mt-1.5 text-sm text-[#8a8b9e]">Aún sin notas</p>}
+                </div>
+              </section>
+
+              {/* Solo en computadora: el lapso de un vistazo, para saltar a cada evaluación */}
+              <nav className="hidden lg:block rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-2 mb-6">
+                <p className="px-2 pt-1.5 pb-2 text-[11px] uppercase tracking-wider text-[#8a8b9e] font-semibold">El lapso de un vistazo</p>
+                {lista.map(({ e, s }) => (
+                  <button key={e.id} type="button" onClick={() => irA(e.id)} className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl text-left transition-colors hover:bg-[#232438] ${abierta === e.id ? 'bg-[#232438]' : ''}`}>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${s === 'calificada' ? (e.nota!.puntaje >= 10 ? 'bg-emerald-400' : 'bg-red-400') : s === 'realizada' ? 'bg-sky-400' : s === 'bloqueada' ? 'bg-[#4a4b60]' : 'bg-[#818cf8]'}`} />
+                    <span className="flex-1 min-w-0">
+                      <span className={`block text-sm truncate ${s === 'bloqueada' ? 'text-[#8a8b9e]' : 'text-[#e0e0ec]'}`}>{e.nombre}</span>
+                      <span className="block text-[11px] text-[#7a7b90]">{e.fecha ? fFecha(e.fecha, { day: 'numeric', month: 'short' }) : 'Sin fecha'}{e.peso != null ? ` · ${e.peso}%` : ''}</span>
+                    </span>
+                    {e.nota ? <span className={`text-sm font-bold ${e.nota.puntaje >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(e.nota.puntaje)}</span> : s === 'bloqueada' ? <Lock className="w-3.5 h-3.5 text-[#5a5b70]" /> : null}
+                  </button>
+                ))}
+              </nav>
+
+              <div className="hidden lg:flex flex-col gap-3">
+                <a href={pdfHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[#1c1d2a] border border-[#313248] text-sm text-[#d0d0da] font-medium hover:border-[#818cf8]/50"><Download className="w-4 h-4" />Descargar en PDF</a>
+                <p className="text-xs text-[#6a6b7e] text-center">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>
+              </div>
+            </>
+          )}
+        </aside>
+
+        <div className="min-w-0 lg:pt-12">
+          {datos.materias.length === 0 && (
+            <div className="rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-8 text-center text-sm text-[#9a9bb0]">Tu profesor todavía no ha publicado evaluaciones para tu sección.</div>
+          )}
+          {materia && (
+            <>
+              <h2 className="text-sm font-semibold text-[#9a9bb0] uppercase tracking-wider mb-3">Mis evaluaciones</h2>
+              <ol className="space-y-3">
+                {lista.map(({ e, s }, i) => (
+                  <TarjetaPortal key={e.id} e={e} s={s} indice={i + 1} abierta={abierta === e.id} onAlternar={() => setAbierta(abierta === e.id ? null : e.id)} ahora={ahora} />
+                ))}
+              </ol>
+
+              <div className="mt-8 flex flex-col sm:flex-row sm:items-center gap-3 lg:hidden">
+                <a href={pdfHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[#1c1d2a] border border-[#313248] text-sm text-[#d0d0da] font-medium hover:border-[#818cf8]/50">
+                  <Download className="w-4 h-4" />Descargar en PDF
+                </a>
+                <p className="text-xs text-[#6a6b7e] sm:ml-auto">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </Pantalla>
+  );
+}
+
+function Pantalla({ children }: { children: React.ReactNode }) {
+  return <main className="min-h-screen bg-[#13141d] text-[#d0d0da] font-['Inter',system-ui,sans-serif] [background-image:radial-gradient(ellipse_at_top,rgba(129,140,248,0.12),transparent_60%)]">{children}</main>;
+}
+
+function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora }: { e: Evaluacion; s: Situacion; indice: number; abierta: boolean; onAlternar: () => void; ahora: number }) {
+  const est = ESTILO[s];
+  const bloqueada = s === 'bloqueada';
+  const tieneContenido = !bloqueada && (!!e.descripcion || e.recursos.length > 0 || !!e.rubrica || !!e.nota);
+  return (
+    <li id={`ev-${e.id}`} className={`scroll-mt-6 rounded-2xl border transition-colors ${s === 'proxima' ? 'border-[#818cf8]/50 bg-[#1d1e33] shadow-[0_0_0_1px_rgba(129,140,248,0.15)]' : bloqueada ? 'border-[#24253a] bg-[#191a26]' : 'border-[#2a2b3d] bg-[#1c1d2a]'}`}>
+      <button type="button" onClick={tieneContenido ? onAlternar : undefined} className={`w-full text-left p-4 flex gap-3 ${tieneContenido ? 'cursor-pointer' : 'cursor-default'}`}>
+        <span className={`w-8 h-8 shrink-0 rounded-xl flex items-center justify-center text-sm font-bold ${bloqueada ? 'bg-[#22233a] text-[#5a5b70]' : 'bg-[#818cf8]/15 text-[#a5b4fc]'}`}>{bloqueada ? <Lock className="w-4 h-4" /> : indice}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start gap-2">
+            <h3 className={`flex-1 font-semibold leading-snug ${bloqueada ? 'text-[#8a8b9e]' : 'text-white'}`}>{e.nombre}</h3>
+            {e.nota ? (
+              <span className={`shrink-0 text-lg font-bold ${e.nota.puntaje >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(e.nota.puntaje)}<span className="text-xs text-[#8a8b9e] font-medium">/20</span></span>
+            ) : (
+              <span className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${est.clase}`}><est.Icono className="w-3 h-3" />{est.texto}</span>
+            )}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#9a9bb0]">
+            {e.fecha && <span className="inline-flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{fFecha(e.fecha, { weekday: 'short', day: 'numeric', month: 'short' })} · {fFecha(e.fecha, { hour: 'numeric', minute: '2-digit' })}</span>}
+            {e.peso != null && <span className="inline-flex items-center gap-1"><Target className="w-3.5 h-3.5" />{e.peso}%</span>}
+            {e.tipoActividad && <span>{e.tipoActividad}</span>}
+            {e.duracion ? <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{e.duracion} min</span> : null}
+            {(e.personasPorGrupo ?? 0) > 1 && <span className="inline-flex items-center gap-1"><Users className="w-3.5 h-3.5" />Grupos de {e.personasPorGrupo}</span>}
+          </div>
+          {bloqueada && e.abreEl && <p className="mt-2 text-xs text-[#7a7b90]">🔒 Se abre el {fFecha(e.abreEl, { weekday: 'long', day: 'numeric', month: 'long' })}. Ahí verás de qué se trata, los recursos y la rúbrica.</p>}
+          {s === 'proxima' && e.fecha && !abierta && <p className="mt-2 text-xs text-[#a5b4fc]">Es {cuandoFalta(e.fecha, ahora)}. Toca para ver cómo prepararte.</p>}
+        </div>
+        {tieneContenido && <ChevronDown className={`w-5 h-5 shrink-0 mt-1.5 text-[#6a6b7e] transition-transform ${abierta ? 'rotate-180' : ''}`} />}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {abierta && tieneContenido && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+            <div className="px-4 pb-5 sm:pl-[60px] space-y-5">
+              {e.nota && <BloqueNota e={e} />}
+              {e.descripcion && (
+                <div>
+                  <Subtitulo Icono={BookOpen}>De qué se trata</Subtitulo>
+                  <p className="text-sm text-[#c0c0d0] whitespace-pre-wrap leading-relaxed">{e.descripcion}</p>
+                </div>
+              )}
+              {e.recursos.length > 0 && (
+                <div>
+                  <Subtitulo Icono={Sparkles}>Recursos para estudiar</Subtitulo>
+                  <div className="space-y-2.5">
+                    {e.recursos.map((r, k) => {
+                      const yt = idYouTube(r.url);
+                      return yt ? (
+                        <div key={k} className="rounded-xl overflow-hidden border border-[#2a2b3d] bg-black">
+                          <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+                            <iframe className="absolute inset-0 w-full h-full" src={`https://www.youtube-nocookie.com/embed/${yt}`} title={r.titulo || 'Video'} loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                          </div>
+                          {r.titulo && <p className="px-3 py-2 text-xs text-[#c0c0d0] bg-[#1c1d2a] flex items-center gap-1.5"><PlayCircle className="w-3.5 h-3.5 text-red-400" />{r.titulo}</p>}
+                        </div>
+                      ) : (
+                        <a key={k} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-xl border border-[#2a2b3d] bg-[#20213a] px-3 py-2.5 hover:border-[#818cf8]/50 transition-colors">
+                          <span className="w-8 h-8 rounded-lg bg-[#818cf8]/15 flex items-center justify-center shrink-0"><ExternalLink className="w-4 h-4 text-[#a5b4fc]" /></span>
+                          <span className="min-w-0 flex-1"><span className="block text-sm text-white truncate">{r.titulo || dominio(r.url)}</span><span className="block text-[11px] text-[#7a7b90] truncate">{dominio(r.url)}</span></span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {e.rubrica && !e.nota && (
+                <div>
+                  <Subtitulo Icono={ClipboardCheck}>Así te van a evaluar</Subtitulo>
+                  <Rubrica rubrica={e.rubrica} />
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </li>
+  );
+}
+
+function Subtitulo({ Icono, children }: { Icono: any; children: React.ReactNode }) {
+  return <p className="text-xs font-semibold uppercase tracking-wider text-[#8a8b9e] mb-2 flex items-center gap-1.5"><Icono className="w-3.5 h-3.5 text-[#818cf8]" />{children}</p>;
+}
+
+function Rubrica({ rubrica, detalle }: { rubrica: RubricaEval; detalle?: (number | null)[] | null }) {
+  return (
+    <div className="space-y-2">
+      {rubrica.criterios.map((c, i) => {
+        const elegido = detalle && Number.isInteger(detalle[i]) ? (detalle[i] as number) : null;
+        return (
+          <details key={i} className="group rounded-xl border border-[#2a2b3d] bg-[#191a26]">
+            <summary className="list-none cursor-pointer px-3 py-2.5 flex items-center gap-2">
+              <span className="flex-1 text-sm text-[#d8d8e4] font-medium">{c.nombre}</span>
+              {elegido != null
+                ? <span className={`text-xs font-semibold ${COLOR_NIVEL[elegido]}`}>{NIVELES_RUBRICA[elegido]} · {textoPuntos(puntosNivel(c.puntos, elegido))}/{textoPuntos(c.puntos)}</span>
+                : <span className="text-xs text-[#8a8b9e]">{textoPuntos(c.puntos)} pts</span>}
+              <ChevronDown className="w-4 h-4 text-[#6a6b7e] group-open:rotate-180 transition-transform" />
+            </summary>
+            <div className="px-3 pb-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+              {NIVELES_RUBRICA.map((n, k) => (
+                <div key={n} className={`rounded-lg border px-2.5 py-2 ${elegido === k ? FONDO_NIVEL[k] : 'border-[#2a2b3d]'}`}>
+                  <p className={`text-[11px] font-semibold ${COLOR_NIVEL[k]}`}>{n} · {textoPuntos(puntosNivel(c.puntos, k))} pts{elegido === k ? ' ← tú' : ''}</p>
+                  <p className="text-xs text-[#a8a9bc] mt-0.5 leading-relaxed">{c.descripciones[k] || '—'}</p>
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
+function BloqueNota({ e }: { e: Evaluacion }) {
+  const n = e.nota!;
+  const aprobado = n.puntaje >= 10;
+  return (
+    <div className={`rounded-2xl border p-4 ${aprobado ? 'border-emerald-500/30 bg-emerald-500/[0.07]' : 'border-red-500/30 bg-red-500/[0.07]'}`}>
+      <div className="flex items-center gap-4">
+        <div className={`text-4xl font-bold ${aprobado ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(n.puntaje)}<span className="text-base text-[#8a8b9e] font-medium">/20</span></div>
+        <div>
+          <p className={`text-sm font-semibold ${aprobado ? 'text-emerald-200' : 'text-red-200'}`}>{aprobado ? '¡Aprobada! 🎉' : 'No aprobada'}</p>
+          {e.peso != null && <p className="text-xs text-[#9a9bb0]">Vale {e.peso}% de la nota final</p>}
+        </div>
+      </div>
+      {n.observaciones && <p className="mt-3 text-sm text-[#d0d0da] flex gap-2"><MessageSquare className="w-4 h-4 shrink-0 mt-0.5 text-[#a5b4fc]" />{n.observaciones}</p>}
+      {e.rubrica && n.detalle && n.detalle.some(x => x != null) && (
+        <div className="mt-4"><Subtitulo Icono={ClipboardCheck}>Detalle de tu nota</Subtitulo><Rubrica rubrica={e.rubrica} detalle={n.detalle} /></div>
+      )}
+    </div>
+  );
+}

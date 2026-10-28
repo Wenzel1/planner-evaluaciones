@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { normalizarRubrica } from '@/lib/rubrica'
+import { normalizarRecursos } from '@/lib/portal'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
@@ -27,6 +28,9 @@ function datosEvaluacion(ev: any, index: number) {
     grupoSeccion: ev.grupoSeccion || 'A',
     // Si no viene la rúbrica, no se toca la que ya tenía; null la borra
     ...(ev.rubrica !== undefined ? { rubrica: normalizarRubrica(ev.rubrica) ?? Prisma.DbNull } : {}),
+    // Portal del estudiante: recursos de estudio y apertura manual
+    ...(ev.recursos !== undefined ? { recursos: normalizarRecursos(ev.recursos) ?? Prisma.DbNull } : {}),
+    ...(typeof ev.abiertaManual === 'boolean' ? { abiertaManual: ev.abiertaManual } : {}),
   }
 }
 
@@ -191,7 +195,7 @@ export async function PUT(
           peso: ev.peso, cantidadPreguntas: ev.cantidadPreguntas, contenidosEvaluados: ev.contenidosEvaluados,
           tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
           cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden, enfoque: ev.enfoque,
-          fecha: ev.fecha ? ev.fecha.toISOString() : null, rubrica: ev.rubrica ?? null,
+          fecha: ev.fecha ? ev.fecha.toISOString() : null, rubrica: ev.rubrica ?? null, recursos: ev.recursos ?? null,
         },
       })))
     }
