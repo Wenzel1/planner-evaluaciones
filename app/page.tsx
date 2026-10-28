@@ -3363,7 +3363,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
       </AnimatePresence>
       <AnimatePresence>
         {recursosDe && onGuardarRecursos && (
-          <EditorRecursos key={recursosDe.id} seccion={recursosDe} onCerrar={() => setRecursosDe(null)} onGuardar={(r, abrir) => { onGuardarRecursos(recursosDe, r, abrir); setRecursosDe(null); }} />
+          <EditorRecursos key={recursosDe.id} seccion={recursosDe} materia={planificacion?.materia} onCerrar={() => setRecursosDe(null)} onGuardar={(r, abrir) => { onGuardarRecursos(recursosDe, r, abrir); setRecursosDe(null); }} />
         )}
       </AnimatePresence>
       <AnimatePresence>
@@ -3733,9 +3733,43 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
 // RECURSOS PARA EL PORTAL DEL ESTUDIANTE (videos, páginas, documentos)
 // ============================================
 const DIAS_APERTURA_PORTAL = 7;
-function EditorRecursos({ seccion, onGuardar, onCerrar }: { seccion: SeccionExamen; onGuardar: (recursos: { titulo: string; url: string }[] | null, abiertaManual: boolean) => void; onCerrar: () => void }) {
+interface VideoSugeridoUI { titulo: string; url: string; canal: string; duracionSeg: number; miniatura: string; vistas: number }
+interface PaginaSugeridaUI { titulo: string; url: string; descripcion: string }
+async function pedirSugerenciasRecursos(sec: SeccionExamen, materia?: string): Promise<{ videos: VideoSugeridoUI[]; paginas: PaginaSugeridaUI[]; avisos: string[] }> {
+  const r = await fetch('/api/recursos/sugerir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, enfoque: sec.enfoque, materia }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'No se pudieron buscar recursos.');
+  return { videos: d.videos || [], paginas: d.paginas || [], avisos: d.avisos || [] };
+}
+function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: SeccionExamen; materia?: string; onGuardar: (recursos: { titulo: string; url: string }[] | null, abiertaManual: boolean) => void; onCerrar: () => void }) {
   const [filas, setFilas] = useState(() => (seccion.recursos?.length ? seccion.recursos : [{ titulo: '', url: '' }]).map(r => ({ ...r })));
   const [abrirYa, setAbrirYa] = useState(!!seccion.abiertaManual);
+  // Búsqueda automática (YouTube + páginas verificadas)
+  const [buscando, setBuscando] = useState(false);
+  const [sugerencias, setSugerencias] = useState<{ videos: VideoSugeridoUI[]; paginas: PaginaSugeridaUI[]; avisos: string[] } | null>(null);
+  const [elegidas, setElegidas] = useState<string[]>([]);
+  const [errorBusqueda, setErrorBusqueda] = useState('');
+  const buscar = async () => {
+    setBuscando(true); setErrorBusqueda(''); setSugerencias(null);
+    try {
+      const d = await pedirSugerenciasRecursos(seccion, materia);
+      setSugerencias(d);
+      const yaEstan = new Set(filas.map(f => f.url.trim()));
+      setElegidas([...d.videos.slice(0, 2), ...d.paginas.slice(0, 2)].map(x => x.url).filter(u => !yaEstan.has(u)));
+    } catch (e: any) { setErrorBusqueda(e.message); } finally { setBuscando(false); }
+  };
+  const agregarElegidas = () => {
+    if (!sugerencias) return;
+    const todas = [...sugerencias.videos.map(v => ({ titulo: v.titulo, url: v.url })), ...sugerencias.paginas.map(p => ({ titulo: p.titulo, url: p.url }))].filter(x => elegidas.includes(x.url));
+    setFilas(prev => {
+      const actuales = prev.filter(f => f.url.trim());
+      const urls = new Set(actuales.map(f => f.url.trim()));
+      const juntas = [...actuales, ...todas.filter(x => !urls.has(x.url))].slice(0, 10);
+      return juntas.length ? juntas : [{ titulo: '', url: '' }];
+    });
+    setSugerencias(null); setElegidas([]);
+  };
+  const alternarElegida = (u: string) => setElegidas(prev => prev.includes(u) ? prev.filter(x => x !== u) : [...prev, u]);
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
     window.addEventListener('keydown', tecla);
@@ -3768,11 +3802,64 @@ function EditorRecursos({ seccion, onGuardar, onCerrar }: { seccion: SeccionExam
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <p className="text-xs text-[#9a9bb0]">Salen en la página personal de cada estudiante. Los videos de YouTube se ven ahí mismo; los demás enlaces se abren aparte.</p>
+          <div className="rounded-xl border border-[#818cf8]/30 bg-[#818cf8]/5 p-3 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button type="button" onClick={buscar} disabled={buscando} className="h-9 px-3 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-60">
+                {buscando ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {buscando ? 'Buscando videos y páginas…' : sugerencias ? 'Buscar otra vez' : 'Buscar recursos automáticamente'}
+              </button>
+              <span className="text-[11px] text-[#8a8b9e]">Videos reales de YouTube y páginas comprobadas para «{limpiarTexto(seccion.nombre)}».</span>
+            </div>
+            {errorBusqueda && <p className="text-xs text-red-300">{errorBusqueda}</p>}
+            {sugerencias && (
+              <div className="space-y-3">
+                {sugerencias.avisos.map((a, i) => <p key={i} className="text-[11px] text-amber-300">⚠ {a}</p>)}
+                {sugerencias.videos.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wider text-[#8a8b9e] font-semibold">Videos</p>
+                    {sugerencias.videos.map(v => (
+                      <label key={v.url} className={`flex items-center gap-2.5 p-1.5 rounded-lg border cursor-pointer transition-colors ${elegidas.includes(v.url) ? 'border-[#818cf8]/60 bg-[#818cf8]/10' : 'border-[#313248] hover:border-[#414258]'}`}>
+                        <input type="checkbox" checked={elegidas.includes(v.url)} onChange={() => alternarElegida(v.url)} className="w-4 h-4 accent-[#818cf8] flex-shrink-0" />
+                        <img src={v.miniatura} alt="" className="w-20 h-[45px] rounded object-cover flex-shrink-0 bg-black" loading="lazy" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs text-[#e0e0ec] line-clamp-2">{v.titulo}</span>
+                          <span className="block text-[10px] text-[#8a8b9e] truncate">{v.canal} · {Math.floor(v.duracionSeg / 60)}:{String(v.duracionSeg % 60).padStart(2, '0')} min{v.vistas ? ` · ${v.vistas >= 1000000 ? `${(v.vistas / 1000000).toFixed(1)} M` : v.vistas >= 1000 ? `${Math.round(v.vistas / 1000)} mil` : v.vistas} vistas` : ''}</span>
+                        </span>
+                        <a href={v.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="p-1 text-[#8a8b9e] hover:text-white flex-shrink-0" title="Ver en YouTube"><ExternalLink className="w-3.5 h-3.5" /></a>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {sugerencias.paginas.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wider text-[#8a8b9e] font-semibold">Páginas y herramientas (comprobadas)</p>
+                    {sugerencias.paginas.map(pg => (
+                      <label key={pg.url} className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${elegidas.includes(pg.url) ? 'border-[#818cf8]/60 bg-[#818cf8]/10' : 'border-[#313248] hover:border-[#414258]'}`}>
+                        <input type="checkbox" checked={elegidas.includes(pg.url)} onChange={() => alternarElegida(pg.url)} className="w-4 h-4 accent-[#818cf8] flex-shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs text-[#e0e0ec] truncate">{pg.titulo}</span>
+                          <span className="block text-[10px] text-[#8a8b9e] truncate">{(() => { try { return new URL(pg.url).hostname.replace(/^www\./, ''); } catch { return pg.url; } })()}{pg.descripcion ? ` · ${pg.descripcion}` : ''}</span>
+                        </span>
+                        <a href={pg.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="p-1 text-[#8a8b9e] hover:text-white flex-shrink-0" title="Abrir"><ExternalLink className="w-3.5 h-3.5" /></a>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {sugerencias.videos.length === 0 && sugerencias.paginas.length === 0 && <p className="text-xs text-[#8a8b9e]">No se encontró nada útil. Prueba con un nombre de evaluación más claro (ej. «Diagramas UML de clases»).</p>}
+                {(sugerencias.videos.length > 0 || sugerencias.paginas.length > 0) && (
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => { setSugerencias(null); setElegidas([]); }} className="h-8 px-3 rounded-lg text-xs text-[#a0a0b8] hover:text-white">Descartar</button>
+                    <button type="button" onClick={agregarElegidas} disabled={elegidas.length === 0} className="h-8 px-3 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-xs font-semibold disabled:opacity-40">Agregar seleccionados ({elegidas.length})</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <div className="space-y-2.5">
             {filas.map((f, i) => (
               <div key={i} className="rounded-xl border border-[#313248] bg-[#1f2035] p-2.5 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] w-12 flex-shrink-0 text-center">{f.url && esVideo(f.url) ? '▶️ Video' : '🔗 Enlace'}</span>
+                  <span className="text-[11px] w-14 flex-shrink-0 text-center text-[#a0a0b8] leading-tight">{f.url && esVideo(f.url) ? '▶️ Video' : '🔗 Enlace'}</span>
                   <input value={f.titulo} onChange={(e) => setFilas(prev => prev.map((x, k) => (k === i ? { ...x, titulo: e.target.value } : x)))} maxLength={120} placeholder="Título (ej. Video: qué son los microservicios)" className={`${campo} border-[#313248]`} />
                   <button type="button" onClick={() => setFilas(prev => prev.length === 1 ? [{ titulo: '', url: '' }] : prev.filter((_, k) => k !== i))} className="p-1.5 text-[#8a8b9e] hover:text-red-400 rounded-lg flex-shrink-0" title="Quitar"><Trash2 className="w-4 h-4" /></button>
                 </div>
@@ -4501,6 +4588,33 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const abrirCopia = () => {
     const otra = seccionesDisponibles.find(l => l !== seccionActiva) || siguienteLetraLibre || '';
     setCopiaDestino(otra); setCopiaModo('agregar'); setCopiaDias('0'); setCopiaAbierta(true);
+  };
+  // Busca y asigna recursos (2 videos + 2 páginas) a las evaluaciones de la sección que aún no tienen
+  const [llenandoRecursos, setLlenandoRecursos] = useState<{ hechas: number; total: number } | null>(null);
+  const recursosParaTodas = async () => {
+    const pendientes = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva && !(s.recursos?.length) && !['CANCELADA', 'REALIZADA'].includes(String(s.estado || '').toUpperCase()));
+    if (pendientes.length === 0) { agregarNotificacion(`📎 Todas las evaluaciones de la Sección ${seccionActiva} ya tienen recursos.`); return; }
+    if (!window.confirm(`Se buscarán videos y páginas para ${pendientes.length} evaluación(es) de la Sección ${seccionActiva} que no tienen recursos, y se asignarán 2 videos y 2 páginas a cada una. Luego puedes revisarlos en el botón 📎 de cada tarjeta. ¿Continuar?`)) return;
+    setLlenandoRecursos({ hechas: 0, total: pendientes.length });
+    const resumen: string[] = [];
+    for (let i = 0; i < pendientes.length; i++) {
+      const sec = pendientes[i];
+      try {
+        const d = await pedirSugerenciasRecursos(sec, planificacion.materia);
+        const recursos = [...d.videos.slice(0, 2), ...d.paginas.slice(0, 2)].map(x => ({ titulo: x.titulo, url: x.url }));
+        if (recursos.length) {
+          setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id && !(s.recursos?.length) ? { ...s, recursos } : s) }));
+          resumen.push(`«${limpiarTexto(sec.nombre)}»: ${d.videos.slice(0, 2).length} video(s), ${d.paginas.slice(0, 2).length} página(s)`);
+        } else resumen.push(`«${limpiarTexto(sec.nombre)}»: no se encontró nada`);
+        if (d.avisos.some(a => /cupo/i.test(a)) && !d.videos.length && !d.paginas.length) { resumen.push('Se detuvo: se acabó el cupo diario.'); break; }
+      } catch (e: any) {
+        resumen.push(`«${limpiarTexto(sec.nombre)}»: ${e.message}`);
+        if (/cupo|clave/i.test(e.message)) break; // no tiene sentido seguir
+      }
+      setLlenandoRecursos({ hechas: i + 1, total: pendientes.length });
+    }
+    setLlenandoRecursos(null);
+    agregarNotificacion(`📎 Recursos de la Sección ${seccionActiva}: ${resumen.join(' · ')}`);
   };
   const copiarPlanASeccion = () => {
     const destino = copiaDestino;
@@ -5304,6 +5418,15 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                         </button>
                       </Tooltip>
                     </div>
+                    {seccionesFiltradas.length > 0 && (
+                      <Tooltip text={`Buscar videos y páginas para las evaluaciones de la Sección ${seccionActiva} que aún no tienen recursos`}>
+                        <button type="button" onClick={recursosParaTodas} disabled={!!llenandoRecursos}
+                          className="h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors bg-[#161722] border-[#313248] text-[#a0a0b8] hover:text-white hover:border-[#818cf8]/50 disabled:opacity-80">
+                          {llenandoRecursos ? <span className="w-3.5 h-3.5 border-2 border-[#818cf8]/40 border-t-[#818cf8] rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-[#a5b4fc]" />}
+                          {llenandoRecursos ? `Buscando ${llenandoRecursos.hechas}/${llenandoRecursos.total}…` : 'Recursos para todas'}
+                        </button>
+                      </Tooltip>
+                    )}
                     {seccionesParaPlan.length > 0 && (
                       <div className="relative">
                         <Tooltip text={`Copiar el plan de la Sección ${seccionActiva} a otra sección`}>
