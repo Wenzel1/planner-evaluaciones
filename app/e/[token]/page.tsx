@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, Lock, Calendar, Clock, Users, Target, ChevronDown, Download, PlayCircle, ExternalLink,
-  CheckCircle2, CircleDot, Hourglass, ClipboardCheck, MessageSquare, AlertCircle, BookOpen, Sparkles,
+  CheckCircle2, CircleDot, Hourglass, ClipboardCheck, MessageSquare, AlertCircle, BookOpen, Sparkles, FileText,
 } from 'lucide-react';
 import { NIVELES_RUBRICA, puntosNivel, textoPuntos, type RubricaEval } from '@/lib/rubrica';
 
@@ -75,6 +75,7 @@ export default function PortalEstudiante() {
   const [materiaId, setMateriaId] = useState<string | null>(null);
   const [abierta, setAbierta] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => Date.now());
+  const [verPlan, setVerPlan] = useState(true); // el plan sale abierto al entrar
 
   useEffect(() => {
     let vivo = true;
@@ -209,6 +210,23 @@ export default function PortalEstudiante() {
           )}
           {materia && (
             <>
+              {/* El plan de evaluación con el mismo diseño del Plan de Acción de la app (abierto al entrar, se puede cerrar) */}
+              <section className="mb-8">
+                <button type="button" onClick={() => setVerPlan(v => !v)} className="w-full flex items-center gap-3 mb-3 text-left group">
+                  <span className="w-8 h-8 rounded-xl bg-[#818cf8]/15 flex items-center justify-center shrink-0"><FileText className="w-4 h-4 text-[#a5b4fc]" /></span>
+                  <span className="flex-1 text-sm font-semibold text-[#9a9bb0] uppercase tracking-wider group-hover:text-white transition-colors">Plan de evaluación</span>
+                  <span className="text-xs text-[#7a7b90] group-hover:text-[#c7d2fe]">{verPlan ? 'Cerrar' : 'Ver plan'}</span>
+                  <ChevronDown className={`w-5 h-5 text-[#6a6b7e] transition-transform ${verPlan ? 'rotate-180' : ''}`} />
+                </button>
+                <AnimatePresence initial={false}>
+                  {verPlan && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
+                      <PlanDeAccion materia={materia} profesor={datos.profesor} seccion={datos.estudiante.seccion} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </section>
+
               <h2 className="text-sm font-semibold text-[#9a9bb0] uppercase tracking-wider mb-3">Mis evaluaciones</h2>
               <ol className="space-y-3">
                 {lista.map(({ e, s }, i) => (
@@ -227,6 +245,57 @@ export default function PortalEstudiante() {
         </div>
       </div>
     </Pantalla>
+  );
+}
+
+// Mismo diseño que la vista previa del Plan de Acción en la app del profesor (hoja blanca)
+function PlanDeAccion({ materia, profesor, seccion }: { materia: Materia; profesor: string; seccion: string }) {
+  const lista = materia.evaluaciones;
+  const fCorta = (d: string | null) => (d ? fFecha(d, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—');
+  return (
+    <div className="w-full border border-slate-200 rounded-xl bg-white text-slate-800 font-sans shadow-lg">
+      <div className="p-4 sm:p-10 relative">
+        <div className="sm:absolute sm:top-10 sm:right-10 inline-block mb-4 sm:mb-0 text-[10px] uppercase tracking-widest font-bold text-[#818cf8] bg-[#818cf8]/10 border border-[#818cf8]/20 px-3 py-1 rounded-md">Sección {seccion}</div>
+        <div className="mb-8 border-b-2 border-[#1e3a8a] pb-6">
+          <span className="text-[11px] font-bold text-[#60a5fa] uppercase tracking-widest">Plan de Acción</span>
+          <h2 className="text-2xl sm:text-3xl font-black text-[#1e3a8a] mt-1 sm:pr-32">{materia.nombre}</h2>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-xs text-slate-500"><p>👤 Prof. {profesor}</p><p>📅 {fFecha(new Date().toISOString(), { day: '2-digit', month: '2-digit', year: 'numeric' })}</p></div>
+        </div>
+        <div className="overflow-x-auto mb-8 rounded-xl border border-slate-200">
+          <table className="w-full border-collapse text-left bg-white text-[13px] sm:text-base">
+            <thead><tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500"><th className="p-2.5 sm:p-4">Contenido</th><th className="p-2.5 sm:p-4">Estrategia</th><th className="p-2.5 sm:p-4 text-center">Peso</th><th className="p-2.5 sm:p-4 text-center">Fecha</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {lista.map(e => (
+                <tr key={e.id}>
+                  <td className="p-2.5 sm:p-4 font-medium text-slate-700">{e.nombre}{!e.abierta && <span className="ml-1.5 text-xs" title="Los detalles se abren 7 días antes">🔒</span>}</td>
+                  <td className="p-2.5 sm:p-4 text-slate-600">{e.tipoActividad || 'Desarrollo'}</td>
+                  <td className="p-2.5 sm:p-4 text-center font-bold text-[#1e3a8a]">{e.peso || 0}%</td>
+                  <td className="p-2.5 sm:p-4 text-center text-slate-600 whitespace-nowrap"><span className="sm:hidden">{e.fecha ? fFecha(e.fecha, { day: '2-digit', month: '2-digit' }) : '—'}</span><span className="hidden sm:inline">{fCorta(e.fecha)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {lista.some(e => e.descripcion) && (
+          <div className="mt-6 border-t-2 border-slate-200 pt-6">
+            <h3 className="text-sm font-bold text-slate-700 uppercase mb-3">📋 Especificaciones</h3>
+            <div className="grid gap-4">
+              {lista.map((e, i) => e.descripcion ? (
+                <div key={e.id} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <div className="flex items-center gap-2 mb-2"><span className="text-xs font-bold text-slate-400">#{i + 1}</span><span className="font-semibold text-slate-700">{e.nombre}</span></div>
+                  <p className="text-sm text-slate-600 whitespace-pre-wrap">{e.descripcion}</p>
+                </div>
+              ) : null)}
+            </div>
+          </div>
+        )}
+        {lista.some(e => !e.abierta) && <p className="mt-4 text-xs text-slate-400">🔒 Las especificaciones de las evaluaciones bloqueadas aparecen 7 días antes de su fecha.</p>}
+        <div className="mt-8 pt-4 border-t border-slate-300 grid grid-cols-2 gap-8">
+          <div><p className="text-xs text-slate-400 uppercase mb-1">Prof. {profesor}</p><div className="border-b border-slate-400 w-3/4"></div><p className="text-[10px] text-slate-400 mt-1">Firma</p></div>
+          <div><p className="text-xs text-slate-400 uppercase mb-1">Coordinación Académica</p><div className="border-b border-slate-400 w-3/4"></div><p className="text-[10px] text-slate-400 mt-1">Sello</p></div>
+        </div>
+      </div>
+    </div>
   );
 }
 
