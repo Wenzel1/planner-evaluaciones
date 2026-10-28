@@ -108,6 +108,7 @@ model Materia {
   usuarioId   String?
   usuario     Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   observaciones Observacion[]
+  opiniones     OpinionPlan[]
   @@index([usuarioId])
 }
 
@@ -203,6 +204,7 @@ model Estudiante {
 
   // Enlace secreto de su página personal (/e/<token>). Se crea la primera vez que hace falta.
   enlaceToken String? @unique
+  opiniones   OpinionPlan[]
 
   // Dueño (profesor). El mismo estudiante puede existir en la lista de varios profesores.
   usuarioId String?
@@ -374,4 +376,21 @@ model EnvioWhatsApp {
 
   @@index([loteId])
   @@index([usuarioId, createdAt])
+}
+
+// Opinión de un estudiante sobre el plan de evaluación de una materia (desde su página personal). Una por estudiante y materia.
+model OpinionPlan {
+  id           String     @id @default(cuid())
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  materiaId    String
+  materia      Materia    @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  deAcuerdo    Boolean
+  comentario   String?
+  leida        Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([estudianteId, materiaId])
+  @@index([materiaId])
 }

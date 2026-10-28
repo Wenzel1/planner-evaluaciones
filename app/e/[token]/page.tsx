@@ -18,7 +18,8 @@ interface Evaluacion {
   estado: string; abierta: boolean; abreEl: string | null; descripcion: string | null;
   recursos: Recurso[]; rubrica: RubricaEval | null; nota: Nota | null;
 }
-interface Materia { id: string; nombre: string; evaluaciones: Evaluacion[]; promedio: number | null }
+interface Opinion { deAcuerdo: boolean; comentario: string | null; fecha: string }
+interface Materia { id: string; nombre: string; evaluaciones: Evaluacion[]; promedio: number | null; opinion: Opinion | null }
 interface Datos { estudiante: { nombre: string; seccion: string }; profesor: string; materias: Materia[]; generado: string }
 
 const ZONA = 'America/Caracas';
@@ -225,6 +226,7 @@ export default function PortalEstudiante() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+                <OpinionPlan token={token} materia={materia} onGuardada={(op) => setDatos(prev => prev ? { ...prev, materias: prev.materias.map(m => m.id === materia.id ? { ...m, opinion: op } : m) } : prev)} />
               </section>
 
               <h2 className="text-sm font-semibold text-[#9a9bb0] uppercase tracking-wider mb-3">Mis evaluaciones</h2>
@@ -276,25 +278,67 @@ function PlanDeAccion({ materia, profesor, seccion }: { materia: Materia; profes
             </tbody>
           </table>
         </div>
-        {lista.some(e => e.descripcion) && (
-          <div className="mt-6 border-t-2 border-slate-200 pt-6">
-            <h3 className="text-sm font-bold text-slate-700 uppercase mb-3">📋 Especificaciones</h3>
-            <div className="grid gap-4">
-              {lista.map((e, i) => e.descripcion ? (
-                <div key={e.id} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                  <div className="flex items-center gap-2 mb-2"><span className="text-xs font-bold text-slate-400">#{i + 1}</span><span className="font-semibold text-slate-700">{e.nombre}</span></div>
-                  <p className="text-sm text-slate-600 whitespace-pre-wrap">{e.descripcion}</p>
-                </div>
-              ) : null)}
-            </div>
-          </div>
-        )}
-        {lista.some(e => !e.abierta) && <p className="mt-4 text-xs text-slate-400">🔒 Las especificaciones de las evaluaciones bloqueadas aparecen 7 días antes de su fecha.</p>}
         <div className="mt-8 pt-4 border-t border-slate-300 grid grid-cols-2 gap-8">
           <div><p className="text-xs text-slate-400 uppercase mb-1">Prof. {profesor}</p><div className="border-b border-slate-400 w-3/4"></div><p className="text-[10px] text-slate-400 mt-1">Firma</p></div>
           <div><p className="text-xs text-slate-400 uppercase mb-1">Coordinación Académica</p><div className="border-b border-slate-400 w-3/4"></div><p className="text-[10px] text-slate-400 mt-1">Sello</p></div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ¿Está de acuerdo con el plan? Le llega al profesor en el Planificador. Se puede cambiar después.
+function OpinionPlan({ token, materia, onGuardada }: { token: string; materia: Materia; onGuardada: (o: Opinion) => void }) {
+  const op = materia.opinion;
+  const [modo, setModo] = useState<'ver' | 'sugerir'>('ver');
+  const [texto, setTexto] = useState(op?.comentario || '');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const [editando, setEditando] = useState(false);
+  useEffect(() => { setModo('ver'); setEditando(false); setError(''); setTexto(materia.opinion?.comentario || ''); }, [materia.id]);
+
+  const enviar = async (deAcuerdo: boolean) => {
+    setEnviando(true); setError('');
+    try {
+      const r = await fetch(`/api/portal/${encodeURIComponent(token)}/opinion`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ materiaId: materia.id, deAcuerdo, comentario: texto }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'No se pudo enviar.');
+      onGuardada(d.opinion); setModo('ver'); setEditando(false);
+    } catch (e: any) { setError(e instanceof TypeError ? 'Sin conexión. Intenta de nuevo.' : e.message); } finally { setEnviando(false); }
+  };
+
+  if (op && !editando) return (
+    <div className="mt-3 rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-4 flex items-start gap-3">
+      <span className="text-xl leading-none mt-0.5">{op.deAcuerdo ? '👍' : '💬'}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-white font-medium">{op.deAcuerdo ? 'Dijiste que estás de acuerdo con el plan.' : 'Le enviaste una sugerencia a tu profesor.'}</p>
+        {op.comentario && <p className="text-sm text-[#a8a9bc] mt-1 whitespace-pre-wrap break-words">“{op.comentario}”</p>}
+        <p className="text-[11px] text-[#6a6b7e] mt-1.5">¡Gracias! Tu profesor ya puede verlo.</p>
+      </div>
+      <button type="button" onClick={() => { setEditando(true); setModo(op.deAcuerdo ? 'ver' : 'sugerir'); }} className="shrink-0 text-xs text-[#a5b4fc] hover:text-white">Cambiar</button>
+    </div>
+  );
+
+  return (
+    <div className="mt-3 rounded-2xl border border-[#818cf8]/30 bg-[#1d1e33] p-4">
+      <p className="text-sm font-semibold text-white">¿Estás de acuerdo con este plan de evaluación?</p>
+      <p className="text-xs text-[#9a9bb0] mt-0.5">Tu opinión le llega a tu profesor con tu nombre.</p>
+      {modo === 'ver' ? (
+        <div className="mt-3 flex flex-col sm:flex-row gap-2">
+          <button type="button" disabled={enviando} onClick={() => { setTexto(''); enviar(true); }} className="flex-1 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-sm font-semibold hover:bg-emerald-500/25 disabled:opacity-50">👍 Sí, estoy de acuerdo</button>
+          <button type="button" disabled={enviando} onClick={() => setModo('sugerir')} className="flex-1 h-11 rounded-xl bg-[#232438] border border-[#313248] text-[#d0d0da] text-sm font-semibold hover:border-[#818cf8]/50 disabled:opacity-50">💬 Tengo una sugerencia</button>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <textarea value={texto} onChange={(e) => setTexto(e.target.value.slice(0, 600))} rows={3} autoFocus placeholder="Ej.: ¿Se puede mover la exposición una semana? Coincide con el parcial de otra materia." className="w-full bg-[#191a26] border border-[#313248] rounded-xl px-3 py-2 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] outline-none focus:border-[#818cf8]/60 resize-none" />
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-[#6a6b7e]">{texto.length}/600</span>
+            <button type="button" onClick={() => { setModo('ver'); if (op) setEditando(false); }} className="ml-auto h-9 px-4 rounded-xl text-sm text-[#a0a0b8] hover:text-white">Cancelar</button>
+            <button type="button" disabled={enviando || texto.trim().length < 5} onClick={() => enviar(false)} className="h-9 px-4 rounded-xl bg-[#818cf8] hover:bg-[#6366f1] text-white text-sm font-semibold disabled:opacity-40">{enviando ? 'Enviando…' : 'Enviar'}</button>
+          </div>
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
     </div>
   );
 }

@@ -19,6 +19,7 @@ export async function datosPortal(token: string) {
     where: { usuarioId: est.usuarioId },
     select: {
       id: true, nombre: true,
+      opiniones: { where: { estudianteId: est.id }, select: { deAcuerdo: true, comentario: true, updatedAt: true } },
       planificaciones: {
         orderBy: { updatedAt: 'desc' },
         select: {
@@ -58,6 +59,7 @@ export async function datosPortal(token: string) {
       const conNota = evaluaciones.filter(e => e.nota)
       return {
         id: m.id, nombre: m.nombre, evaluaciones,
+        opinion: m.opiniones[0] ? { deAcuerdo: m.opiniones[0].deAcuerdo, comentario: m.opiniones[0].comentario, fecha: m.opiniones[0].updatedAt } : null,
         promedio: conNota.length ? promedioPonderado(conNota.map(e => ({ puntaje: e.nota!.puntaje, peso: e.peso }))) : null,
       }
     })

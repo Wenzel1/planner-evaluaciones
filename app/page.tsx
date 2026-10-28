@@ -1469,6 +1469,80 @@ function ActividadPanel() {
 }
 
 // ============================================
+// OPINIONES DE LOS ESTUDIANTES SOBRE EL PLAN (desde su página personal)
+// ============================================
+interface OpinionEstudiante { id: string; deAcuerdo: boolean; comentario: string | null; leida: boolean; fecha: string; estudiante: string; seccion: string; materia: string }
+
+function OpinionesEstudiantes({ items, onVistas }: { items: OpinionEstudiante[]; onVistas: (id?: string) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [filtro, setFiltro] = useState<'sugerencias' | 'todas'>('sugerencias');
+  const [seccion, setSeccion] = useState('todas');
+  if (items.length === 0) return null;
+  const secciones = [...new Set(items.map(o => (o.seccion || 'A').toUpperCase()))].sort();
+  const deSeccion = items.filter(o => seccion === 'todas' || (o.seccion || 'A').toUpperCase() === seccion);
+  const deAcuerdo = deSeccion.filter(o => o.deAcuerdo).length;
+  const sugerencias = deSeccion.filter(o => !o.deAcuerdo).length;
+  const nuevas = items.filter(o => !o.leida).length;
+  const visibles = deSeccion.filter(o => filtro === 'todas' || !o.deAcuerdo);
+  const pct = deSeccion.length ? Math.round((deAcuerdo / deSeccion.length) * 100) : 0;
+
+  return (
+    <div className={`rounded-2xl border overflow-hidden ${nuevas ? 'border-[#818cf8]/40 bg-[#818cf8]/5' : 'border-[#313248] bg-[#1f2035]'}`}>
+      <button type="button" onClick={() => setAbierto(v => !v)} className="w-full px-4 py-3 flex items-center gap-3 text-left flex-wrap">
+        <Users className="w-4 h-4 text-[#a5b4fc]" />
+        <span className="text-sm font-semibold text-[#d0d0da]">Opiniones de los estudiantes</span>
+        <span className="text-xs text-emerald-300">👍 {items.filter(o => o.deAcuerdo).length} de acuerdo</span>
+        <span className="text-xs text-amber-300">💬 {items.filter(o => !o.deAcuerdo).length} sugerencia(s)</span>
+        {nuevas > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#818cf8] text-white">{nuevas} nueva{nuevas === 1 ? '' : 's'}</span>}
+        <ChevronDown className={`w-4 h-4 ml-auto text-[#8a8b9e] transition-transform ${abierto ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {abierto && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]">
+            <div className="p-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
+                  {['todas', ...secciones].map(l => (
+                    <button key={l} type="button" onClick={() => setSeccion(l)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${seccion === l ? 'bg-[#818cf8] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{l === 'todas' ? 'Todas' : `Sec. ${l}`}</button>
+                  ))}
+                </div>
+                <div className="flex gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
+                  {([['sugerencias', `Sugerencias (${sugerencias})`], ['todas', `Todas (${deSeccion.length})`]] as const).map(([v, t]) => (
+                    <button key={v} type="button" onClick={() => setFiltro(v)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${filtro === v ? 'bg-[#272839] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{t}</button>
+                  ))}
+                </div>
+                {nuevas > 0 && <button type="button" onClick={() => onVistas()} className="ml-auto text-xs text-[#a5b4fc] hover:text-white underline">Marcar todas como vistas</button>}
+              </div>
+              <div>
+                <div className="flex justify-between text-[11px] text-[#8a8b9e] mb-1"><span>{pct}% de acuerdo</span><span>{deSeccion.length} opinaron</span></div>
+                <div className="h-2 rounded-full bg-amber-500/30 overflow-hidden"><div className="h-full bg-emerald-400" style={{ width: `${pct}%` }} /></div>
+              </div>
+              <div className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[#282a3f] border border-[#282a3f] rounded-xl">
+                {visibles.length === 0 && <p className="px-3 py-6 text-center text-xs text-[#8a8b9e]">{filtro === 'sugerencias' ? 'Nadie ha dejado sugerencias en esta sección.' : 'Sin opiniones.'}</p>}
+                {visibles.map(o => (
+                  <div key={o.id} className={`px-3 py-2.5 flex items-start gap-3 ${!o.leida ? 'bg-[#818cf8]/5' : ''}`}>
+                    <span className="text-base leading-none mt-0.5">{o.deAcuerdo ? '👍' : '💬'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap text-xs">
+                        <span className="font-semibold text-[#d0d0da]">{o.estudiante}</span>
+                        <span className="text-[#8a8b9e]">· Sec. {(o.seccion || 'A').toUpperCase()} · {o.materia} · {new Date(o.fecha).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}</span>
+                        {!o.leida && <span className="w-1.5 h-1.5 rounded-full bg-[#818cf8]" />}
+                      </div>
+                      {o.comentario ? <p className="text-sm text-[#c0c0cc] mt-0.5 whitespace-pre-wrap break-words">{o.comentario}</p> : <p className="text-xs text-[#6a6b7e] mt-0.5">Está de acuerdo con el plan.</p>}
+                    </div>
+                    {!o.leida && <button type="button" onClick={() => onVistas(o.id)} className="shrink-0 text-[11px] text-[#a5b4fc] hover:text-white">Visto</button>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ============================================
 // OBSERVACIONES RECIBIDAS (lo que un administrador dejó sobre tu trabajo)
 // ============================================
 interface ObservacionRecibida { id: string; evaluacionNombre: string | null; autorNombre: string; autorRol: string; mensaje: string; leida: boolean; createdAt: string; materia: { nombre: string } }
@@ -5040,6 +5114,38 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     await fetch('/api/observaciones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id } : { todas: true }) });
     await cargarObservaciones();
   };
+  // Opiniones de los estudiantes sobre el plan (desde su página personal); se consultan cada minuto
+  const [opiniones, setOpiniones] = useState<OpinionEstudiante[]>([]);
+  const opinionesVistas = useRef<Set<string> | null>(null);
+  const cargarOpiniones = async () => {
+    try {
+      const r = await fetch('/api/opiniones');
+      if (!r.ok) return;
+      const lista: OpinionEstudiante[] = await r.json();
+      setOpiniones(lista);
+      const nuevas = lista.filter(o => !o.leida);
+      const clave = (o: OpinionEstudiante) => `${o.id}-${o.fecha}`;
+      if (opinionesVistas.current === null) {
+        opinionesVistas.current = new Set(nuevas.map(clave));
+        if (nuevas.length > 0) agregarNotificacion(`🗳️ ${nuevas.length} opinión(es) nueva(s) de tus estudiantes sobre el plan.`);
+      } else {
+        nuevas.filter(o => !opinionesVistas.current!.has(clave(o))).forEach(o => {
+          opinionesVistas.current!.add(clave(o));
+          agregarNotificacion(o.deAcuerdo ? `👍 ${o.estudiante} está de acuerdo con el plan.` : `💬 ${o.estudiante} dejó una sugerencia sobre el plan.`);
+        });
+      }
+    } catch { /* sin conexión: se intenta en el siguiente ciclo */ }
+  };
+  useEffect(() => {
+    if (!usuario) return;
+    cargarOpiniones();
+    const t = setInterval(cargarOpiniones, 60000);
+    return () => clearInterval(t);
+  }, [usuario?.id]);
+  const marcarOpinionesVistas = async (id?: string) => {
+    await fetch('/api/opiniones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id } : { todas: true }) }).catch(() => {});
+    await cargarOpiniones();
+  };
   // Pestañas ordenadas por rol. 'admin' = supervisión del sistema; 'trabajo' = el espacio propio de la persona.
   // El superadmin no tiene la pestaña Planificador: lo abre desde el ícono del chat, junto a la configuración del agente.
   type Pestana = { id: 'planificacion' | 'estadisticas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera' | 'calendario'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
@@ -5127,6 +5233,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
                 <ObservacionesRecibidas items={observaciones} onLeer={marcarObservacionLeida} />
+                <OpinionesEstudiantes items={opiniones} onVistas={marcarOpinionesVistas} />
                 <div ref={tarjetaRef}>
                 <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
