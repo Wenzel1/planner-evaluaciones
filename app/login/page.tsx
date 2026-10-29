@@ -49,6 +49,7 @@ export default function LoginPage() {
   const [aviso, setAviso] = useState('')
   const [sacudir, setSacudir] = useState(0)
   const [recuperacionEnviada, setRecuperacionEnviada] = useState('')
+  const [recPaso, setRecPaso] = useState<'telefono' | 'codigo'>('telefono') // olvidé mi contraseña: 1) número  2) código + clave nueva
   // Verificación por WhatsApp
   const [codigo, setCodigo] = useState('')
   const [reenvioEn, setReenvioEn] = useState(0)        // segundos que faltan para poder reenviar
@@ -64,6 +65,20 @@ export default function LoginPage() {
   const irAVerificar = (mensaje: string, esperar = 0, finalTel = '') => {
     setModo('verificar'); setError(''); setPassword(''); setConfirmar(''); setCodigo('')
     setAviso(mensaje); setReenvioEn(esperar); setTelefonoFinal(finalTel)
+  }
+
+  // Olvidé mi contraseña: pide (o vuelve a pedir) el código por WhatsApp
+  const pedirCodigoRecuperacion = async () => {
+    const r = await fetch('/api/auth/recuperar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paso: 'pedir', telefono }) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(d.error || 'No se pudo enviar el código.')
+    if (d.enviado === false) { setRecuperacionEnviada(d.mensaje); return } // WhatsApp falló: se avisó al superadmin
+    setAviso(d.mensaje); setRecPaso('codigo'); setCodigo(''); setReenvioEn(60)
+  }
+  const reenviarRecuperacion = async () => {
+    if (reenvioEn > 0 || reenviando) return
+    setReenviando(true); setError('')
+    try { await pedirCodigoRecuperacion() } catch (e: any) { fallar(e instanceof TypeError ? 'No se pudo conectar con el servidor.' : e.message) } finally { setReenviando(false) }
   }
 
   const reenviarCodigo = async () => {
@@ -112,7 +127,7 @@ export default function LoginPage() {
 
   const cambiarModo = (nuevo: Modo) => {
     setModo(nuevo)
-    setError(''); setAviso(''); setPassword(''); setConfirmar(''); setRecuperacionEnviada('')
+    setError(''); setAviso(''); setPassword(''); setConfirmar(''); setRecuperacionEnviada(''); setRecPaso('telefono'); setCodigo('')
   }
 
   const revisarMayusculas = (e: React.KeyboardEvent) => setMayusculas(e.getModifierState && e.getModifierState('CapsLock'))
@@ -123,8 +138,14 @@ export default function LoginPage() {
 
     // ---- validación en el navegador (el servidor vuelve a validar todo) ----
     if (modo === 'recuperar') {
-      const m = validarEmail(email)
+      const m = validarTelefono(telefono)
       if (m) return fallar(m)
+      if (recPaso === 'codigo') {
+        if (!/^\d{6}$/.test(codigo)) return fallar('Escribe los 6 dígitos del código que te llegó por WhatsApp.')
+        const mp = validarPassword(password)
+        if (mp) return fallar(mp)
+        if (password !== confirmar) return fallar('Las contraseñas no coinciden.')
+      }
     } else if (modo === 'verificar') {
       const m = validarEmail(email)
       if (m) return fallar(m)
@@ -154,10 +175,12 @@ export default function LoginPage() {
       }
 
       if (modo === 'recuperar') {
-        const r = await fetch('/api/auth/recuperar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
+        if (recPaso === 'telefono') { await pedirCodigoRecuperacion(); return }
+        const r = await fetch('/api/auth/recuperar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paso: 'cambiar', telefono, codigo, password }) })
         const d = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(d.error || 'No se pudo enviar la solicitud.')
-        setRecuperacionEnviada(d.mensaje)
+        if (!r.ok) throw new Error(d.error || 'No se pudo cambiar la contraseña.')
+        setAviso(d.mensaje || '¡Listo!')
+        if (d.entrar) { window.location.replace('/'); return }
         return
       }
 
@@ -213,7 +236,7 @@ export default function LoginPage() {
   const subtitulo = modoSetup
     ? 'Crea la cuenta del superadmin para comenzar.'
     : modo === 'registro' ? 'Te enviaremos un código por WhatsApp para activar tu cuenta.'
-    : modo === 'recuperar' ? 'Escribe tu correo. El superadmin te contactará por teléfono con una clave temporal.'
+    : modo === 'recuperar' ? (recPaso === 'telefono' ? 'Escribe el número de WhatsApp con el que te registraste. Te enviaremos un código para crear una contraseña nueva.' : 'Escribe el código que te llegó por WhatsApp y elige tu contraseña nueva.')
     : modo === 'verificar' ? `Escribe el código de 6 dígitos que enviamos a tu WhatsApp${telefonoFinal ? ` (número terminado en ${telefonoFinal})` : ''}. Vence en 10 minutos.`
     : 'Inicia sesión para continuar con tu planificación.'
 
@@ -306,10 +329,54 @@ export default function LoginPage() {
                   </div>
                 )}
 
+                {modo !== 'recuperar' && (
                 <div>
                   <label className={etiqueta}>Correo electrónico</label>
-                  <div className="relative"><Mail className={icono} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tucorreo@ejemplo.com" className={campo} autoComplete="email" autoFocus={!modoSetup && (modo === 'login' || modo === 'recuperar')} /></div>
+                  <div className="relative"><Mail className={icono} /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tucorreo@ejemplo.com" className={campo} autoComplete="email" autoFocus={!modoSetup && modo === 'login'} /></div>
                 </div>
+                )}
+
+                {modo === 'recuperar' && (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className={etiqueta}>Número de WhatsApp</label>
+                        {recPaso === 'codigo' && <button type="button" onClick={() => { setRecPaso('telefono'); setAviso(''); setError(''); setCodigo('') }} className="text-[11px] text-[#a5b4fc] hover:text-[#c7d2fe] mb-1.5">Cambiar número</button>}
+                      </div>
+                      <div className="relative"><Phone className={icono} /><input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} readOnly={recPaso === 'codigo'} placeholder="Ej: 0412 123 4567" className={`${campo} ${recPaso === 'codigo' ? 'opacity-70' : ''}`} autoComplete="tel" autoFocus={recPaso === 'telefono'} /></div>
+                    </div>
+                    {recPaso === 'codigo' && (
+                      <>
+                        <div>
+                          <label className={etiqueta}>Código de WhatsApp</label>
+                          <div className="relative">
+                            <MessageCircle className={icono} />
+                            <input value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" autoFocus aria-label="Código de 6 dígitos"
+                              className={`${campo} text-center text-xl font-semibold tracking-[0.5em] placeholder:tracking-[0.5em]`} />
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-[11px] text-[#8a8b9e]">Vence en 10 minutos.</span>
+                            <button type="button" onClick={reenviarRecuperacion} disabled={reenvioEn > 0 || reenviando} className="text-[11px] font-medium text-[#a5b4fc] hover:text-[#c7d2fe] disabled:text-[#5f6074] disabled:cursor-not-allowed flex items-center gap-1">
+                              <RotateCw className={`w-3 h-3 ${reenviando ? 'animate-spin' : ''}`} />{reenvioEn > 0 ? `Reenviar en ${reenvioEn}s` : 'Reenviar código'}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className={etiqueta}>Contraseña nueva</label>
+                          <div className="relative">
+                            <Lock className={icono} />
+                            <input type={verPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8, con letras y números" className={`${campo} pr-10`} autoComplete="new-password" />
+                            <button type="button" onClick={() => setVerPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6a6b7e] hover:text-[#b0b0c4]" aria-label={verPassword ? 'Ocultar contraseña' : 'Ver contraseña'}>{verPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className={etiqueta}>Confirmar contraseña nueva</label>
+                          <div className="relative"><Lock className={icono} /><input type={verPassword ? 'text' : 'password'} value={confirmar} onChange={(e) => setConfirmar(e.target.value)} className={campo} autoComplete="new-password" /></div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
 
                 {modo === 'verificar' && (
                   <div>
@@ -380,7 +447,7 @@ export default function LoginPage() {
                 {modo === 'recuperar' && (
                   <div className="flex items-start gap-2 text-xs text-[#9a9bb0] bg-[#161722] border border-[#282a3f] rounded-xl p-3">
                     <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#a5b4fc]" />
-                    <span>Por seguridad, la clave nueva no se envía por correo: se entrega por teléfono al número que registraste. Con ella podrás entrar y elegir tu propia contraseña.</span>
+                    <span>{recPaso === 'telefono' ? 'Usa el mismo número que pusiste al crear tu cuenta. Si el WhatsApp no llega, se le avisará al superadmin para que te ayude.' : 'Al confirmar, tu contraseña cambia y entras directo al sistema.'}</span>
                   </div>
                 )}
 
@@ -398,7 +465,7 @@ export default function LoginPage() {
                 </AnimatePresence>
 
                 <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="submit" disabled={enviando} className="w-full py-3 bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white font-semibold text-sm rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 disabled:opacity-60">
-                  {enviando ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Procesando...</>) : modoSetup ? (<><ShieldCheck className="w-4 h-4" />Crear superadmin y entrar</>) : modo === 'registro' ? (<><UserPlus className="w-4 h-4" />Crear cuenta</>) : modo === 'recuperar' ? (<><KeyRound className="w-4 h-4" />Avisar al superadmin</>) : modo === 'verificar' ? (<><ShieldCheck className="w-4 h-4" />Confirmar y entrar</>) : (<><LogIn className="w-4 h-4" />Iniciar sesión</>)}
+                  {enviando ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Procesando...</>) : modoSetup ? (<><ShieldCheck className="w-4 h-4" />Crear superadmin y entrar</>) : modo === 'registro' ? (<><UserPlus className="w-4 h-4" />Crear cuenta</>) : modo === 'recuperar' ? (recPaso === 'telefono' ? (<><MessageCircle className="w-4 h-4" />Enviarme un código por WhatsApp</>) : (<><KeyRound className="w-4 h-4" />Cambiar contraseña y entrar</>)) : modo === 'verificar' ? (<><ShieldCheck className="w-4 h-4" />Confirmar y entrar</>) : (<><LogIn className="w-4 h-4" />Iniciar sesión</>)}
                 </motion.button>
 
                 {(modo === 'recuperar' || modo === 'verificar') && (
