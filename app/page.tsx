@@ -2265,6 +2265,7 @@ function EstudiantesPanel() {
   }, []);
 
   const recargarEstudiantes = async () => {
+    olvidarCache('/api/estudiantes');
     const data = await apiEstudiantes.listar();
     setEstudiantes(data.map((e: any) => ({ ...e, estado: e.estado.toLowerCase() })));
   };
@@ -2784,8 +2785,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
   useEffect(() => {
     let vivo = true;
     setEstudiantes(null); setErrorCarga('');
-    fetch(`/api/estudiantes?grupo=${encodeURIComponent(seccion)}`)
-      .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudieron cargar los estudiantes.'); return d; })
+    pedirConCache(`/api/estudiantes?grupo=${encodeURIComponent(seccion)}`)
       .then((d: any) => {
         if (!vivo) return;
         const activos: EstudianteFila[] = (Array.isArray(d) ? d : []).filter((e: any) => String(e.estado || 'ACTIVO').toUpperCase() === 'ACTIVO');
@@ -3425,6 +3425,8 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               {/* ENVIAR — Click simple: nada. Mantener presionado 500ms: muestra ventana */}
               <Tooltip text="Enviar por WhatsApp">
                 <button
+                  onMouseEnter={() => precargar(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}`)}
+                  onTouchStart={() => precargar(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}`)}
                   onClick={() => setMostrarMenuEnvio(true)} // abre la ventana flotante de envío (igual que las demás ventanas)
                   aria-label="Enviar el plan por WhatsApp"
                   className={`p-1.5 rounded-lg border transition-all duration-200 active:scale-95 ${
@@ -3530,6 +3532,22 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
 }
 
 // ============================================
+// PRECARGA: los datos de una ventana se piden apenas el mouse pasa por el botón (o se toca),
+// así cuando la ventana se abre ya están listos. Se guardan 20 segundos.
+// ============================================
+const cachePeticiones = new Map<string, { t: number; p: Promise<any> }>();
+function pedirConCache(url: string, vigencia = 20000): Promise<any> {
+  const c = cachePeticiones.get(url);
+  if (c && Date.now() - c.t < vigencia) return c.p;
+  const p = fetch(url).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo cargar.'); return d; });
+  p.catch(() => cachePeticiones.delete(url)); // si falla, la próxima vez se vuelve a pedir
+  cachePeticiones.set(url, { t: Date.now(), p });
+  return p;
+}
+function precargar(url: string) { pedirConCache(url).catch(() => {}); }
+function olvidarCache(prefijo: string) { for (const k of [...cachePeticiones.keys()]) if (k.startsWith(prefijo)) cachePeticiones.delete(k); }
+
+// ============================================
 // VENTANA FLOTANTE (mismo estilo que Rúbrica, Recursos y Notas)
 // ============================================
 function VentanaFlotante({ children, onCerrar, ancho = 'max-w-2xl' }: { children: React.ReactNode; onCerrar: () => void; ancho?: string }) {
@@ -3540,8 +3558,8 @@ function VentanaFlotante({ children, onCerrar, ancho = 'max-w-2xl' }: { children
     return () => { window.removeEventListener('keydown', tecla); document.body.style.overflow = overflow; };
   }, []);
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
-      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[#0b0b12]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16, ease: 'easeOut' }}
         className={`w-full ${ancho} max-h-[92vh] overflow-y-auto custom-scrollbar rounded-2xl shadow-2xl`}>
         {children}
       </motion.div>
@@ -3595,8 +3613,8 @@ function EditorRubrica({ seccion, onGuardar, onCerrar }: { seccion: SeccionExame
   };
   const campo = 'w-full bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]';
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
-      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[#0b0b12]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16, ease: 'easeOut' }}
         className="w-full max-w-3xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><ClipboardCheck className="w-5 h-5 text-[#a5b4fc]" /></div>
@@ -3691,9 +3709,7 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
     let vivo = true;
     (async () => {
       try {
-        const r = await fetch(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`);
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error || 'No se pudieron cargar las notas.');
+        const d: any = await pedirConCache(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`); // casi siempre ya viene precargado
         if (!vivo) return;
         const rub = normalizarRubrica(d.evaluacion?.rubrica);
         setRubrica(rub);
@@ -3746,6 +3762,7 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'No se pudieron guardar las notas.');
       setFilas(prev => prev.map(f => ({ ...f, guardado: firma(f) })));
+      olvidarCache(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`); olvidarCache('/api/estudiantes');
       agregarNotificacion(`📝 Notas de "${nombre}" guardadas (${d.guardadas} con nota${d.borradas ? `, ${d.borradas} borrada(s)` : ''}).`);
       if (d.estado && d.estado !== seccion.estado) onEstadoCambiado?.(seccion.id, d.estado);
     } catch (e: any) { alert(e.message); } finally { setGuardando(false); }
@@ -3780,8 +3797,8 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
   const campo = 'bg-[#272839] border rounded-lg px-2.5 py-1.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none';
 
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrar(); }}>
-      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[#0b0b12]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrar(); }}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16, ease: 'easeOut' }}
         className="w-full max-w-2xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><GraduationCap className="w-5 h-5 text-emerald-300" /></div>
@@ -3953,8 +3970,8 @@ function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: Se
   };
   const campo = 'w-full bg-[#272839] border rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]';
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
-      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[#0b0b12]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16, ease: 'easeOut' }}
         className="w-full max-w-xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><Paperclip className="w-5 h-5 text-[#a5b4fc]" /></div>
@@ -4113,7 +4130,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
           <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
           {onRubrica && <Tooltip text={seccion.rubrica ? 'Ver o editar la rúbrica' : 'Crear rúbrica'}><button onClick={() => onRubrica(seccion)} className={`p-1.5 rounded-lg ${seccion.rubrica ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><ClipboardCheck className="w-4 h-4" /></button></Tooltip>}
           {onRecursos && <Tooltip text={seccion.recursos?.length ? `${seccion.recursos.length} recurso(s) para los estudiantes` : 'Agregar recursos para los estudiantes'}><button onClick={() => onRecursos(seccion)} className={`relative p-1.5 rounded-lg ${seccion.recursos?.length ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><Paperclip className="w-4 h-4" />{seccion.abiertaManual && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400" title="Abierta antes de tiempo" />}</button></Tooltip>}
-          {onNotas && String(seccion.estado || '').toUpperCase() !== 'CANCELADA' && <Tooltip text="Notas de los estudiantes"><button onClick={() => onNotas(seccion)} className="p-1.5 rounded-lg text-[#8a8b9e] hover:text-emerald-300 hover:bg-emerald-500/10"><GraduationCap className="w-4 h-4" /></button></Tooltip>}
+          {onNotas && String(seccion.estado || '').toUpperCase() !== 'CANCELADA' && <Tooltip text="Notas de los estudiantes"><button onMouseEnter={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onTouchStart={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onClick={() => onNotas(seccion)} className="p-1.5 rounded-lg text-[#8a8b9e] hover:text-emerald-300 hover:bg-emerald-500/10"><GraduationCap className="w-4 h-4" /></button></Tooltip>}
           <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
           <Tooltip text="Eliminar"><button onClick={() => onDelete(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
         </div>
@@ -5438,7 +5455,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     ? [tabDashboard, tabUsuarios, tabActividad, tabCalendario, tabEstudiantes, tabPapelera]
     : puedeAdministrar
       ? [tabDashboard, tabUsuarios, tabPlanificador, tabCalendario, tabEstudiantes, tabPapelera]
-      : [tabPlanificador, tabCalendario, tabDashboard, tabEstudiantes, tabPapelera];
+      : [tabDashboard, tabPlanificador, tabCalendario, tabEstudiantes, tabPapelera];
 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
