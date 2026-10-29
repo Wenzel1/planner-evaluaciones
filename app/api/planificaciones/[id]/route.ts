@@ -57,7 +57,7 @@ export async function GET(
       where: { id },
       include: {
         materia: true,
-        evaluaciones: { orderBy: { orden: 'asc' } },
+        evaluaciones: { orderBy: { orden: 'asc' }, include: { _count: { select: { preparaciones: true } } } },
         rubrica: { include: { niveles: true }, orderBy: { createdAt: 'asc' } },
         comentarios: { orderBy: { createdAt: 'desc' } },
         conversaciones: {

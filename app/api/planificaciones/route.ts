@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       where,
       include: {
         materia: true,
-        evaluaciones: { orderBy: { orden: 'asc' } },
+        evaluaciones: { orderBy: { orden: 'asc' }, include: { _count: { select: { preparaciones: true } } } },
         rubrica: { include: { niveles: true }, orderBy: { createdAt: 'asc' } },
         comentarios: { orderBy: { createdAt: 'desc' } },
       },

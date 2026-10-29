@@ -57,6 +57,8 @@ interface SeccionExamen {
   // Portal del estudiante: recursos de estudio y apertura antes de tiempo
   recursos?: { titulo: string; url: string }[] | null;
   abiertaManual?: boolean;
+  // Cuántos estudiantes marcaron "Ya me preparé" en su página (solo lectura)
+  preparados?: number;
 }
 interface CriterioRubrica {
   id: string; nombre: string; peso: number; descripcion: string;
@@ -296,7 +298,7 @@ const TERMINOS_BLOQUEADOS = [
 //  - Las palabras técnicas mandan: "API REST para un sistema de ventas" es válido aunque diga "ventas".
 //  - Bloqueo duro solo en casos claros: texto sin sentido o tema ajeno SIN ninguna palabra técnica.
 //  - En los casos dudosos se devuelve una "advertencia": el profesor puede guardar igual si confirma.
-const normalizarSE = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const normalizarSE = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const escaparRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 // Palabra técnica: coincide al inicio de una palabra ("api" → "apis", "patron" → "patrones").
 // Las siglas cortas (≤ 3 letras) deben ser la palabra completa, para que "go" no sume en "algoritmo".
@@ -1184,6 +1186,10 @@ interface Estudiante {
   promedio: number;
   asistencia: number;
   notasCargadas?: number; // cuántas evaluaciones tiene calificadas
+  // Visitas a su página personal (/e/<token>)
+  portalVisitas?: number;
+  portalPrimeraVisita?: string | null;
+  portalUltimaVisita?: string | null;
 }
 
 const estudiantesIniciales: Estudiante[] = [
@@ -1352,6 +1358,45 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
       <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={guardar} disabled={guardando} className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl shadow-lg disabled:opacity-60">
         {guardando ? 'Guardando...' : 'Guardar cambios'}
       </motion.button>
+
+      <DatosDemostracion />
+    </div>
+  );
+}
+
+// ============================================
+// DATOS DE DEMOSTRACIÓN (para presentar la app con todo lleno)
+// ============================================
+function DatosDemostracion() {
+  const [trabajando, setTrabajando] = useState<'' | 'crear' | 'borrar'>('');
+  const [error, setError] = useState('');
+  const accion = async (a: 'crear' | 'borrar') => {
+    const aviso = a === 'crear'
+      ? 'Se creará la materia «Ingeniería de Software (Demo)» con secciones A y B, 14 estudiantes de ejemplo, notas, rúbricas, recursos y opiniones. Mientras exista, la app abrirá esa materia. Los estudiantes de ejemplo no tienen teléfono: no se envía ningún WhatsApp. ¿Crear?'
+      : 'Se borrará la materia de demostración y sus 14 estudiantes de ejemplo. Tus materias y estudiantes reales no se tocan. ¿Borrar?';
+    if (!window.confirm(aviso)) return;
+    setTrabajando(a); setError('');
+    try {
+      const r = await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: a }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'No se pudo completar.');
+      window.location.reload(); // recarga para abrir (o dejar de abrir) la materia de demostración
+    } catch (e: any) { setError(e.message); setTrabajando(''); }
+  };
+  return (
+    <div className="mt-6 rounded-2xl border border-dashed border-[#818cf8]/40 bg-[#818cf8]/5 p-5">
+      <div className="flex items-start gap-3">
+        <span className="w-9 h-9 rounded-xl bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><Sparkles className="w-5 h-5 text-[#a5b4fc]" /></span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">Datos de demostración</p>
+          <p className="text-xs text-[#9a9bb0] mt-0.5">Para presentar la app con todo lleno: una materia de ejemplo con estudiantes, notas con rúbrica, recursos, opiniones y «ya me preparé». Solo afecta tu cuenta y se borra con un clic.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => accion('crear')} disabled={!!trabajando} className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold disabled:opacity-60">{trabajando === 'crear' ? 'Creando… (unos segundos)' : 'Crear datos de demostración'}</button>
+            <button type="button" onClick={() => accion('borrar')} disabled={!!trabajando} className="h-9 px-4 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-red-300 hover:border-red-500/40 disabled:opacity-60">{trabajando === 'borrar' ? 'Borrando…' : 'Borrar datos de demostración'}</button>
+          </div>
+          {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2305,7 +2350,7 @@ function EstudiantesPanel() {
   };
   const abrirPagina = async (est: Estudiante) => {
     const ventana = window.open('', '_blank'); // se abre ya para que el navegador no la bloquee
-    try { const url = await pedirEnlace(est.id); if (ventana) ventana.location.href = url; else window.location.href = url; }
+    try { const url = `${await pedirEnlace(est.id)}?profesor=1`; if (ventana) ventana.location.href = url; else window.location.href = url; } // ?profesor=1: no cuenta como visita del estudiante
     catch (e: any) { ventana?.close(); alert(e.message); }
   };
   const copiarEnlace = async (est: Estudiante, nuevo = false) => {
@@ -2336,7 +2381,7 @@ function EstudiantesPanel() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-[#d0d0da] flex items-center gap-3"><Users className="w-6 h-6 text-[#818cf8]" />Gestión de Estudiantes</h2>
-          <p className="text-sm text-[#8a8b9e] mt-1">{totalEstudiantes} estudiantes en {grupos.length} grupos</p>
+          <p className="text-sm text-[#8a8b9e] mt-1">{totalEstudiantes} estudiantes en {grupos.length} grupos{totalEstudiantes > 0 && <> · <span className="text-[#a5b4fc]">{estudiantes.filter(e => e.portalUltimaVisita).length} de {totalEstudiantes} abrieron su página</span></>}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <input ref={inputArchivoRef} type="file" accept=".csv,.txt" className="hidden" onChange={(e) => importarArchivo(e.target.files?.[0])} />
@@ -2382,7 +2427,7 @@ function EstudiantesPanel() {
       <div className="bg-[#1f2035] border border-[#313248] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-[#8a8b9e] border-b border-[#313248] bg-[#191a26]"><th className="py-3 px-4 font-medium">Nombre</th><th className="py-3 px-4 font-medium">Correo</th><th className="py-3 px-4 font-medium">Teléfono</th><th className="py-3 px-4 font-medium">Grupo</th><th className="py-3 px-4 font-medium text-center">Promedio</th><th className="py-3 px-4 font-medium">Estado</th><th className="py-3 px-4 font-medium text-center">Acciones</th></tr></thead>
+            <thead><tr className="text-left text-xs text-[#8a8b9e] border-b border-[#313248] bg-[#191a26]"><th className="py-3 px-4 font-medium">Nombre</th><th className="py-3 px-4 font-medium">Correo</th><th className="py-3 px-4 font-medium">Teléfono</th><th className="py-3 px-4 font-medium">Grupo</th><th className="py-3 px-4 font-medium text-center">Promedio</th><th className="py-3 px-4 font-medium">Su página</th><th className="py-3 px-4 font-medium">Estado</th><th className="py-3 px-4 font-medium text-center">Acciones</th></tr></thead>
             <tbody className="divide-y divide-[#313248]">
               {filteredEstudiantes.map(est => (
                 <tr key={est.id} className="hover:bg-[#272839]/50 transition-colors">
@@ -2391,6 +2436,7 @@ function EstudiantesPanel() {
                   <td className="py-3 px-4 text-[#b0b0c4]">{est.telefono}</td>
                   <td className="py-3 px-4"><span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[#818cf8]/10 text-[#818cf8] border border-[#818cf8]/20">{est.grupo}</span></td>
                   <td className="py-3 px-4 text-center">{(est.notasCargadas ?? 0) > 0 ? (<span title={`Promedio ponderado de ${est.notasCargadas} evaluación(es)`} className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${est.promedio >= 10 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25' : 'bg-red-500/10 text-red-300 border-red-500/25'}`}>{est.promedio.toFixed(1).replace('.', ',')}</span>) : <span className="text-[#6a6b7e]">—</span>}</td>
+                  <td className="py-3 px-4 whitespace-nowrap">{est.portalUltimaVisita ? (<span title={`${est.portalVisitas || 1} visita(s)${est.portalPrimeraVisita ? ` · la abrió por primera vez el ${new Date(est.portalPrimeraVisita).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}` : ''}`} className="inline-flex items-center gap-1.5 text-xs text-emerald-300"><Eye className="w-3.5 h-3.5" />{haceCuanto(est.portalUltimaVisita, Date.now())}{(est.portalVisitas || 0) > 1 && <span className="text-[#6a6b7e]">· {est.portalVisitas}×</span>}</span>) : <span className="text-xs text-[#6a6b7e]" title="Todavía no abre el enlace de su página">Sin abrir</span>}</td>
                   <td className="py-3 px-4"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${est.estado === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}><span className={`w-1.5 h-1.5 rounded-full ${est.estado === 'activo' ? 'bg-emerald-400' : 'bg-red-400'}`}></span>{est.estado === 'activo' ? 'Activo' : 'Inactivo'}</span></td>
                   <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-1">
@@ -2403,7 +2449,7 @@ function EstudiantesPanel() {
                   </td>
                 </tr>
               ))}
-              {filteredEstudiantes.length === 0 && (<tr><td colSpan={7} className="py-8 text-center text-[#8a8b9e]">No hay estudiantes registrados</td></tr>)}
+              {filteredEstudiantes.length === 0 && (<tr><td colSpan={8} className="py-8 text-center text-[#8a8b9e]">No hay estudiantes registrados</td></tr>)}
             </tbody>
           </table>
         </div>
@@ -2722,7 +2768,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
   seccion: string; lista: SeccionExamen[]; materia: string; fechaExamen: Date | string;
   onCerrar: () => void; agregarNotificacion: (m: string) => void;
 }) {
-  interface EstudianteFila { id: string; nombre: string; telefono: string | null; estado?: string }
+  interface EstudianteFila { id: string; nombre: string; telefono: string | null; estado?: string; portalUltimaVisita?: string | null }
   interface EnvioFila { id: string; estudianteId: string | null; nombre: string; estado: string; error: string | null }
   const [estudiantes, setEstudiantes] = useState<EstudianteFila[] | null>(null);
   const [errorCarga, setErrorCarga] = useState('');
@@ -2857,6 +2903,11 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
                   <input type="checkbox" checked={todosMarcados} onChange={() => setMarcados(todosMarcados ? [] : elegibles.map(e => e.id))} className="w-4 h-4 accent-[#818cf8]" />
                   Todos ({elegibles.length})
                 </label>
+                {elegibles.some(e => !e.portalUltimaVisita) && elegibles.some(e => e.portalUltimaVisita) && (
+                  <button type="button" onClick={() => setMarcados(elegibles.filter(e => !e.portalUltimaVisita).map(e => e.id))} className="text-xs text-[#a5b4fc] hover:text-white underline" title="Para reenviarles el enlace solo a quienes no lo han visto">
+                    Solo los que no la han abierto ({elegibles.filter(e => !e.portalUltimaVisita).length})
+                  </button>
+                )}
                 <div className="relative flex-1 min-w-[160px]">
                   <Search className="w-3.5 h-3.5 text-[#6a6b7e] absolute left-3 top-1/2 -translate-y-1/2" />
                   <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar estudiante..." className="w-full bg-[#191a26] border border-[#313248] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[#e0e0ec] outline-none focus:border-[#818cf8]/50" />
@@ -2869,6 +2920,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
                     <label key={e.id} className={`px-3 py-2 flex items-center gap-3 text-sm ${ok ? 'cursor-pointer hover:bg-[#232438]' : 'opacity-50 cursor-not-allowed'}`}>
                       <input type="checkbox" disabled={!ok} checked={ok && marcados.includes(e.id)} onChange={() => alternar(e.id)} className="w-4 h-4 accent-[#818cf8]" />
                       <span className="flex-1 truncate">{e.nombre}</span>
+                      {e.portalUltimaVisita ? <span className="text-[10px] text-emerald-300 flex items-center gap-1 whitespace-nowrap" title="Ya abrió su página"><Eye className="w-3 h-3" />{haceCuanto(e.portalUltimaVisita, Date.now())}</span> : <span className="text-[10px] text-[#6a6b7e] whitespace-nowrap">sin abrir</span>}
                       <span className="text-[11px] text-[#8a8b9e]">{ok ? `📞 …${(e.telefono || '').replace(/\D/g, '').slice(-4)}` : 'Sin teléfono'}</span>
                     </label>
                   );
@@ -4054,6 +4106,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
             {seccion.cantidadGrupos && <span>👥 {seccion.cantidadGrupos} grupos</span>}
             {seccion.fecha && <span>📅 {new Date(seccion.fecha).toLocaleDateString()}</span>}
             {seccion.rubrica && seccion.rubrica.criterios?.length > 0 && <span className="text-[#a5b4fc]">📋 Rúbrica {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
+            {(seccion.preparados ?? 0) > 0 && !['REALIZADA', 'CANCELADA'].includes(String(seccion.estado || '').toUpperCase()) && <span className="text-emerald-300" title="Marcaron «Ya me preparé» en su página">🙋 {seccion.preparados} se prepararon</span>}
           </div>
         </div>
         <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
@@ -5957,6 +6010,7 @@ const guardarPlanificacionEnBD = async () => {
               rubrica: normalizarRubrica(ev.rubrica),
               recursos: Array.isArray(ev.recursos) ? ev.recursos : null,
               abiertaManual: !!ev.abiertaManual,
+              preparados: ev._count?.preparaciones ?? 0,
             })),
             rubrica: (ultimoPlan.rubrica || []).map((crit: any) => ({
               id: crit.id,

@@ -31,6 +31,7 @@ export async function datosPortal(token: string) {
               id: true, nombre: true, tipoActividad: true, enfoque: true, peso: true, fecha: true, tiempoEstimadoMinutos: true,
               cantidadGrupos: true, personasPorGrupo: true, estado: true, abiertaManual: true, descripcion: true, recursos: true, rubrica: true,
               calificaciones: { where: { estudianteId: est.id }, select: { puntaje: true, observaciones: true, detalle: true } },
+              preparaciones: { where: { estudianteId: est.id }, select: { id: true } },
             },
           },
         },
@@ -53,6 +54,7 @@ export async function datosPortal(token: string) {
           descripcion: abierta ? ev.descripcion : null,
           recursos: abierta ? normalizarRecursos(ev.recursos) ?? [] : [],
           rubrica: abierta ? normalizarRubrica(ev.rubrica) : null,
+          preparado: ev.preparaciones.length > 0,
           nota: nota && nota.puntaje != null ? { puntaje: nota.puntaje, observaciones: nota.observaciones, detalle: Array.isArray(nota.detalle) ? nota.detalle : null } : null,
         }
       })
@@ -70,4 +72,17 @@ export async function datosPortal(token: string) {
     materias: lista,
     generado: new Date(ahora).toISOString(),
   }
+}
+
+// Registra que el estudiante abrió su página. Una "visita" nueva cuenta si pasaron más de 30 minutos desde la anterior.
+export async function registrarVisitaPortal(token: string) {
+  if (!TOKEN_VALIDO.test(token)) return
+  const est = await prisma.estudiante.findUnique({ where: { enlaceToken: token }, select: { id: true, portalUltimaVisita: true, portalPrimeraVisita: true } })
+  if (!est) return
+  const ahora = new Date()
+  const nueva = !est.portalUltimaVisita || ahora.getTime() - est.portalUltimaVisita.getTime() > 30 * 60 * 1000
+  await prisma.estudiante.update({
+    where: { id: est.id },
+    data: { portalUltimaVisita: ahora, ...(nueva ? { portalVisitas: { increment: 1 } } : {}), ...(est.portalPrimeraVisita ? {} : { portalPrimeraVisita: ahora }) },
+  }).catch(() => {})
 }

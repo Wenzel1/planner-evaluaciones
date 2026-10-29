@@ -43,7 +43,7 @@ export function textoPuntos(n: number): string {
 // ---------- Rúbrica sugerida según el tipo de actividad ----------
 type Plantilla = [string, number, string, string, string, string][]
 
-const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+const sinTildes = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 function plantillaPara(texto: string, tema: string): Plantilla {
   const t = sinTildes(texto)

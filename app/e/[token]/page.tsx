@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, Lock, Calendar, Clock, Users, Target, ChevronDown, Download, PlayCircle, ExternalLink,
-  CheckCircle2, CircleDot, Hourglass, ClipboardCheck, MessageSquare, AlertCircle, BookOpen, Sparkles, FileText,
+  CheckCircle2, CircleDot, Hourglass, ClipboardCheck, MessageSquare, AlertCircle, BookOpen, Sparkles, FileText, CalendarPlus, Flag,
 } from 'lucide-react';
 import { NIVELES_RUBRICA, puntosNivel, textoPuntos, type RubricaEval } from '@/lib/rubrica';
 
@@ -16,7 +16,7 @@ interface Evaluacion {
   id: string; nombre: string; tipoActividad: string | null; enfoque: string | null; peso: number | null;
   fecha: string | null; duracion: number | null; cantidadGrupos: number | null; personasPorGrupo: number | null;
   estado: string; abierta: boolean; abreEl: string | null; descripcion: string | null;
-  recursos: Recurso[]; rubrica: RubricaEval | null; nota: Nota | null;
+  recursos: Recurso[]; rubrica: RubricaEval | null; nota: Nota | null; preparado?: boolean;
 }
 interface Opinion { deAcuerdo: boolean; comentario: string | null; fecha: string }
 interface Materia { id: string; nombre: string; evaluaciones: Evaluacion[]; promedio: number | null; opinion: Opinion | null }
@@ -51,6 +51,28 @@ function idYouTube(url: string): string | null {
 }
 const dominio = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
 
+// ¿Cuánto necesita en lo que falta para llegar a 10? Usa el peso de cada evaluación (si nadie tiene peso, todas valen igual).
+interface Meta { tipo: 'sin-notas' | 'necesita' | 'aprobado' | 'no-alcanza' | 'cerrado'; necesita?: number; faltan: number; pesoFalta: number; acumulado: number; maximo: number; final?: number }
+function calcularMeta(evs: Evaluacion[]): Meta {
+  const conPeso = evs.some(e => (e.peso ?? 0) > 0);
+  const peso = (e: Evaluacion) => (conPeso ? Math.max(0, e.peso ?? 0) : 1);
+  const total = evs.reduce((t, e) => t + peso(e), 0) || 1;
+  const hechas = evs.filter(e => e.nota);
+  const faltan = evs.filter(e => !e.nota && peso(e) > 0);
+  const pesoHecho = hechas.reduce((t, e) => t + peso(e), 0);
+  const pesoFalta = faltan.reduce((t, e) => t + peso(e), 0);
+  const suma = hechas.reduce((t, e) => t + e.nota!.puntaje * peso(e), 0);
+  const acumulado = suma / total;                // puntos ya ganados sobre 20
+  const maximo = acumulado + (20 * pesoFalta) / total; // lo máximo a lo que puede llegar
+  const base = { faltan: faltan.length, pesoFalta: conPeso ? pesoFalta : Math.round((pesoFalta / total) * 100), acumulado, maximo };
+  if (hechas.length === 0) return { tipo: 'sin-notas', ...base, necesita: 10 };
+  if (pesoFalta === 0) return { tipo: 'cerrado', ...base, final: suma / (pesoHecho || 1) };
+  const necesita = Math.ceil(((10 * total - suma) / pesoFalta) * 10) / 10;
+  if (necesita <= 0) return { tipo: 'aprobado', ...base, necesita: 0 };
+  if (necesita > 20) return { tipo: 'no-alcanza', ...base, necesita };
+  return { tipo: 'necesita', ...base, necesita };
+}
+
 type Situacion = 'calificada' | 'realizada' | 'proxima' | 'abierta' | 'bloqueada';
 function situacion(e: Evaluacion, ahora: number): Situacion {
   if (e.nota) return 'calificada';
@@ -80,7 +102,8 @@ export default function PortalEstudiante() {
 
   useEffect(() => {
     let vivo = true;
-    fetch(`/api/portal/${encodeURIComponent(token)}`, { cache: 'no-store' })
+    const delProfesor = new URLSearchParams(window.location.search).get('profesor') === '1'; // el profesor mirando: no cuenta como visita
+    fetch(`/api/portal/${encodeURIComponent(token)}${delProfesor ? '?profesor=1' : ''}`, { cache: 'no-store' })
       .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo cargar tu plan.'); return d; })
       .then((d: Datos) => { if (vivo) { setDatos(d); setMateriaId(d.materias[0]?.id ?? null); } })
       .catch(e => { if (vivo) setError(e instanceof TypeError ? 'Sin conexión. Revisa tu internet e intenta de nuevo.' : e.message); });
@@ -126,6 +149,8 @@ export default function PortalEstudiante() {
     setAbierta(id);
     setTimeout(() => document.getElementById(`ev-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
+  const calHref = materia ? `/api/portal/${encodeURIComponent(token)}/calendario?materia=${encodeURIComponent(materia.id)}` : '#';
+  const marcarPreparado = (id: string, valor: boolean) => setDatos(prev => prev ? { ...prev, materias: prev.materias.map(m => ({ ...m, evaluaciones: m.evaluaciones.map(e => e.id === id ? { ...e, preparado: valor } : e) })) } : prev);
   const pdfHref = materia ? `/api/portal/${encodeURIComponent(token)}/pdf?materia=${encodeURIComponent(materia.id)}` : '#';
 
   return (
@@ -180,6 +205,7 @@ export default function PortalEstudiante() {
                     <p className={`mt-1.5 text-2xl font-bold ${materia.promedio >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(materia.promedio)}<span className="text-base text-[#8a8b9e] font-medium"> / 20</span></p>
                   ) : <p className="mt-1.5 text-sm text-[#8a8b9e]">Aún sin notas</p>}
                 </div>
+                <TarjetaMeta meta={calcularMeta(materia.evaluaciones)} />
               </section>
 
               {/* Solo en computadora: el lapso de un vistazo, para saltar a cada evaluación */}
@@ -199,6 +225,7 @@ export default function PortalEstudiante() {
 
               <div className="hidden lg:flex flex-col gap-3">
                 <a href={pdfHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[#1c1d2a] border border-[#313248] text-sm text-[#d0d0da] font-medium hover:border-[#818cf8]/50"><Download className="w-4 h-4" />Descargar en PDF</a>
+                <a href={calHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[#1c1d2a] border border-[#313248] text-sm text-[#d0d0da] font-medium hover:border-[#818cf8]/50"><CalendarPlus className="w-4 h-4" />Agregar a mi calendario</a>
                 <p className="text-xs text-[#6a6b7e] text-center">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>
               </div>
             </>
@@ -232,13 +259,16 @@ export default function PortalEstudiante() {
               <h2 className="text-sm font-semibold text-[#9a9bb0] uppercase tracking-wider mb-3">Mis evaluaciones</h2>
               <ol className="space-y-3">
                 {lista.map(({ e, s }, i) => (
-                  <TarjetaPortal key={e.id} e={e} s={s} indice={i + 1} abierta={abierta === e.id} onAlternar={() => setAbierta(abierta === e.id ? null : e.id)} ahora={ahora} />
+                  <TarjetaPortal key={e.id} e={e} s={s} indice={i + 1} abierta={abierta === e.id} onAlternar={() => setAbierta(abierta === e.id ? null : e.id)} ahora={ahora} token={token} materiaNombre={materia.nombre} onPreparado={marcarPreparado} />
                 ))}
               </ol>
 
               <div className="mt-8 flex flex-col sm:flex-row sm:items-center gap-3 lg:hidden">
                 <a href={pdfHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[#1c1d2a] border border-[#313248] text-sm text-[#d0d0da] font-medium hover:border-[#818cf8]/50">
                   <Download className="w-4 h-4" />Descargar en PDF
+                </a>
+                <a href={calHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[#1c1d2a] border border-[#313248] text-sm text-[#d0d0da] font-medium hover:border-[#818cf8]/50">
+                  <CalendarPlus className="w-4 h-4" />Agregar a mi calendario
                 </a>
                 <p className="text-xs text-[#6a6b7e] sm:ml-auto">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>
               </div>
@@ -347,10 +377,11 @@ function Pantalla({ children }: { children: React.ReactNode }) {
   return <main className="min-h-screen bg-[#13141d] text-[#d0d0da] font-['Inter',system-ui,sans-serif] [background-image:radial-gradient(ellipse_at_top,rgba(129,140,248,0.12),transparent_60%)]">{children}</main>;
 }
 
-function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora }: { e: Evaluacion; s: Situacion; indice: number; abierta: boolean; onAlternar: () => void; ahora: number }) {
+function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora, token, materiaNombre, onPreparado }: { e: Evaluacion; s: Situacion; indice: number; abierta: boolean; onAlternar: () => void; ahora: number; token: string; materiaNombre: string; onPreparado: (id: string, v: boolean) => void }) {
+  const porHacer = s === 'proxima' || s === 'abierta';
   const est = ESTILO[s];
   const bloqueada = s === 'bloqueada';
-  const tieneContenido = !bloqueada && (!!e.descripcion || e.recursos.length > 0 || !!e.rubrica || !!e.nota);
+  const tieneContenido = !bloqueada && (!!e.descripcion || e.recursos.length > 0 || !!e.rubrica || !!e.nota || porHacer);
   return (
     <li id={`ev-${e.id}`} className={`scroll-mt-6 rounded-2xl border transition-colors ${s === 'proxima' ? 'border-[#818cf8]/50 bg-[#1d1e33] shadow-[0_0_0_1px_rgba(129,140,248,0.15)]' : bloqueada ? 'border-[#24253a] bg-[#191a26]' : 'border-[#2a2b3d] bg-[#1c1d2a]'}`}>
       <button type="button" onClick={tieneContenido ? onAlternar : undefined} className={`w-full text-left p-4 flex gap-3 ${tieneContenido ? 'cursor-pointer' : 'cursor-default'}`}>
@@ -358,6 +389,7 @@ function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora }: { e: Evalua
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-2">
             <h3 className={`flex-1 font-semibold leading-snug ${bloqueada ? 'text-[#8a8b9e]' : 'text-white'}`}>{e.nombre}</h3>
+            {porHacer && e.preparado && <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-300 border-emerald-500/30"><CheckCircle2 className="w-3 h-3" />Preparado</span>}
             {e.nota ? (
               <span className={`shrink-0 text-lg font-bold ${e.nota.puntaje >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(e.nota.puntaje)}<span className="text-xs text-[#8a8b9e] font-medium">/20</span></span>
             ) : (
@@ -417,11 +449,77 @@ function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora }: { e: Evalua
                   <Rubrica rubrica={e.rubrica} />
                 </div>
               )}
+              {porHacer && <BloquePreparado e={e} token={token} materiaNombre={materiaNombre} onPreparado={onPreparado} />}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </li>
+  );
+}
+
+// "Ya me preparé" + agregar esta evaluación a Google Calendar
+function BloquePreparado({ e, token, materiaNombre, onPreparado }: { e: Evaluacion; token: string; materiaNombre: string; onPreparado: (id: string, v: boolean) => void }) {
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+  const alternar = async () => {
+    const valor = !e.preparado;
+    setGuardando(true); setError(''); onPreparado(e.id, valor); // se ve el cambio al instante
+    try {
+      const r = await fetch(`/api/portal/${encodeURIComponent(token)}/preparado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evaluacionId: e.id, preparado: valor }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'No se pudo guardar.');
+    } catch (err: any) { onPreparado(e.id, !valor); setError(err instanceof TypeError ? 'Sin conexión. Intenta de nuevo.' : err.message); } finally { setGuardando(false); }
+  };
+  const google = e.fecha ? (() => {
+    const ini = new Date(e.fecha); const fin = new Date(ini.getTime() + Math.max(15, e.duracion || 60) * 60000);
+    const f = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const p = new URLSearchParams({ action: 'TEMPLATE', text: `${e.nombre} · ${materiaNombre}`, dates: `${f(ini)}/${f(fin)}`, details: [e.tipoActividad, e.peso != null ? `Vale ${e.peso}%` : '', typeof window !== 'undefined' ? window.location.href.split('?')[0] : ''].filter(Boolean).join('\n') });
+    return `https://calendar.google.com/calendar/render?${p}`;
+  })() : null;
+  return (
+    <div className="flex flex-col sm:flex-row gap-2 pt-1">
+      <button type="button" onClick={alternar} disabled={guardando}
+        className={`flex-1 h-11 rounded-xl border text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-70 ${e.preparado ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200' : 'bg-[#232438] border-[#313248] text-[#d0d0da] hover:border-emerald-500/40'}`}>
+        {e.preparado ? <><CheckCircle2 className="w-4 h-4" />¡Ya me preparé!</> : <><Flag className="w-4 h-4" />Marcar «Ya me preparé»</>}
+      </button>
+      {google && (
+        <a href={google} target="_blank" rel="noopener noreferrer" className="h-11 px-4 rounded-xl border border-[#313248] bg-[#191a26] text-sm text-[#c0c0d0] flex items-center justify-center gap-2 hover:border-[#818cf8]/50">
+          <CalendarPlus className="w-4 h-4" />Google Calendar
+        </a>
+      )}
+      {error && <p className="text-xs text-red-300 sm:self-center">{error}</p>}
+    </div>
+  );
+}
+
+// Tarjeta "Para aprobar": lo que necesita en lo que falta para llegar a 10
+function TarjetaMeta({ meta }: { meta: Meta }) {
+  const pct = (n: number) => `${Math.max(0, Math.min(100, (n / 20) * 100))}%`;
+  const color = meta.tipo === 'aprobado' || (meta.tipo === 'cerrado' && (meta.final ?? 0) >= 10) ? 'border-emerald-500/30 bg-emerald-500/[0.06]'
+    : meta.tipo === 'no-alcanza' || (meta.tipo === 'cerrado' && (meta.final ?? 0) < 10) ? 'border-red-500/30 bg-red-500/[0.06]'
+    : meta.tipo === 'necesita' && (meta.necesita ?? 0) > 15 ? 'border-amber-500/30 bg-amber-500/[0.06]' : 'border-[#2a2b3d] bg-[#1c1d2a]';
+  let titulo = '', detalle = '';
+  if (meta.tipo === 'sin-notas') { titulo = 'Necesitas 10 de promedio'; detalle = 'Todavía no tienes notas. Cada evaluación suma según su peso.'; }
+  else if (meta.tipo === 'necesita') { titulo = `Necesitas ${fNota(meta.necesita!)} de promedio`; detalle = `en ${meta.faltan === 1 ? 'la evaluación que falta' : `las ${meta.faltan} evaluaciones que faltan`} (${meta.pesoFalta}% de la nota) para aprobar con 10.`; }
+  else if (meta.tipo === 'aprobado') { titulo = '¡Ya tienes los puntos para aprobar! 🎉'; detalle = 'Aunque falten evaluaciones, ya llegaste al 10. Sigue así para subir tu nota.'; }
+  else if (meta.tipo === 'no-alcanza') { titulo = 'Con lo que falta no llegas al 10'; detalle = `Aunque saques 20 en todo lo que falta, llegarías a ${fNota(Math.round(meta.maximo * 10) / 10)}. Habla con tu profesor sobre recuperación o actividades extra.`; }
+  else { titulo = (meta.final ?? 0) >= 10 ? `Aprobaste con ${fNota(Math.round((meta.final ?? 0) * 100) / 100)} 🎉` : `Terminaste con ${fNota(Math.round((meta.final ?? 0) * 100) / 100)}`; detalle = (meta.final ?? 0) >= 10 ? '¡Felicitaciones! Ya tienes todas tus notas.' : 'Ya tienes todas tus notas. Consulta con tu profesor si hay recuperación.'; }
+  return (
+    <div className={`sm:col-span-3 lg:col-span-2 rounded-2xl border p-4 ${color}`}>
+      <p className="text-[11px] uppercase tracking-wider text-[#8a8b9e] font-semibold">Para aprobar</p>
+      <p className="mt-1.5 text-white font-semibold leading-snug">{titulo}</p>
+      <p className="mt-1 text-xs text-[#a8a9bc] leading-relaxed">{detalle}</p>
+      {meta.tipo !== 'sin-notas' && meta.tipo !== 'cerrado' && (
+        <div className="mt-3">
+          <div className="relative h-2 rounded-full bg-[#272839] overflow-hidden">
+            <div className="absolute inset-y-0 left-0 bg-[#818cf8]/25" style={{ width: pct(meta.maximo) }} title="Lo máximo que puedes alcanzar" />
+            <div className="absolute inset-y-0 left-0 bg-[#818cf8]" style={{ width: pct(meta.acumulado) }} />
+            <div className="absolute inset-y-0 w-0.5 bg-white/70" style={{ left: '50%' }} />
+          </div>
+          <div className="mt-1.5 flex justify-between text-[10px] text-[#7a7b90]"><span>Llevas {fNota(Math.round(meta.acumulado * 10) / 10)} pts</span><span>10 para aprobar</span><span>Máx. {fNota(Math.round(meta.maximo * 10) / 10)}</span></div>
+        </div>
+      )}
+    </div>
   );
 }
 

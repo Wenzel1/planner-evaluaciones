@@ -164,6 +164,7 @@ model Evaluacion {
   // Portal del estudiante: recursos de estudio [{ titulo, url }] y apertura manual antes de tiempo
   recursos      Json?
   abiertaManual Boolean   @default(false)
+  preparaciones PreparacionEvaluacion[]
 }
 
 model CriterioRubrica {
@@ -205,6 +206,11 @@ model Estudiante {
   // Enlace secreto de su página personal (/e/<token>). Se crea la primera vez que hace falta.
   enlaceToken String? @unique
   opiniones   OpinionPlan[]
+  preparaciones PreparacionEvaluacion[]
+  // Visitas a su página personal (no cuentan las del profesor)
+  portalVisitas        Int       @default(0)
+  portalPrimeraVisita  DateTime?
+  portalUltimaVisita   DateTime?
 
   // Dueño (profesor). El mismo estudiante puede existir en la lista de varios profesores.
   usuarioId String?
@@ -393,4 +399,17 @@ model OpinionPlan {
 
   @@unique([estudianteId, materiaId])
   @@index([materiaId])
+}
+
+// "Ya me preparé": el estudiante lo marca en su página antes de la evaluación
+model PreparacionEvaluacion {
+  id           String     @id @default(cuid())
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  evaluacionId String
+  evaluacion   Evaluacion @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([estudianteId, evaluacionId])
+  @@index([evaluacionId])
 }
