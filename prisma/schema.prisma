@@ -264,6 +264,9 @@ model Mensaje {
   conversacionId  String
   conversacion    Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
   createdAt       DateTime     @default(now())
+  // Chat nuevo: acciones que propuso el agente (tarjetas con botón) y modelo que respondió
+  acciones        Json?
+  modelo          String?
 }
 
 // Registro de actividad (auditoría). Guarda una copia del nombre/rol de quien actuó,

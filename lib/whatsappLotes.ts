@@ -5,6 +5,7 @@
 import crypto from 'crypto'
 import prisma from '@/lib/prisma'
 import { direccionN8n } from '@/lib/codigoWhatsapp'
+import { ultramsgConfigurado, enviarVariosUltraMsg } from '@/lib/ultramsg'
 
 export const ZONA_HORARIA = process.env.ZONA_HORARIA || 'America/Caracas'
 
@@ -50,6 +51,22 @@ export function fechaBonita(fecha: Date): string {
 // Envía el lote a n8n. Si n8n no lo acepta, marca todos los mensajes como FALLIDO y devuelve el motivo.
 export async function enviarLoteN8n(request: Request, mensajes: MensajeLote[]): Promise<{ ok: boolean; error?: string }> {
   if (mensajes.length === 0) return { ok: true }
+  // Vía directa (sin n8n): si están las variables de UltraMsg, se envía desde aquí y se registra el resultado de cada mensaje
+  if (ultramsgConfigurado()) {
+    const r = await enviarVariosUltraMsg(mensajes, async (m, res) => {
+      await prisma.envioWhatsApp.updateMany({
+        where: { id: m.id, estado: 'PENDIENTE' },
+        data: res.ok ? { estado: 'ENVIADO', enviadoEn: new Date(), error: null } : { estado: 'FALLIDO', error: String(res.error || 'No se pudo enviar').slice(0, 300) },
+      }).catch(() => {})
+    })
+    if (r.enviados === 0) {
+      const error = `UltraMsg no envió ningún mensaje: ${r.primerError || 'motivo desconocido'} (revisa ULTRAMSG_INSTANCE, ULTRAMSG_TOKEN y que el QR siga conectado).`
+      console.error('[WhatsApp lote]', error)
+      return { ok: false, error }
+    }
+    if (r.fallidos) console.error(`[WhatsApp lote] ${r.fallidos} de ${mensajes.length} fallaron. Primer motivo: ${r.primerError}`)
+    return { ok: true }
+  }
   const base = await direccionN8n()
   const clave = claveN8n()
   let error = ''

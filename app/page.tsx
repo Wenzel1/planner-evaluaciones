@@ -12,7 +12,7 @@ import {
   BarChart3, ClipboardList, Sparkles,
   Layers, Activity, BookMarked,
   MessageSquareMore, CalendarDays, ChevronLeft,
-  ChevronRight, LogOut, Copy, RotateCcw, ExternalLink, Lock, LockOpen,
+  ChevronRight, LogOut, Copy, RotateCcw, ExternalLink, Lock, LockOpen, History, Square,
   Maximize2, Minimize2, CornerDownLeft, FileText,
   Users, Paperclip, Menu, PanelLeft, PanelRight, Pencil,
   Settings, X, CheckCircle, AlertCircle, Info, Phone, User, Users as UsersIcon,
@@ -77,7 +77,10 @@ interface PlanificacionExamen {
   duracionMinutos: number; materia: string; secciones: SeccionExamen[];
   rubrica: CriterioRubrica[]; comentariosAgente: ComentarioAgente[];
 }
-interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; }
+// Acción que propone el agente (tarjeta con botón en el chat)
+interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada'; resultado?: string }
+const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción' };
+interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; acciones?: AccionChat[]; streaming?: boolean; modelo?: string; respaldo?: boolean; aviso?: string; error?: boolean }
 interface PropuestaEvaluacion {
   evaluaciones: Array<{
     tipo?: string; materia: string; tipoActividad?: string; enfoque?: string;
@@ -1814,14 +1817,14 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className={etiqueta}>Modelo de lenguaje</label>
-            <input list="modelos-sugeridos" value={cfg.chat.modelo} onChange={(e) => cambiarChat({ modelo: e.target.value })} placeholder="(el que tiene el flujo de n8n)" className={campo} />
-            <datalist id="modelos-sugeridos"><option value="models/gemini-2.5-flash" /><option value="models/gemini-2.5-pro" /><option value="models/gemini-2.0-flash" /></datalist>
-            <p className={ayuda}>Déjalo vacío para usar el modelo que ya tiene n8n. Los nombres de ejemplo pueden no existir en tu cuenta; si el chat falla tras cambiarlo, vacíalo.</p>
+            <input list="modelos-sugeridos" value={cfg.chat.modelo} onChange={(e) => cambiarChat({ modelo: e.target.value })} placeholder="gemini-2.5-flash (por defecto)" className={campo} />
+            <datalist id="modelos-sugeridos"><option value="gemini-2.5-flash" /><option value="gemini-2.5-flash-lite" /><option value="gemini-2.5-pro" /><option value="gemini-2.0-flash" /><option value="llama-3.3-70b-versatile" /></datalist>
+            <p className={ayuda}>El primero que se intenta. Si falla o no tiene cupo, el chat pasa solo a Gemini Flash-Lite, Gemini 2.0 y Groq (Llama 3.3). Los modelos «llama…» usan GROQ_API_KEY.</p>
           </div>
           <div>
-            <label className={etiqueta}>Dirección de n8n</label>
+            <label className={etiqueta}>Dirección de n8n (solo respaldo de WhatsApp)</label>
             <input value={cfg.chat.webhookUrl} onChange={(e) => cambiarChat({ webhookUrl: e.target.value })} placeholder="(la variable NEXT_PUBLIC_N8N_URL)" className={campo} />
-            <p className={ayuda}>Ejemplo: http://localhost:5678. También la usa la generación del plan en PDF.</p>
+            <p className={ayuda}>El chat ya no usa n8n. Esta dirección solo se usa para WhatsApp si no configuraste ULTRAMSG_INSTANCE y ULTRAMSG_TOKEN en Vercel.</p>
           </div>
         </div>
         <div>
@@ -4475,7 +4478,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
 // ============================================
 // AGENTE PANEL (CON SCROLL MEJORADO)
 // ============================================
-function AgentePanel({ seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
+function AgentePanel({ planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
   // Atajos del encabezado del chat: llevan al panel de la derecha (en el celular el chat se oculta para dejarlo ver)
   const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
   const [mensaje, setMensaje] = useState(''); 
@@ -4493,6 +4496,13 @@ function AgentePanel({ seccionActiva = 'A', expandido, setExpandido, planificaci
   const isChatStarted = historial.length > 0; 
   const [navegarAlPlan, setNavegarAlPlan] = useState(false);
   const [propuestaPendienteLocal, setPropuestaPendienteLocal] = useState<any>(null);
+  // Chat nuevo: conversación guardada, botón detener, eventos de las tarjetas e historial
+  const [conversacionId, setConversacionId] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const eventosRef = useRef<string[]>([]); // lo que el profesor hizo con las tarjetas: se le cuenta al agente en el próximo mensaje
+  const [verHistorial, setVerHistorial] = useState(false);
+  const [conversaciones, setConversaciones] = useState<{ id: string; titulo: string; fecha: string; mensajes: number }[] | null>(null);
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const hayPropuestaRef = useRef(false);
   useEffect(() => { hayPropuestaRef.current = !!propuestaPendienteLocal; }, [propuestaPendienteLocal]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -4580,13 +4590,13 @@ function AgentePanel({ seccionActiva = 'A', expandido, setExpandido, planificaci
     return palabrasNegativas.some(p => msgLower.includes(p));
   };
 
-  const guardarEvaluacionesDirecto = async () => {
-    if (!propuestaPendienteLocal || !propuestaPendienteLocal.evaluaciones) return { success: false, mensaje: 'No hay evaluaciones para guardar.' };
-    const totalEvals = propuestaPendienteLocal.evaluaciones.length;
+  const guardarEvaluacionesDirecto = async (propuesta: any = propuestaPendienteLocal) => {
+    if (!propuesta || !propuesta.evaluaciones) return { success: false, mensaje: 'No hay evaluaciones para guardar.' };
+    const totalEvals = propuesta.evaluaciones.length;
     const sonCuatro = totalEvals === 4;
     const fechaBase = new Date();
     const fechas = calcularFechasEvaluaciones(fechaBase, totalEvals);
-    const nuevasSecciones: SeccionExamen[] = propuestaPendienteLocal.evaluaciones.map((p: any, idx: number) => {
+    const nuevasSecciones: SeccionExamen[] = propuesta.evaluaciones.map((p: any, idx: number) => {
       let fechaExamen = fechas[idx] || new Date();
       if (p.fecha && p.hora) fechaExamen = new Date(`${p.fecha}T${p.hora}:00`);
       else if (p.fecha) fechaExamen = new Date(p.fecha);
@@ -4597,7 +4607,7 @@ function AgentePanel({ seccionActiva = 'A', expandido, setExpandido, planificaci
     setPlanificacion((prev: PlanificacionExamen) => {
       let secciones = [...prev.secciones];
       nuevasSecciones.forEach((nueva, idx) => {
-        const tipoBuscado = (propuestaPendienteLocal.evaluaciones[idx]?.tipo || `Evaluación ${idx + 1}`).toLowerCase();
+        const tipoBuscado = (propuesta.evaluaciones[idx]?.tipo || `Evaluación ${idx + 1}`).toLowerCase();
         // Solo se reemplaza una evaluación con el mismo número DENTRO de la misma sección (antes podía pisar la de otra sección)
         const indiceExistente = secciones.findIndex(s => (s.grupoSeccion || 'A') === seccionActiva && s.nombre.toLowerCase().startsWith(`${tipoBuscado}:`));
         if (indiceExistente !== -1) {
@@ -4644,34 +4654,270 @@ if (sonCuatro && generarPDF) {
     if (propuestaPendienteLocal) { setPropuestaPendienteLocal(null); setPropuestaPendiente(null); if (limpiarYScroll) limpiarYScroll(); setHistorial(prev => [...prev, { rol: 'agent', contenido: '✅ Propuesta descartada. Los formularios se han limpiado.', completo: true, id: `agent-${Date.now()}` }]); }
   };
 
-  const handleSend = async (overrideMsg?: string) => {
-    const msg = overrideMsg || mensaje;
-    if (!msg.trim() || pensando || escribiendo) return;
-    setHistorial(prev => [...prev, { rol: 'user', contenido: msg, completo: true, id: `user-${Date.now()}` }]);
-    setMensaje(''); setPensando(true);
-    scrollToBottom(true);
-    if (manejarComandoEliminacion(msg)) { setPensando(false); return; }
-    if (propuestaPendienteLocal && esNegacion(msg)) { setPensando(false); cancelarPropuesta(); return; }
-    if (propuestaPendienteLocal && esConfirmacionGuardado(msg)) { setPensando(false); const resultado = await guardarEvaluacionesDirecto(); setHistorial(prev => [...prev, { rol: 'agent', contenido: resultado.success ? resultado.mensaje : '⚠️ ' + resultado.mensaje, completo: true, id: `agent-${Date.now()}` }]); if (resultado.success) { setNavegarAlPlan(true); setVistaPanel('planificacion'); } return; }
-    if ((msg.trim().toLowerCase() === 'aceptar' || msg.trim().toLowerCase() === 'si' || msg.trim().toLowerCase() === 'sí') && propuestaPendienteLocal) { setPensando(false); const resultado = await guardarEvaluacionesDirecto(); setHistorial(prev => [...prev, { rol: 'agent', contenido: resultado.success ? resultado.mensaje : '⚠️ ' + resultado.mensaje, completo: true, id: `agent-${Date.now()}` }]); if (resultado.success) { setNavegarAlPlan(true); setVistaPanel('planificacion'); } return; }
-    // Chat apagado o mensaje demasiado largo (configurado por el superadmin). Los comandos locales de arriba siguen funcionando.
-    if (config && !config.chat.activo) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: '⏸️ ' + config.chat.mensajeInactivo, completo: true, id: `agent-${Date.now()}` }]); return; }
-    if (config && msg.length > config.chat.maxCaracteresMensaje) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: `✂️ Tu mensaje tiene ${msg.length} caracteres y el máximo permitido es ${config.chat.maxCaracteresMensaje}. Acórtalo e inténtalo de nuevo.`, completo: true, id: `agent-${Date.now()}` }]); return; }
-    if (esSolicitudPlanAccion(msg) && !propuestaPendienteLocal) { if (esNegacion(msg)) { setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, no generaré el plan de acción.', completo: true, id: `agent-${Date.now()}` }]); return; } try { const response = await fetch(`${urlChat}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(tiempoChat), body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes, sessionId: usuarioId, config: configParaN8n, accion: 'plan_accion' }) }); const data = await response.json().catch(() => ({})); if (!response.ok || typeof data?.respuesta !== 'string' || !data.respuesta.trim()) { console.error('El agente respondió con error:', response.status, data); throw new Error('respuesta-invalida'); } setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { datosExtraidos = unirPropuesta(propuestaPendienteLocal, datosExtraidos, msg); setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: mensajeErrorAgente(error), completo: true, id: `error-${Date.now()}` }]); } return; }
-    try { const response = await fetch(`${urlChat}/webhook/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(tiempoChat), body: JSON.stringify({ mensaje: msg, historial: historial.slice(-10), planificacion, totalEstudiantes, sessionId: usuarioId, config: configParaN8n }) }); const data = await response.json().catch(() => ({})); if (!response.ok || typeof data?.respuesta !== 'string' || !data.respuesta.trim()) { console.error('El agente respondió con error:', response.status, data); throw new Error('respuesta-invalida'); } setPensando(false); const agentMsgId = `agent-${Date.now()}`; setHistorial(prev => [...prev, { rol: 'agent', contenido: data.respuesta, completo: false, id: agentMsgId }]); setEscribiendo(true); let datosExtraidos = null; if (data.datos && data.datos.evaluaciones?.length) { datosExtraidos = data.datos; } else { const jsonExtraido = extraerJSONDelTexto(data.respuesta); if (jsonExtraido?.evaluaciones) datosExtraidos = jsonExtraido; } if (datosExtraidos) { if (esNegacion(msg)) { setPropuestaPendienteLocal(null); setPropuestaPendiente(null); if (limpiarYScroll) limpiarYScroll(); setHistorial(prev => [...prev, { rol: 'agent', contenido: 'De acuerdo, he descartado los resultados de la evaluación.', completo: true, id: `agent-${Date.now()}` }]); } else { datosExtraidos = unirPropuesta(propuestaPendienteLocal, datosExtraidos, msg); setPropuestaPendienteLocal(datosExtraidos); setPropuestaPendiente(datosExtraidos); } } } catch (error) { console.error('Error:', error); setPensando(false); setHistorial(prev => [...prev, { rol: 'agent', contenido: mensajeErrorAgente(error), completo: true, id: `error-${Date.now()}` }]); }
+  // =========================================================================================
+  // CHAT NUEVO: el agente responde en tiempo real desde /api/chat (ya no pasa por n8n) y propone
+  // acciones como tarjetas con botón. Nada cambia en el plan hasta que el profesor confirma.
+  // =========================================================================================
+  const evaluacionesActivas = (): SeccionExamen[] => planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva);
+  const armarContexto = () => {
+    const otras: Record<string, number> = {};
+    planificacion.secciones.forEach((s: SeccionExamen) => { const l = (s.grupoSeccion || 'A').toUpperCase(); otras[l] = (otras[l] || 0) + 1; });
+    return {
+      materia: planificacion.materia, seccion: seccionActiva, otrasSecciones: otras,
+      evaluaciones: evaluacionesActivas().map((s: SeccionExamen) => ({
+        id: s.id, nombre: limpiarTexto(s.nombre), tipoActividad: s.tipoActividad, enfoque: s.enfoque, peso: s.peso,
+        fecha: s.fecha ? new Date(s.fecha).toISOString() : null, duracion: s.tiempoEstimadoMinutos, estado: s.estado,
+        personasPorGrupo: s.personasPorGrupo, cantidadGrupos: s.cantidadGrupos, tieneRubrica: !!s.rubrica?.criterios?.length,
+        recursos: s.recursos?.length || 0, preparados: s.preparados || 0,
+      })),
+    };
   };
+  const propuestaDeAccion = (a: AccionChat) => ({
+    evaluaciones: (a.datos?.evaluaciones || []).map((e: any) => ({
+      tipo: `Evaluación ${e.numero}`, materia: e.nombre, tipoActividad: e.tipoActividad, enfoque: e.enfoque, duracionMinutos: e.duracionMinutos,
+      peso: e.peso, cantidadGrupos: e.cantidadGrupos, personasPorGrupo: e.personasPorGrupo, fecha: e.fecha, hora: e.hora, descripcion: e.descripcion,
+    })),
+  });
+  const marcarAccion = (msgId: string, accId: string, cambio: Partial<AccionChat>) =>
+    setHistorial(prev => prev.map(m => (m.id === msgId ? { ...m, acciones: (m.acciones || []).map(a => (a.id === accId ? { ...a, ...cambio } : a)) } : m)));
+
+  const ejecutarAccion = async (msgId: string, a: AccionChat, modo: 'aplicar' | 'ajustar' = 'aplicar') => {
+    marcarAccion(msgId, a.id, { estado: 'trabajando', resultado: undefined });
+    try {
+      const evs = evaluacionesActivas();
+      const ev = (n: number) => { const s = evs[n - 1]; if (!s) throw new Error(`No existe la evaluación #${n} en la Sección ${seccionActiva}.`); return s; };
+      const cambiar = (id: string, cambio: Partial<SeccionExamen>) => setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.map(x => (x.id === id ? { ...x, ...cambio } : x)) }));
+      let resultado = '';
+      switch (a.tipo) {
+        case 'proponer_evaluaciones': {
+          const prop = propuestaDeAccion(a);
+          if (modo === 'ajustar') {
+            setPropuestaPendienteLocal(prop); setPropuestaPendiente(prop); setVistaPanel('planificacion'); if (esMovil) setExpandido(false);
+            resultado = 'Cargada en los formularios para que la ajustes y la guardes';
+          } else {
+            const r = await guardarEvaluacionesDirecto(prop);
+            if (!r.success) throw new Error(r.mensaje);
+            resultado = `${r.totalEvals} evaluación(es) guardadas en la Sección ${seccionActiva}${r.pdfGenerado ? ' y plan de acción generado' : ''}`;
+            setVistaPanel('planificacion');
+          }
+          break;
+        }
+        case 'crear_rubrica': {
+          const s = ev(a.datos.evaluacion); const rub = rubricaSugerida(s);
+          cambiar(s.id, { rubrica: rub });
+          resultado = `Rúbrica de ${textoPuntos(totalRubrica(rub))} pts creada para «${limpiarTexto(s.nombre)}» (edítala con 📋 en la tarjeta)`;
+          break;
+        }
+        case 'buscar_recursos': {
+          const s = ev(a.datos.evaluacion);
+          const d = await pedirSugerenciasRecursos(s, planificacion.materia);
+          const nuevos = [...d.videos.slice(0, 2), ...d.paginas.slice(0, 2)].map(x => ({ titulo: x.titulo, url: x.url }));
+          if (!nuevos.length) throw new Error(d.avisos[0] || 'No se encontraron recursos para ese tema.');
+          const actuales = s.recursos || [];
+          cambiar(s.id, { recursos: [...actuales, ...nuevos.filter(n => !actuales.some(x => x.url === n.url))].slice(0, 10) });
+          resultado = `${nuevos.length} recurso(s) agregados a «${limpiarTexto(s.nombre)}»`;
+          break;
+        }
+        case 'reprogramar': {
+          const s = ev(a.datos.evaluacion);
+          const horaActual = s.fecha ? `${String(new Date(s.fecha).getHours()).padStart(2, '0')}:${String(new Date(s.fecha).getMinutes()).padStart(2, '0')}` : '08:00';
+          const f = new Date(`${a.datos.fecha}T${a.datos.hora || horaActual}:00`);
+          if (isNaN(f.getTime())) throw new Error('La fecha propuesta no es válida.');
+          cambiar(s.id, { fecha: f });
+          resultado = `«${limpiarTexto(s.nombre)}» movida al ${f.toLocaleString('es-VE', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`;
+          break;
+        }
+        case 'ajustar_pesos': {
+          const mapa = new Map<string, number>();
+          for (const p of a.datos.pesos || []) mapa.set(ev(p.evaluacion).id, p.peso);
+          setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.map(x => (mapa.has(x.id) ? { ...x, peso: mapa.get(x.id)! } : x)) }));
+          const total = evs.reduce((t, s) => t + (mapa.has(s.id) ? mapa.get(s.id)! : Number(s.peso) || 0), 0);
+          resultado = `Pesos actualizados: la Sección ${seccionActiva} suma ${total}%`;
+          break;
+        }
+        case 'generar_plan_accion': {
+          if (!generarPDF) throw new Error('No disponible.');
+          const url = await generarPDF();
+          if (!url) throw new Error('No se pudo generar el PDF. Revisa que haya evaluaciones marcadas.');
+          setVistaPanel('planificacion');
+          resultado = 'Plan de acción generado (lo ves en el Planificador)';
+          break;
+        }
+        default: throw new Error('Acción desconocida.');
+      }
+      marcarAccion(msgId, a.id, { estado: 'hecha', resultado });
+      eventosRef.current.push(`el profesor aplicó tu propuesta: ${resultado}`);
+      agregarNotificacion?.(`✅ ${resultado}${/[.!?]$/.test(resultado) ? '' : '.'}`);
+    } catch (e: any) {
+      marcarAccion(msgId, a.id, { estado: 'pendiente', resultado: `⚠ ${e?.message || 'No se pudo aplicar.'}` });
+    }
+  };
+  const descartarAccion = (msgId: string, a: AccionChat) => {
+    marcarAccion(msgId, a.id, { estado: 'descartada' });
+    if (a.tipo === 'proponer_evaluaciones') setPropuestaPendienteLocal(null);
+    eventosRef.current.push(`el profesor descartó tu propuesta (${TITULO_ACCION[a.tipo] || a.tipo})`);
+  };
+
+  // Confirmaciones escritas ("sí", "guárdalo", "dale"): solo si el mensaje es corto, para no confundir "sí, pero cambia la 2"
+  const esConfirmacionCorta = (msg: string) => msg.trim().split(/\s+/).length <= 3 && esConfirmacionGuardado(msg) && !esNegacion(msg);
+
+  const handleSend = async (overrideMsg?: string, opciones: { regenerar?: boolean } = {}) => {
+    const msg = (overrideMsg ?? mensaje).trim();
+    if (!msg || pensando || escribiendo) return;
+    if (!opciones.regenerar) setHistorial(prev => [...prev, { rol: 'user', contenido: msg, completo: true, id: `user-${Date.now()}` }]);
+    setMensaje('');
+    scrollToBottom(true);
+    if (!opciones.regenerar) {
+      if (manejarComandoEliminacion(msg)) return;
+      if (propuestaPendienteLocal && esNegacion(msg) && msg.split(/\s+/).length <= 4) {
+        setHistorial(prev => prev.map(m => ({ ...m, acciones: m.acciones?.map(a => (a.tipo === 'proponer_evaluaciones' && (a.estado ?? 'pendiente') === 'pendiente' ? { ...a, estado: 'descartada' as const } : a)) })));
+        cancelarPropuesta(); return;
+      }
+      if (propuestaPendienteLocal && esConfirmacionCorta(msg)) {
+        const r = await guardarEvaluacionesDirecto();
+        setHistorial(prev => [...prev.map(m => ({ ...m, acciones: m.acciones?.map(a => (a.tipo === 'proponer_evaluaciones' && (a.estado ?? 'pendiente') === 'pendiente' ? { ...a, estado: 'hecha' as const, resultado: 'Guardada' } : a)) })), { rol: 'agent', contenido: r.success ? r.mensaje : '⚠️ ' + r.mensaje, completo: true, id: `agent-${Date.now()}` }]);
+        if (r.success) { eventosRef.current.push('el profesor guardó tu propuesta de evaluaciones'); setVistaPanel('planificacion'); }
+        return;
+      }
+    }
+    if (config && !config.chat.activo) { setHistorial(prev => [...prev, { rol: 'agent', contenido: '⏸️ ' + config.chat.mensajeInactivo, completo: true, id: `agent-${Date.now()}` }]); return; }
+    if (config && msg.length > config.chat.maxCaracteresMensaje) { setHistorial(prev => [...prev, { rol: 'agent', contenido: `✂️ Tu mensaje tiene ${msg.length} caracteres y el máximo permitido es ${config.chat.maxCaracteresMensaje}. Acórtalo e inténtalo de nuevo.`, completo: true, id: `agent-${Date.now()}` }]); return; }
+
+    const idAgente = `agent-${Date.now()}`;
+    let creado = false;
+    const asegurarMensaje = () => {
+      if (creado) return;
+      creado = true; setPensando(false); setEscribiendo(true);
+      setHistorial(prev => [...prev, { rol: 'agent', contenido: '', completo: false, streaming: true, id: idAgente, acciones: [] }]);
+    };
+    const actualizar = (f: (m: Mensaje) => Mensaje) => setHistorial(prev => prev.map(m => (m.id === idAgente ? f(m) : m)));
+    setPensando(true);
+    const ctrl = new AbortController(); abortRef.current = ctrl;
+    const limite = setTimeout(() => ctrl.abort('tiempo'), Math.max(30, Number(config?.chat?.timeoutSegundos) || 90) * 1000);
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
+        body: JSON.stringify({ mensaje: msg, conversacionId, planificacionId, contexto: armarContexto(), eventos: eventosRef.current, regenerar: !!opciones.regenerar }),
+      });
+      if (!r.ok || !r.body) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'El agente no pudo responder.'); }
+      eventosRef.current = [];
+      const lector = r.body.getReader(); const dec = new TextDecoder(); let resto = '';
+      const procesar = (linea: string) => {
+        if (!linea.trim()) return;
+        let ev: any; try { ev = JSON.parse(linea); } catch { return; }
+        if (ev.t === 'inicio' && ev.conversacionId) setConversacionId(ev.conversacionId);
+        else if (ev.t === 'modelo') { asegurarMensaje(); actualizar(m => ({ ...m, modelo: ev.v, respaldo: !!ev.respaldo })); }
+        else if (ev.t === 'texto') { asegurarMensaje(); actualizar(m => ({ ...m, contenido: m.contenido + ev.v })); scrollToBottom(); }
+        else if (ev.t === 'accion' && ev.accion) {
+          asegurarMensaje(); actualizar(m => ({ ...m, acciones: [...(m.acciones || []), { ...ev.accion, estado: 'pendiente' }] }));
+          if (ev.accion.tipo === 'proponer_evaluaciones') setPropuestaPendienteLocal(propuestaDeAccion(ev.accion)); // para que "sí" escrito también la guarde
+          scrollToBottom();
+        }
+        else if (ev.t === 'aviso') { asegurarMensaje(); actualizar(m => ({ ...m, aviso: ev.v })); }
+        else if (ev.t === 'fin') { asegurarMensaje(); actualizar(m => ({ ...m, completo: true, streaming: false })); }
+        else if (ev.t === 'error') throw new Error(ev.mensaje || 'El agente no pudo responder.');
+      };
+      while (true) {
+        const { value, done } = await lector.read();
+        if (done) break;
+        resto += dec.decode(value, { stream: true });
+        let i: number;
+        while ((i = resto.indexOf('\n')) >= 0) { procesar(resto.slice(0, i)); resto = resto.slice(i + 1); }
+      }
+      procesar(resto);
+      if (!creado) throw new Error('El agente no respondió nada. Intenta de nuevo.');
+      actualizar(m => ({ ...m, completo: true, streaming: false }));
+    } catch (error: any) {
+      const detenido = ctrl.signal.aborted && ctrl.signal.reason !== 'tiempo';
+      const texto = detenido ? '' : ctrl.signal.reason === 'tiempo' ? '⏳ El agente tardó demasiado en responder. Intenta de nuevo.' : (error instanceof TypeError ? mensajeErrorAgente(error) : `⚠️ ${error?.message || 'El agente no pudo responder.'}`);
+      if (creado) actualizar(m => ({ ...m, completo: true, streaming: false, aviso: detenido ? 'Respuesta detenida.' : texto }));
+      else if (!detenido) setHistorial(prev => [...prev, { rol: 'agent', contenido: texto, completo: true, error: true, id: `error-${Date.now()}` }]);
+    } finally {
+      clearTimeout(limite); abortRef.current = null; setPensando(false); setEscribiendo(false);
+    }
+  };
+  const detener = () => abortRef.current?.abort('usuario');
+  const regenerar = () => {
+    const ultimoUsuario = [...historial].reverse().find(m => m.rol === 'user');
+    if (!ultimoUsuario || pensando || escribiendo) return;
+    setHistorial(prev => { const iA = prev.map(m => m.rol).lastIndexOf('agent'); const iU = prev.map(m => m.rol).lastIndexOf('user'); return iA > iU ? prev.slice(0, iA) : prev; });
+    handleSend(ultimoUsuario.contenido, { regenerar: true });
+  };
+  const copiar = async (texto: string, id: string) => {
+    try { await navigator.clipboard.writeText(texto); setCopiadoId(id); setTimeout(() => setCopiadoId(c => (c === id ? null : c)), 1500); } catch { /* sin permiso de portapapeles */ }
+  };
+
+  // --- Conversaciones guardadas ---
+  const cargarConversaciones = async () => {
+    try { const r = await fetch(`/api/chat/conversaciones${planificacionId ? `?planificacionId=${encodeURIComponent(planificacionId)}` : ''}`); setConversaciones(r.ok ? await r.json() : []); } catch { setConversaciones([]); }
+  };
+  const abrirConversacion = async (id: string) => {
+    try {
+      const r = await fetch(`/api/chat/conversaciones/${encodeURIComponent(id)}`); const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      setConversacionId(id); setPropuestaPendienteLocal(null); eventosRef.current = []; setVerHistorial(false);
+      setHistorial((d.mensajes || []).map((m: any) => ({
+        id: m.id, rol: m.rol === 'USER' ? 'user' : 'agent', completo: true, modelo: m.modelo || undefined,
+        contenido: m.rol === 'USER' ? String(m.contenido).replace(/^\(En la app, desde tu último mensaje:[\s\S]*?\)\n\n/, '') : m.contenido,
+        acciones: Array.isArray(m.acciones) ? m.acciones.map((a: any) => ({ ...a, estado: 'pendiente' })) : undefined,
+      })));
+      setTimeout(() => scrollToBottom(true), 50);
+    } catch { agregarNotificacion?.('⚠️ No se pudo abrir la conversación.'); }
+  };
+  const nuevaConversacion = () => {
+    abortRef.current?.abort('usuario');
+    setConversacionId(null); setHistorial([]); setPropuestaPendienteLocal(null); eventosRef.current = []; setVerHistorial(false);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+  const borrarConversacion = async (id: string) => {
+    await fetch(`/api/chat/conversaciones/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    setConversaciones(prev => (prev || []).filter(c => c.id !== id));
+    if (id === conversacionId) nuevaConversacion();
+  };
+
+  // --- Sugerencias rápidas según lo que pasa en el plan ---
+  const sugerencias = (() => {
+    const evs = evaluacionesActivas();
+    const s: { texto: string; icono: any }[] = [];
+    if (evs.length === 0) {
+      s.push({ texto: 'Crea un plan completo de 4 evaluaciones', icono: Sparkles });
+      s.push({ texto: 'Propón una evaluación práctica en grupos', icono: Users });
+      s.push({ texto: '¿Qué estrategias de evaluación me recomiendas?', icono: Lightbulb });
+      return s;
+    }
+    const suma = evs.reduce((t, e) => t + (Number(e.peso) || 0), 0);
+    if (suma !== 100) s.push({ texto: `Ajusta los pesos para que sumen 100% (ahora ${suma}%)`, icono: Scale });
+    const fechas = evs.filter(e => e.fecha).map(e => new Date(e.fecha as any).toDateString());
+    if (evs.some(e => !e.fecha) || new Set(fechas).size < fechas.length) s.push({ texto: 'Revisa las fechas y evita choques', icono: CalendarDays });
+    const futuras = evs.filter(e => e.fecha && new Date(e.fecha as any).getTime() > Date.now() && String(e.estado || '').toUpperCase() !== 'CANCELADA');
+    if (futuras.some(e => !e.rubrica?.criterios?.length)) s.push({ texto: 'Crea las rúbricas que faltan', icono: ClipboardCheck });
+    if (futuras.some(e => !e.recursos?.length)) s.push({ texto: 'Busca recursos para la próxima evaluación', icono: Search });
+    s.push({ texto: `¿Cómo va la Sección ${seccionActiva}?`, icono: BarChart3 });
+    s.push({ texto: 'Genera el plan de acción', icono: FileText });
+    return s.slice(0, 4);
+  })();
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
 
   const handleMicClick = async () => {
     if (isRecording) { if (mediaRecorderRef.current) mediaRecorderRef.current.stop(); setIsRecording(false); } else {
-      try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const mediaRecorder = new MediaRecorder(stream); audioChunksRef.current = []; mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); }; mediaRecorder.onstop = async () => { stream.getTracks().forEach(t => t.stop()); setTranscribiendo(true); const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob, 'audio.webm'); try { const res = await fetch(`${urlChat}/webhook/voice`, { method: 'POST', body: formData }); const data = await res.json(); if (data.text) setMensaje(prev => prev ? prev + " " + data.text : data.text); } catch (err) { alert("Error al transcribir."); } finally { setTranscribiendo(false); } }; mediaRecorder.start(); mediaRecorderRef.current = mediaRecorder; setIsRecording(true); } catch (err) { alert("No se pudo acceder al micrófono."); }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const mediaRecorder = new MediaRecorder(stream); audioChunksRef.current = [];
+        mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop()); setTranscribiendo(true);
+          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob, 'audio.webm');
+          try { const res = await fetch('/api/chat/voz', { method: 'POST', body: formData }); const data = await res.json(); if (data.text) setMensaje(prev => prev ? prev + ' ' + data.text : data.text); else agregarNotificacion?.(`⚠️ ${data.error || 'No se pudo transcribir.'}`); }
+          catch { agregarNotificacion?.('⚠️ No se pudo transcribir el audio.'); } finally { setTranscribiendo(false); textareaRef.current?.focus(); }
+        };
+        mediaRecorder.start(); mediaRecorderRef.current = mediaRecorder; setIsRecording(true);
+      } catch { alert('No se pudo acceder al micrófono.'); }
     }
   };
 
   const chatInactivo = !!config && !config.chat.activo;
   const ocupado = pensando || escribiendo || transcribiendo;
-  const estadoTexto = chatInactivo ? 'Desactivado' : pensando ? 'Pensando...' : escribiendo ? 'Escribiendo...' : isRecording ? 'Escuchando...' : transcribiendo ? 'Transcribiendo...' : 'En línea';
+  const estadoTexto = chatInactivo ? 'Desactivado' : pensando ? 'Pensando…' : escribiendo ? 'Escribiendo…' : isRecording ? 'Escuchando…' : transcribiendo ? 'Transcribiendo…' : 'En línea';
   const limiteCaracteres: number = config?.chat?.maxCaracteresMensaje ?? 2000;
 
   const adjuntarArchivo = async (archivo?: File) => {
@@ -4686,17 +4932,198 @@ if (sonCuatro && generarPDF) {
     } catch { setHistorial(prev => [...prev, { rol: 'agent', contenido: '📎 No se pudo leer el archivo.', completo: true, id: `agent-${Date.now()}` }]); }
   };
 
-  const renderOpciones = (contenido: string) => {
-    const opciones = detectarOpciones(limpiarBloqueJSON(contenido));
-    if (opciones.length === 0) return null;
-    return (<div className="flex flex-wrap gap-2 mt-3">{opciones.map((op, i) => { const esAceptar = op.accion.includes('Aceptar') || op.accion.includes('Guardar'); return (<button key={i} onClick={async () => { if (esAceptar) { if (!propuestaPendienteLocal?.evaluaciones) { setHistorial(prev => [...prev, { rol: 'agent', contenido: '⚠️ No hay propuesta para guardar. Genera un plan primero.', completo: true, id: `agent-${Date.now()}` }]); return; } const resultado = await guardarEvaluacionesDirecto(); setHistorial(prev => [...prev, { rol: 'agent', contenido: resultado.success ? resultado.mensaje : '⚠️ ' + resultado.mensaje, completo: true, id: `agent-${Date.now()}` }]); if (resultado.success) { setNavegarAlPlan(true); setVistaPanel('planificacion'); } } else { handleSend(traducirOpcion(op.accion)); } }} disabled={pensando || escribiendo} className="px-3 py-1.5 bg-[#818cf8]/10 hover:bg-[#818cf8]/20 border border-[#818cf8]/20 rounded-xl text-sm text-[#c0c0d0] transition-all cursor-pointer disabled:opacity-50">{op.emoji} {op.texto}</button>); })}</div>);
+  // --- Tarjeta de una acción propuesta por el agente ---
+  const renderAccion = (msg: Mensaje, a: AccionChat) => {
+    const estado = a.estado || 'pendiente';
+    const hecha = estado === 'hecha'; const descartada = estado === 'descartada'; const trabajando = estado === 'trabajando';
+    const evs = evaluacionesActivas();
+    const nombreEv = (n: number) => (evs[n - 1] ? `«${limpiarTexto(evs[n - 1].nombre)}»` : `#${n}`);
+    const marco = `mt-3 rounded-2xl border overflow-hidden transition-colors ${hecha ? 'border-emerald-500/30 bg-emerald-500/[0.05]' : descartada ? 'border-[#2a2b3d] bg-[#191a26] opacity-60' : 'border-[#818cf8]/30 bg-[#1d1e33]'}`;
+    const botones = (principal: string, extra?: React.ReactNode) => !hecha && !descartada && (
+      <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 border-t border-[#2a2b3d] bg-[#191a26]/60">
+        <button type="button" disabled={trabajando} onClick={() => ejecutarAccion(msg.id, a)} className="h-8 px-3.5 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-60">
+          {trabajando ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}{trabajando ? 'Aplicando…' : principal}
+        </button>
+        {extra}
+        <button type="button" disabled={trabajando} onClick={() => descartarAccion(msg.id, a)} className="h-8 px-3 rounded-lg text-xs text-[#8a8b9e] hover:text-red-300 hover:bg-red-500/10 disabled:opacity-50">Descartar</button>
+        {a.resultado && <span className="w-full text-[11px] text-amber-300">{a.resultado}</span>}
+      </div>
+    );
+    const pie = (hecha || descartada) && (
+      <div className={`px-3.5 py-2 text-[11px] border-t border-[#2a2b3d] flex items-center gap-1.5 ${hecha ? 'text-emerald-300' : 'text-[#7a7b90]'}`}>
+        {hecha ? <><CheckCircle className="w-3.5 h-3.5" />{a.resultado || 'Aplicado'}</> : 'Descartada'}
+      </div>
+    );
+    if (a.tipo === 'proponer_evaluaciones') {
+      const lista: any[] = a.datos?.evaluaciones || [];
+      const suma = lista.reduce((t, e) => t + (Number(e.peso) || 0), 0);
+      const otras = evs.filter((_, i) => !lista.some(e => e.numero === i + 1)).reduce((t, e) => t + (Number(e.peso) || 0), 0);
+      return (
+        <div key={a.id} className={marco}>
+          <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
+            <ClipboardList className="w-4 h-4 text-[#a5b4fc]" />
+            <span className="text-sm font-semibold text-[#e0e0ec]">Propuesta · {lista.length} evaluación{lista.length === 1 ? '' : 'es'}</span>
+            <span className="text-[11px] text-[#8a8b9e]">Sección {seccionActiva}</span>
+            <span className={`ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full border ${suma + otras === 100 ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : 'text-amber-300 border-amber-500/30 bg-amber-500/10'}`} title="Suma de pesos de la sección con esta propuesta">{suma + otras}%</span>
+          </div>
+          <div className="divide-y divide-[#2a2b3d] border-t border-[#2a2b3d]">
+            {lista.map((e, i) => (
+              <details key={i} className="group">
+                <summary className="list-none cursor-pointer px-3.5 py-2.5 flex items-start gap-3 hover:bg-[#232438]/60">
+                  <span className="w-6 h-6 rounded-lg bg-[#818cf8]/15 text-[#a5b4fc] text-[11px] font-bold flex items-center justify-center flex-shrink-0">{e.numero}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[13px] text-[#e0e0ec] font-medium leading-snug">{e.nombre}</span>
+                    <span className="block text-[11px] text-[#8a8b9e] mt-0.5">{[e.tipoActividad, e.enfoque, e.duracionMinutos ? `${e.duracionMinutos} min` : null, (e.personasPorGrupo ?? 0) > 1 ? `grupos de ${e.personasPorGrupo}` : null, e.fecha ? new Date(`${e.fecha}T${e.hora || '08:00'}:00`).toLocaleString('es-VE', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'sin fecha'].filter(Boolean).join(' · ')}</span>
+                  </span>
+                  <span className="text-sm font-bold text-[#a5b4fc]">{e.peso ?? '–'}%</span>
+                  <ChevronDown className="w-4 h-4 text-[#6a6b7e] group-open:rotate-180 transition-transform mt-0.5" />
+                </summary>
+                {e.descripcion && <p className="px-3.5 pb-3 pl-[50px] text-[12px] text-[#a8a9bc] whitespace-pre-wrap leading-relaxed">{e.descripcion}</p>}
+              </details>
+            ))}
+          </div>
+          {botones('Guardar en el planificador', <button type="button" disabled={trabajando} onClick={() => ejecutarAccion(msg.id, a, 'ajustar')} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white disabled:opacity-50">Ajustar en formularios</button>)}
+          {pie}
+        </div>
+      );
+    }
+    const info: Record<string, { icono: any; titulo: string; detalle: string; boton: string }> = {
+      crear_rubrica: { icono: ClipboardCheck, titulo: 'Crear rúbrica', detalle: `Rúbrica sugerida de 20 puntos para ${nombreEv(a.datos?.evaluacion)}`, boton: 'Crear rúbrica' },
+      buscar_recursos: { icono: Search, titulo: 'Buscar recursos', detalle: `Videos de YouTube y páginas comprobadas para ${nombreEv(a.datos?.evaluacion)}`, boton: 'Buscar y agregar' },
+      reprogramar: { icono: CalendarDays, titulo: 'Cambiar fecha', detalle: `${nombreEv(a.datos?.evaluacion)} → ${a.datos?.fecha ? new Date(`${a.datos.fecha}T${a.datos.hora || '08:00'}:00`).toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'short', ...(a.datos.hora ? { hour: 'numeric', minute: '2-digit' } : {}) }) : ''}${a.datos?.motivo ? ` · ${a.datos.motivo}` : ''}`, boton: 'Mover' },
+      ajustar_pesos: { icono: Scale, titulo: 'Ajustar pesos', detalle: (a.datos?.pesos || []).map((p: any) => hecha ? `${nombreEv(p.evaluacion)}: ${p.peso}%` : `${nombreEv(p.evaluacion)}: ${evs[p.evaluacion - 1]?.peso ?? '–'}% → ${p.peso}%`).join(' · '), boton: 'Aplicar pesos' },
+      generar_plan_accion: { icono: FileText, titulo: 'Plan de acción', detalle: `Generar el PDF de la Sección ${seccionActiva}`, boton: 'Generar PDF' },
+    };
+    const d = info[a.tipo];
+    if (!d) return null;
+    const Icono = d.icono;
+    return (
+      <div key={a.id} className={marco}>
+        <div className="px-3.5 py-3 flex items-start gap-3">
+          <span className="w-8 h-8 rounded-lg bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><Icono className="w-4 h-4 text-[#a5b4fc]" /></span>
+          <span className="min-w-0"><span className="block text-sm font-semibold text-[#e0e0ec]">{d.titulo}</span><span className="block text-[12px] text-[#a8a9bc] mt-0.5 leading-snug">{d.detalle}</span></span>
+        </div>
+        {botones(d.boton)}
+        {pie}
+      </div>
+    );
   };
+
+  const ultimoAgenteId = [...historial].reverse().find(m => m.rol === 'agent')?.id;
 
   return (
     <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[#282a3f] flex flex-col bg-[#191a26] overflow-hidden' : 'relative border-r border-[#282a3f] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[#191a26] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
-      <div className="flex-shrink-0 px-3 sm:px-6 py-4 border-b border-[#282a3f] flex items-center gap-3 bg-gradient-to-r from-[#191a26] to-[#1f2035]"><div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center shadow-lg shadow-[#818cf8]/30"><Bot className="w-5 h-5 text-white" /></div><div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-[#191a26] flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div><div className="min-w-0"><h2 className="text-sm font-semibold text-[#d0d0da] font-['Inter'] flex items-center gap-2 flex-wrap">Agente planificador de evaluaciones<span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">IA</span></h2><p className="text-xs text-[#8a8b9e] flex items-center gap-1.5"><span className={`w-1.5 h-1.5 rounded-full inline-block ${chatInactivo ? 'bg-[#6a6b7e]' : ocupado ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-pulse'}`}></span>{estadoTexto}</p></div><div className="ml-auto flex items-center gap-2 flex-shrink-0"><div className="flex items-center gap-0.5 p-1 bg-[#161722]/80 border border-[#282a3f] rounded-xl">{esSuperadmin && (<Tooltip text="Configuración del agente" lado="abajo"><button onClick={() => irAPanel('sistema')} aria-label="Configuración del agente" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Settings className="w-4 h-4" /></button></Tooltip>)}<Tooltip text="Planificador de evaluaciones" lado="abajo"><button onClick={() => irAPanel('planificacion')} aria-label="Planificador de evaluaciones" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><ClipboardList className="w-4 h-4" /></button></Tooltip></div><Tooltip text={esMovil ? 'Ocultar chat' : 'Ocultar chat (Ctrl+B)'} lado="abajo" alinear="derecha"><motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={() => setExpandido(false)} aria-label="Ocultar el chat" className="group/ocultar w-9 h-9 flex items-center justify-center rounded-xl border border-[#818cf8]/25 bg-gradient-to-br from-[#818cf8]/15 to-[#6366f1]/5 text-[#a5b4fc] hover:text-white hover:border-[#818cf8]/60 hover:from-[#818cf8]/40 hover:to-[#6366f1]/25 hover:shadow-lg hover:shadow-[#818cf8]/25 transition-all"><PanelLeftClose className="w-[18px] h-[18px] transition-transform duration-200 group-hover/ocultar:-translate-x-0.5" /></motion.button></Tooltip></div></div>
-      {!isChatStarted ? (<div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-6 py-6 custom-scrollbar"><motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="flex flex-col items-center text-center"><div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#818cf8]/20 to-[#6366f1]/20 flex items-center justify-center border-2 border-[#818cf8]/30 mb-6 shadow-2xl shadow-[#818cf8]/20"><Sparkle className="w-10 h-10 text-[#818cf8]" /></div><h1 className="text-2xl font-bold text-[#d0d0da] font-['Inter'] mb-2">Agente planificador de evaluaciones</h1><p className="text-sm text-[#8a8b9e] font-['Inter'] max-w-sm">Escribe el tema que quieres evaluar o usa el micrófono para hablar.</p></motion.div></div>) : (<div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-5 space-y-6 custom-scrollbar"><AnimatePresence>{historial.map((msg) => (<motion.div key={msg.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>{msg.rol === 'agent' ? (<div className="flex items-start gap-3 max-w-[90%]"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="text-base text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">{msg.completo ? (<div><div dangerouslySetInnerHTML={{ __html: formatMessage(msg.contenido) }} />{renderOpciones(msg.contenido)}</div>) : (<TypewriterText text={msg.contenido} onComplete={() => onTypewriterComplete(msg.id)} onUpdate={scrollToBottom} />)}</div></div>) : (<div className="max-w-[85%] px-5 py-3 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-base leading-relaxed font-['Inter'] border border-[#818cf8]/20"><span className="whitespace-pre-wrap break-words">{msg.contenido}</span></div>)}</motion.div>))}</AnimatePresence>{pensando && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-start gap-3 justify-start"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div><div className="px-4 py-3.5 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-1.5 mt-0.5">{[0,1,2].map(i => (<motion.span key={i} className="w-2 h-2 bg-[#818cf8] rounded-full" animate={{ y: [0, -5, 0], opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }} />))}</div></motion.div>)}<div ref={chatEndRef} /></div>)}
-      <div className="flex-shrink-0 p-3 sm:p-5 border-t border-[#282a3f] bg-gradient-to-t from-[#161722] to-transparent"><div className="relative"><motion.div className="absolute -inset-1 rounded-2xl opacity-70" animate={{ opacity: [0.4, 0.6, 0.4] }} transition={{ duration: 4, repeat: Infinity }} style={{ background: 'linear-gradient(90deg, #818cf8, #6366f1, #818cf8)', filter: 'blur(12px)' }} /><motion.div className="relative flex items-end gap-2.5 bg-[#1f2035] border border-[#313248] rounded-2xl px-4 py-3 focus-within:border-[#818cf8]/60 transition-all duration-300 shadow-lg shadow-black/20"><motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar archivo de texto" title="Adjuntar texto (.txt, .csv, .md)" className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></motion.button><input ref={fileInputRef} type="file" className="hidden" accept=".txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} /><Tooltip text={isRecording ? "Detener grabación" : "Hablar (n8n transcribe)"}><motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }} onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo} className={`p-2 rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-t-red-400 rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3 h-3 bg-red-500 rounded-sm"></div>) : (<Mic className="w-5 h-5" />)}</motion.button></Tooltip><div className="flex-1 relative"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={transcribiendo ? "Transcribiendo..." : "Escribe tu consulta..."} rows={1} className="w-full bg-transparent text-base text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-1.5 font-['Inter'] min-h-[40px] max-h-[120px]" style={{ lineHeight: '1.5' }} /></div><motion.button whileHover={{ scale: 1.12 }} whileTap={{ scale: 0.88 }} onClick={() => handleSend()} disabled={!mensaje.trim() || pensando || escribiendo} className={`p-2.5 rounded-xl transition-all flex-shrink-0 self-end ${mensaje.trim() && !pensando && !escribiendo ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></motion.button></motion.div></div></div>
+      {/* Encabezado */}
+      <div className="flex-shrink-0 px-3 sm:px-5 py-3.5 border-b border-[#282a3f] flex items-center gap-3 bg-gradient-to-r from-[#191a26] to-[#1f2035] relative">
+        <div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center shadow-lg shadow-[#818cf8]/30"><Bot className="w-5 h-5 text-white" /></div><div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-[#191a26] flex items-center justify-center ${chatInactivo ? 'bg-[#6a6b7e]' : ocupado ? 'bg-amber-400' : 'bg-emerald-400'}`}><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-[#d0d0da] font-['Inter'] flex items-center gap-2 flex-wrap">EvaPlanner<span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">IA</span></h2>
+          <p className="text-xs text-[#8a8b9e] flex items-center gap-1.5 truncate"><span className={`w-1.5 h-1.5 rounded-full inline-block ${chatInactivo ? 'bg-[#6a6b7e]' : ocupado ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>{estadoTexto}<span className="text-[#5f6074]">· Sección {seccionActiva}</span></p>
+        </div>
+        <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-0.5 p-1 bg-[#161722]/80 border border-[#282a3f] rounded-xl">
+            <Tooltip text="Nueva conversación" lado="abajo"><button onClick={nuevaConversacion} aria-label="Nueva conversación" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button></Tooltip>
+            <Tooltip text="Conversaciones anteriores" lado="abajo"><button onClick={() => { const abrir = !verHistorial; setVerHistorial(abrir); if (abrir) cargarConversaciones(); }} aria-label="Conversaciones anteriores" className={`p-2 rounded-lg transition-colors ${verHistorial ? 'text-[#c7d2fe] bg-[#818cf8]/15' : 'text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15'}`}><History className="w-4 h-4" /></button></Tooltip>
+            {esSuperadmin && (<Tooltip text="Configuración del agente" lado="abajo"><button onClick={() => irAPanel('sistema')} aria-label="Configuración del agente" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Settings className="w-4 h-4" /></button></Tooltip>)}
+            <Tooltip text="Planificador de evaluaciones" lado="abajo"><button onClick={() => irAPanel('planificacion')} aria-label="Planificador de evaluaciones" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><ClipboardList className="w-4 h-4" /></button></Tooltip>
+          </div>
+          <Tooltip text={esMovil ? 'Ocultar chat' : 'Ocultar chat (Ctrl+B)'} lado="abajo" alinear="derecha"><motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={() => setExpandido(false)} aria-label="Ocultar el chat" className="group/ocultar w-9 h-9 flex items-center justify-center rounded-xl border border-[#818cf8]/25 bg-gradient-to-br from-[#818cf8]/15 to-[#6366f1]/5 text-[#a5b4fc] hover:text-white hover:border-[#818cf8]/60 hover:from-[#818cf8]/40 hover:to-[#6366f1]/25 hover:shadow-lg hover:shadow-[#818cf8]/25 transition-all"><PanelLeftClose className="w-[18px] h-[18px] transition-transform duration-200 group-hover/ocultar:-translate-x-0.5" /></motion.button></Tooltip>
+        </div>
+        {/* Historial de conversaciones */}
+        <AnimatePresence>
+          {verHistorial && (
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="absolute right-3 top-full mt-2 z-30 w-[320px] max-w-[calc(100%-24px)] max-h-[60vh] overflow-y-auto custom-scrollbar bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl p-2">
+              <button type="button" onClick={nuevaConversacion} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-[#c7d2fe] hover:bg-[#818cf8]/10"><Plus className="w-4 h-4" />Nueva conversación</button>
+              <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[#6a6b7e] font-semibold">Anteriores</p>
+              {conversaciones === null && <p className="px-3 py-4 text-xs text-[#8a8b9e]">Cargando…</p>}
+              {conversaciones?.length === 0 && <p className="px-3 py-4 text-xs text-[#8a8b9e]">Todavía no hay conversaciones guardadas.</p>}
+              {conversaciones?.map(c => (
+                <div key={c.id} className={`group flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer ${c.id === conversacionId ? 'bg-[#818cf8]/10' : 'hover:bg-[#232438]'}`} onClick={() => abrirConversacion(c.id)}>
+                  <MessageSquare className="w-3.5 h-3.5 text-[#6a6b7e] flex-shrink-0" />
+                  <span className="flex-1 min-w-0"><span className="block text-[13px] text-[#d0d0da] truncate">{c.titulo}</span><span className="block text-[10px] text-[#6a6b7e]">{haceCuanto(c.fecha, Date.now())} · {c.mensajes} mensajes</span></span>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); borrarConversacion(c.id); }} className="p-1 rounded-md text-[#6a6b7e] hover:text-red-300 opacity-0 group-hover:opacity-100" aria-label="Borrar conversación"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Mensajes */}
+      {!isChatStarted ? (
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-5 py-6 custom-scrollbar">
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="flex flex-col items-center text-center w-full max-w-md">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#818cf8]/20 to-[#6366f1]/20 flex items-center justify-center border-2 border-[#818cf8]/30 mb-5 shadow-2xl shadow-[#818cf8]/20"><Sparkle className="w-9 h-9 text-[#818cf8]" /></div>
+            <h1 className="text-xl font-bold text-[#d0d0da] font-['Inter'] mb-1.5">¿Qué evaluamos hoy?</h1>
+            <p className="text-sm text-[#8a8b9e] font-['Inter'] mb-5">Veo tu plan de la Sección {seccionActiva}: puedo crear evaluaciones, rúbricas, buscar recursos, mover fechas o revisar cómo va el grupo.</p>
+            <div className="grid gap-2 w-full">
+              {sugerencias.map((s, i) => { const I = s.icono; return (
+                <button key={i} type="button" disabled={chatInactivo} onClick={() => handleSend(s.texto)} className="flex items-center gap-3 text-left px-4 py-3 rounded-xl bg-[#1f2035] border border-[#313248] hover:border-[#818cf8]/50 hover:bg-[#232438] text-sm text-[#d0d0da] transition-colors disabled:opacity-50">
+                  <I className="w-4 h-4 text-[#a5b4fc] flex-shrink-0" />{s.texto}
+                </button>
+              ); })}
+            </div>
+          </motion.div>
+        </div>
+      ) : (
+        <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-5 space-y-5 custom-scrollbar">
+          {historial.map((msg) => (
+            <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.rol === 'agent' ? (
+                <div className="group/msg flex items-start gap-3 w-full max-w-[94%]">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.error ? 'bg-amber-500/20' : 'bg-gradient-to-br from-[#818cf8] to-[#6366f1] shadow-[#818cf8]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-white'}`} /></div>
+                  <div className="flex-1 min-w-0 text-[15px] text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">
+                    {msg.contenido && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(msg.contenido) }} />{msg.streaming && <span className="inline-block w-2 h-4 ml-0.5 align-[-2px] bg-[#818cf8] animate-pulse rounded-sm" />}</div>}
+                    {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="inline-block w-2 h-4 bg-[#818cf8] animate-pulse rounded-sm" />}
+                    {msg.acciones?.map(a => renderAccion(msg, a))}
+                    {msg.aviso && <p className="mt-2 text-[11px] text-amber-300">{msg.aviso}</p>}
+                    {msg.completo && !msg.error && (
+                      <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                        {msg.contenido && <Tooltip text={copiadoId === msg.id ? '¡Copiado!' : 'Copiar'}><button type="button" onClick={() => copiar(msg.contenido, msg.id)} className="p-1.5 rounded-md text-[#6a6b7e] hover:text-[#c7d2fe] hover:bg-[#232438]">{copiadoId === msg.id ? <CheckCircle className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}</button></Tooltip>}
+                        {msg.id === ultimoAgenteId && <Tooltip text="Responder de nuevo"><button type="button" onClick={regenerar} disabled={ocupado} className="p-1.5 rounded-md text-[#6a6b7e] hover:text-[#c7d2fe] hover:bg-[#232438] disabled:opacity-40"><RotateCcw className="w-3.5 h-3.5" /></button></Tooltip>}
+                        {msg.modelo && <span className="text-[10px] text-[#5f6074] ml-1">{msg.respaldo ? 'respaldo · ' : ''}{msg.modelo}</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-[85%] px-4 py-2.5 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-[15px] leading-relaxed font-['Inter'] border border-[#818cf8]/20"><span className="whitespace-pre-wrap break-words">{msg.contenido}</span></div>
+              )}
+            </motion.div>
+          ))}
+          {pensando && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3 justify-start">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div>
+              <div className="px-4 py-3 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-1.5 mt-0.5">{[0, 1, 2].map(i => (<motion.span key={i} className="w-2 h-2 bg-[#818cf8] rounded-full" animate={{ y: [0, -4, 0], opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }} />))}<span className="text-xs text-[#8a8b9e] ml-1.5">Revisando tu plan…</span></div>
+            </motion.div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+      )}
+
+      {/* Entrada */}
+      <div className="flex-shrink-0 px-3 sm:px-5 pt-2 pb-3 sm:pb-4 border-t border-[#282a3f] bg-gradient-to-t from-[#161722] to-transparent">
+        {isChatStarted && !ocupado && !chatInactivo && sugerencias.length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1 custom-scrollbar">
+            {sugerencias.map((s, i) => { const I = s.icono; return (
+              <button key={i} type="button" onClick={() => handleSend(s.texto)} className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-full bg-[#1f2035] border border-[#313248] text-xs text-[#b0b0c4] hover:text-white hover:border-[#818cf8]/50 transition-colors"><I className="w-3.5 h-3.5 text-[#a5b4fc]" />{s.texto}</button>
+            ); })}
+          </div>
+        )}
+        <div className="relative">
+          <div className="relative flex items-end gap-2 bg-[#1f2035] border border-[#313248] rounded-2xl px-3 py-2.5 focus-within:border-[#818cf8]/60 transition-colors shadow-lg shadow-black/20">
+            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar archivo de texto" title="Adjuntar texto (.txt, .csv, .md)" className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
+            <input ref={fileInputRef} type="file" className="hidden" accept=".txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} />
+            <Tooltip text={isRecording ? 'Detener grabación' : 'Hablar'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo} className={`p-2 rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-t-red-400 rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3 h-3 bg-red-500 rounded-sm"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
+            <div className="flex-1 relative"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="w-full bg-transparent text-[15px] text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-1.5 font-['Inter'] min-h-[40px] max-h-[120px] disabled:opacity-60" style={{ lineHeight: '1.5' }} /></div>
+            {pensando || escribiendo ? (
+              <Tooltip text="Detener"><button type="button" onClick={detener} aria-label="Detener respuesta" className="p-2.5 rounded-xl bg-[#272839] text-[#c7d2fe] hover:bg-red-500/20 hover:text-red-300 transition-colors flex-shrink-0 self-end"><Square className="w-4 h-4 fill-current" /></button></Tooltip>
+            ) : (
+              <button type="button" onClick={() => handleSend()} disabled={!mensaje.trim() || chatInactivo} aria-label="Enviar" className={`p-2.5 rounded-xl transition-all flex-shrink-0 self-end ${mensaje.trim() ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
+            )}
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -6103,7 +6530,7 @@ const guardarPlanificacionEnBD = async () => {
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
-                <AgentePanel seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
+                <AgentePanel planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
         <PanelDerecho 
           onSeccionActivaCambia={setSeccionPlanificador}
           chatAbierto={agenteExpandido}

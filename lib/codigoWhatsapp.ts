@@ -3,6 +3,7 @@
 // - El envío lo hace n8n (webhook "codigo-whatsapp"), protegido con una clave compartida en el encabezado x-clave-app.
 import crypto from 'crypto'
 import { leerConfig } from '@/lib/configuracion'
+import { ultramsgConfigurado, enviarUltraMsg } from '@/lib/ultramsg'
 
 export const CODIGO_MINUTOS = 10       // tiempo de validez del código
 export const CODIGO_MAX_INTENTOS = 5   // intentos fallidos antes de tener que pedir uno nuevo
@@ -64,6 +65,14 @@ export async function direccionN8n(): Promise<string> {
 // Nunca lanza error: si falla, la cuenta queda creada y la persona puede pedir "Reenviar código".
 // Los motivos de fallo se ven en Vercel → tu proyecto → Logs (buscar "[WhatsApp]").
 export async function enviarCodigoWhatsApp(datos: { telefono: string; nombre: string; codigo: string }): Promise<boolean> {
+  // Vía directa (sin n8n) si están las variables de UltraMsg
+  if (ultramsgConfigurado()) {
+    const nombre = String(datos.nombre || '').trim().split(/\s+/)[0] || ''
+    const texto = `Hola ${nombre} 👋\n\nTu código del *Planificador de Evaluaciones* es:\n\n*${datos.codigo}*\n\nVence en ${CODIGO_MINUTOS} minutos. No lo compartas con nadie.`
+    const r = await enviarUltraMsg({ telefono: datos.telefono, texto })
+    if (!r.ok) console.error(`[WhatsApp] UltraMsg no envió el código: ${r.error}`)
+    return r.ok
+  }
   const base = await direccionN8n()
   const clave = process.env.N8N_CLAVE_WHATSAPP
   if (!base) { console.error('[WhatsApp] No hay dirección de n8n: define N8N_URL o NEXT_PUBLIC_N8N_URL en Vercel y vuelve a desplegar.'); return false }
