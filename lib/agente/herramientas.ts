@@ -136,7 +136,81 @@ export const HERRAMIENTAS: Herramienta[] = [
     description: 'Genera el Plan de Acción en PDF de la sección activa con las evaluaciones marcadas.',
     parameters: { type: 'object', properties: {} },
   },
+  // ----- Control de toda la app -----
+  {
+    name: 'navegar',
+    description: 'Abre una pantalla de la app y, si se indica, cambia la sección activa. Se ejecuta sola (no pide confirmación).',
+    parameters: {
+      type: 'object',
+      properties: {
+        vista: { type: 'string', enum: ['dashboard', 'planificador', 'calendario', 'estudiantes', 'papelera', 'perfil', 'configuracion'] },
+        seccion: { type: 'string', description: 'Letra de la sección a activar (opcional)' },
+      },
+      required: ['vista'],
+    },
+  },
+  {
+    name: 'agregar_estudiantes',
+    description: 'Agrega estudiantes a una sección. Cada uno necesita nombre, correo y teléfono: si el profesor no dio alguno, déjalo vacío y él lo completa en la tarjeta.',
+    parameters: {
+      type: 'object',
+      properties: {
+        seccion: { type: 'string', description: 'Letra de la sección (por defecto la activa)' },
+        estudiantes: { type: 'array', items: { type: 'object', properties: { nombre: { type: 'string' }, email: { type: 'string' }, telefono: { type: 'string' } }, required: ['nombre'] } },
+      },
+      required: ['estudiantes'],
+    },
+  },
+  {
+    name: 'modificar_estudiantes',
+    description: 'Cambia de sección, retira (deja inactivos) o reactiva estudiantes, buscándolos por nombre.',
+    parameters: {
+      type: 'object',
+      properties: {
+        nombres: { type: 'array', items: { type: 'string' }, description: 'Nombres tal como aparecen en la lista de estudiantes' },
+        accion: { type: 'string', enum: ['mover', 'retirar', 'reactivar'] },
+        seccion: { type: 'string', description: 'Sección destino (solo para mover)' },
+      },
+      required: ['nombres', 'accion'],
+    },
+  },
+  {
+    name: 'cargar_notas',
+    description: 'Registra notas (0 a 20) de una evaluación de la sección activa a partir de lo que dicta o pega el profesor.',
+    parameters: {
+      type: 'object',
+      properties: {
+        evaluacion: evaluacionRef,
+        notas: { type: 'array', items: { type: 'object', properties: { nombre: { type: 'string' }, nota: { type: 'number', description: 'Nota de 0 a 20' }, observacion: { type: 'string' } }, required: ['nombre', 'nota'] } },
+        enviar: { type: 'boolean', description: 'true = enviar a cada uno su nota por WhatsApp al guardarlas (solo si el profesor lo pide)' },
+      },
+      required: ['evaluacion', 'notas'],
+    },
+  },
+  {
+    name: 'abrir_en_portal',
+    description: 'Abre (o vuelve a cerrar) una evaluación en la página de los estudiantes antes de los 7 días previos, para que vean descripción, recursos y rúbrica.',
+    parameters: { type: 'object', properties: { evaluacion: evaluacionRef, abrir: { type: 'boolean' } }, required: ['evaluacion', 'abrir'] },
+  },
+  {
+    name: 'enviar_plan',
+    description: 'Envía por WhatsApp a los estudiantes de la sección activa el enlace a su página personal con el plan.',
+    parameters: { type: 'object', properties: { soloSinAbrir: { type: 'boolean', description: 'true = solo a quienes todavía no han abierto su página' } } },
+  },
+  {
+    name: 'eliminar_evaluaciones',
+    description: 'Elimina evaluaciones de la sección activa (van a la papelera con sus notas y se pueden restaurar).',
+    parameters: { type: 'object', properties: { evaluaciones: { type: 'array', items: { type: 'integer' }, description: 'Números (#) de las evaluaciones' } }, required: ['evaluaciones'] },
+  },
+  {
+    name: 'cambiar_materia',
+    description: 'Abre otra materia del profesor o crea una nueva (cada materia tiene su propio plan).',
+    parameters: { type: 'object', properties: { nombre: { type: 'string' }, crear: { type: 'boolean', description: 'true = crearla si no existe' } }, required: ['nombre'] },
+  },
 ]
+
+// Acciones que no cambian datos: se ejecutan solas, sin tarjeta de confirmación
+export const ACCIONES_AUTOMATICAS = ['navegar']
 
 // Gemini usa los tipos en MAYÚSCULAS (OBJECT, STRING…); Groq usa JSON Schema normal
 function aGemini(e: Esquema): any {
@@ -161,6 +235,7 @@ const ent = (v: any, min: number, max: number): number | null => { const n = Mat
 const texto = (v: any, max: number) => String(v ?? '').replace(/\*\*/g, '').trim().slice(0, max)
 const fechaOk = (v: any) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) ? String(v) : '')
 const horaOk = (v: any) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? '')); return m && +m[1] < 24 && +m[2] < 60 ? `${m[1].padStart(2, '0')}:${m[2]}` : '' }
+const letra = (v: any) => (/^[A-Za-z]$/.test(String(v ?? '').trim()) ? String(v).trim().toUpperCase() : '')
 const enfoqueOk = (v: any) => { const s = String(v ?? '').trim().toLowerCase(); return ENFOQUES.find(e => e.toLowerCase() === s) || '' }
 
 export function normalizarAccion(nombre: string, args: any): Accion | null {
@@ -209,7 +284,6 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
       return preguntas.length ? { id, tipo: nombre, datos: { evaluacion: ent(a.evaluacion, 1, 20), tema: texto(a.tema, 160), preguntas } } : null
     }
     case 'copiar_plan': {
-      const letra = (v: any) => (/^[A-Za-z]$/.test(String(v ?? '').trim()) ? String(v).trim().toUpperCase() : '')
       const desde = letra(a.desde), hacia = letra(a.hacia)
       return desde && hacia && desde !== hacia ? { id, tipo: nombre, datos: { desde, hacia, dias: ent(a.dias, -120, 120) ?? 0, reemplazar: a.reemplazar === true } } : null
     }
@@ -226,6 +300,45 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
     case 'recordar_preferencia': {
       const t = texto(a.texto, 200)
       return t.length >= 4 ? { id, tipo: nombre, datos: { texto: t } } : null
+    }
+    case 'navegar': {
+      const vistas = ['dashboard', 'planificador', 'calendario', 'estudiantes', 'papelera', 'perfil', 'configuracion']
+      const v = String(a.vista ?? '').toLowerCase()
+      return vistas.includes(v) ? { id, tipo: nombre, datos: { vista: v, seccion: letra(a.seccion) } } : null
+    }
+    case 'agregar_estudiantes': {
+      const lista = (Array.isArray(a.estudiantes) ? a.estudiantes : []).slice(0, 60).map((e: any) => ({
+        nombre: texto(e?.nombre, 80), email: texto(e?.email, 100).toLowerCase().replace(/\s+/g, ''), telefono: texto(e?.telefono, 25),
+      })).filter((e: any) => e.nombre.length >= 3)
+      return lista.length ? { id, tipo: nombre, datos: { seccion: letra(a.seccion), estudiantes: lista } } : null
+    }
+    case 'modificar_estudiantes': {
+      const nombres = (Array.isArray(a.nombres) ? a.nombres : []).slice(0, 60).map((n: any) => texto(n, 80)).filter(Boolean)
+      const acc = ['mover', 'retirar', 'reactivar'].includes(a.accion) ? a.accion : ''
+      const sec = letra(a.seccion)
+      return nombres.length && acc && (acc !== 'mover' || sec) ? { id, tipo: nombre, datos: { nombres, accion: acc, seccion: sec } } : null
+    }
+    case 'cargar_notas': {
+      const n = ent(a.evaluacion, 1, 20)
+      const notas = (Array.isArray(a.notas) ? a.notas : []).slice(0, 120).map((x: any) => {
+        const v = Number(String(x?.nota ?? '').replace(',', '.'))
+        return { nombre: texto(x?.nombre, 80), nota: Number.isFinite(v) && v >= 0 && v <= 20 ? Math.round(v * 100) / 100 : null, observacion: texto(x?.observacion, 300) }
+      }).filter((x: any) => x.nombre && x.nota != null)
+      return n && notas.length ? { id, tipo: nombre, datos: { evaluacion: n, notas, enviar: a.enviar === true } } : null
+    }
+    case 'abrir_en_portal': {
+      const n = ent(a.evaluacion, 1, 20)
+      return n ? { id, tipo: nombre, datos: { evaluacion: n, abrir: a.abrir !== false } } : null
+    }
+    case 'enviar_plan':
+      return { id, tipo: nombre, datos: { soloSinAbrir: a.soloSinAbrir === true } }
+    case 'eliminar_evaluaciones': {
+      const nums = [...new Set((Array.isArray(a.evaluaciones) ? a.evaluaciones : []).map((x: any) => ent(x, 1, 20)).filter(Boolean))].slice(0, 12)
+      return nums.length ? { id, tipo: nombre, datos: { evaluaciones: nums } } : null
+    }
+    case 'cambiar_materia': {
+      const m = texto(a.nombre, 120)
+      return m.length >= 2 ? { id, tipo: nombre, datos: { nombre: m, crear: a.crear === true } } : null
     }
     default:
       return null
@@ -246,6 +359,14 @@ export function resumenAccion(a: Accion): string {
     case 'mensaje_estudiantes': return `[Preparé un WhatsApp para ${a.datos.destinatarios === 'riesgo' ? 'los estudiantes en riesgo' : a.datos.destinatarios === 'nombres' ? a.datos.nombres.join(', ') : 'toda la sección'}: "${a.datos.texto.slice(0, 120)}"]`
     case 'cambiar_estado': return `[Propuse marcar #${a.datos.evaluacion} como ${a.datos.estado.toLowerCase()}]`
     case 'recordar_preferencia': return `[Propuse recordar: ${a.datos.texto}]`
+    case 'navegar': return `[Abrí la pantalla ${a.datos.vista}${a.datos.seccion ? ` (sección ${a.datos.seccion})` : ''}]`
+    case 'agregar_estudiantes': return `[Propuse agregar ${a.datos.estudiantes.length} estudiante(s): ${a.datos.estudiantes.map((e: any) => e.nombre).join(', ').slice(0, 200)}]`
+    case 'modificar_estudiantes': return `[Propuse ${a.datos.accion} a ${a.datos.nombres.join(', ').slice(0, 200)}${a.datos.seccion ? ` → sección ${a.datos.seccion}` : ''}]`
+    case 'cargar_notas': return `[Propuse cargar ${a.datos.notas.length} nota(s) en #${a.datos.evaluacion}${a.datos.enviar ? ' y enviarlas' : ''}]`
+    case 'abrir_en_portal': return `[Propuse ${a.datos.abrir ? 'abrir' : 'cerrar'} #${a.datos.evaluacion} en la página de los estudiantes]`
+    case 'enviar_plan': return `[Propuse enviar el plan por WhatsApp${a.datos.soloSinAbrir ? ' a quienes no han abierto su página' : ''}]`
+    case 'eliminar_evaluaciones': return `[Propuse eliminar ${a.datos.evaluaciones.map((n: number) => `#${n}`).join(', ')}]`
+    case 'cambiar_materia': return `[Propuse ${a.datos.crear ? 'abrir o crear' : 'abrir'} la materia «${a.datos.nombre}»]`
     default: return ''
   }
 }

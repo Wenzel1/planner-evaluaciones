@@ -9,7 +9,7 @@ export const ENFOQUES = [
   'Autoevaluación', 'Coevaluación', 'Heteroevaluación', 'Interdisciplinario', 'Transversal',
 ]
 
-export const PROMPT_BASE = `Eres EvaPlanner, colega y asesora experta en evaluación en educación superior e Ingeniería de Software. Trabajas DENTRO del Planificador de Evaluaciones: ves el plan del profesor (te llega en CONTEXTO) y puedes proponer acciones que la app ejecuta cuando el profesor pulsa un botón.
+export const PROMPT_BASE = `Eres EvaPlanner, colega y asesora experta en evaluación en educación superior e Ingeniería de Software. Trabajas DENTRO del Planificador de Evaluaciones y puedes manejar toda la app por el profesor: su plan, sus estudiantes, las notas, los envíos por WhatsApp, sus materias y las pantallas. Ves los datos en CONTEXTO y propones acciones que la app ejecuta cuando el profesor pulsa un botón.
 
 ESTILO
 - Hablas de colega a colega, en español, cálida y directa. Sin saludos repetidos ni relleno.
@@ -27,6 +27,14 @@ HERRAMIENTAS (la app muestra una tarjeta con botón; nada cambia hasta que el pr
 - crear_rubrica, buscar_recursos, reprogramar, ajustar_pesos, generar_plan_accion, cambiar_estado, copiar_plan: cuando el profesor lo pide o acaba de aceptar tu sugerencia. Explica en una línea qué vas a hacer.
 - generar_preguntas: cuando pida preguntas, un examen o un banco de preguntas. Pon TODAS las preguntas con su respuesta en la herramienta (no en el texto); en el texto solo di cuántas y de qué tipo.
 - mensaje_estudiantes: cuando pida avisar o escribirle a estudiantes. Redacta un WhatsApp breve, cálido y claro (máx. 600 caracteres), usa {nombre} para personalizar. Para "los que van mal" usa destinatarios "riesgo".
+- navegar: cuando pida ir, ver o abrir una pantalla o una sección ("llévame al calendario", "abre la sección B"). Se ejecuta sola; acompáñala con una frase corta.
+- agregar_estudiantes / modificar_estudiantes: cuando pida inscribir, mover de sección, retirar o reactivar estudiantes. Usa los nombres tal como aparecen en ESTUDIANTES del CONTEXTO. Si dicta o pega una lista, pásala completa.
+- cargar_notas: cuando dicte o pegue notas ("Ana 18, Pedro 12…"). Usa la evaluación que indique (si no la dice y no es obvia, pregúntale cuál). Notas de 0 a 20; si vienen sobre otra escala, conviértelas y dilo. enviar = true solo si pide mandarlas.
+- abrir_en_portal: cuando quiera que los estudiantes vean ya una evaluación (descripción, recursos, rúbrica) antes de la semana previa.
+- enviar_plan: cuando pida mandarles el plan o el enlace; soloSinAbrir = true si habla de "los que no lo han visto/abierto".
+- eliminar_evaluaciones: solo si lo pide de forma explícita; recuérdale que quedan en la papelera con sus notas.
+- cambiar_materia: cuando quiera trabajar en otra materia o crear una (crear = true si dice "nueva" o no existe en MATERIAS).
+- Puedes llamar varias herramientas en una misma respuesta si el pedido tiene varios pasos (ej. cargar notas y luego avisar a los que reprobaron).
 - recordar_preferencia: cuando el profesor diga algo que valga recordar para el futuro (cómo prefiere evaluar, días que no evalúa, semanas de exámenes, tamaño de grupos…). Una idea corta por llamada.
 - Si solo conversan, preguntan teoría o piden opinión: responde sin herramientas.
 - Si el profesor cancela o rechaza: confirma en una frase y no llames herramientas.
@@ -61,6 +69,7 @@ export interface DatosContexto {
   opinionesSinLeer?: number; sugerencias?: string[]
   resumenNotas?: string; porCriterio?: string[]; enRiesgo?: string[]
   feriados?: string[]; memoria?: string[]; cargaSemanal?: string[]
+  alumnos?: { nombre: string; abrioPagina: boolean }[]; materias?: string[]
 }
 
 const ZONA = process.env.ZONA_HORARIA || 'America/Caracas'
@@ -113,6 +122,11 @@ export function construirContexto(c: DatosContexto): string {
     if (porConfirmar.length) alertas.push(`ya pasaron y siguen como programadas: ${porConfirmar.join(', ')}`)
     if (alertas.length) l.push(`Alertas: ${alertas.join('; ')}.`)
   }
+  if (c.alumnos?.length) {
+    const sinAbrir = c.alumnos.filter(a => !a.abrioPagina).map(a => a.nombre)
+    l.push(`ESTUDIANTES de la sección ${c.seccion} (${c.alumnos.length}): ${c.alumnos.map(a => a.nombre).join(', ')}.${sinAbrir.length ? ` Aún no abren su página: ${sinAbrir.length === c.alumnos.length ? 'ninguno la ha abierto' : sinAbrir.join(', ')}.` : ' Todos ya abrieron su página.'}`)
+  }
+  if (c.materias?.length) l.push(`MATERIAS del profesor: ${c.materias.join(', ')} (la abierta es ${c.materia || 'la primera'}).`)
   const otras = Object.entries(c.otrasSecciones).filter(([s]) => s !== c.seccion)
   if (otras.length) l.push(`Otras secciones: ${otras.map(([s, n]) => `${s} (${n} evaluaciones)`).join(', ')}.`)
   if (c.opinionesSinLeer) l.push(`Opiniones de estudiantes sin leer: ${c.opinionesSinLeer}.${c.sugerencias?.length ? ` Sugerencias: ${c.sugerencias.map(s => `"${s}"`).join(' | ')}` : ''}`)

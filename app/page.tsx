@@ -79,7 +79,23 @@ interface PlanificacionExamen {
 }
 // Acción que propone el agente (tarjeta con botón en el chat)
 interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada'; resultado?: string }
-const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar' };
+const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar', navegar: 'abrir pantalla', agregar_estudiantes: 'agregar estudiantes', modificar_estudiantes: 'modificar estudiantes', cargar_notas: 'cargar notas', abrir_en_portal: 'abrir en la página de estudiantes', enviar_plan: 'enviar plan', eliminar_evaluaciones: 'eliminar evaluaciones', cambiar_materia: 'cambiar de materia' };
+// Acciones del agente que no cambian datos: se ejecutan solas al llegar
+const ACCIONES_AUTOMATICAS = ['navegar'];
+const VISTA_DE_AGENTE: Record<string, string> = { dashboard: 'estadisticas', planificador: 'planificacion', calendario: 'calendario', estudiantes: 'estudiantes', papelera: 'papelera', perfil: 'perfil', configuracion: 'configuracion' };
+const NOMBRE_VISTA: Record<string, string> = { dashboard: 'el Dashboard', planificador: 'el Planificador', calendario: 'el Calendario', estudiantes: 'Estudiantes', papelera: 'la Papelera', perfil: 'tu perfil', configuracion: 'la configuración del plan' };
+// Comparar nombres sin tildes ni mayúsculas ("jose perez" = "José Pérez")
+const nombreNormal = (t: string) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim();
+// Busca a alguien por nombre: exacto, o que contenga todas las palabras dichas. 'varios' = hay más de uno posible.
+function buscarPorNombre<T extends { nombre: string }>(lista: T[], nombre: string): T | null | 'varios' {
+  const n = nombreNormal(nombre); if (!n) return null;
+  const exactos = lista.filter(x => nombreNormal(x.nombre) === n);
+  if (exactos.length === 1) return exactos[0];
+  const palabras = n.split(' ');
+  const parciales = lista.filter(x => { const m = nombreNormal(x.nombre); const pm = m.split(' '); return palabras.every(p => pm.some(w => w === p || (p.length >= 4 && w.startsWith(p)))); });
+  if (parciales.length === 1) return parciales[0];
+  return parciales.length > 1 || exactos.length > 1 ? 'varios' : null;
+}
 const TIPO_PREGUNTA: Record<string, string> = { seleccion: 'Selección', verdadero_falso: 'V o F', desarrollo: 'Desarrollo', caso: 'Caso', practica: 'Práctica' };
 interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; acciones?: AccionChat[]; streaming?: boolean; modelo?: string; respaldo?: boolean; aviso?: string; error?: boolean; dbId?: string; valoracion?: number; adjunto?: string }
 interface PropuestaEvaluacion {
@@ -2339,6 +2355,12 @@ function EstudiantesPanel() {
     const data = await apiEstudiantes.listar();
     setEstudiantes(data.map((e: any) => ({ ...e, estado: e.estado.toLowerCase() })));
   };
+  // El agente agregó, movió o retiró estudiantes: la lista se actualiza sola
+  useEffect(() => {
+    const alCambiar = () => { recargarEstudiantes().catch(() => {}); };
+    window.addEventListener('estudiantes-cambiaron', alCambiar);
+    return () => window.removeEventListener('estudiantes-cambiaron', alCambiar);
+  }, []);
 
   // Importa estudiantes desde un archivo CSV (Excel → Guardar como → CSV). Máximo 500 por archivo.
   const importarArchivo = async (archivo: File | undefined) => {
@@ -4549,7 +4571,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
 // ============================================
 // AGENTE PANEL (CON SCROLL MEJORADO)
 // ============================================
-function AgentePanel({ planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
+function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
   // Atajos del encabezado del chat: llevan al panel de la derecha (en el celular el chat se oculta para dejarlo ver)
   const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
   const [mensaje, setMensaje] = useState(''); 
@@ -4856,11 +4878,120 @@ if (sonCuatro && generarPDF) {
           resultado = 'Lo recordaré en las próximas conversaciones';
           break;
         }
+        case 'navegar': {
+          if (a.datos.seccion) onCambiarSeccion?.(a.datos.seccion);
+          setVistaPanel(VISTA_DE_AGENTE[a.datos.vista] || 'planificacion');
+          if (esMovil) setExpandido(false);
+          resultado = `Abrí ${NOMBRE_VISTA[a.datos.vista] || a.datos.vista}${a.datos.seccion ? ` · Sección ${a.datos.seccion}` : ''}`;
+          break;
+        }
+        case 'agregar_estudiantes': {
+          const sec = a.datos.seccion || seccionActiva;
+          const filas: any[] = a.datos.estudiantes || [];
+          const fallidos: any[] = []; const errores: string[] = []; let ok = 0;
+          for (const e of filas) {
+            try {
+              const r = await fetch('/api/estudiantes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: e.nombre, email: e.email, telefono: String(e.telefono || '').replace(/[\s().-]/g, ''), grupo: sec }) });
+              const d = await r.json().catch(() => ({}));
+              if (!r.ok) throw new Error(d.error || 'No se pudo agregar.');
+              ok++;
+            } catch (err: any) { fallidos.push(e); errores.push(`${e.nombre}: ${err.message}`); }
+          }
+          if (ok) { olvidarCache('/api/estudiantes'); window.dispatchEvent(new Event('estudiantes-cambiaron')); }
+          if (fallidos.length) {
+            // Quedan en la tarjeta solo los que fallaron, para corregirlos y volver a intentar
+            marcarAccion(msgId, a.id, { datos: { ...a.datos, estudiantes: fallidos } });
+            if (ok) eventosRef.current.push(`se agregaron ${ok} estudiante(s) a la sección ${sec}`);
+            throw new Error(`${ok ? `Se agregaron ${ok}. ` : ''}Corrige y vuelve a intentar: ${errores.slice(0, 3).join(' · ')}`);
+          }
+          resultado = `${ok} estudiante(s) agregados a la Sección ${sec}`;
+          break;
+        }
+        case 'modificar_estudiantes': {
+          const r = await fetch('/api/estudiantes');
+          const lista: any[] = await r.json().catch(() => []);
+          if (!r.ok || !Array.isArray(lista)) throw new Error('No se pudo leer la lista de estudiantes.');
+          const encontrados: any[] = []; const faltan: string[] = []; const dudas: string[] = [];
+          for (const n of a.datos.nombres || []) { const e = buscarPorNombre(lista, n); if (e === 'varios') dudas.push(n); else if (!e) faltan.push(n); else if (!encontrados.includes(e)) encontrados.push(e); }
+          if (!encontrados.length) throw new Error(`No encontré a ${[...faltan, ...dudas].join(', ')}${dudas.length ? ' (hay varios con ese nombre: escribe el nombre completo)' : ''}.`);
+          const errores: string[] = [];
+          for (const e of encontrados) {
+            const estado = a.datos.accion === 'retirar' ? 'INACTIVO' : a.datos.accion === 'reactivar' ? 'ACTIVO' : String(e.estado || 'ACTIVO').toUpperCase();
+            const grupo = a.datos.accion === 'mover' ? a.datos.seccion : e.grupo;
+            const rr = await fetch('/api/estudiantes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: e.id, nombre: e.nombre, email: e.email, telefono: e.telefono, grupo, estado }) });
+            if (!rr.ok) { const d = await rr.json().catch(() => ({})); errores.push(`${e.nombre}: ${d.error || 'error'}`); }
+          }
+          olvidarCache('/api/estudiantes'); window.dispatchEvent(new Event('estudiantes-cambiaron'));
+          const hechos = encontrados.length - errores.length;
+          const verbo = a.datos.accion === 'mover' ? `movido(s) a la Sección ${a.datos.seccion}` : a.datos.accion === 'retirar' ? 'retirado(s)' : 'reactivado(s)';
+          if (!hechos) throw new Error(errores.join(' · '));
+          resultado = `${hechos} estudiante(s) ${verbo}${faltan.length || dudas.length ? `; no encontré a ${[...faltan, ...dudas].join(', ')}` : ''}${errores.length ? `; ${errores.length} con error` : ''}`;
+          break;
+        }
+        case 'cargar_notas': {
+          const s = ev(a.datos.evaluacion);
+          const r = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/notas`);
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.error || 'No se pudieron leer los estudiantes de esa evaluación.');
+          const alumnos: any[] = d.estudiantes || [];
+          const notas: any[] = []; const faltan: string[] = [];
+          for (const x of a.datos.notas || []) {
+            const e = buscarPorNombre(alumnos, x.nombre);
+            if (!e || e === 'varios') { faltan.push(x.nombre); continue; }
+            const igual = e.puntaje != null && Number(e.puntaje) === Number(x.nota);
+            // Se conserva lo que ya tenía (observación y rúbrica) salvo que la nota cambie
+            notas.push({ estudianteId: e.id, puntaje: x.nota, observaciones: x.observacion || e.observaciones || '', detalle: igual ? e.detalle : null });
+          }
+          if (!notas.length) throw new Error(`No encontré en la Sección ${s.grupoSeccion || seccionActiva} a: ${faltan.join(', ')}.`);
+          const rr = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/notas`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notas }) });
+          const dd = await rr.json().catch(() => ({}));
+          if (!rr.ok) throw new Error(dd.error || 'No se pudieron guardar las notas.');
+          if (dd.estado) cambiar(s.id, { estado: dd.estado });
+          olvidarCache('/api/estudiantes');
+          let enviadas = '';
+          if (a.datos.enviar) {
+            const re = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/notas/enviar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteIds: notas.map(n => n.estudianteId) }) });
+            const de = await re.json().catch(() => ({}));
+            enviadas = re.ok ? ` y enviadas por WhatsApp a ${de.total}` : ` (no se enviaron: ${de.error || 'error'})`;
+          }
+          resultado = `${dd.guardadas ?? notas.length} nota(s) guardadas en «${limpiarTexto(s.nombre)}»${enviadas}${faltan.length ? `; no encontré a ${faltan.join(', ')}` : ''}`;
+          break;
+        }
+        case 'abrir_en_portal': {
+          const s = ev(a.datos.evaluacion);
+          cambiar(s.id, { abiertaManual: !!a.datos.abrir });
+          resultado = a.datos.abrir ? `«${limpiarTexto(s.nombre)}» ya se ve completa en la página de los estudiantes` : `«${limpiarTexto(s.nombre)}» se abrirá sola 7 días antes de su fecha`;
+          break;
+        }
+        case 'enviar_plan': {
+          const r = await fetch(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}&estado=ACTIVO`);
+          let lista: any[] = await r.json().catch(() => []);
+          if (!r.ok || !Array.isArray(lista)) throw new Error('No se pudo leer la lista de estudiantes.');
+          if (a.datos.soloSinAbrir) lista = lista.filter(e => !(e.portalVisitas > 0));
+          if (!lista.length) throw new Error(a.datos.soloSinAbrir ? 'Todos los estudiantes ya abrieron su página.' : `No hay estudiantes activos en la Sección ${seccionActiva}.`);
+          const rr = await fetch('/api/whatsapp/enviar-plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seccion: seccionActiva, estudianteIds: lista.map(e => e.id), materia: planificacion.materia }) });
+          const d = await rr.json().catch(() => ({}));
+          if (!rr.ok) throw new Error(d.error || 'No se pudo enviar.');
+          resultado = `Enviando el enlace del plan a ${d.total} estudiante(s)${d.sinTelefono?.length ? ` (${d.sinTelefono.length} sin teléfono)` : ''}`;
+          break;
+        }
+        case 'eliminar_evaluaciones': {
+          const quitar = (a.datos.evaluaciones || []).map((n: number) => ev(n));
+          const ids = new Set(quitar.map((s: SeccionExamen) => s.id));
+          setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.filter(x => !ids.has(x.id)) }));
+          resultado = `${quitar.length} evaluación(es) eliminadas (están en la Papelera con sus notas)`;
+          break;
+        }
+        case 'cambiar_materia': {
+          if (!onCambiarMateria) throw new Error('No disponible.');
+          resultado = await onCambiarMateria(a.datos.nombre, !!a.datos.crear);
+          break;
+        }
         default: throw new Error('Acción desconocida.');
       }
       marcarAccion(msgId, a.id, { estado: 'hecha', resultado });
-      eventosRef.current.push(`el profesor aplicó tu propuesta: ${resultado}`);
-      agregarNotificacion?.(`✅ ${resultado}${/[.!?]$/.test(resultado) ? '' : '.'}`);
+      eventosRef.current.push(`${ACCIONES_AUTOMATICAS.includes(a.tipo) ? 'la app hizo' : 'el profesor aplicó tu propuesta'}: ${resultado}`);
+      if (!ACCIONES_AUTOMATICAS.includes(a.tipo)) agregarNotificacion?.(`✅ ${resultado}${/[.!?…]$/.test(resultado) ? '' : '.'}`);
     } catch (e: any) {
       marcarAccion(msgId, a.id, { estado: 'pendiente', resultado: `⚠ ${e?.message || 'No se pudo aplicar.'}` });
     }
@@ -4926,6 +5057,7 @@ if (sonCuatro && generarPDF) {
         else if (ev.t === 'accion' && ev.accion) {
           asegurarMensaje(); actualizar(m => ({ ...m, acciones: [...(m.acciones || []), { ...ev.accion, estado: 'pendiente' }] }));
           if (ev.accion.tipo === 'proponer_evaluaciones') setPropuestaPendienteLocal(propuestaDeAccion(ev.accion)); // para que "sí" escrito también la guarde
+          if (ACCIONES_AUTOMATICAS.includes(ev.accion.tipo)) { const acc = { ...ev.accion, estado: 'pendiente' as const }; setTimeout(() => ejecutarAccion(idAgente, acc), 60); }
           scrollToBottom();
         }
         else if (ev.t === 'aviso') { asegurarMensaje(); actualizar(m => ({ ...m, aviso: ev.v })); }
@@ -5213,6 +5345,70 @@ if (sonCuatro && generarPDF) {
         </div>
       );
     }
+    if (a.tipo === 'agregar_estudiantes') {
+      const filas: any[] = a.datos?.estudiantes || [];
+      const editable = !hecha && !descartada && !trabajando;
+      const cambiarFila = (i: number, campo: string, valor: string) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, estudiantes: filas.map((f, k) => (k === i ? { ...f, [campo]: valor } : f)) } });
+      const quitarFila = (i: number) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, estudiantes: filas.filter((_, k) => k !== i) } });
+      const celda = 'w-full min-w-0 bg-[#191a26] border border-[#313248] rounded-lg px-2 py-1.5 text-[12px] text-[#e0e0ec] outline-none focus:border-[#818cf8]/60 disabled:opacity-70';
+      return (
+        <div key={a.id} className={marco}>
+          <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
+            <Users className="w-4 h-4 text-[#a5b4fc]" />
+            <span className="text-sm font-semibold text-[#e0e0ec]">Agregar {filas.length} estudiante{filas.length === 1 ? '' : 's'}</span>
+            <span className="text-[11px] text-[#8a8b9e]">Sección {a.datos?.seccion || seccionActiva}</span>
+          </div>
+          <div className="px-3.5 pb-3 space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar">
+            {filas.map((f, i) => (
+              <div key={i} className="grid grid-cols-[1.3fr_1.3fr_1fr_auto] gap-1.5 items-center">
+                <input value={f.nombre || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'nombre', e.target.value)} placeholder="Nombre" className={celda} />
+                <input value={f.email || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'email', e.target.value)} placeholder="correo@…" className={`${celda} ${!f.email ? 'border-amber-500/40' : ''}`} />
+                <input value={f.telefono || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'telefono', e.target.value)} placeholder="0412…" className={`${celda} ${!f.telefono ? 'border-amber-500/40' : ''}`} />
+                {editable ? <button type="button" onClick={() => quitarFila(i)} aria-label="Quitar" className="p-1 text-[#6a6b7e] hover:text-red-300"><X className="w-3.5 h-3.5" /></button> : <span />}
+              </div>
+            ))}
+            {editable && filas.some(f => !f.email || !f.telefono) && <p className="text-[11px] text-amber-300 pt-1">Completa el correo y el teléfono que faltan (marcados en amarillo).</p>}
+          </div>
+          {filas.length > 0 && botones('Agregar estudiantes')}
+          {pie}
+        </div>
+      );
+    }
+    if (a.tipo === 'cargar_notas') {
+      const notas: any[] = a.datos?.notas || [];
+      const editable = !hecha && !descartada && !trabajando;
+      const cambiarNota = (i: number, valor: string) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, notas: notas.map((n, k) => (k === i ? { ...n, nota: valor === '' ? '' : Math.max(0, Math.min(20, Number(valor.replace(',', '.')) || 0)) } : n)) } });
+      const prom = notas.length ? notas.reduce((t, n) => t + (Number(n.nota) || 0), 0) / notas.length : 0;
+      return (
+        <div key={a.id} className={marco}>
+          <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
+            <GraduationCap className="w-4 h-4 text-[#a5b4fc]" />
+            <span className="text-sm font-semibold text-[#e0e0ec]">Notas de {nombreEv(a.datos?.evaluacion)}</span>
+            <span className="text-[11px] text-[#8a8b9e]">{notas.length} · promedio {prom.toFixed(1)} · {notas.filter(n => Number(n.nota) >= 10).length} aprobados</span>
+          </div>
+          <div className="px-3.5 pb-3 space-y-0.5 max-h-72 overflow-y-auto custom-scrollbar">
+            {notas.map((n, i) => (
+              <div key={i} className="flex items-center gap-2 text-[12px] py-0.5">
+                <span className="flex-1 truncate text-[#d0d0da]" title={n.observacion || undefined}>{n.nombre}{n.observacion ? ' 💬' : ''}</span>
+                <input value={n.nota} disabled={!editable} onChange={(e) => cambiarNota(i, e.target.value)} inputMode="decimal" className={`w-14 text-right bg-[#191a26] border border-[#313248] rounded-md px-1.5 py-1 font-semibold outline-none focus:border-[#818cf8]/60 disabled:opacity-80 ${Number(n.nota) >= 10 ? 'text-emerald-300' : 'text-red-300'}`} />
+              </div>
+            ))}
+          </div>
+          <label className="px-3.5 pb-2 flex items-center gap-1.5 text-[11px] text-[#8a8b9e] cursor-pointer">
+            <input type="checkbox" checked={!!a.datos?.enviar} disabled={!editable} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, enviar: e.target.checked } })} className="w-3.5 h-3.5 accent-[#818cf8]" />Enviar a cada estudiante su nota por WhatsApp
+          </label>
+          {botones('Guardar notas')}
+          {pie}
+        </div>
+      );
+    }
+    if (a.tipo === 'navegar') {
+      return (
+        <div key={a.id} className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border border-[#818cf8]/25 bg-[#818cf8]/10 text-[#c7d2fe]">
+          <ExternalLink className="w-3 h-3" />{hecha ? (a.resultado || 'Listo') : <button type="button" onClick={() => ejecutarAccion(msg.id, a)} className="hover:text-white">Ir a {NOMBRE_VISTA[a.datos?.vista] || a.datos?.vista}{a.datos?.seccion ? ` · Sección ${a.datos.seccion}` : ''}</button>}
+        </div>
+      );
+    }
     const info: Record<string, { icono: any; titulo: string; detalle: string; boton: string }> = {
       crear_rubrica: { icono: ClipboardCheck, titulo: 'Crear rúbrica', detalle: `Rúbrica sugerida de 20 puntos para ${nombreEv(a.datos?.evaluacion)}`, boton: 'Crear rúbrica' },
       buscar_recursos: { icono: Search, titulo: 'Buscar recursos', detalle: `Videos de YouTube y páginas comprobadas para ${nombreEv(a.datos?.evaluacion)}`, boton: 'Buscar y agregar' },
@@ -5222,6 +5418,11 @@ if (sonCuatro && generarPDF) {
       copiar_plan: { icono: Copy, titulo: 'Copiar plan entre secciones', detalle: `Sección ${a.datos?.desde} → Sección ${a.datos?.hacia}${a.datos?.dias ? ` · fechas ${a.datos.dias > 0 ? '+' : ''}${a.datos.dias} días` : ' · mismas fechas'}${a.datos?.reemplazar ? ' · reemplaza lo que tenga' : ''}`, boton: 'Copiar' },
       cambiar_estado: { icono: CheckCircle, titulo: 'Cambiar estado', detalle: `${nombreEv(a.datos?.evaluacion)} → ${String(a.datos?.estado || '').toLowerCase()}`, boton: 'Confirmar' },
       recordar_preferencia: { icono: Brain, titulo: 'Recordar para la próxima', detalle: a.datos?.texto || '', boton: 'Recordar' },
+      modificar_estudiantes: { icono: UserCheck, titulo: a.datos?.accion === 'mover' ? `Mover a la Sección ${a.datos?.seccion}` : a.datos?.accion === 'retirar' ? 'Retirar estudiantes' : 'Reactivar estudiantes', detalle: (a.datos?.nombres || []).join(', ') + (a.datos?.accion === 'retirar' ? ' · quedan inactivos (no reciben mensajes); sus notas se conservan' : ''), boton: a.datos?.accion === 'mover' ? 'Mover' : a.datos?.accion === 'retirar' ? 'Retirar' : 'Reactivar' },
+      abrir_en_portal: { icono: a.datos?.abrir ? LockOpen : Lock, titulo: a.datos?.abrir ? 'Abrir en la página de estudiantes' : 'Cerrar en la página de estudiantes', detalle: `${nombreEv(a.datos?.evaluacion)} ${a.datos?.abrir ? '→ verán descripción, recursos y rúbrica desde ya' : '→ se abrirá sola 7 días antes'}`, boton: a.datos?.abrir ? 'Abrir' : 'Cerrar' },
+      enviar_plan: { icono: Send, titulo: 'Enviar el plan por WhatsApp', detalle: `Enlace a su página personal · Sección ${seccionActiva}${a.datos?.soloSinAbrir ? ' · solo a quienes no la han abierto' : ' · a todos los activos'}`, boton: 'Enviar' },
+      eliminar_evaluaciones: { icono: Trash2, titulo: 'Eliminar evaluaciones', detalle: `${(a.datos?.evaluaciones || []).map((n: number) => nombreEv(n)).join(', ')} · quedan en la Papelera con sus notas`, boton: 'Eliminar' },
+      cambiar_materia: { icono: BookOpen, titulo: a.datos?.crear ? 'Abrir o crear materia' : 'Cambiar de materia', detalle: `«${a.datos?.nombre}»${(materias as any[]).length ? ` · tus materias: ${(materias as any[]).map((m: any) => m.nombre).join(', ')}` : ''}`, boton: 'Abrir' },
     };
     const d = info[a.tipo];
     if (!d) return null;
@@ -5382,14 +5583,56 @@ if (sonCuatro && generarPDF) {
 // ============================================
 // PANEL DERECHO (CONFIG Y NOTIFICACIONES MEJORADAS)
 // ============================================
-type PanelDerechoHandle = { limpiarYScroll: () => void; notificar: (mensaje: string) => void; };
+type PanelDerechoHandle = { limpiarYScroll: () => void; notificar: (mensaje: string) => void; guardarAhora: () => Promise<void>; cambiarSeccion: (letra: string) => void; };
+type MateriaCorta = { id: string; nombre: string };
+const CLAVE_MATERIA = 'materiaActiva'; // última materia abierta en este navegador
+
+// Selector de materia (cada materia tiene su propio plan). Cambiar de materia guarda lo pendiente y recarga.
+function SelectorMateria({ materias, actualId, actualNombre, onAbrir, onNueva }: { materias: MateriaCorta[]; actualId: string | null; actualNombre: string; onAbrir: (id: string) => Promise<void>; onNueva: (nombre: string) => Promise<void> }) {
+  const [abierto, setAbierto] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setAbierto(false); };
+    document.addEventListener('mousedown', fuera); return () => document.removeEventListener('mousedown', fuera);
+  }, [abierto]);
+  const correr = async (f: () => Promise<void>) => { setOcupado(true); try { await f(); } catch (e: any) { alert(e?.message || 'No se pudo.'); setOcupado(false); } };
+  return (
+    <div ref={ref} className="relative">
+      <Tooltip text="Materia" lado="abajo">
+        <button type="button" disabled={ocupado} onClick={() => setAbierto(v => !v)} className="h-9 px-2 sm:px-3 flex items-center gap-1.5 rounded-xl border border-[#313248] bg-[#1d1e2e] text-[#c0c0d0] hover:text-white hover:border-[#818cf8]/40 text-xs font-medium max-w-[200px] disabled:opacity-60">
+          {ocupado ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <BookOpen className="w-4 h-4 text-[#a5b4fc] flex-shrink-0" />}
+          <span className="hidden sm:inline truncate">{actualNombre || 'Materia'}</span>
+          <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+        </button>
+      </Tooltip>
+      {abierto && (
+        <div className="absolute right-0 top-11 z-50 w-64 bg-[#1f2035] border border-[#313248] rounded-xl shadow-2xl p-1.5">
+          <p className="px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-[#6a6b7e] font-semibold">Mis materias</p>
+          <div className="max-h-64 overflow-y-auto custom-scrollbar">
+            {materias.length === 0 && <p className="px-2.5 py-2 text-xs text-[#8a8b9e]">Todavía no hay materias guardadas.</p>}
+            {materias.map(m => (
+              <button key={m.id} type="button" onClick={() => { setAbierto(false); if (m.id !== actualId) correr(() => onAbrir(m.id)); }} className={`w-full text-left px-2.5 py-2 rounded-lg text-[13px] flex items-center gap-2 ${m.id === actualId ? 'bg-[#818cf8]/15 text-white' : 'text-[#c0c0d0] hover:bg-[#272839]'}`}>
+                <span className="flex-1 truncate">{m.nombre}</span>{m.id === actualId && <CheckCircle className="w-3.5 h-3.5 text-[#a5b4fc]" />}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-[#313248] mt-1 pt-1">
+            <button type="button" onClick={() => { const n = window.prompt('Nombre de la nueva materia:')?.trim(); setAbierto(false); if (n) correr(() => onNueva(n)); }} className="w-full text-left px-2.5 py-2 rounded-lg text-[13px] text-[#a5b4fc] hover:bg-[#272839] flex items-center gap-2"><Plus className="w-3.5 h-3.5" />Nueva materia</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 let contadorNotif = 0; // ids de notificación únicos aunque lleguen dos en el mismo milisegundo
 // Cuándo se guardó por última vez el plan que tiene abierto esta ventana (para no pisar cambios hechos en otra)
 let planVistoEn: string | null = null;
 interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; debeCambiarPassword?: boolean; }
-interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
+interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; materias?: MateriaCorta[]; materiaActivaId?: string | null; onAbrirMateria?: (id: string) => Promise<void>; onNuevaMateria?: (nombre: string) => Promise<void>; }
 
-const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId }: PanelDerechoProps, ref) {
+const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId, materias = [], materiaActivaId = null, onAbrirMateria, onNuevaMateria }: PanelDerechoProps, ref) {
   const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
@@ -5658,7 +5901,19 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const [evaluacion4, setEvaluacion4] = useState<EvaluacionFormulario>({...evalInit});
 
   const limpiarYScroll = () => { setEvaluacion1({...evalInit}); setEvaluacion2({...evalInit}); setEvaluacion3({...evalInit}); setEvaluacion4({...evalInit}); setNumEvaluaciones(1); setScrollToSections(true); setVista('planificacion'); setGlow1(false); setGlow2(false); setGlow3(false); setGlow4(false); };
-  useImperativeHandle(ref, () => ({ limpiarYScroll, notificar: agregarNotificacion }), [limpiarYScroll, agregarNotificacion]);
+  useImperativeHandle(ref, () => ({
+    limpiarYScroll, notificar: agregarNotificacion,
+    // Guarda ya lo que esté pendiente (antes de cambiar de materia) y espera a que termine
+    guardarAhora: async () => {
+      if (datosCargados && !conflictoRef.current && firmaDePlan(planificacion) !== ultimaFirma.current && (planIdRef.current || planificacion.secciones.length > 0)) await sincronizarConBD(planificacion);
+      await colaSync.current;
+    },
+    cambiarSeccion: (letra: string) => {
+      const l = String(letra || '').toUpperCase(); if (!/^[A-Z]$/.test(l)) return;
+      setSeccionesDisponibles(prev => (prev.includes(l) ? prev : [...prev, l].sort()));
+      setSeccionActiva(l);
+    },
+  }));
 
   // Al marcar o desmarcar una tarjeta, el Plan de Acción ya generado de esta sección se rehace (espera 1 s por si marcas varias)
   const regenerarRef = useRef<() => void>(() => {});
@@ -5692,8 +5947,8 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     setEstadoGuardado('guardando');
     try {
       const planId = planIdRef.current;
-      let materiaId: string | undefined;
-      if (!planId) {
+      let materiaId: string | undefined = !planId && materiaActivaId ? materiaActivaId : undefined;
+      if (!planId && !materiaId) {
         // Primera vez: se crea la materia y luego el plan
         const resMateria = await fetch('/api/materias', {
           method: 'POST',
@@ -6168,6 +6423,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
         </div>
         {/* Botón de configuración junto a la campanita */}
         <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
+          {onAbrirMateria && onNuevaMateria && (
+            <SelectorMateria materias={materias} actualId={materiaActivaId} actualNombre={planificacion.materia} onAbrir={onAbrirMateria} onNueva={onNuevaMateria} />
+          )}
           <motion.button
             onClick={() => setVista('configuracion')}
             title="Configuración del plan"
@@ -6560,6 +6818,29 @@ export default function PlanificadorExamenes() {
   // ===== FIN SESIÓN / ROLES =====
   // ===== INICIO CONEXIÓN BD =====
 const [planificacionId, setPlanificacionId] = useState<string | null>(null);
+const [materias, setMaterias] = useState<MateriaCorta[]>([]);
+const [materiaActivaId, setMateriaActivaId] = useState<string | null>(null);
+// Cambiar de materia: se guarda lo pendiente, se recuerda la elección y se recarga (así nada del plan anterior se mezcla)
+const abrirMateria = async (id: string) => {
+  try { await panelDerechoRef.current?.guardarAhora(); } catch { /* si falla el guardado, igual se cambia */ }
+  try { localStorage.setItem(CLAVE_MATERIA, id); } catch { /* sin almacenamiento: se abrirá la más reciente */ }
+  window.location.reload();
+};
+const crearMateria = async (nombre: string) => {
+  const r = await fetch('/api/materias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: nombre.slice(0, 120), codigo: `MAT-${Date.now()}` }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.id) throw new Error(d.error || 'No se pudo crear la materia.');
+  await abrirMateria(d.id);
+};
+// Para el agente: abre una materia por nombre (o la crea si se pidió)
+const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<string> => {
+  const m = buscarPorNombre<MateriaCorta>(materias, nombre);
+  if (m === 'varios') throw new Error(`Hay varias materias parecidas a «${nombre}». Escribe el nombre completo.`);
+  if (m) { if (m.id === materiaActivaId) return `«${m.nombre}» ya es la materia abierta`; await abrirMateria(m.id); return `Abriendo «${m.nombre}»…`; }
+  if (!crear) throw new Error(`No tienes una materia llamada «${nombre}».${materias.length ? ` Tus materias: ${materias.map(x => x.nombre).join(', ')}.` : ''}`);
+  await crearMateria(nombre);
+  return `Creando la materia «${nombre}»…`;
+};
 // ===== FIN CONEXIÓN BD =====
   // El chat empieza abierto en computador y cerrado en celular
   // El chat empieza cerrado; al cargar la sesión se abre para todos menos el superadmin (y nunca solo en el celular)
@@ -6583,11 +6864,17 @@ const [planificacionId, setPlanificacionId] = useState<string | null>(null);
           catch (e) { if (intento >= 2) throw e; await new Promise(res => setTimeout(res, 1500 * (intento + 1))); }
         }
         if (!Array.isArray(materias) || materias.length === 0) { setDatosCargados(true); return; } // Primera vez, no hay nada que cargar
+        setMaterias(materias.map((m: any) => ({ id: m.id, nombre: m.nombre })).sort((a: MateriaCorta, b: MateriaCorta) => a.nombre.localeCompare(b.nombre)));
 
         // 2. Buscar la materia "Ing Software" o usar la primera
         // Se abre la materia con actividad más reciente (antes se buscaba una llamada 'Ing Software')
         const actividadDe = (m: any) => new Date(m.planificaciones?.[0]?.updatedAt || m.planificaciones?.[0]?.createdAt || m.createdAt || 0).getTime();
-        const materiaActual = [...materias].sort((a: any, b: any) => actividadDe(b) - actividadDe(a))[0];
+        let preferida: string | null = null;
+        try { preferida = localStorage.getItem(CLAVE_MATERIA); } catch { /* sin almacenamiento */ }
+        const materiaActual = materias.find((m: any) => m.id === preferida) || [...materias].sort((a: any, b: any) => actividadDe(b) - actividadDe(a))[0];
+        setMateriaActivaId(materiaActual.id);
+        // Materia nueva, todavía sin plan: se muestra con su nombre (el primer guardado crea su plan)
+        setPlanificacion(prev => ({ ...prev, materia: materiaActual.nombre || prev.materia, secciones: [] }));
         
         // 3. Buscar las planificaciones de esa materia
         const planes = await pedir(`/api/planificaciones?materiaId=${materiaActual.id}`);
@@ -6708,7 +6995,7 @@ const [planificacionId, setPlanificacionId] = useState<string | null>(null);
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
-                <AgentePanel planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
+                <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
         <PanelDerecho 
           onSeccionActivaCambia={setSeccionPlanificador}
           chatAbierto={agenteExpandido}
@@ -6733,6 +7020,10 @@ const [planificacionId, setPlanificacionId] = useState<string | null>(null);
           generarPDF={generarPDF}
           planificacionId={planificacionId}
           setPlanificacionId={setPlanificacionId}
+          materias={materias}
+          materiaActivaId={materiaActivaId}
+          onAbrirMateria={abrirMateria}
+          onNuevaMateria={crearMateria}
         />
       </div>
     </div>

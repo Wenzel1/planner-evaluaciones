@@ -78,13 +78,14 @@ export async function POST(request: Request) {
     tieneRubrica: !!e?.tieneRubrica, recursos: Number(e?.recursos) || 0, preparados: Number(e?.preparados) || 0,
   }))
   const ids = evaluaciones.map(e => e.id).filter(Boolean) as string[]
-  const [estudiantesSeccion, notas, opiniones, estudiantesLista, evsDB, memorias] = await Promise.all([
+  const [estudiantesSeccion, notas, opiniones, estudiantesLista, evsDB, memorias, materias] = await Promise.all([
     prisma.estudiante.count({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' } }).catch(() => null),
     ids.length ? prisma.calificacion.groupBy({ by: ['evaluacionId'], where: { evaluacionId: { in: ids }, puntaje: { not: null } }, _avg: { puntaje: true }, _count: { _all: true } }).catch(() => []) : Promise.resolve([] as any[]),
     plan ? prisma.opinionPlan.findMany({ where: { materiaId: plan.materiaId, leida: false }, orderBy: { updatedAt: 'desc' }, take: 20, select: { deAcuerdo: true, comentario: true, estudiante: { select: { nombre: true, grupo: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
-    prisma.estudiante.findMany({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' }, select: { id: true, nombre: true }, take: 200 }).catch(() => []),
+    prisma.estudiante.findMany({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' }, select: { id: true, nombre: true, portalVisitas: true }, orderBy: { nombre: 'asc' }, take: 200 }).catch(() => []),
     plan ? prisma.evaluacion.findMany({ where: { planificacionId: plan.id, grupoSeccion: seccion }, select: { id: true, nombre: true, peso: true, estado: true, fecha: true, rubrica: true, calificaciones: { select: { estudianteId: true, puntaje: true, detalle: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
     prisma.memoriaAgente.findMany({ where: { usuarioId: actor.id }, orderBy: { createdAt: 'asc' }, take: 25, select: { texto: true } }).catch(() => []),
+    prisma.materia.findMany({ where: { usuarioId: actor.id }, orderBy: { nombre: 'asc' }, take: 30, select: { nombre: true } }).catch(() => []),
   ])
   for (const n of (Array.isArray(notas) ? notas : []) as any[]) {
     const e = evaluaciones.find(x => x.id === n.evaluacionId)
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
   }
   // Análisis con datos reales: resultados por criterio, estudiantes en riesgo y resumen de notas
   const evsAnalisis = (Array.isArray(evsDB) ? evsDB : []) as any[]
-  const alumnos = (Array.isArray(estudiantesLista) ? estudiantesLista : []) as { id: string; nombre: string }[]
+  const alumnos = (Array.isArray(estudiantesLista) ? estudiantesLista : []) as { id: string; nombre: string; portalVisitas?: number }[]
   const numeroDe = (id: string) => evaluaciones.find(e => e.id === id)?.numero
   const porCriterio = analisisPorCriterio(evsAnalisis, numeroDe)
   const situacion = estudiantesEnRiesgo(evsAnalisis, alumnos)
@@ -112,6 +113,8 @@ export async function POST(request: Request) {
     sugerencias: (Array.isArray(opiniones) ? opiniones : []).filter((o: any) => !o.deAcuerdo && o.comentario).slice(0, 8).map((o: any) => `${o.estudiante?.nombre || 'Estudiante'} (sec. ${o.estudiante?.grupo || '?'}): ${String(o.comentario).slice(0, 140)}`),
     resumenNotas, porCriterio, enRiesgo: riesgo.slice(0, 10).map(textoRiesgo),
     feriados, cargaSemanal, memoria: (Array.isArray(memorias) ? memorias : []).map((m: any) => m.texto),
+    alumnos: alumnos.slice(0, 80).map(a => ({ nombre: a.nombre, abrioPagina: (a.portalVisitas ?? 0) > 0 })),
+    materias: (Array.isArray(materias) ? materias : []).map((m: any) => m.nombre),
   })
   const extra = String(chat.instruccionesExtra || '').trim()
   const revision = body.modo === 'revision'
