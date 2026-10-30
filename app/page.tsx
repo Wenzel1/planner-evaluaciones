@@ -1912,7 +1912,7 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
             <label className={etiqueta}>Modelo de lenguaje</label>
             <input list="modelos-sugeridos" value={cfg.chat.modelo} onChange={(e) => cambiarChat({ modelo: e.target.value })} placeholder="gemini-2.5-flash (por defecto)" className={campo} />
             <datalist id="modelos-sugeridos"><option value="gemini-2.5-flash" /><option value="gemini-2.5-flash-lite" /><option value="gemini-2.5-pro" /><option value="gemini-2.0-flash" /><option value="llama-3.3-70b-versatile" /></datalist>
-            <p className={ayuda}>El primero que se intenta. Si falla o no tiene cupo, el chat pasa solo a Gemini Flash-Lite, Gemini 2.0 y Groq (Llama 3.3). Los modelos «llama…» usan GROQ_API_KEY.</p>
+            <p className={ayuda}>El primero que se intenta. Si falla o no tiene cupo, el chat pasa solo a Gemini Flash-Lite, Gemini 2.0, OpenRouter y Groq (Llama 3.3). Un modelo con «/» (ej. google/gemini-2.5-flash) usa OPENROUTER_API_KEY; los «llama…», GROQ_API_KEY.</p>
           </div>
           <div>
             <label className={etiqueta}>Dirección de n8n (solo respaldo de WhatsApp)</label>
@@ -5642,7 +5642,7 @@ if (sonCuatro && generarPDF) {
                     {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="inline-block w-2 h-4 bg-[#818cf8] animate-pulse rounded-sm" />}
                     {msg.consultas?.length ? (
                       <div className="mb-1.5 flex flex-wrap gap-1.5">
-                        {msg.consultas.map((c, i) => <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#232438] border border-[#313248] text-[#8a8b9e]"><Search className="w-3 h-3" />Revisé {c}</span>)}
+                        {msg.consultas.map((c, i) => <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#232438] border border-[#313248] text-[#8a8b9e]"><Search className="w-3 h-3" />{/^preparando/.test(c) ? c.charAt(0).toUpperCase() + c.slice(1) : `Revisé ${c}`}</span>)}
                       </div>
                     ) : null}
                     {msg.acciones?.map(a => renderAccion(msg, a))}

@@ -4,9 +4,9 @@
 import { herramientasGemini, herramientasGroq } from './herramientas'
 
 export interface Turno { rol: 'user' | 'model'; texto: string }
-export type Evento = { t: 'texto'; v: string } | { t: 'herramienta'; nombre: string; args: any } | { t: 'aviso'; v: string }
+export type Evento = { t: 'texto'; v: string } | { t: 'herramienta'; nombre: string; args: any } | { t: 'aviso'; v: string } | { t: 'malformada' }
 export interface Opciones { temperatura: number; maxTokens: number; senal?: AbortSignal }
-interface Candidato { proveedor: 'gemini' | 'groq'; modelo: string }
+interface Candidato { proveedor: 'gemini' | 'groq' | 'openrouter'; modelo: string }
 
 class FalloModelo extends Error { constructor(msg: string, public estado = 0) { super(msg) } }
 
@@ -65,16 +65,24 @@ async function* gemini(modelo: string, sistema: string, turnos: Turno[], op: Opc
       if (p.functionCall?.name) yield { t: 'herramienta', nombre: p.functionCall.name, args: p.functionCall.args || {} }
     }
     if (cand?.finishReason === 'MAX_TOKENS') yield { t: 'aviso', v: 'La respuesta llegó al límite de largo y pudo quedar cortada.' }
+    // Gemini a veces arma mal la llamada a una herramienta cuando lleva mucho texto (ej. 4 evaluaciones con descripción):
+    // se avisa para que el chat la pida de nuevo en vez de quedarse en "Aquí tienes la propuesta:"
+    if (cand?.finishReason === 'MALFORMED_FUNCTION_CALL' || cand?.finishReason === 'UNEXPECTED_TOOL_CALL') {
+      console.error(`[Chat] ${modelo}: llamada a herramienta mal formada (${cand.finishReason})`)
+      yield { t: 'malformada' }
+    }
   }
 }
 
-// ---------- Groq (formato OpenAI) ----------
-async function* groq(modelo: string, sistema: string, turnos: Turno[], op: Opciones): AsyncGenerator<Evento> {
-  const clave = process.env.GROQ_API_KEY
-  if (!clave) throw new FalloModelo('Falta GROQ_API_KEY')
-  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+// ---------- Groq y OpenRouter (mismo formato, el de OpenAI) ----------
+async function* groq(modelo: string, sistema: string, turnos: Turno[], op: Opciones, proveedor: 'groq' | 'openrouter' = 'groq'): AsyncGenerator<Evento> {
+  const clave = proveedor === 'openrouter' ? process.env.OPENROUTER_API_KEY : process.env.GROQ_API_KEY
+  if (!clave) throw new FalloModelo(proveedor === 'openrouter' ? 'Falta OPENROUTER_API_KEY' : 'Falta GROQ_API_KEY')
+  const url = proveedor === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.groq.com/openai/v1/chat/completions'
+  const extra = proveedor === 'openrouter' ? { 'HTTP-Referer': process.env.APP_URL || 'https://planner-evaluaciones.vercel.app', 'X-Title': 'Planificador de Evaluaciones' } : {}
+  const r = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${clave}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${clave}`, ...extra },
     body: JSON.stringify({
       model: modelo, stream: true, temperature: op.temperatura, max_tokens: Math.min(op.maxTokens, 8000),
       messages: [{ role: 'system', content: sistema }, ...turnos.map(t => ({ role: t.rol === 'model' ? 'assistant' : 'user', content: t.texto }))],
@@ -110,13 +118,21 @@ export function candidatos(modeloConfigurado?: string): Candidato[] {
   const lista: Candidato[] = []
   const base = String(modeloConfigurado || '').trim().replace(/^models\//, '')
   if (process.env.GEMINI_API_KEY) {
-    if (base && /gemini/i.test(base)) lista.push({ proveedor: 'gemini', modelo: base })
+    if (base && /gemini/i.test(base) && !base.includes('/')) lista.push({ proveedor: 'gemini', modelo: base })
     for (const m of ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash']) lista.push({ proveedor: 'gemini', modelo: m })
   }
+  // OpenRouter (de pago, con saldo): después de Gemini gratis y antes de Groq. Modelo con "/" en la configuración → OpenRouter.
+  if (process.env.OPENROUTER_API_KEY) {
+    if (base && base.includes('/')) lista.push({ proveedor: 'openrouter', modelo: base })
+    lista.push({ proveedor: 'openrouter', modelo: (process.env.OPENROUTER_MODELO || 'google/gemini-2.5-flash').trim() })
+  }
   if (process.env.GROQ_API_KEY) {
-    if (base && /llama|qwen|gpt-oss|mixtral|gemma/i.test(base)) lista.push({ proveedor: 'groq', modelo: base })
+    if (base && !base.includes('/') && /llama|qwen|gpt-oss|mixtral|gemma/i.test(base)) lista.push({ proveedor: 'groq', modelo: base })
     lista.push({ proveedor: 'groq', modelo: 'llama-3.3-70b-versatile' })
   }
+  // Si el administrador eligió un modelo de OpenRouter (con "/"), ese va primero
+  const elegido = lista.findIndex(c => c.proveedor === 'openrouter' && c.modelo === base)
+  if (elegido > 0) lista.unshift(...lista.splice(elegido, 1))
   const vistos = new Set<string>()
   return lista.filter(c => { const k = `${c.proveedor}:${c.modelo}`; if (vistos.has(k)) return false; vistos.add(k); return true })
 }
@@ -124,10 +140,10 @@ export function candidatos(modeloConfigurado?: string): Candidato[] {
 // Responde con el primer modelo que funcione. Emite { t:'modelo' } al empezar con el que respondió.
 export async function* responder(sistema: string, turnos: Turno[], op: Opciones, modeloConfigurado?: string): AsyncGenerator<Evento | { t: 'modelo'; v: string; respaldo: boolean }> {
   const lista = candidatos(modeloConfigurado)
-  if (lista.length === 0) throw new Error('No hay claves de IA: agrega GEMINI_API_KEY (y opcionalmente GROQ_API_KEY) en Vercel.')
+  if (lista.length === 0) throw new Error('No hay claves de IA: agrega GEMINI_API_KEY, OPENROUTER_API_KEY o GROQ_API_KEY en Vercel.')
   const fallos: string[] = []
   for (const [i, c] of lista.entries()) {
-    const gen = c.proveedor === 'gemini' ? gemini(c.modelo, sistema, turnos, op) : groq(c.modelo, sistema, turnos, op)
+    const gen = c.proveedor === 'gemini' ? gemini(c.modelo, sistema, turnos, op) : groq(c.modelo, sistema, turnos, op, c.proveedor)
     let primero: IteratorResult<Evento>
     try {
       primero = await gen.next()
