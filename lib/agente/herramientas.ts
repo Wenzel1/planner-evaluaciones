@@ -136,6 +136,21 @@ export const HERRAMIENTAS: Herramienta[] = [
     description: 'Genera el Plan de Acción en PDF de la sección activa con las evaluaciones marcadas.',
     parameters: { type: 'object', properties: {} },
   },
+  // ----- Consultas propias (solo lectura, se ejecutan en el servidor y vuelves a responder con el resultado) -----
+  {
+    name: 'consultar',
+    description: 'Busca datos que NO están en el CONTEXTO y te los devuelve para que sigas respondiendo: historial completo de un estudiante, la lista de notas de una evaluación, otra sección, los envíos de WhatsApp, todas las opiniones o las materias. Úsala antes de responder cuando necesites esos detalles; no le digas al profesor que vas a consultar, solo hazlo.',
+    parameters: {
+      type: 'object',
+      properties: {
+        que: { type: 'string', enum: ['estudiante', 'notas_evaluacion', 'seccion', 'envios_whatsapp', 'opiniones', 'materias'] },
+        nombre: { type: 'string', description: 'Nombre del estudiante (para que = estudiante)' },
+        evaluacion: { type: 'integer', description: 'Número (#) en la sección activa (para que = notas_evaluacion)' },
+        seccion: { type: 'string', description: 'Letra (para que = seccion)' },
+      },
+      required: ['que'],
+    },
+  },
   // ----- Control de toda la app -----
   {
     name: 'navegar',
@@ -208,6 +223,9 @@ export const HERRAMIENTAS: Herramienta[] = [
     parameters: { type: 'object', properties: { nombre: { type: 'string' }, crear: { type: 'boolean', description: 'true = crearla si no existe' } }, required: ['nombre'] },
   },
 ]
+
+// Herramientas que resuelve el propio servidor (no llegan a la app como tarjeta)
+export const HERRAMIENTAS_SERVIDOR = ['consultar']
 
 // Acciones que no cambian datos: se ejecutan solas, sin tarjeta de confirmación
 export const ACCIONES_AUTOMATICAS = ['navegar']

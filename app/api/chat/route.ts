@@ -5,7 +5,8 @@ import { bloqueado, registrarFallo, minutosRestantes } from '@/lib/rateLimit'
 import { PROMPT_BASE, PROMPT_REVISION, construirContexto, type EvalContexto } from '@/lib/agente/prompt'
 import { analisisPorCriterio, estudiantesEnRiesgo, filtrarRiesgo, textoRiesgo, cargaPorSemana } from '@/lib/agente/analisis'
 import { feriadosEntre } from '@/lib/feriados'
-import { normalizarAccion, resumenAccion, type Accion } from '@/lib/agente/herramientas'
+import { normalizarAccion, resumenAccion, HERRAMIENTAS_SERVIDOR, type Accion } from '@/lib/agente/herramientas'
+import { ejecutarConsulta, describirConsulta } from '@/lib/agente/consultas'
 import { responder, type Turno } from '@/lib/agente/modelos'
 
 export const maxDuration = 60
@@ -115,6 +116,7 @@ export async function POST(request: Request) {
     feriados, cargaSemanal, memoria: (Array.isArray(memorias) ? memorias : []).map((m: any) => m.texto),
     alumnos: alumnos.slice(0, 80).map(a => ({ nombre: a.nombre, abrioPagina: (a.portalVisitas ?? 0) > 0 })),
     materias: (Array.isArray(materias) ? materias : []).map((m: any) => m.nombre),
+    modoAuto: body.modoAuto === true,
   })
   const extra = String(chat.instruccionesExtra || '').trim()
   const revision = body.modo === 'revision'
@@ -156,14 +158,28 @@ export async function POST(request: Request) {
       let respaldo = false
       enviar({ t: 'inicio', conversacionId })
       try {
-        for await (const ev of responder(sistema, turnos, { temperatura, maxTokens, senal: request.signal }, chat.modelo)) {
-          if (ev.t === 'modelo') { modelo = ev.v; respaldo = ev.respaldo; enviar({ t: 'modelo', v: ev.v, respaldo: ev.respaldo }) }
-          else if (ev.t === 'texto') { texto += ev.v; enviar({ t: 'texto', v: ev.v }) }
-          else if (ev.t === 'aviso') enviar({ t: 'aviso', v: ev.v })
-          else if (ev.t === 'herramienta') {
-            const a = normalizarAccion(ev.nombre, ev.args)
-            if (a && acciones.length < 6) { acciones.push(a); enviar({ t: 'accion', accion: a }) }
+        // Varias rondas: si el modelo pide consultar datos, se le dan y vuelve a responder (máximo 3 consultas seguidas)
+        const ctxConsulta = { usuarioId: actor.id, planId: plan?.id ?? null, materiaId: plan?.materiaId ?? null, seccion, evaluaciones: evaluaciones.map(e => ({ numero: e.numero, id: e.id, nombre: e.nombre })) }
+        for (let ronda = 0; ronda < 4; ronda++) {
+          const consultas: any[] = []
+          let textoRonda = ''
+          for await (const ev of responder(sistema, turnos, { temperatura, maxTokens, senal: request.signal }, chat.modelo)) {
+            if (ev.t === 'modelo') { if (!modelo) { modelo = ev.v; respaldo = ev.respaldo; enviar({ t: 'modelo', v: ev.v, respaldo: ev.respaldo }) } }
+            else if (ev.t === 'texto') { texto += ev.v; textoRonda += ev.v; enviar({ t: 'texto', v: ev.v }) }
+            else if (ev.t === 'aviso') enviar({ t: 'aviso', v: ev.v })
+            else if (ev.t === 'herramienta') {
+              if (HERRAMIENTAS_SERVIDOR.includes(ev.nombre)) { if (consultas.length < 3) consultas.push(ev.args || {}); continue }
+              const a = normalizarAccion(ev.nombre, ev.args)
+              if (a && acciones.length < 8) { acciones.push(a); enviar({ t: 'accion', accion: a }) }
+            }
           }
+          if (!consultas.length || ronda === 3) break
+          const descripciones = consultas.map(describirConsulta)
+          enviar({ t: 'consulta', v: descripciones })
+          const resultados = await Promise.all(consultas.map(q => ejecutarConsulta(ctxConsulta, q)))
+          if (texto && !texto.endsWith('\n')) { texto += '\n\n'; enviar({ t: 'texto', v: '\n\n' }) }
+          agregar('model', `${textoRonda}\n[Consulté: ${descripciones.join('; ')}]`.trim())
+          agregar('user', `[Resultado de tus consultas. Úsalo para responder al profesor; no lo copies tal cual ni menciones que consultaste]\n${resultados.map((r, i) => `## ${descripciones[i]}\n${r}`).join('\n\n').slice(0, 9000)}`)
         }
         const guardado = await prisma.mensaje.create({ data: { conversacionId, rol: 'AGENT', contenido: texto, completo: true, acciones: acciones.length ? (acciones as any) : undefined, modelo, respaldo } })
         await prisma.conversacion.update({ where: { id: conversacionId }, data: { updatedAt: new Date() } }).catch(() => {})

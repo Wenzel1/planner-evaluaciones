@@ -78,10 +78,15 @@ interface PlanificacionExamen {
   rubrica: CriterioRubrica[]; comentariosAgente: ComentarioAgente[];
 }
 // Acción que propone el agente (tarjeta con botón en el chat)
-interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada'; resultado?: string }
+interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada' | 'deshecha'; resultado?: string; automatica?: boolean }
 const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar', navegar: 'abrir pantalla', agregar_estudiantes: 'agregar estudiantes', modificar_estudiantes: 'modificar estudiantes', cargar_notas: 'cargar notas', abrir_en_portal: 'abrir en la página de estudiantes', enviar_plan: 'enviar plan', eliminar_evaluaciones: 'eliminar evaluaciones', cambiar_materia: 'cambiar de materia' };
 // Acciones del agente que no cambian datos: se ejecutan solas al llegar
 const ACCIONES_AUTOMATICAS = ['navegar'];
+// Con el modo automático también se aplican solas estas (todas se pueden deshacer). Notas, estudiantes, mensajes,
+// eliminar y cambiar de materia SIEMPRE piden confirmación.
+const ACCIONES_SEGURAS = ['crear_rubrica', 'buscar_recursos', 'reprogramar', 'ajustar_pesos', 'abrir_en_portal', 'cambiar_estado', 'recordar_preferencia', 'generar_plan_accion'];
+const CLAVE_MODO_AUTO = 'agenteModoAuto';
+interface AvisoChat { tipo: string; texto: string; pedido: string; seccion?: string; urgente?: boolean }
 const VISTA_DE_AGENTE: Record<string, string> = { dashboard: 'estadisticas', planificador: 'planificacion', calendario: 'calendario', estudiantes: 'estudiantes', papelera: 'papelera', perfil: 'perfil', configuracion: 'configuracion' };
 const NOMBRE_VISTA: Record<string, string> = { dashboard: 'el Dashboard', planificador: 'el Planificador', calendario: 'el Calendario', estudiantes: 'Estudiantes', papelera: 'la Papelera', perfil: 'tu perfil', configuracion: 'la configuración del plan' };
 // Comparar nombres sin tildes ni mayúsculas ("jose perez" = "José Pérez")
@@ -97,7 +102,7 @@ function buscarPorNombre<T extends { nombre: string }>(lista: T[], nombre: strin
   return parciales.length > 1 || exactos.length > 1 ? 'varios' : null;
 }
 const TIPO_PREGUNTA: Record<string, string> = { seleccion: 'Selección', verdadero_falso: 'V o F', desarrollo: 'Desarrollo', caso: 'Caso', practica: 'Práctica' };
-interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; acciones?: AccionChat[]; streaming?: boolean; modelo?: string; respaldo?: boolean; aviso?: string; error?: boolean; dbId?: string; valoracion?: number; adjunto?: string }
+interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; acciones?: AccionChat[]; streaming?: boolean; modelo?: string; respaldo?: boolean; aviso?: string; error?: boolean; dbId?: string; valoracion?: number; adjunto?: string; consultas?: string[] }
 interface PropuestaEvaluacion {
   evaluaciones: Array<{
     tipo?: string; materia: string; tipoActividad?: string; enfoque?: string;
@@ -4571,7 +4576,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
 // ============================================
 // AGENTE PANEL (CON SCROLL MEJORADO)
 // ============================================
-function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
+function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guardarAhora, planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
   // Atajos del encabezado del chat: llevan al panel de la derecha (en el celular el chat se oculta para dejarlo ver)
   const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
   const [mensaje, setMensaje] = useState(''); 
@@ -4600,6 +4605,20 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, planif
   const [subiendoAdjunto, setSubiendoAdjunto] = useState(false);
   const [leyendoId, setLeyendoId] = useState<string | null>(null);
   const [memorias, setMemorias] = useState<{ id: string; texto: string }[] | null>(null);
+  // Deshacer: cómo revertir cada acción aplicada en esta sesión (por id de acción)
+  const deshacerRef = useRef<Record<string, () => Promise<string>>>({});
+  // Modo automático: las acciones seguras se aplican solas (se recuerda en este navegador)
+  const [modoAuto, setModoAuto] = useState<boolean>(() => { try { return localStorage.getItem(CLAVE_MODO_AUTO) === '1'; } catch { return false; } });
+  const modoAutoRef = useRef(modoAuto); modoAutoRef.current = modoAuto;
+  const alternarModoAuto = () => { const v = !modoAuto; setModoAuto(v); try { localStorage.setItem(CLAVE_MODO_AUTO, v ? '1' : '0'); } catch { /* sin almacenamiento */ } agregarNotificacion?.(v ? '⚡ Modo automático activado: rúbricas, recursos, fechas, pesos y estados se aplicarán solos (con botón Deshacer).' : 'Modo automático desactivado: todo pedirá confirmación.'); };
+  // Avisos del día (se muestran al abrir el chat vacío)
+  const [avisos, setAvisos] = useState<AvisoChat[] | null>(null);
+  useEffect(() => {
+    if (!planificacionId) { setAvisos([]); return; }
+    let vivo = true;
+    fetch(`/api/chat/avisos?planificacionId=${encodeURIComponent(planificacionId)}`).then(r => (r.ok ? r.json() : { avisos: [] })).then(d => { if (vivo) setAvisos(Array.isArray(d.avisos) ? d.avisos : []); }).catch(() => { if (vivo) setAvisos([]); });
+    return () => { vivo = false; };
+  }, [planificacionId]);
   const hayPropuestaRef = useRef(false);
   useEffect(() => { hayPropuestaRef.current = !!propuestaPendienteLocal; }, [propuestaPendienteLocal]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -4779,7 +4798,24 @@ if (sonCuatro && generarPDF) {
     setHistorial(prev => prev.map(m => (m.id === msgId ? { ...m, acciones: (m.acciones || []).map(a => (a.id === accId ? { ...a, ...cambio } : a)) } : m)));
 
   const ejecutarAccion = async (msgId: string, a: AccionChat, modo: 'aplicar' | 'ajustar' = 'aplicar') => {
-    marcarAccion(msgId, a.id, { estado: 'trabajando', resultado: undefined });
+    marcarAccion(msgId, a.id, { estado: 'trabajando', resultado: undefined, ...(a.automatica ? { automatica: true } : {}) });
+    let deshacer: (() => Promise<string>) | null = null;
+    // Foto antes del cambio. Deshacer devuelve SOLO lo que tocó esta acción: ciertos campos de ciertas evaluaciones
+    // (ids + campos) y/o quita las evaluaciones nuevas que agregó (quitarNuevas). Lo demás que hayas cambiado después se respeta.
+    const foto = (letra: string, etiqueta: string, op: { ids?: string[]; campos?: (keyof SeccionExamen)[]; quitarNuevas?: boolean }) => {
+      const antes = new Map<string, SeccionExamen>(planificacion.secciones.map((x: SeccionExamen) => [x.id, { ...x }]));
+      return async () => {
+        setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones
+          .filter(x => !op.quitarNuevas || (x.grupoSeccion || 'A').toUpperCase() !== letra || antes.has(x.id))
+          .map(x => {
+            if (!op.ids?.includes(x.id) || !antes.has(x.id)) return x;
+            const viejo = antes.get(x.id) as SeccionExamen;
+            if (!op.campos) return { ...viejo, estado: x.estado };
+            const r: any = { ...x }; for (const c of op.campos) r[c] = (viejo as any)[c]; return r;
+          }) }));
+        return etiqueta;
+      };
+    };
     try {
       const evs = evaluacionesActivas();
       const ev = (n: number) => { const s = evs[n - 1]; if (!s) throw new Error(`No existe la evaluación #${n} en la Sección ${seccionActiva}.`); return s; };
@@ -4792,6 +4828,7 @@ if (sonCuatro && generarPDF) {
             setPropuestaPendienteLocal(prop); setPropuestaPendiente(prop); setVistaPanel('planificacion'); if (esMovil) setExpandido(false);
             resultado = 'Cargada en los formularios para que la ajustes y la guardes';
           } else {
+            deshacer = foto(seccionActiva, 'Evaluaciones devueltas a como estaban', { quitarNuevas: true, ids: (a.datos?.evaluaciones || []).map((e: any) => evs[e.numero - 1]?.id).filter(Boolean) });
             const r = await guardarEvaluacionesDirecto(prop);
             if (!r.success) throw new Error(r.mensaje);
             resultado = `${r.totalEvals} evaluación(es) guardadas en la Sección ${seccionActiva}${r.pdfGenerado ? ' y plan de acción generado' : ''}`;
@@ -4800,13 +4837,15 @@ if (sonCuatro && generarPDF) {
           break;
         }
         case 'crear_rubrica': {
-          const s = ev(a.datos.evaluacion); const rub = rubricaSugerida(s);
+          const s = ev(a.datos.evaluacion);
+          deshacer = foto(seccionActiva, 'Rúbrica quitada', { ids: [s.id], campos: ['rubrica'] }); const rub = rubricaSugerida(s);
           cambiar(s.id, { rubrica: rub });
           resultado = `Rúbrica de ${textoPuntos(totalRubrica(rub))} pts creada para «${limpiarTexto(s.nombre)}» (edítala con 📋 en la tarjeta)`;
           break;
         }
         case 'buscar_recursos': {
           const s = ev(a.datos.evaluacion);
+          deshacer = foto(seccionActiva, 'Recursos devueltos a como estaban', { ids: [s.id], campos: ['recursos'] });
           const d = await pedirSugerenciasRecursos(s, planificacion.materia);
           const nuevos = [...d.videos.slice(0, 2), ...d.paginas.slice(0, 2)].map(x => ({ titulo: x.titulo, url: x.url }));
           if (!nuevos.length) throw new Error(d.avisos[0] || 'No se encontraron recursos para ese tema.');
@@ -4817,6 +4856,7 @@ if (sonCuatro && generarPDF) {
         }
         case 'reprogramar': {
           const s = ev(a.datos.evaluacion);
+          deshacer = foto(seccionActiva, 'Fecha devuelta a la anterior', { ids: [s.id], campos: ['fecha'] });
           const horaActual = s.fecha ? `${String(new Date(s.fecha).getHours()).padStart(2, '0')}:${String(new Date(s.fecha).getMinutes()).padStart(2, '0')}` : '08:00';
           const f = new Date(`${a.datos.fecha}T${a.datos.hora || horaActual}:00`);
           if (isNaN(f.getTime())) throw new Error('La fecha propuesta no es válida.');
@@ -4827,6 +4867,7 @@ if (sonCuatro && generarPDF) {
         case 'ajustar_pesos': {
           const mapa = new Map<string, number>();
           for (const p of a.datos.pesos || []) mapa.set(ev(p.evaluacion).id, p.peso);
+          deshacer = foto(seccionActiva, 'Pesos devueltos a los anteriores', { ids: [...mapa.keys()], campos: ['peso'] });
           setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.map(x => (mapa.has(x.id) ? { ...x, peso: mapa.get(x.id)! } : x)) }));
           const total = evs.reduce((t, s) => t + (mapa.has(s.id) ? mapa.get(s.id)! : Number(s.peso) || 0), 0);
           resultado = `Pesos actualizados: la Sección ${seccionActiva} suma ${total}%`;
@@ -4842,6 +4883,7 @@ if (sonCuatro && generarPDF) {
         }
         case 'copiar_plan': {
           const { desde, hacia, dias, reemplazar } = a.datos;
+          if (!reemplazar) deshacer = foto(hacia, `Se quitaron las copias de la Sección ${hacia}`, { quitarNuevas: true });
           const origen = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A').toUpperCase() === desde);
           if (!origen.length) throw new Error(`La Sección ${desde} no tiene evaluaciones.`);
           const enDestino = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A').toUpperCase() === hacia);
@@ -4857,6 +4899,13 @@ if (sonCuatro && generarPDF) {
         }
         case 'cambiar_estado': {
           const s = ev(a.datos.evaluacion);
+          const estadoAntes = String(s.estado || 'PROGRAMADA').toUpperCase() === 'REPROGRAMADA' ? 'PROGRAMADA' : String(s.estado || 'PROGRAMADA').toUpperCase();
+          deshacer = async () => {
+            const rr = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: estadoAntes }) });
+            if (!rr.ok) throw new Error('No se pudo devolver el estado.');
+            cambiar(s.id, { estado: estadoAntes });
+            return `«${limpiarTexto(s.nombre)}» volvió a ${estadoAntes.toLowerCase()}`;
+          };
           const r = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: a.datos.estado }) });
           const d = await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(d.error || 'No se pudo cambiar el estado.');
@@ -4874,6 +4923,8 @@ if (sonCuatro && generarPDF) {
         case 'recordar_preferencia': {
           const r = await fetch('/api/chat/memoria', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: a.datos.texto }) });
           if (!r.ok) throw new Error('No se pudo guardar.');
+          const dm = await r.json().catch(() => ({}));
+          if (dm.memoria?.id) deshacer = async () => { await fetch(`/api/chat/memoria?id=${encodeURIComponent(dm.memoria.id)}`, { method: 'DELETE' }); setMemorias(null); return 'Ya no lo recordaré'; };
           setMemorias(null);
           resultado = 'Lo recordaré en las próximas conversaciones';
           break;
@@ -4888,13 +4939,13 @@ if (sonCuatro && generarPDF) {
         case 'agregar_estudiantes': {
           const sec = a.datos.seccion || seccionActiva;
           const filas: any[] = a.datos.estudiantes || [];
-          const fallidos: any[] = []; const errores: string[] = []; let ok = 0;
+          const fallidos: any[] = []; const errores: string[] = []; let ok = 0; const creados: string[] = [];
           for (const e of filas) {
             try {
               const r = await fetch('/api/estudiantes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: e.nombre, email: e.email, telefono: String(e.telefono || '').replace(/[\s().-]/g, ''), grupo: sec }) });
               const d = await r.json().catch(() => ({}));
               if (!r.ok) throw new Error(d.error || 'No se pudo agregar.');
-              ok++;
+              ok++; if (d.id) creados.push(d.id);
             } catch (err: any) { fallidos.push(e); errores.push(`${e.nombre}: ${err.message}`); }
           }
           if (ok) { olvidarCache('/api/estudiantes'); window.dispatchEvent(new Event('estudiantes-cambiaron')); }
@@ -4905,6 +4956,11 @@ if (sonCuatro && generarPDF) {
             throw new Error(`${ok ? `Se agregaron ${ok}. ` : ''}Corrige y vuelve a intentar: ${errores.slice(0, 3).join(' · ')}`);
           }
           resultado = `${ok} estudiante(s) agregados a la Sección ${sec}`;
+          deshacer = async () => {
+            for (const id of creados) await fetch(`/api/estudiantes?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+            olvidarCache('/api/estudiantes'); window.dispatchEvent(new Event('estudiantes-cambiaron'));
+            return `Se quitaron los ${creados.length} estudiante(s) agregados`;
+          };
           break;
         }
         case 'modificar_estudiantes': {
@@ -4923,6 +4979,11 @@ if (sonCuatro && generarPDF) {
           }
           olvidarCache('/api/estudiantes'); window.dispatchEvent(new Event('estudiantes-cambiaron'));
           const hechos = encontrados.length - errores.length;
+          deshacer = async () => {
+            for (const e of encontrados) await fetch('/api/estudiantes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: e.id, nombre: e.nombre, email: e.email, telefono: e.telefono, grupo: e.grupo, estado: String(e.estado || 'ACTIVO').toUpperCase() }) });
+            olvidarCache('/api/estudiantes'); window.dispatchEvent(new Event('estudiantes-cambiaron'));
+            return 'Los estudiantes volvieron a como estaban';
+          };
           const verbo = a.datos.accion === 'mover' ? `movido(s) a la Sección ${a.datos.seccion}` : a.datos.accion === 'retirar' ? 'retirado(s)' : 'reactivado(s)';
           if (!hechos) throw new Error(errores.join(' · '));
           resultado = `${hechos} estudiante(s) ${verbo}${faltan.length || dudas.length ? `; no encontré a ${[...faltan, ...dudas].join(', ')}` : ''}${errores.length ? `; ${errores.length} con error` : ''}`;
@@ -4948,6 +5009,19 @@ if (sonCuatro && generarPDF) {
           if (!rr.ok) throw new Error(dd.error || 'No se pudieron guardar las notas.');
           if (dd.estado) cambiar(s.id, { estado: dd.estado });
           olvidarCache('/api/estudiantes');
+          const notasAntes = notas.map(n => { const e = alumnos.find(x => x.id === n.estudianteId); return { estudianteId: n.estudianteId, puntaje: e?.puntaje ?? null, observaciones: e?.observaciones || '', detalle: e?.detalle ?? null }; });
+          const estadoAntes = String(s.estado || 'PROGRAMADA').toUpperCase();
+          if (!a.datos.enviar) deshacer = async () => {
+            const ru = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/notas`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notas: notasAntes }) });
+            if (!ru.ok) throw new Error('No se pudieron devolver las notas.');
+            if (estadoAntes !== 'REALIZADA' && dd.estado === 'REALIZADA') {
+              const vuelta = estadoAntes === 'REPROGRAMADA' ? 'PROGRAMADA' : estadoAntes;
+              await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: vuelta }) });
+              cambiar(s.id, { estado: vuelta });
+            }
+            olvidarCache('/api/estudiantes');
+            return 'Las notas volvieron a como estaban';
+          };
           let enviadas = '';
           if (a.datos.enviar) {
             const re = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/notas/enviar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteIds: notas.map(n => n.estudianteId) }) });
@@ -4959,6 +5033,7 @@ if (sonCuatro && generarPDF) {
         }
         case 'abrir_en_portal': {
           const s = ev(a.datos.evaluacion);
+          deshacer = foto(seccionActiva, 'Vuelve a abrirse sola 7 días antes', { ids: [s.id], campos: ['abiertaManual'] });
           cambiar(s.id, { abiertaManual: !!a.datos.abrir });
           resultado = a.datos.abrir ? `«${limpiarTexto(s.nombre)}» ya se ve completa en la página de los estudiantes` : `«${limpiarTexto(s.nombre)}» se abrirá sola 7 días antes de su fecha`;
           break;
@@ -4978,6 +5053,23 @@ if (sonCuatro && generarPDF) {
         case 'eliminar_evaluaciones': {
           const quitar = (a.datos.evaluaciones || []).map((n: number) => ev(n));
           const ids = new Set(quitar.map((s: SeccionExamen) => s.id));
+          const copias = quitar.map((s: SeccionExamen) => ({ ...s }));
+          deshacer = async () => {
+            await guardarAhora?.(); // espera a que el borrado llegue a la base de datos (y a la papelera)
+            const rp = await fetch('/api/papelera'); const dp = await rp.json().catch(() => ({}));
+            const items: any[] = (dp.items || []).filter((it: any) => it.tipo === 'EVALUACION');
+            const nuevos: SeccionExamen[] = [];
+            for (const c of copias) {
+              const it = items.find(x => x.nombre === c.nombre && !nuevos.some(n => (n as any)._papelera === x.id));
+              if (!it) continue;
+              const rr = await fetch(`/api/papelera/${encodeURIComponent(it.id)}/restaurar`, { method: 'POST' });
+              const dr = await rr.json().catch(() => ({}));
+              if (rr.ok && dr.id) nuevos.push({ ...c, id: dr.id, _papelera: it.id } as any);
+            }
+            if (!nuevos.length) throw new Error('No las encontré en la Papelera: restáuralas desde ahí.');
+            setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: [...prev.secciones, ...nuevos.map(({ _papelera, ...x }: any) => x)] }));
+            return `${nuevos.length} evaluación(es) restauradas con sus notas`;
+          };
           setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.filter(x => !ids.has(x.id)) }));
           resultado = `${quitar.length} evaluación(es) eliminadas (están en la Papelera con sus notas)`;
           break;
@@ -4989,12 +5081,24 @@ if (sonCuatro && generarPDF) {
         }
         default: throw new Error('Acción desconocida.');
       }
+      if (deshacer) deshacerRef.current[a.id] = deshacer;
       marcarAccion(msgId, a.id, { estado: 'hecha', resultado });
-      eventosRef.current.push(`${ACCIONES_AUTOMATICAS.includes(a.tipo) ? 'la app hizo' : 'el profesor aplicó tu propuesta'}: ${resultado}`);
-      if (!ACCIONES_AUTOMATICAS.includes(a.tipo)) agregarNotificacion?.(`✅ ${resultado}${/[.!?…]$/.test(resultado) ? '' : '.'}`);
+      eventosRef.current.push(`${ACCIONES_AUTOMATICAS.includes(a.tipo) || a.automatica ? 'se aplicó solo (modo automático)' : 'el profesor aplicó tu propuesta'}: ${resultado}`);
+      if (!ACCIONES_AUTOMATICAS.includes(a.tipo)) agregarNotificacion?.(`${a.automatica ? '⚡' : '✅'} ${resultado}${/[.!?…]$/.test(resultado) ? '' : '.'}`);
     } catch (e: any) {
       marcarAccion(msgId, a.id, { estado: 'pendiente', resultado: `⚠ ${e?.message || 'No se pudo aplicar.'}` });
     }
+  };
+  const deshacerAccion = async (msgId: string, a: AccionChat) => {
+    const f = deshacerRef.current[a.id]; if (!f) return;
+    marcarAccion(msgId, a.id, { estado: 'trabajando' });
+    try {
+      const r = await f();
+      delete deshacerRef.current[a.id];
+      marcarAccion(msgId, a.id, { estado: 'deshecha', resultado: r });
+      eventosRef.current.push(`el profesor deshizo: ${TITULO_ACCION[a.tipo] || a.tipo}`);
+      agregarNotificacion?.(`↩️ ${r}.`);
+    } catch (e: any) { marcarAccion(msgId, a.id, { estado: 'hecha', resultado: `⚠ ${e?.message || 'No se pudo deshacer.'}` }); }
   };
   const descartarAccion = (msgId: string, a: AccionChat) => {
     marcarAccion(msgId, a.id, { estado: 'descartada' });
@@ -5043,7 +5147,7 @@ if (sonCuatro && generarPDF) {
     try {
       const r = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
-        body: JSON.stringify({ mensaje: msg, conversacionId, planificacionId, contexto: armarContexto(), eventos: eventosRef.current, regenerar: !!opciones.regenerar, modo: opciones.modo, adjunto: adj ? { nombre: adj.nombre, texto: adj.texto } : undefined }),
+        body: JSON.stringify({ mensaje: msg, conversacionId, planificacionId, contexto: armarContexto(), eventos: eventosRef.current, regenerar: !!opciones.regenerar, modo: opciones.modo, modoAuto, adjunto: adj ? { nombre: adj.nombre, texto: adj.texto } : undefined }),
       });
       if (!r.ok || !r.body) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'El agente no pudo responder.'); }
       eventosRef.current = [];
@@ -5057,10 +5161,12 @@ if (sonCuatro && generarPDF) {
         else if (ev.t === 'accion' && ev.accion) {
           asegurarMensaje(); actualizar(m => ({ ...m, acciones: [...(m.acciones || []), { ...ev.accion, estado: 'pendiente' }] }));
           if (ev.accion.tipo === 'proponer_evaluaciones') setPropuestaPendienteLocal(propuestaDeAccion(ev.accion)); // para que "sí" escrito también la guarde
-          if (ACCIONES_AUTOMATICAS.includes(ev.accion.tipo)) { const acc = { ...ev.accion, estado: 'pendiente' as const }; setTimeout(() => ejecutarAccion(idAgente, acc), 60); }
+          const sola = ACCIONES_AUTOMATICAS.includes(ev.accion.tipo) || (modoAutoRef.current && ACCIONES_SEGURAS.includes(ev.accion.tipo));
+          if (sola) { const acc = { ...ev.accion, estado: 'pendiente' as const, automatica: true }; setTimeout(() => ejecutarAccion(idAgente, acc), 60); }
           scrollToBottom();
         }
         else if (ev.t === 'aviso') { asegurarMensaje(); actualizar(m => ({ ...m, aviso: ev.v })); }
+        else if (ev.t === 'consulta') { asegurarMensaje(); actualizar(m => ({ ...m, consultas: [...(m.consultas || []), ...(Array.isArray(ev.v) ? ev.v : [String(ev.v)])] })); }
         else if (ev.t === 'fin') { asegurarMensaje(); actualizar(m => ({ ...m, completo: true, streaming: false, dbId: ev.mensajeId })); }
         else if (ev.t === 'error') throw new Error(ev.mensaje || 'El agente no pudo responder.');
       };
@@ -5246,8 +5352,8 @@ if (sonCuatro && generarPDF) {
     const hecha = estado === 'hecha'; const descartada = estado === 'descartada'; const trabajando = estado === 'trabajando';
     const evs = evaluacionesActivas();
     const nombreEv = (n: number) => (evs[n - 1] ? `«${limpiarTexto(evs[n - 1].nombre)}»` : `#${n}`);
-    const marco = `mt-3 rounded-2xl border overflow-hidden transition-colors ${hecha ? 'border-emerald-500/30 bg-emerald-500/[0.05]' : descartada ? 'border-[#2a2b3d] bg-[#191a26] opacity-60' : 'border-[#818cf8]/30 bg-[#1d1e33]'}`;
-    const botones = (principal: string, extra?: React.ReactNode) => !hecha && !descartada && (
+    const marco = `mt-3 rounded-2xl border overflow-hidden transition-colors ${hecha ? 'border-emerald-500/30 bg-emerald-500/[0.05]' : descartada || estado === 'deshecha' ? 'border-[#2a2b3d] bg-[#191a26] opacity-60' : 'border-[#818cf8]/30 bg-[#1d1e33]'}`;
+    const botones = (principal: string, extra?: React.ReactNode) => !hecha && !descartada && estado !== 'deshecha' && (
       <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 border-t border-[#2a2b3d] bg-[#191a26]/60">
         <button type="button" disabled={trabajando} onClick={() => ejecutarAccion(msg.id, a)} className="h-8 px-3.5 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-60">
           {trabajando ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}{trabajando ? 'Aplicando…' : principal}
@@ -5257,9 +5363,12 @@ if (sonCuatro && generarPDF) {
         {a.resultado && <span className="w-full text-[11px] text-amber-300">{a.resultado}</span>}
       </div>
     );
-    const pie = (hecha || descartada) && (
+    const deshecha = estado === 'deshecha';
+    const puedeDeshacer = hecha && !!deshacerRef.current[a.id];
+    const pie = (hecha || descartada || deshecha) && (
       <div className={`px-3.5 py-2 text-[11px] border-t border-[#2a2b3d] flex items-center gap-1.5 ${hecha ? 'text-emerald-300' : 'text-[#7a7b90]'}`}>
-        {hecha ? <><CheckCircle className="w-3.5 h-3.5" />{a.resultado || 'Aplicado'}</> : 'Descartada'}
+        {hecha ? <>{a.automatica ? <Sparkles className="w-3.5 h-3.5 text-amber-300" /> : <CheckCircle className="w-3.5 h-3.5" />}<span className="flex-1">{a.automatica ? 'Aplicado solo · ' : ''}{a.resultado || 'Aplicado'}</span></> : deshecha ? <><RotateCcw className="w-3.5 h-3.5" />{a.resultado || 'Deshecho'}</> : 'Descartada'}
+        {puedeDeshacer && <button type="button" onClick={() => deshacerAccion(msg.id, a)} className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-[#c0c0d0] hover:text-white hover:bg-[#272839]"><RotateCcw className="w-3 h-3" />Deshacer</button>}
       </div>
     );
     if (a.tipo === 'proponer_evaluaciones') {
@@ -5452,6 +5561,7 @@ if (sonCuatro && generarPDF) {
         </div>
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
           <div className="flex items-center gap-0.5 p-1 bg-[#161722]/80 border border-[#282a3f] rounded-xl">
+            <Tooltip text={modoAuto ? 'Modo automático: activado (las acciones seguras se aplican solas)' : 'Modo automático: desactivado (todo pide confirmación)'} lado="abajo"><button onClick={alternarModoAuto} aria-label="Modo automático" aria-pressed={modoAuto} className={`p-2 rounded-lg transition-colors ${modoAuto ? 'text-amber-300 bg-amber-400/15' : 'text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15'}`}><Sparkles className="w-4 h-4" /></button></Tooltip>
             <Tooltip text="Revisar mi plan (nota y mejoras)" lado="abajo"><button onClick={revisarPlan} disabled={ocupado || chatInactivo || evaluacionesActivas().length === 0} aria-label="Revisar mi plan" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-transparent"><ClipboardCheck className="w-4 h-4" /></button></Tooltip>
             <Tooltip text="Nueva conversación" lado="abajo"><button onClick={nuevaConversacion} aria-label="Nueva conversación" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button></Tooltip>
             <Tooltip text="Conversaciones anteriores" lado="abajo"><button onClick={() => { const abrir = !verHistorial; setVerHistorial(abrir); if (abrir) cargarConversaciones(); }} aria-label="Conversaciones anteriores" className={`p-2 rounded-lg transition-colors ${verHistorial ? 'text-[#c7d2fe] bg-[#818cf8]/15' : 'text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15'}`}><History className="w-4 h-4" /></button></Tooltip>
@@ -5496,6 +5606,19 @@ if (sonCuatro && generarPDF) {
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-5 py-6 custom-scrollbar">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="flex flex-col items-center text-center w-full max-w-md">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#818cf8]/20 to-[#6366f1]/20 flex items-center justify-center border-2 border-[#818cf8]/30 mb-5 shadow-2xl shadow-[#818cf8]/20"><Sparkle className="w-9 h-9 text-[#818cf8]" /></div>
+            {avisos && avisos.length > 0 && (
+              <div className="w-full mb-6 text-left">
+                <p className="text-[11px] uppercase tracking-wider text-[#8a8b9e] font-semibold mb-2 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" />Pendientes de hoy</p>
+                <div className="space-y-1.5">
+                  {avisos.map((av, i) => (
+                    <button key={i} type="button" disabled={chatInactivo} onClick={() => { if (av.seccion && av.seccion !== seccionActiva) onCambiarSeccion?.(av.seccion); handleSend(av.pedido); }} className={`w-full flex items-start gap-2.5 text-left px-3 py-2.5 rounded-xl border text-[13px] transition-colors disabled:opacity-50 ${av.urgente ? 'bg-amber-500/[0.07] border-amber-500/30 hover:border-amber-400/60' : 'bg-[#1f2035] border-[#313248] hover:border-[#818cf8]/50'}`}>
+                      <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${av.urgente ? 'bg-amber-400' : 'bg-[#818cf8]'}`} />
+                      <span className="flex-1 min-w-0"><span className="block text-[#d0d0da]">{av.texto}</span><span className="block text-[11px] text-[#a5b4fc] mt-0.5">{av.pedido} →</span></span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <h1 className="text-xl font-bold text-[#d0d0da] font-['Inter'] mb-1.5">¿Qué evaluamos hoy?</h1>
             <p className="text-sm text-[#8a8b9e] font-['Inter'] mb-5">Veo tu plan de la Sección {seccionActiva}: puedo crear evaluaciones, rúbricas, buscar recursos, mover fechas o revisar cómo va el grupo.</p>
             <div className="grid gap-2 w-full">
@@ -5517,6 +5640,11 @@ if (sonCuatro && generarPDF) {
                   <div className="flex-1 min-w-0 text-[15px] text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">
                     {msg.contenido && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(msg.contenido) }} />{msg.streaming && <span className="inline-block w-2 h-4 ml-0.5 align-[-2px] bg-[#818cf8] animate-pulse rounded-sm" />}</div>}
                     {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="inline-block w-2 h-4 bg-[#818cf8] animate-pulse rounded-sm" />}
+                    {msg.consultas?.length ? (
+                      <div className="mb-1.5 flex flex-wrap gap-1.5">
+                        {msg.consultas.map((c, i) => <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#232438] border border-[#313248] text-[#8a8b9e]"><Search className="w-3 h-3" />Revisé {c}</span>)}
+                      </div>
+                    ) : null}
                     {msg.acciones?.map(a => renderAccion(msg, a))}
                     {msg.aviso && <p className="mt-2 text-[11px] text-amber-300">{msg.aviso}</p>}
                     {msg.completo && !msg.error && (
@@ -6995,7 +7123,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
-                <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
+                <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
         <PanelDerecho 
           onSeccionActivaCambia={setSeccionPlanificador}
           chatAbierto={agenteExpandido}

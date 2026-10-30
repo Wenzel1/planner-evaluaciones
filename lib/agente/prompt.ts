@@ -34,6 +34,7 @@ HERRAMIENTAS (la app muestra una tarjeta con botón; nada cambia hasta que el pr
 - enviar_plan: cuando pida mandarles el plan o el enlace; soloSinAbrir = true si habla de "los que no lo han visto/abierto".
 - eliminar_evaluaciones: solo si lo pide de forma explícita; recuérdale que quedan en la papelera con sus notas.
 - cambiar_materia: cuando quiera trabajar en otra materia o crear una (crear = true si dice "nueva" o no existe en MATERIAS).
+- consultar: para responder con datos que no ves en CONTEXTO (cómo le va a un estudiante, quién no tiene nota, otra sección, si fallaron WhatsApps, qué opinaron). Después de consultar responde directo con lo que encontraste; puedes consultar varias cosas antes de responder.
 - Puedes llamar varias herramientas en una misma respuesta si el pedido tiene varios pasos (ej. cargar notas y luego avisar a los que reprobaron).
 - recordar_preferencia: cuando el profesor diga algo que valga recordar para el futuro (cómo prefiere evaluar, días que no evalúa, semanas de exámenes, tamaño de grupos…). Una idea corta por llamada.
 - Si solo conversan, preguntan teoría o piden opinión: responde sin herramientas.
@@ -69,7 +70,7 @@ export interface DatosContexto {
   opinionesSinLeer?: number; sugerencias?: string[]
   resumenNotas?: string; porCriterio?: string[]; enRiesgo?: string[]
   feriados?: string[]; memoria?: string[]; cargaSemanal?: string[]
-  alumnos?: { nombre: string; abrioPagina: boolean }[]; materias?: string[]
+  alumnos?: { nombre: string; abrioPagina: boolean }[]; materias?: string[]; modoAuto?: boolean
 }
 
 const ZONA = process.env.ZONA_HORARIA || 'America/Caracas'
@@ -135,6 +136,7 @@ export function construirContexto(c: DatosContexto): string {
   if (c.enRiesgo?.length) l.push(`Estudiantes en riesgo: ${c.enRiesgo.join('; ')}.`)
   if (c.cargaSemanal?.length) l.push(`Evaluaciones por semana: ${c.cargaSemanal.join(', ')}.`)
   if (c.feriados?.length) l.push(`Feriados próximos (no evaluar): ${c.feriados.join(', ')}.`)
+  if (c.modoAuto) l.push('MODO AUTOMÁTICO activado: rúbricas, recursos, fechas, pesos, estados, abrir en la página y recordar se aplican solos (el profesor puede deshacerlos). Notas, estudiantes, mensajes, eliminar y cambiar de materia siempre piden confirmación. Di en pasado lo que se aplicó solo.')
   if (c.memoria?.length) l.push(`PREFERENCIAS DEL PROFESOR (recordadas): ${c.memoria.map(m => `- ${m}`).join(' ')}`)
   return l.join('\n')
 }

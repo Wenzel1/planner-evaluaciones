@@ -26,6 +26,7 @@ export async function POST(
     const d: any = item.datos ?? {}
 
     let notasDevueltas = 0
+    let idRestaurado: string | null = null
     if (item.tipo === 'ESTUDIANTE') {
       const { calificaciones, ...campos } = d
       let creado: { id: string }
@@ -42,6 +43,7 @@ export async function POST(
         const r = await prisma.calificacion.createMany({ data: notas.filter(n => vigentes.has(String(n.evaluacionId))).map(n => ({ estudianteId: creado.id, evaluacionId: String(n.evaluacionId), puntaje: n.puntaje, observaciones: n.observaciones, detalle: n.detalle })), skipDuplicates: true })
         notasDevueltas = r.count
       }
+      idRestaurado = creado.id
       await recalcularPromedios([creado.id])
     } else if (item.tipo === 'EVALUACION') {
       // Vuelve al plan donde estaba; si ese plan ya no existe, al plan más reciente del usuario
@@ -76,6 +78,7 @@ export async function POST(
           ...(normalizarRecursos(d.recursos) ? { recursos: normalizarRecursos(d.recursos) as any } : {}),
         },
       })
+      idRestaurado = nueva.id
       // Las notas vuelven para los estudiantes que siguen existiendo
       const notas = notasValidas(d.calificaciones).filter(n => n.estudianteId)
       if (notas.length) {
@@ -91,7 +94,7 @@ export async function POST(
 
     await prisma.papeleraItem.delete({ where: { id } })
     await registrarActividad({ actor, accion: 'RESTAURAR', entidad: item.tipo === 'ESTUDIANTE' ? 'Estudiante' : 'Evaluación', detalle: `Restauró "${item.nombre}" desde la papelera${notasDevueltas ? ` (con ${notasDevueltas} nota(s))` : ''}` })
-    return NextResponse.json({ restaurado: true, tipo: item.tipo, notas: notasDevueltas })
+    return NextResponse.json({ restaurado: true, tipo: item.tipo, notas: notasDevueltas, id: idRestaurado })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Error al restaurar' }, { status: 500 })
