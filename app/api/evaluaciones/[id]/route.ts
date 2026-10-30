@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
-import { enviarAPapelera } from '@/lib/papelera'
+import { enviarAPapelera, notasParaPapelera } from '@/lib/papelera'
+import { recalcularPromedios } from '@/lib/notas'
 
 // DELETE /api/evaluaciones/:id
 // El dueño puede eliminar la suya; ADMIN y SUPERADMIN pueden eliminar la de cualquier profesor (moderación).
@@ -30,6 +31,8 @@ export async function DELETE(
     const denegado = verificarAcceso(actor, materia.usuarioId, 'eliminar')
     if (denegado) return denegado
 
+    // Las notas se guardan con la evaluación: al restaurarla vuelven (antes se perdían para siempre)
+    const notas = await notasParaPapelera([id])
     // Si la elimina un admin, el profesor dueño la encuentra en SU papelera y puede restaurarla
     if (materia.usuarioId) {
       const { planificacion: _plan, id: _id, ...campos } = evaluacion as any
@@ -40,10 +43,13 @@ export async function DELETE(
         contexto: materia.nombre,
         eliminadoPorId: actor.id,
         eliminadoPorNombre: actor.nombre,
-        datos: { ...campos, fecha: evaluacion.fecha ? evaluacion.fecha.toISOString() : null, createdAt: undefined, updatedAt: undefined },
+        datos: { ...campos, fecha: evaluacion.fecha ? evaluacion.fecha.toISOString() : null, estadoEn: undefined, createdAt: undefined, updatedAt: undefined, calificaciones: notas.get(id) ?? [] },
       }])
     }
     await prisma.evaluacion.delete({ where: { id } })
+    // Quienes tenían nota en ella: su promedio ya no la cuenta
+    const conNota = (notas.get(id) ?? []).map(n => n.estudianteId)
+    if (conNota.length) await recalcularPromedios(conNota)
 
     const esPropia = materia.usuarioId === actor.id
     await registrarActividad({

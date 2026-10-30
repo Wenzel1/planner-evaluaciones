@@ -127,6 +127,8 @@ model Planificacion {
   rubrica         CriterioRubrica[]
   comentarios     ComentarioAgente[]
   conversaciones  Conversacion[]
+
+  @@index([materiaId])
 }
 
 model Evaluacion {
@@ -165,6 +167,9 @@ model Evaluacion {
   recursos      Json?
   abiertaManual Boolean   @default(false)
   preparaciones PreparacionEvaluacion[]
+
+  @@index([planificacionId])
+  @@index([fecha])
 }
 
 model CriterioRubrica {
@@ -217,6 +222,7 @@ model Estudiante {
   usuario   Usuario?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   @@unique([usuarioId, email])
   @@index([usuarioId])
+  @@index([usuarioId, grupo])
 }
 
 model Calificacion {
@@ -231,6 +237,7 @@ model Calificacion {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   @@unique([estudianteId, evaluacionId])
+  @@index([evaluacionId])
 }
 
 model ComentarioAgente {
@@ -269,6 +276,8 @@ model Mensaje {
   modelo          String?
   respaldo        Boolean?  // true = respondió un modelo de respaldo (el principal falló o no tenía cupo)
   valoracion      Int?      // 1 = 👍, -1 = 👎 (lo marca el profesor)
+
+  @@index([conversacionId, createdAt])
 }
 
 // Registro de actividad (auditoría). Guarda una copia del nombre/rol de quien actuó,

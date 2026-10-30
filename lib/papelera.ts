@@ -15,6 +15,15 @@ export interface EntradaPapelera {
   eliminadoPorNombre: string
 }
 
+// Notas de varias evaluaciones, agrupadas por evaluación, para guardarlas en la papelera junto con ella
+export async function notasParaPapelera(evaluacionIds: string[], db: any = prisma): Promise<Map<string, { estudianteId: string; puntaje: number | null; observaciones: string | null; detalle: any }[]>> {
+  const mapa = new Map<string, any[]>()
+  if (evaluacionIds.length === 0) return mapa
+  const filas = await db.calificacion.findMany({ where: { evaluacionId: { in: evaluacionIds } }, select: { evaluacionId: true, estudianteId: true, puntaje: true, observaciones: true, detalle: true } })
+  for (const f of filas) { const { evaluacionId, ...resto } = f; mapa.set(evaluacionId, [...(mapa.get(evaluacionId) || []), resto]) }
+  return mapa
+}
+
 // Nunca rompe la operación principal: si falla, solo avisa en la consola del servidor.
 export async function enviarAPapelera(items: EntradaPapelera[]): Promise<void> {
   if (items.length === 0) return

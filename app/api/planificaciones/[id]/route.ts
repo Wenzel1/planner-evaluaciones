@@ -5,7 +5,7 @@ import { normalizarRecursos } from '@/lib/portal'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
-import { enviarAPapelera } from '@/lib/papelera'
+import { enviarAPapelera, notasParaPapelera } from '@/lib/papelera'
 import { recalcularPromedios } from '@/lib/notas'
 
 // Campos de una evaluación tal como se guardan (sin el estado: ese se cambia con /api/evaluaciones/:id/estado)
@@ -38,9 +38,9 @@ function datosEvaluacion(ev: any, index: number) {
 async function duenoDePlanificacion(id: string) {
   const p = await prisma.planificacion.findUnique({
     where: { id },
-    select: { materia: { select: { id: true, usuarioId: true, nombre: true } } },
+    select: { updatedAt: true, materia: { select: { id: true, usuarioId: true, nombre: true } } },
   })
-  return p ? { usuarioId: p.materia.usuarioId, materiaNombre: p.materia.nombre, materiaId: p.materia.id } : null
+  return p ? { usuarioId: p.materia.usuarioId, materiaNombre: p.materia.nombre, materiaId: p.materia.id, updatedAt: p.updatedAt } : null
 }
 
 // GET /api/planificaciones/:id
@@ -97,6 +97,15 @@ export async function PUT(
 
     const body = await request.json()
 
+    // Dos ventanas (o PC y celular) con el mismo plan: si otra guardó después de que esta lo cargó, no se pisa.
+    // Sin esto, la ventana vieja borraba las evaluaciones nuevas de la otra (y sus notas).
+    if (body.vistoEn) {
+      const visto = new Date(body.vistoEn).getTime()
+      if (Number.isFinite(visto) && dueno.updatedAt.getTime() > visto + 1000) {
+        return NextResponse.json({ error: 'Este plan se modificó en otra ventana o dispositivo. Recarga la página para ver la versión más reciente (tus últimos cambios en esta ventana no se guardaron).', codigo: 'PLAN_CAMBIADO' }, { status: 409 })
+      }
+    }
+
     // Si la persona cambió el nombre de la materia en Configuración, se guarda también en la materia
     const nombreNuevo = typeof body.materiaNombre === 'string' ? body.materiaNombre.trim().slice(0, 120) : ''
     if (nombreNuevo && nombreNuevo !== dueno.materiaNombre) {
@@ -107,6 +116,7 @@ export async function PUT(
     // Todo el guardado va en una sola transacción: o se guarda completo, o no se toca nada
     let eliminadas: any[] = []
     let conNotas: string[] = [] // estudiantes que tenían nota en evaluaciones borradas
+    let notasBorradas = new Map<string, any[]>() // notas de las evaluaciones borradas (van a la papelera con ellas)
     const idsNuevos: Record<string, string> = {} // id que usaba la pantalla → id real en la base de datos
     await prisma.$transaction(async (tx) => {
     // Actualizar campos principales
@@ -140,7 +150,10 @@ export async function PUT(
         }
       }
       eliminadas = existentes.filter(e => !conservar.has(e.id))
-      if (eliminadas.length > 0) conNotas = (await tx.calificacion.findMany({ where: { evaluacionId: { in: eliminadas.map(e => e.id) } }, select: { estudianteId: true } })).map(c => c.estudianteId)
+      if (eliminadas.length > 0) {
+        notasBorradas = await notasParaPapelera(eliminadas.map(e => e.id), tx)
+        conNotas = [...notasBorradas.values()].flat().map(n => n.estudianteId)
+      }
       if (eliminadas.length > 0) await tx.evaluacion.deleteMany({ where: { id: { in: eliminadas.map(e => e.id) } } })
     }
 
@@ -196,6 +209,7 @@ export async function PUT(
           tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
           cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden, enfoque: ev.enfoque,
           fecha: ev.fecha ? ev.fecha.toISOString() : null, rubrica: ev.rubrica ?? null, recursos: ev.recursos ?? null,
+          estado: ev.estado, calificaciones: notasBorradas.get(ev.id) ?? [],
         },
       })))
     }
@@ -234,7 +248,10 @@ export async function DELETE(
     const denegado = verificarAcceso(actor, dueno.usuarioId, 'escribir')
     if (denegado) return denegado
 
+    // Quienes tenían notas en este plan: al borrarlo, su promedio ya no las cuenta
+    const conNota = await prisma.calificacion.findMany({ where: { evaluacion: { planificacionId: id } }, select: { estudianteId: true } })
     await prisma.planificacion.delete({ where: { id } })
+    if (conNota.length) await recalcularPromedios(conNota.map(c => c.estudianteId))
     await registrarActividad({ actor, accion: 'ELIMINAR', entidad: 'Plan', detalle: `Eliminó el plan de "${dueno.materiaNombre}"` })
     return NextResponse.json({ eliminado: true })
   } catch (error) {

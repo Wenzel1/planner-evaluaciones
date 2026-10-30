@@ -4,6 +4,12 @@ import { normalizarRubrica } from '@/lib/rubrica'
 import { normalizarRecursos } from '@/lib/portal'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
+import { recalcularPromedios } from '@/lib/notas'
+
+// Notas guardadas en la papelera → filas válidas para volver a crear
+const notasValidas = (lista: any): { estudianteId?: string; evaluacionId?: string; puntaje: number | null; observaciones: string | null; detalle: any }[] =>
+  (Array.isArray(lista) ? lista : []).filter((n: any) => n && (n.puntaje === null || Number.isFinite(Number(n.puntaje))))
+    .map((n: any) => ({ ...n, puntaje: n.puntaje === null ? null : Number(n.puntaje), observaciones: n.observaciones ?? null, detalle: n.detalle ?? undefined }))
 
 // POST /api/papelera/:id/restaurar — devuelve el elemento a su lugar (solo el dueño)
 export async function POST(
@@ -19,13 +25,24 @@ export async function POST(
     if (!item || item.usuarioId !== actor.id) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     const d: any = item.datos ?? {}
 
+    let notasDevueltas = 0
     if (item.tipo === 'ESTUDIANTE') {
+      const { calificaciones, ...campos } = d
+      let creado: { id: string }
       try {
-        await prisma.estudiante.create({ data: { ...d, usuarioId: actor.id } })
+        creado = await prisma.estudiante.create({ data: { ...campos, usuarioId: actor.id }, select: { id: true } })
       } catch (e: any) {
-        if (e.code === 'P2002') return NextResponse.json({ error: 'Ya tienes un estudiante con ese correo; no se puede restaurar.' }, { status: 409 })
+        if (e.code === 'P2002') return NextResponse.json({ error: 'Ya tienes un estudiante con ese correo (o su enlace ya está en uso); no se puede restaurar.' }, { status: 409 })
         throw e
       }
+      // Sus notas vuelven solo en las evaluaciones que todavía existen y son del mismo profesor
+      const notas = notasValidas(calificaciones).filter(n => n.evaluacionId)
+      if (notas.length) {
+        const vigentes = new Set((await prisma.evaluacion.findMany({ where: { id: { in: notas.map(n => String(n.evaluacionId)) }, planificacion: { materia: { usuarioId: actor.id } } }, select: { id: true } })).map(e => e.id))
+        const r = await prisma.calificacion.createMany({ data: notas.filter(n => vigentes.has(String(n.evaluacionId))).map(n => ({ estudianteId: creado.id, evaluacionId: String(n.evaluacionId), puntaje: n.puntaje, observaciones: n.observaciones, detalle: n.detalle })), skipDuplicates: true })
+        notasDevueltas = r.count
+      }
+      await recalcularPromedios([creado.id])
     } else if (item.tipo === 'EVALUACION') {
       // Vuelve al plan donde estaba; si ese plan ya no existe, al plan más reciente del usuario
       const planOriginal = d.planificacionId
@@ -35,9 +52,11 @@ export async function POST(
       if (!plan) return NextResponse.json({ error: 'No hay un plan donde restaurar esta evaluación.' }, { status: 409 })
 
       const maximo = await prisma.evaluacion.aggregate({ where: { planificacionId: plan.id }, _max: { orden: true } })
-      await prisma.evaluacion.create({
+      const nueva = await prisma.evaluacion.create({
+        select: { id: true },
         data: {
           planificacionId: plan.id,
+          ...(['PROGRAMADA', 'REALIZADA', 'REPROGRAMADA', 'CANCELADA'].includes(d.estado) ? { estado: d.estado } : {}),
           nombre: String(d.nombre),
           tipoPregunta: d.tipoPregunta,
           nivelBloom: d.nivelBloom,
@@ -57,13 +76,22 @@ export async function POST(
           ...(normalizarRecursos(d.recursos) ? { recursos: normalizarRecursos(d.recursos) as any } : {}),
         },
       })
+      // Las notas vuelven para los estudiantes que siguen existiendo
+      const notas = notasValidas(d.calificaciones).filter(n => n.estudianteId)
+      if (notas.length) {
+        const vigentes = new Set((await prisma.estudiante.findMany({ where: { id: { in: notas.map(n => String(n.estudianteId)) }, usuarioId: actor.id }, select: { id: true } })).map(e => e.id))
+        const validas = notas.filter(n => vigentes.has(String(n.estudianteId)))
+        const r = await prisma.calificacion.createMany({ data: validas.map(n => ({ estudianteId: String(n.estudianteId), evaluacionId: nueva.id, puntaje: n.puntaje, observaciones: n.observaciones, detalle: n.detalle })), skipDuplicates: true })
+        notasDevueltas = r.count
+        await recalcularPromedios(validas.map(n => String(n.estudianteId)))
+      }
     } else {
       return NextResponse.json({ error: 'Tipo de elemento no reconocido.' }, { status: 400 })
     }
 
     await prisma.papeleraItem.delete({ where: { id } })
-    await registrarActividad({ actor, accion: 'RESTAURAR', entidad: item.tipo === 'ESTUDIANTE' ? 'Estudiante' : 'Evaluación', detalle: `Restauró "${item.nombre}" desde la papelera` })
-    return NextResponse.json({ restaurado: true, tipo: item.tipo })
+    await registrarActividad({ actor, accion: 'RESTAURAR', entidad: item.tipo === 'ESTUDIANTE' ? 'Estudiante' : 'Evaluación', detalle: `Restauró "${item.nombre}" desde la papelera${notasDevueltas ? ` (con ${notasDevueltas} nota(s))` : ''}` })
+    return NextResponse.json({ restaurado: true, tipo: item.tipo, notas: notasDevueltas })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Error al restaurar' }, { status: 500 })

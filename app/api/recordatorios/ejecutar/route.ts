@@ -2,12 +2,14 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import prisma from '@/lib/prisma'
 import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
-import { enviarLoteN8n, fechaBonita, nombreLimpio, nuevoId, primerNombre, type MensajeLote } from '@/lib/whatsappLotes'
+import { enviarLoteN8n, fechaBonita, nombreLimpio, nuevoId, primerNombre, ZONA_HORARIA, type MensajeLote } from '@/lib/whatsappLotes'
+import { ultramsgConfigurado } from '@/lib/ultramsg'
 
 export const maxDuration = 60
 
 const HORA = 60 * 60 * 1000
-const MAX_MENSAJES_POR_PASADA = 300
+// Con UltraMsg directo los mensajes salen desde aquí y la función tiene 60 s: se mandan menos por pasada (la siguiente, en 15 min, sigue)
+const maxPorPasada = () => (ultramsgConfigurado() ? 120 : 300)
 
 // Ventanas: se envía el recordatorio que corresponde al tiempo que falta (si ya pasó la ventana de 3 días, va el de 1 día)
 function tipoSegunTiempo(msFaltan: number): '3D' | '1D' | '2H' | null {
@@ -18,12 +20,23 @@ function tipoSegunTiempo(msFaltan: number): '3D' | '1D' | '2H' | null {
   return null
 }
 
+// Días de calendario (en la hora de Venezuela) entre hoy y la fecha: 0 = hoy, 1 = mañana...
+const diaLocal = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_HORARIA }).format(d) // AAAA-MM-DD
+function diasDeCalendario(desde: Date, hasta: Date): number {
+  return Math.round((Date.parse(diaLocal(hasta)) - Date.parse(diaLocal(desde))) / 86400000)
+}
+
 function texto(tipo: '3D' | '1D' | '2H', d: { nombre: string; evaluacion: string; materia: string; seccion: string; fecha: Date; peso: number | null; actividad: string | null; enlace: string }) {
   const cuando = fechaBonita(d.fecha)
   const extra = [d.actividad ? `Estrategia: ${d.actividad}` : '', d.peso != null ? `Peso: ${d.peso}%` : ''].filter(Boolean).join(' · ')
-  const encabezado = tipo === '3D' ? '📅 *Recordatorio:* en 3 días tienes una evaluación'
-    : tipo === '1D' ? '⏰ *Recordatorio:* mañana tienes una evaluación'
-    : '🔔 *Recordatorio:* en 2 horas comienza tu evaluación'
+  // Antes decía "mañana" aunque fuera hoy en la tarde, y "en 3 días" aunque faltaran 30 horas
+  const dias = diasDeCalendario(new Date(), d.fecha)
+  const minutos = Math.max(1, Math.round((d.fecha.getTime() - Date.now()) / 60000))
+  const encabezado = tipo === '2H'
+    ? `🔔 *Recordatorio:* en ${minutos >= 90 ? '2 horas' : minutos >= 50 ? '1 hora' : `${minutos} minutos`} comienza tu evaluación`
+    : dias <= 0 ? '⏰ *Recordatorio:* hoy tienes una evaluación'
+    : dias === 1 ? '⏰ *Recordatorio:* mañana tienes una evaluación'
+    : `📅 *Recordatorio:* en ${dias} días tienes una evaluación`
   return `Hola ${d.nombre} 👋\n${encabezado}.\n\n*${d.evaluacion}*\n${d.materia} · Sección ${d.seccion}\n🗓️ ${cuando}${extra ? `\n${extra}` : ''}\n\n📚 Repasa los recursos y la rúbrica aquí:\n${d.enlace}\n\n¡Mucho éxito! 💪`
 }
 
@@ -47,6 +60,7 @@ async function ejecutar(request: Request) {
         fecha: { gt: new Date(ahora), lte: new Date(ahora + 72 * HORA) },
         estado: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
       },
+      orderBy: { fecha: 'asc' }, // las más cercanas primero
       select: {
         id: true, nombre: true, fecha: true, peso: true, tipoActividad: true, grupoSeccion: true,
         recordatorios: { select: { tipo: true, fechaEvaluacion: true } },
@@ -64,7 +78,14 @@ async function ejecutar(request: Request) {
       const materia = ev.planificacion.materia
       if (!tipo || !materia.usuarioId || materia.usuario?.activo === false) continue
       if (ev.recordatorios.some(r => r.tipo === tipo && r.fechaEvaluacion.getTime() === ev.fecha!.getTime())) continue
-      if (mensajes.length >= MAX_MENSAJES_POR_PASADA) break
+
+      const seccion = ev.grupoSeccion || 'A'
+      const estudiantes = (await prisma.estudiante.findMany({
+        where: { usuarioId: materia.usuarioId, grupo: seccion, estado: 'ACTIVO', telefono: { not: null } },
+        select: { id: true, nombre: true, telefono: true },
+      })).filter(e => (e.telefono || '').replace(/\D/g, '').length >= 7)
+      // Si la sección completa no cabe en esta pasada, queda para la siguiente (salvo que sea la primera: esa va entera)
+      if (mensajes.length > 0 && mensajes.length + estudiantes.length > maxPorPasada()) break
 
       // Se registra ANTES de enviar: si dos pasadas coinciden, la segunda choca con el registro único y no repite
       try {
@@ -74,17 +95,10 @@ async function ejecutar(request: Request) {
         throw e
       }
 
-      const seccion = ev.grupoSeccion || 'A'
-      const estudiantes = await prisma.estudiante.findMany({
-        where: { usuarioId: materia.usuarioId, grupo: seccion, estado: 'ACTIVO', telefono: { not: null } },
-        select: { id: true, nombre: true, telefono: true },
-      })
       const loteId = nuevoId()
       const tokens = await tokensDeEstudiantes(estudiantes.map(e => e.id))
       let cuenta = 0
       for (const est of estudiantes) {
-        if ((est.telefono || '').replace(/\D/g, '').length < 7) continue
-        if (mensajes.length >= MAX_MENSAJES_POR_PASADA) break
         const id = nuevoId()
         mensajes.push({
           id, telefono: est.telefono as string,

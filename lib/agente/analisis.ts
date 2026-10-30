@@ -74,10 +74,11 @@ export function textoRiesgo(r: Riesgo): string {
 }
 
 // Cuántas evaluaciones caen en cada semana (lunes a domingo)
-export function cargaPorSemana(fechas: Date[]): string[] {
+export function cargaPorSemana(fechas: Date[], zona = process.env.ZONA_HORARIA || 'America/Caracas'): string[] {
   const porSemana = new Map<string, number>()
+  const diaLocal = (f: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: zona }).format(f) // AAAA-MM-DD en la hora del profesor
   for (const f of fechas) {
-    const d = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth(), f.getUTCDate()))
+    const d = new Date(diaLocal(f) + 'T00:00:00Z')
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
     const k = d.toISOString().slice(0, 10)
     porSemana.set(k, (porSemana.get(k) || 0) + 1)

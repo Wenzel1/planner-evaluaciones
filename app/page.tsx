@@ -926,7 +926,7 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
                 <input key={k} value={edicionEst.campos[k]} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, [k]: e.target.value } })} placeholder={et} className="w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]" />
               ))}
               <select value={edicionEst.campos.grupo} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, grupo: e.target.value } })} className="w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec]">
-                {['A', 'B', 'C', 'D'].map(g => <option key={g} value={g}>Grupo {g}</option>)}
+                {opcionesSeccion(edicionEst.campos.grupo).map(g => <option key={g} value={g}>Grupo {g}</option>)}
               </select>
               {edicionEst.error && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{edicionEst.error}</span></p>}
               <div className="flex gap-2 pt-1">
@@ -2257,6 +2257,11 @@ function UsuariosPanel() {
   );
 }
 
+// Secciones para elegir: A a H siempre, más las que ya se usan (y la actual, aunque sea otra letra)
+function opcionesSeccion(actual?: string, usadas: string[] = []): string[] {
+  return [...new Set(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', ...usadas, ...(actual ? [actual] : [])])].filter(g => /^[A-Z]$/.test(g)).sort();
+}
+
 function EstudiantesPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('todos');
@@ -2290,24 +2295,14 @@ function EstudiantesPanel() {
       if (!valor || !emailRegex.test(valor)) error = 'Correo no válido (ej: juan@correo.com).';
     }
     if (campo === 'telefono') {
-      // 1. Solo permite números
-      const soloNumeros = /^[0-9]+$/;
-      if (!valor || !soloNumeros.test(valor)) {
-        error = 'Solo se permiten números.';
-      } 
-      // 2. Validar que sea un formato de teléfono venezolano válido
+      const limpio = String(valor || '').replace(/[\s().-]/g, '');
+      if (!/^\+?\d+$/.test(limpio)) error = 'Solo se permiten números (puede empezar con +).';
       else {
-        const numLimpio = valor.replace(/\s/g, ''); // Quita espacios si los hay
-        
-        // Celulares: 0412, 0414, 0416, 0424, 0426 (11 dígitos)
-        const esCelularValido = /^04(12|14|16|24|26)\d{7}$/.test(numLimpio);
-        
-        // Fijos: 02XX (10 dígitos)
-        const esFijoValido = /^02\d{8}$/.test(numLimpio);
-
-        if (!esCelularValido && !esFijoValido) {
-          error = 'Teléfono no válido. Ej: 04121234567 o 02123456789';
-        }
+        // Venezuela: 0412/0414/0416/0422/0424/0426 o fijo 02XX; también +58 o 58 delante. Otro país: con + y 8 a 15 dígitos.
+        const local = limpio.replace(/^\+?58/, '0');
+        const esVenezolano = /^04(12|14|16|22|24|26)\d{7}$/.test(local) || /^02\d{9}$/.test(local) || /^02\d{8}$/.test(local);
+        const esExtranjero = /^\+(?!58)\d{8,15}$/.test(limpio);
+        if (!esVenezolano && !esExtranjero) error = 'Teléfono no válido. Ej: 04121234567, +584121234567 o 02123456789';
       }
     }
     return error;
@@ -2383,37 +2378,41 @@ function EstudiantesPanel() {
   const aprobados = calificados.filter(e => e.promedio >= 10).length;
   const grupos = [...new Set(estudiantes.map(e => e.grupo))];
 
+  const enviandoEstRef = useRef(false);
   const agregarEstudiante = async () => {
+    if (enviandoEstRef.current) return;
     const errores = validarFormularioCompleto(nuevoNombre, nuevoEmail, nuevoTelefono);
     setErroresNuevo(errores);
     if (Object.keys(errores).length > 0) return;
 
+    enviandoEstRef.current = true;
     try {
-      await apiEstudiantes.crear({ nombre: nuevoNombre, email: nuevoEmail, telefono: nuevoTelefono, grupo: nuevoGrupo });
+      await apiEstudiantes.crear({ nombre: nuevoNombre.trim(), email: nuevoEmail.trim(), telefono: nuevoTelefono.replace(/[\s().-]/g, ''), grupo: nuevoGrupo });
       setNuevoNombre(''); setNuevoEmail(''); setNuevoTelefono(''); setNuevoGrupo('A'); setErroresNuevo({});
       setShowAddModal(false);
       await recargarEstudiantes();
     } catch (error: any) {
       alert(error.message);
-    }
+    } finally { enviandoEstRef.current = false; }
   };
 
   const actualizarEstudiante = async () => {
-    if (!editando) return;
+    if (!editando || enviandoEstRef.current) return;
     const errores = validarFormularioCompleto(editando.nombre, editando.email, editando.telefono);
     setErroresEdit(errores);
     if (Object.keys(errores).length > 0) return;
 
+    enviandoEstRef.current = true;
     try {
       await apiEstudiantes.editar({
-        id: editando.id, nombre: editando.nombre, email: editando.email,
-        telefono: editando.telefono, grupo: editando.grupo, estado: editando.estado
+        id: editando.id, nombre: editando.nombre.trim(), email: editando.email.trim(),
+        telefono: String(editando.telefono || '').replace(/[\s().-]/g, ''), grupo: editando.grupo, estado: editando.estado
       });
       setEditando(null); setErroresEdit({});
       await recargarEstudiantes();
     } catch (error: any) {
       alert(error.message);
-    }
+    } finally { enviandoEstRef.current = false; }
   };
 
   // Página personal del estudiante (/e/<token>): ver, copiar o cambiar su enlace
@@ -2541,7 +2540,7 @@ function EstudiantesPanel() {
                 <div><label className={labelBase}>Nombre completo</label><input type="text" value={nuevoNombre} onChange={(e) => { setNuevoNombre(e.target.value); setErroresNuevo(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.nombre ? 'border-red-500/50' : ''}`} placeholder="Ej: Juan Pérez" />{erroresNuevo.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.nombre}</p>}</div>
                 <div><label className={labelBase}>Correo electrónico</label><input type="email" value={nuevoEmail} onChange={(e) => { setNuevoEmail(e.target.value); setErroresNuevo(p => ({...p, email: validarCampo('email', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.email ? 'border-red-500/50' : ''}`} placeholder="juan@email.com" />{erroresNuevo.email && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.email}</p>}</div>
                 <div><label className={labelBase}>Teléfono</label><input type="tel" inputMode="numeric" value={nuevoTelefono} onChange={(e) => { setNuevoTelefono(e.target.value); setErroresNuevo(p => ({...p, telefono: validarCampo('telefono', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.telefono ? 'border-red-500/50' : ''}`} placeholder="04121234567" />{erroresNuevo.telefono && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.telefono}</p>}</div>
-                <div><label className={labelBase}>Grupo</label><select value={nuevoGrupo} onChange={(e) => setNuevoGrupo(e.target.value)} className={inputBase}><option value="A">Grupo A</option><option value="B">Grupo B</option><option value="C">Grupo C</option><option value="D">Grupo D</option></select></div>
+                <div><label className={labelBase}>Grupo</label><select value={nuevoGrupo} onChange={(e) => setNuevoGrupo(e.target.value)} className={inputBase}>{opcionesSeccion(nuevoGrupo, grupos as string[]).map(g => <option key={g} value={g}>Grupo {g}</option>)}</select></div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#272839] hover:bg-[#313248] rounded-xl transition-colors">Cancelar</button>
@@ -2562,7 +2561,7 @@ function EstudiantesPanel() {
                 <div><label className={labelBase}>Nombre completo</label><input type="text" value={editando.nombre} onChange={(e) => { setEditando({...editando, nombre: e.target.value}); setErroresEdit(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresEdit.nombre ? 'border-red-500/50' : ''}`} />{erroresEdit.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.nombre}</p>}</div>
                 <div><label className={labelBase}>Correo electrónico</label><input type="email" value={editando.email} onChange={(e) => { setEditando({...editando, email: e.target.value}); setErroresEdit(p => ({...p, email: validarCampo('email', e.target.value)})); }} className={`${inputBase} ${erroresEdit.email ? 'border-red-500/50' : ''}`} />{erroresEdit.email && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.email}</p>}</div>
                 <div><label className={labelBase}>Teléfono</label><input type="tel" inputMode="numeric" value={editando.telefono || ''} onChange={(e) => { setEditando({...editando, telefono: e.target.value}); setErroresEdit(p => ({...p, telefono: validarCampo('telefono', e.target.value)})); }} className={`${inputBase} ${erroresEdit.telefono ? 'border-red-500/50' : ''}`} />{erroresEdit.telefono && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.telefono}</p>}</div>
-                <div><label className={labelBase}>Grupo</label><select value={editando.grupo} onChange={(e) => setEditando({...editando, grupo: e.target.value})} className={inputBase}><option value="A">Grupo A</option><option value="B">Grupo B</option><option value="C">Grupo C</option><option value="D">Grupo D</option></select></div>
+                <div><label className={labelBase}>Grupo</label><select value={editando.grupo} onChange={(e) => setEditando({...editando, grupo: e.target.value})} className={inputBase}>{opcionesSeccion(editando.grupo, grupos as string[]).map(g => <option key={g} value={g}>Grupo {g}</option>)}</select></div>
                 <div><label className={labelBase}>Estado</label><select value={editando.estado} onChange={(e) => setEditando({...editando, estado: e.target.value as any})} className={inputBase}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -4675,7 +4674,7 @@ function AgentePanel({ planificacionId = null, seccionActiva = 'A', expandido, s
     const nuevasSecciones: SeccionExamen[] = propuesta.evaluaciones.map((p: any, idx: number) => {
       let fechaExamen = fechas[idx] || new Date();
       if (p.fecha && p.hora) fechaExamen = new Date(`${p.fecha}T${p.hora}:00`);
-      else if (p.fecha) fechaExamen = new Date(p.fecha);
+      else if (p.fecha) fechaExamen = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(p.fecha)) ? `${p.fecha}T08:00:00` : p.fecha);
       return { id: `eval${idx+1}-${Date.now()}`, nombre: `${p.tipo || `Evaluación ${idx+1}`}: ${limpiarTexto(p.materia)}`, tipoPregunta: 'desarrollo', peso: p.peso ?? null, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'aplicar', tiempoEstimadoMinutos: p.duracionMinutos ?? null, tipoActividad: p.tipoActividad || undefined, descripcion: p.descripcion || '', cantidadGrupos: p.cantidadGrupos ?? undefined, personasPorGrupo: p.personasPorGrupo ?? undefined, enfoque: p.enfoque || undefined, fecha: fechaExamen };
     });
     // Las evaluaciones del chat se guardan en la sección que está abierta en el planificador
@@ -5383,7 +5382,10 @@ if (sonCuatro && generarPDF) {
 // ============================================
 // PANEL DERECHO (CONFIG Y NOTIFICACIONES MEJORADAS)
 // ============================================
-type PanelDerechoHandle = { limpiarYScroll: () => void; };
+type PanelDerechoHandle = { limpiarYScroll: () => void; notificar: (mensaje: string) => void; };
+let contadorNotif = 0; // ids de notificación únicos aunque lleguen dos en el mismo milisegundo
+// Cuándo se guardó por última vez el plan que tiene abierto esta ventana (para no pisar cambios hechos en otra)
+let planVistoEn: string | null = null;
 interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; debeCambiarPassword?: boolean; }
 interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; }
 
@@ -5644,7 +5646,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
 
   const setPdfUrl = (url: string | null) => { setPdfPorSeccion(prev => ({ ...prev, [seccionActiva]: url })); if (setPdfUrlProp) setPdfUrlProp(url); };
   const setPdfAbierto = (abierto: boolean) => { setPdfAbiertoPorSeccion(prev => ({ ...prev, [seccionActiva]: abierto })); if (setPdfAbiertoProp) setPdfAbiertoProp(abierto); };
-  const agregarNotificacion = (mensaje: string) => { setNotificaciones(prev => [{ id: `notif-${Date.now()}`, mensaje, timestamp: new Date(), leido: false }, ...prev.slice(0, 19)]); };
+  const agregarNotificacion = (mensaje: string) => { setNotificaciones(prev => [{ id: `notif-${Date.now()}-${++contadorNotif}`, mensaje, timestamp: new Date(), leido: false }, ...prev.slice(0, 19)]); };
   const scrollToTarjeta = () => { setTimeout(() => { if (tarjetaRef.current) tarjetaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 250); };
   
   useEffect(() => { if (scrollToSections && seccionesGuardadasRef.current && vista === 'planificacion') { requestAnimationFrame(() => { seccionesGuardadasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setScrollToSections(false); }); } }, [planificacion.secciones, scrollToSections, vista]);
@@ -5656,7 +5658,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const [evaluacion4, setEvaluacion4] = useState<EvaluacionFormulario>({...evalInit});
 
   const limpiarYScroll = () => { setEvaluacion1({...evalInit}); setEvaluacion2({...evalInit}); setEvaluacion3({...evalInit}); setEvaluacion4({...evalInit}); setNumEvaluaciones(1); setScrollToSections(true); setVista('planificacion'); setGlow1(false); setGlow2(false); setGlow3(false); setGlow4(false); };
-  useImperativeHandle(ref, () => ({ limpiarYScroll }), [limpiarYScroll]);
+  useImperativeHandle(ref, () => ({ limpiarYScroll, notificar: agregarNotificacion }), [limpiarYScroll, agregarNotificacion]);
 
   // Al marcar o desmarcar una tarjeta, el Plan de Acción ya generado de esta sección se rehace (espera 1 s por si marcas varias)
   const regenerarRef = useRef<() => void>(() => {});
@@ -5683,7 +5685,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     p.rubrica,
   ]);
 
+  const conflictoRef = useRef(false); // otra ventana guardó este plan: se dejan de guardar cambios hasta recargar
   const sincronizarInterno = async (planActualizada: PlanificacionExamen) => {
+    if (conflictoRef.current) return;
     const firma = firmaDePlan(planActualizada);
     setEstadoGuardado('guardando');
     try {
@@ -5725,10 +5729,17 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       };
 
       const respuesta = planId
-        ? await fetch(`/api/planificaciones/${planId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dataParaDB) })
+        ? await fetch(`/api/planificaciones/${planId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...dataParaDB, vistoEn: planVistoEn }) })
         : await fetch('/api/planificaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dataParaDB) });
       const cuerpo = await respuesta.json().catch(() => ({}));
+      if (respuesta.status === 409 && cuerpo.codigo === 'PLAN_CAMBIADO') {
+        conflictoRef.current = true;
+        setEstadoGuardado('error');
+        agregarNotificacion(`⚠️ ${cuerpo.error}`);
+        return;
+      }
       if (!respuesta.ok) throw new Error(cuerpo.error || 'No se pudo guardar el plan');
+      if (cuerpo.updatedAt) planVistoEn = cuerpo.updatedAt;
       if (!planId && cuerpo.id) { planIdRef.current = cuerpo.id; setPlanificacionId(cuerpo.id); }
       // Las evaluaciones nuevas reciben su id definitivo: así conservan estado, recordatorios y calificaciones
       const idsNuevos: Record<string, string> = cuerpo.idsNuevos || {};
@@ -5780,7 +5791,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
         const idx = casillas[i] - 1;
         let fechaExamen = fechas[idx] || new Date();
         if (p.fecha && p.hora) fechaExamen = new Date(`${p.fecha}T${p.hora}:00`);
-        else if (p.fecha) fechaExamen = new Date(p.fecha);
+        else if (p.fecha) fechaExamen = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(p.fecha)) ? `${p.fecha}T08:00:00` : p.fecha);
         const evalData: EvaluacionFormulario = { materia: p.materia, duracionMinutos: p.duracionMinutos ?? null, duracionUnidad: 'min', peso: p.peso ?? null, fecha: fechaExamen, tipoActividad: p.tipoActividad || '', descripcion: p.descripcion || '', cantidadGrupos: p.cantidadGrupos ?? null, personasPorGrupo: p.personasPorGrupo ?? null, editandoId: null, mostrarDescripcion: false, enfoque: p.enfoque || '', errores: {}, origenAgente: { materia: true, tipoActividad: true, descripcion: true } };
         if (idx === 0) { setEvaluacion1(evalData); activarGlow(1); }
         else if (idx === 1) { setEvaluacion2(evalData); activarGlow(2); }
@@ -6549,99 +6560,6 @@ export default function PlanificadorExamenes() {
   // ===== FIN SESIÓN / ROLES =====
   // ===== INICIO CONEXIÓN BD =====
 const [planificacionId, setPlanificacionId] = useState<string | null>(null);
-const [guardando, setGuardando] = useState(false);
-
-const guardarPlanificacionEnBD = async () => {
-  setGuardando(true);
-  try {
-    let idMateria = planificacionId; 
-
-    // 1. Si es nuevo, crear la materia automáticamente en la BD
-    if (!planificacionId) {
-      try {
-        const nuevaMateria = await fetch('/api/materias', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            nombre: planificacion.materia || 'Nueva Asignatura', 
-            codigo: `MAT-${Date.now()}` 
-          }),
-        }).then(res => res.json());
-        idMateria = nuevaMateria.id;
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    if (!idMateria) {
-      alert("Error: No se pudo obtener la materia");
-      setGuardando(false);
-      return;
-    }
-
-    // 2. Preparar datos transformando minúsculas a MAYÚSCULAS (Prisma lo requiere)
-    const dataParaDB = {
-      materiaId: idMateria,
-      estado: planificacion.estado.toUpperCase(),
-      tipoExamen: planificacion.tipoExamen.toUpperCase(),
-      fechaExamen: planificacion.fechaExamen.toISOString(),
-      duracionMinutos: planificacion.duracionMinutos,
-      evaluaciones: planificacion.secciones.map((ev, idx) => ({
-        nombre: ev.nombre,
-        tipoPregunta: ev.tipoPregunta.toUpperCase(),
-        nivelBloom: ev.nivelBloom.toUpperCase(),
-        peso: ev.peso,
-        cantidadPreguntas: ev.cantidadPreguntas,
-        contenidosEvaluados: ev.contenidosEvaluados,
-        tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos,
-        tipoActividad: ev.tipoActividad,
-        descripcion: ev.descripcion,
-        cantidadGrupos: ev.cantidadGrupos,
-        personasPorGrupo: ev.personasPorGrupo,
-        orden: ev.orden ?? idx,
-        enfoque: ev.enfoque,
-        fecha: ev.fecha ? ev.fecha.toISOString() : null,
-        grupoSeccion: ev.grupoSeccion || 'A',
-        rubrica: ev.rubrica,
-        recursos: ev.recursos,
-        abiertaManual: ev.abiertaManual,
-      })),
-      rubrica: planificacion.rubrica.map(crit => ({
-        nombre: crit.nombre,
-        peso: crit.peso,
-        descripcion: crit.descripcion,
-        niveles: (crit.niveles || []).map(niv => ({
-          nombre: niv.nombre,
-          puntaje: niv.puntaje,
-          descripcion: niv.descripcion,
-        })),
-      })),
-    };
-
-    // 3. Enviar a la BD (Crear o Actualizar)
-    if (planificacionId) {
-      await fetch(`/api/planificaciones/${planificacionId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dataParaDB),
-      });
-      alert('✅ ¡Planificación actualizada en la Base de Datos!');
-    } else {
-      const nueva = await fetch('/api/planificaciones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dataParaDB),
-      }).then(res => res.json());
-      
-      setPlanificacionId(nueva.id); // Guardar el ID para las próximas veces
-      alert('✅ ¡Planificación guardada en la Base de Datos!');
-    }
-  } catch (error: any) {
-    alert('Error al guardar: ' + error.message);
-  } finally {
-    setGuardando(false);
-  }
-};
 // ===== FIN CONEXIÓN BD =====
   // El chat empieza abierto en computador y cerrado en celular
   // El chat empieza cerrado; al cargar la sesión se abre para todos menos el superadmin (y nunca solo en el celular)
@@ -6658,8 +6576,13 @@ const guardarPlanificacionEnBD = async () => {
     const cargarDatosIniciales = async () => {
       try {
         // 1. Buscar si ya existe una materia
-        const materias = await fetch('/api/materias').then(r => r.json());
-        if (materias.length === 0) return; // Primera vez, no hay nada que cargar
+        const pedir = async (url: string) => { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); };
+        let materias: any[] = [];
+        for (let intento = 0; ; intento++) {
+          try { materias = await pedir('/api/materias'); break; }
+          catch (e) { if (intento >= 2) throw e; await new Promise(res => setTimeout(res, 1500 * (intento + 1))); }
+        }
+        if (!Array.isArray(materias) || materias.length === 0) { setDatosCargados(true); return; } // Primera vez, no hay nada que cargar
 
         // 2. Buscar la materia "Ing Software" o usar la primera
         // Se abre la materia con actividad más reciente (antes se buscaba una llamada 'Ing Software')
@@ -6667,10 +6590,11 @@ const guardarPlanificacionEnBD = async () => {
         const materiaActual = [...materias].sort((a: any, b: any) => actividadDe(b) - actividadDe(a))[0];
         
         // 3. Buscar las planificaciones de esa materia
-        const planes = await fetch(`/api/planificaciones?materiaId=${materiaActual.id}`).then(r => r.json());
+        const planes = await pedir(`/api/planificaciones?materiaId=${materiaActual.id}`);
         
-        if (planes.length > 0) {
+        if (Array.isArray(planes) && planes.length > 0) {
           const ultimoPlan = planes[0];
+          planVistoEn = ultimoPlan.updatedAt || null; // para no pisar cambios hechos en otra ventana
           
           // 4. Guardar el ID para futuras actualizaciones
           setPlanificacionId(ultimoPlan.id);
@@ -6722,11 +6646,12 @@ const guardarPlanificacionEnBD = async () => {
             })),
           }));
         }
-      } catch (error) {
-        // Es la primera vez que entras, no hay datos en la BD, eso es normal
-        console.log("Iniciando sin datos previos en la Base de Datos.");
-      } finally {
         setDatosCargados(true); // desde aquí los cambios del plan se guardan solos
+      } catch (error) {
+        // No se pudo leer el plan guardado: el guardado automático queda apagado para no crear una materia duplicada
+        // ni pisar el plan real con uno vacío. Se avisa y basta con recargar.
+        console.error('No se pudo cargar el plan:', error);
+        setTimeout(() => agregarNotificacion('⚠️ No se pudo cargar tu plan guardado (problema de conexión). Recarga la página antes de hacer cambios: hasta entonces no se guardará nada.'), 800);
       }
     };
     
@@ -6737,7 +6662,8 @@ const guardarPlanificacionEnBD = async () => {
 
   useEffect(() => { const handleKeyDown = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); setAgenteExpandido(prev => !prev); } }; window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown); }, []);
 
-  const agregarNotificacion = (mensaje: string) => { console.log('📢 Notificación:', mensaje); };
+  // El chat y el resto de la pantalla usan las mismas notificaciones (las del panel derecho)
+  const agregarNotificacion = (mensaje: string) => { if (panelDerechoRef.current) panelDerechoRef.current.notificar(mensaje); else console.log('📢 Notificación:', mensaje); };
 
   const urlN8n = configSistema?.chat.webhookUrl || process.env.NEXT_PUBLIC_N8N_URL || 'http://localhost:5678';
   const generarPDF = async (secciones?: SeccionExamen[]): Promise<string | null> => {

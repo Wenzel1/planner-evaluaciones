@@ -40,7 +40,7 @@ export function parsearCSV(texto: string): string[][] {
 
 // "Grupo B", "sección b" o "b" → "B"
 function normalizarGrupo(v: string): string {
-  const m = v.match(/^(?:grupo|seccion|sección|paralelo)?\s*([a-dA-D])$/i)
+  const m = v.match(/^(?:grupo|seccion|sección|paralelo)?\s*([a-zA-Z])$/i)
   return m ? m[1].toUpperCase() : v
 }
 

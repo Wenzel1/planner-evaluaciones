@@ -5,7 +5,7 @@ import { registrarActividad } from '@/lib/actividad'
 
 const MAX_FILAS = 500
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const GRUPOS = ['A', 'B', 'C', 'D']
+const GRUPO_VALIDO = /^[A-Z]$/ // misma regla que al crear uno por uno
 
 // POST /api/estudiantes/importar  { estudiantes: [{ nombre, email, telefono, grupo }] }
 // Misma validación que al crear uno por uno. Las filas inválidas o repetidas se omiten y se informa el motivo.
@@ -33,8 +33,8 @@ export async function POST(request: Request) {
       let motivo = ''
       if (nombre.length < 3) motivo = 'El nombre debe tener al menos 3 caracteres.'
       else if (!EMAIL.test(email)) motivo = 'El correo electrónico no es válido.'
-      else if (telefono.length < 7) motivo = 'El teléfono debe tener al menos 7 dígitos.'
-      else if (!GRUPOS.includes(grupo)) motivo = 'Grupo no válido (usa A, B, C o D).'
+      else if (telefono.replace(/\D/g, '').length < 7) motivo = 'El teléfono debe tener al menos 7 dígitos.'
+      else if (!GRUPO_VALIDO.test(grupo)) motivo = 'Grupo no válido (usa una letra: A, B, C...).'
       else if (vistos.has(email)) motivo = 'Correo repetido dentro del archivo.'
 
       if (motivo) { omitidos.push({ fila, motivo }); return }

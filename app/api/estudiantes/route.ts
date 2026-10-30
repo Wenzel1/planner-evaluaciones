@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     const estado = body.estado ? String(body.estado).trim().toUpperCase() : undefined
     if (!/^[A-Z]$/.test(grupo)) return NextResponse.json({ error: 'El grupo debe ser una letra (A, B, C...).' }, { status: 400 })
     if (estado && estado !== 'ACTIVO' && estado !== 'INACTIVO') return NextResponse.json({ error: 'Estado no válido.' }, { status: 400 })
-    if (telefono.length < 7) {
+    if (telefono.replace(/\D/g, '').length < 7) {
       return NextResponse.json({ error: 'El teléfono debe tener al menos 7 dígitos.' }, { status: 400 })
     }
 
@@ -117,7 +117,7 @@ export async function PUT(request: Request) {
     const estado = body.estado ? String(body.estado).trim().toUpperCase() : undefined
     if (!/^[A-Z]$/.test(grupo)) return NextResponse.json({ error: 'El grupo debe ser una letra (A, B, C...).' }, { status: 400 })
     if (estado && estado !== 'ACTIVO' && estado !== 'INACTIVO') return NextResponse.json({ error: 'Estado no válido.' }, { status: 400 })
-    if (telefono.length < 7) {
+    if (telefono.replace(/\D/g, '').length < 7) {
       return NextResponse.json({ error: 'El teléfono debe tener al menos 7 dígitos.' }, { status: 400 })
     }
 
@@ -158,7 +158,9 @@ export async function DELETE(request: Request) {
 
     if (existente.usuarioId) {
       const { id: _id, usuarioId: _dueno, createdAt: _c, updatedAt: _u, ...campos } = existente as any
-      await enviarAPapelera([{ usuarioId: existente.usuarioId, tipo: 'ESTUDIANTE', nombre: existente.nombre, contexto: existente.email, eliminadoPorId: actor.id, eliminadoPorNombre: actor.nombre, datos: campos }])
+      // Sus notas viajan con él a la papelera: al restaurarlo vuelven (si la evaluación todavía existe)
+      const calificaciones = await prisma.calificacion.findMany({ where: { estudianteId: id }, select: { evaluacionId: true, puntaje: true, observaciones: true, detalle: true } })
+      await enviarAPapelera([{ usuarioId: existente.usuarioId, tipo: 'ESTUDIANTE', nombre: existente.nombre, contexto: existente.email, eliminadoPorId: actor.id, eliminadoPorNombre: actor.nombre, datos: { ...campos, calificaciones } }])
     }
     await prisma.estudiante.delete({ where: { id } })
     await registrarActividad({ actor, accion: 'ELIMINAR', entidad: 'Estudiante', detalle: `Eliminó a ${existente.nombre}` })
