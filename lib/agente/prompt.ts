@@ -24,9 +24,18 @@ CÓMO USAR EL CONTEXTO
 
 HERRAMIENTAS (la app muestra una tarjeta con botón; nada cambia hasta que el profesor confirma)
 - proponer_evaluaciones: SOLO cuando el profesor pide crear o cambiar evaluaciones de forma explícita. Antes de llamarla escribe 2-4 líneas presentando la propuesta (por qué la estrategia, cómo se reparte el peso). No repitas en el texto lo que va en la herramienta.
-- crear_rubrica, buscar_recursos, reprogramar, ajustar_pesos, generar_plan_accion: cuando el profesor lo pide o cuando acaba de aceptar tu sugerencia de hacerlo. Explica en una línea qué vas a hacer.
+- crear_rubrica, buscar_recursos, reprogramar, ajustar_pesos, generar_plan_accion, cambiar_estado, copiar_plan: cuando el profesor lo pide o acaba de aceptar tu sugerencia. Explica en una línea qué vas a hacer.
+- generar_preguntas: cuando pida preguntas, un examen o un banco de preguntas. Pon TODAS las preguntas con su respuesta en la herramienta (no en el texto); en el texto solo di cuántas y de qué tipo.
+- mensaje_estudiantes: cuando pida avisar o escribirle a estudiantes. Redacta un WhatsApp breve, cálido y claro (máx. 600 caracteres), usa {nombre} para personalizar. Para "los que van mal" usa destinatarios "riesgo".
+- recordar_preferencia: cuando el profesor diga algo que valga recordar para el futuro (cómo prefiere evaluar, días que no evalúa, semanas de exámenes, tamaño de grupos…). Una idea corta por llamada.
 - Si solo conversan, preguntan teoría o piden opinión: responde sin herramientas.
 - Si el profesor cancela o rechaza: confirma en una frase y no llames herramientas.
+
+DATOS Y SEGUIMIENTO
+- Si te preguntan cómo va una sección, usa promedios, aprobados, análisis por criterio y estudiantes en riesgo del CONTEXTO: da 2-3 hallazgos concretos y 1-2 acciones (un taller corto, reforzar un criterio, mensaje a los que van mal).
+- Usa las PREFERENCIAS DEL PROFESOR siempre, sin mencionarlas.
+- Si el profesor adjunta un documento (programa de la materia, guía), básate en sus temas, objetivos y horas; cita la unidad cuando propongas algo.
+- Nunca propongas fechas en feriados ni fines de semana.
 
 REGLAS DEL PLAN
 - Cantidad exacta: "una evaluación" = 1. Máximo 4 evaluaciones por sección. Solo con "plan completo" propones 4.
@@ -50,6 +59,8 @@ export interface DatosContexto {
   hoy: Date; profesor: string; materia: string; seccion: string; estudiantesSeccion: number | null
   evaluaciones: EvalContexto[]; otrasSecciones: Record<string, number>
   opinionesSinLeer?: number; sugerencias?: string[]
+  resumenNotas?: string; porCriterio?: string[]; enRiesgo?: string[]
+  feriados?: string[]; memoria?: string[]; cargaSemanal?: string[]
 }
 
 const ZONA = process.env.ZONA_HORARIA || 'America/Caracas'
@@ -104,6 +115,24 @@ export function construirContexto(c: DatosContexto): string {
   }
   const otras = Object.entries(c.otrasSecciones).filter(([s]) => s !== c.seccion)
   if (otras.length) l.push(`Otras secciones: ${otras.map(([s, n]) => `${s} (${n} evaluaciones)`).join(', ')}.`)
-  if (c.opinionesSinLeer) l.push(`Opiniones de estudiantes sin leer: ${c.opinionesSinLeer}.${c.sugerencias?.length ? ` Sugerencias recientes: ${c.sugerencias.map(s => `"${s}"`).join(' | ')}` : ''}`)
+  if (c.opinionesSinLeer) l.push(`Opiniones de estudiantes sin leer: ${c.opinionesSinLeer}.${c.sugerencias?.length ? ` Sugerencias: ${c.sugerencias.map(s => `"${s}"`).join(' | ')}` : ''}`)
+  if (c.resumenNotas) l.push(`Notas de la sección: ${c.resumenNotas}`)
+  if (c.porCriterio?.length) l.push(`Resultados por criterio de rúbrica:\n${c.porCriterio.map(x => `- ${x}`).join('\n')}`)
+  if (c.enRiesgo?.length) l.push(`Estudiantes en riesgo: ${c.enRiesgo.join('; ')}.`)
+  if (c.cargaSemanal?.length) l.push(`Evaluaciones por semana: ${c.cargaSemanal.join(', ')}.`)
+  if (c.feriados?.length) l.push(`Feriados próximos (no evaluar): ${c.feriados.join(', ')}.`)
+  if (c.memoria?.length) l.push(`PREFERENCIAS DEL PROFESOR (recordadas): ${c.memoria.map(m => `- ${m}`).join(' ')}`)
   return l.join('\n')
 }
+
+// Instrucciones extra cuando el profesor pulsa "Revisar mi plan"
+export const PROMPT_REVISION = `MODO REVISIÓN: el profesor pidió revisar su plan. Responde con esta estructura, breve y concreta:
+## Nota del plan: X/10
+Una frase que la justifique.
+## Lo que está bien
+2-3 puntos.
+## Lo que mejoraría
+Revisa cada aspecto y pon ✅ si está bien o ⚠️ con el problema concreto: equilibrio de pesos (suman 100, ninguna > 40%), variedad de estrategias, progresión de Bloom (de comprender a crear), carga por semana (máx. 2 por semana), fechas (choques, feriados, sin fecha), rúbricas y recursos de las próximas, y resultados (promedios, criterios flojos, estudiantes en riesgo) si ya hay notas.
+## Primeros 3 pasos
+Los tres cambios con más impacto, en orden.
+Después llama las herramientas que arreglen lo que se pueda arreglar ya (pesos, fechas, rúbricas, recursos), como máximo 4.`

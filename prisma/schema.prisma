@@ -267,6 +267,8 @@ model Mensaje {
   // Chat nuevo: acciones que propuso el agente (tarjetas con botón) y modelo que respondió
   acciones        Json?
   modelo          String?
+  respaldo        Boolean?  // true = respondió un modelo de respaldo (el principal falló o no tenía cupo)
+  valoracion      Int?      // 1 = 👍, -1 = 👎 (lo marca el profesor)
 }
 
 // Registro de actividad (auditoría). Guarda una copia del nombre/rol de quien actuó,
@@ -415,4 +417,14 @@ model PreparacionEvaluacion {
 
   @@unique([estudianteId, evaluacionId])
   @@index([evaluacionId])
+}
+
+// Lo que el agente recuerda de cada profesor entre conversaciones (preferencias, semanas de exámenes, etc.)
+model MemoriaAgente {
+  id        String   @id @default(cuid())
+  usuarioId String
+  texto     String
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
 }

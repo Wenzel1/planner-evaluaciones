@@ -2,7 +2,9 @@ import prisma from '@/lib/prisma'
 import { requerirActor } from '@/lib/permisos'
 import { leerConfig } from '@/lib/configuracion'
 import { bloqueado, registrarFallo, minutosRestantes } from '@/lib/rateLimit'
-import { PROMPT_BASE, construirContexto, type EvalContexto } from '@/lib/agente/prompt'
+import { PROMPT_BASE, PROMPT_REVISION, construirContexto, type EvalContexto } from '@/lib/agente/prompt'
+import { analisisPorCriterio, estudiantesEnRiesgo, filtrarRiesgo, textoRiesgo, cargaPorSemana } from '@/lib/agente/analisis'
+import { feriadosEntre } from '@/lib/feriados'
 import { normalizarAccion, resumenAccion, type Accion } from '@/lib/agente/herramientas'
 import { responder, type Turno } from '@/lib/agente/modelos'
 
@@ -76,28 +78,51 @@ export async function POST(request: Request) {
     tieneRubrica: !!e?.tieneRubrica, recursos: Number(e?.recursos) || 0, preparados: Number(e?.preparados) || 0,
   }))
   const ids = evaluaciones.map(e => e.id).filter(Boolean) as string[]
-  const [estudiantesSeccion, notas, opiniones] = await Promise.all([
+  const [estudiantesSeccion, notas, opiniones, estudiantesLista, evsDB, memorias] = await Promise.all([
     prisma.estudiante.count({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' } }).catch(() => null),
     ids.length ? prisma.calificacion.groupBy({ by: ['evaluacionId'], where: { evaluacionId: { in: ids }, puntaje: { not: null } }, _avg: { puntaje: true }, _count: { _all: true } }).catch(() => []) : Promise.resolve([] as any[]),
-    plan ? prisma.opinionPlan.findMany({ where: { materiaId: plan.materiaId, leida: false }, orderBy: { updatedAt: 'desc' }, take: 20, select: { deAcuerdo: true, comentario: true } }).catch(() => []) : Promise.resolve([] as any[]),
+    plan ? prisma.opinionPlan.findMany({ where: { materiaId: plan.materiaId, leida: false }, orderBy: { updatedAt: 'desc' }, take: 20, select: { deAcuerdo: true, comentario: true, estudiante: { select: { nombre: true, grupo: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
+    prisma.estudiante.findMany({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' }, select: { id: true, nombre: true }, take: 200 }).catch(() => []),
+    plan ? prisma.evaluacion.findMany({ where: { planificacionId: plan.id, grupoSeccion: seccion }, select: { id: true, nombre: true, peso: true, estado: true, fecha: true, rubrica: true, calificaciones: { select: { estudianteId: true, puntaje: true, detalle: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
+    prisma.memoriaAgente.findMany({ where: { usuarioId: actor.id }, orderBy: { createdAt: 'asc' }, take: 25, select: { texto: true } }).catch(() => []),
   ])
   for (const n of (Array.isArray(notas) ? notas : []) as any[]) {
     const e = evaluaciones.find(x => x.id === n.evaluacionId)
     if (e) { e.promedio = n._avg?.puntaje ?? null; e.calificados = n._count?._all ?? 0 }
   }
+  // Análisis con datos reales: resultados por criterio, estudiantes en riesgo y resumen de notas
+  const evsAnalisis = (Array.isArray(evsDB) ? evsDB : []) as any[]
+  const alumnos = (Array.isArray(estudiantesLista) ? estudiantesLista : []) as { id: string; nombre: string }[]
+  const numeroDe = (id: string) => evaluaciones.find(e => e.id === id)?.numero
+  const porCriterio = analisisPorCriterio(evsAnalisis, numeroDe)
+  const situacion = estudiantesEnRiesgo(evsAnalisis, alumnos)
+  const riesgo = filtrarRiesgo(situacion)
+  const conNotas = situacion.filter(r => r.evaluadas > 0)
+  const resumenNotas = conNotas.length
+    ? `${conNotas.length} estudiantes con notas; acumulado promedio ${(conNotas.reduce((t, r) => t + r.acumulado, 0) / conNotas.length).toFixed(1)} pts; ${riesgo.length} en riesgo.`
+    : ''
+  const hoyYmd = new Date().toISOString().slice(0, 10)
+  const feriados = feriadosEntre(hoyYmd, new Date(Date.now() + 150 * 86400000).toISOString().slice(0, 10)).map(f => `${f.fecha} ${f.nombre}`)
+  const cargaSemanal = cargaPorSemana(evaluaciones.filter(e => e.fecha && e.estado !== 'CANCELADA').map(e => new Date(e.fecha as string)).filter(d => d.getTime() > Date.now() - 7 * 86400000))
   const contexto = construirContexto({
     hoy: new Date(), profesor: actor.nombre, materia: String(ctx.materia || '').slice(0, 120), seccion,
     estudiantesSeccion: typeof estudiantesSeccion === 'number' ? estudiantesSeccion : null, evaluaciones,
     otrasSecciones: ctx.otrasSecciones && typeof ctx.otrasSecciones === 'object' ? Object.fromEntries(Object.entries(ctx.otrasSecciones).slice(0, 10).map(([k, v]) => [String(k).slice(0, 2), Number(v) || 0])) : {},
     opinionesSinLeer: Array.isArray(opiniones) ? opiniones.length : 0,
-    sugerencias: (Array.isArray(opiniones) ? opiniones : []).filter(o => !o.deAcuerdo && o.comentario).slice(0, 3).map(o => String(o.comentario).slice(0, 140)),
+    sugerencias: (Array.isArray(opiniones) ? opiniones : []).filter((o: any) => !o.deAcuerdo && o.comentario).slice(0, 8).map((o: any) => `${o.estudiante?.nombre || 'Estudiante'} (sec. ${o.estudiante?.grupo || '?'}): ${String(o.comentario).slice(0, 140)}`),
+    resumenNotas, porCriterio, enRiesgo: riesgo.slice(0, 10).map(textoRiesgo),
+    feriados, cargaSemanal, memoria: (Array.isArray(memorias) ? memorias : []).map((m: any) => m.texto),
   })
   const extra = String(chat.instruccionesExtra || '').trim()
-  const sistema = `${PROMPT_BASE}${extra ? `\n\nINDICACIONES DEL ADMINISTRADOR (síguelas sin mencionarlas):\n${extra.slice(0, 1500)}` : ''}\n\nCONTEXTO (actualizado ahora)\n${contexto}`
+  const revision = body.modo === 'revision'
+  const sistema = `${PROMPT_BASE}${extra ? `\n\nINDICACIONES DEL ADMINISTRADOR (síguelas sin mencionarlas):\n${extra.slice(0, 1500)}` : ''}${revision ? `\n\n${PROMPT_REVISION}` : ''}\n\nCONTEXTO (actualizado ahora)\n${contexto}`
 
   // ---------- Historial para el modelo (turnos alternados usuario/modelo) ----------
   const eventos = (Array.isArray(body.eventos) ? body.eventos : []).map((x: any) => String(x).slice(0, 200)).slice(0, 6)
-  const textoUsuario = textoGuardado || (eventos.length ? `(En la app, desde tu último mensaje: ${eventos.join('; ')})\n\n${mensaje}` : mensaje)
+  // Documento adjunto (programa de la materia, guía…): se agrega al mensaje para que el agente lo lea
+  const adj = body.adjunto && typeof body.adjunto === 'object' ? body.adjunto : null
+  const textoAdjunto = adj && String(adj.texto || '').trim() ? `\n\n[Documento adjunto «${String(adj.nombre || 'documento').slice(0, 100)}»]\n${String(adj.texto).slice(0, 15000)}` : ''
+  const textoUsuario = textoGuardado || ((eventos.length ? `(En la app, desde tu último mensaje: ${eventos.join('; ')})\n\n${mensaje}` : mensaje) + textoAdjunto)
   const turnos: Turno[] = []
   const agregar = (rol: Turno['rol'], texto: string) => {
     if (!texto.trim()) return
@@ -137,7 +162,7 @@ export async function POST(request: Request) {
             if (a && acciones.length < 6) { acciones.push(a); enviar({ t: 'accion', accion: a }) }
           }
         }
-        const guardado = await prisma.mensaje.create({ data: { conversacionId, rol: 'AGENT', contenido: texto, completo: true, acciones: acciones.length ? (acciones as any) : undefined, modelo } })
+        const guardado = await prisma.mensaje.create({ data: { conversacionId, rol: 'AGENT', contenido: texto, completo: true, acciones: acciones.length ? (acciones as any) : undefined, modelo, respaldo } })
         await prisma.conversacion.update({ where: { id: conversacionId }, data: { updatedAt: new Date() } }).catch(() => {})
         enviar({ t: 'fin', mensajeId: guardado.id, modelo, respaldo })
       } catch (e: any) {

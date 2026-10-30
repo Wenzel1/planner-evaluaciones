@@ -10,7 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params
     const c = await prisma.conversacion.findFirst({ where: { id, usuarioId: actor.id }, select: { id: true, titulo: true } })
     if (!c) return NextResponse.json({ error: 'Conversación no encontrada.' }, { status: 404 })
-    const mensajes = await prisma.mensaje.findMany({ where: { conversacionId: id }, orderBy: { createdAt: 'asc' }, take: 200, select: { id: true, rol: true, contenido: true, acciones: true, modelo: true, createdAt: true } })
+    const mensajes = await prisma.mensaje.findMany({ where: { conversacionId: id }, orderBy: { createdAt: 'asc' }, take: 200, select: { id: true, rol: true, contenido: true, acciones: true, modelo: true, respaldo: true, valoracion: true, createdAt: true } })
     return NextResponse.json({ ...c, mensajes })
   } catch (e) {
     console.error(e)

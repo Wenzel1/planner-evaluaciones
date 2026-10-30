@@ -68,6 +68,70 @@ export const HERRAMIENTAS: Herramienta[] = [
     },
   },
   {
+    name: 'generar_preguntas',
+    description: 'Crea un banco de preguntas de examen con sus respuestas para una evaluación o tema.',
+    parameters: {
+      type: 'object',
+      properties: {
+        evaluacion: { type: 'integer', description: 'Número de la evaluación (opcional)' },
+        tema: { type: 'string', description: 'Tema de las preguntas' },
+        preguntas: {
+          type: 'array', description: 'Entre 3 y 25 preguntas',
+          items: {
+            type: 'object',
+            properties: {
+              tipo: { type: 'string', enum: ['seleccion', 'verdadero_falso', 'desarrollo', 'caso', 'practica'] },
+              enunciado: { type: 'string' },
+              opciones: { type: 'array', items: { type: 'string' }, description: 'Solo para selección (4 opciones, sin letras)' },
+              respuesta: { type: 'string', description: 'Respuesta correcta o lo que se espera' },
+              puntos: { type: 'number' },
+            },
+            required: ['tipo', 'enunciado', 'respuesta'],
+          },
+        },
+      },
+      required: ['tema', 'preguntas'],
+    },
+  },
+  {
+    name: 'copiar_plan',
+    description: 'Copia las evaluaciones de una sección a otra, corriendo las fechas unos días.',
+    parameters: {
+      type: 'object',
+      properties: {
+        desde: { type: 'string', description: 'Letra de la sección origen (ej. "A")' },
+        hacia: { type: 'string', description: 'Letra de la sección destino (ej. "B")' },
+        dias: { type: 'integer', description: 'Días que se corren las fechas (0 = mismas fechas, 7 = una semana después)' },
+        reemplazar: { type: 'boolean', description: 'true = borra lo que tenga la sección destino' },
+      },
+      required: ['desde', 'hacia', 'dias'],
+    },
+  },
+  {
+    name: 'mensaje_estudiantes',
+    description: 'Prepara un mensaje de WhatsApp para estudiantes de la sección activa (el profesor lo revisa antes de enviar).',
+    parameters: {
+      type: 'object',
+      properties: {
+        destinatarios: { type: 'string', enum: ['seccion', 'riesgo', 'nombres'], description: 'seccion = todos; riesgo = los que van mal; nombres = los indicados' },
+        nombres: { type: 'array', items: { type: 'string' }, description: 'Solo si destinatarios = nombres' },
+        texto: { type: 'string', description: 'Mensaje (usa {nombre} para personalizar)' },
+        incluirEnlace: { type: 'boolean', description: 'Agregar el enlace a su página personal' },
+      },
+      required: ['destinatarios', 'texto'],
+    },
+  },
+  {
+    name: 'cambiar_estado',
+    description: 'Marca una evaluación como realizada, cancelada o de vuelta a programada.',
+    parameters: { type: 'object', properties: { evaluacion: evaluacionRef, estado: { type: 'string', enum: ['REALIZADA', 'CANCELADA', 'PROGRAMADA'] } }, required: ['evaluacion', 'estado'] },
+  },
+  {
+    name: 'recordar_preferencia',
+    description: 'Guarda algo del profesor para recordarlo en futuras conversaciones.',
+    parameters: { type: 'object', properties: { texto: { type: 'string', description: 'Una preferencia corta, ej. "No evalúa los viernes"' } }, required: ['texto'] },
+  },
+  {
     name: 'generar_plan_accion',
     description: 'Genera el Plan de Acción en PDF de la sección activa con las evaluaciones marcadas.',
     parameters: { type: 'object', properties: {} },
@@ -133,6 +197,36 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
     }
     case 'generar_plan_accion':
       return { id, tipo: nombre, datos: {} }
+    case 'generar_preguntas': {
+      const tipos = ['seleccion', 'verdadero_falso', 'desarrollo', 'caso', 'practica']
+      const preguntas = (Array.isArray(a.preguntas) ? a.preguntas : []).slice(0, 30).map((q: any) => ({
+        tipo: tipos.includes(q?.tipo) ? q.tipo : 'desarrollo',
+        enunciado: texto(q?.enunciado, 800),
+        opciones: Array.isArray(q?.opciones) ? q.opciones.slice(0, 6).map((o: any) => texto(o, 300).replace(/^[a-fA-F][).]\s*/, '')).filter(Boolean) : [],
+        respuesta: texto(q?.respuesta, 800),
+        puntos: q?.puntos == null ? null : Math.max(0, Math.min(20, Math.round(Number(q.puntos) * 2) / 2) || 0),
+      })).filter((q: any) => q.enunciado)
+      return preguntas.length ? { id, tipo: nombre, datos: { evaluacion: ent(a.evaluacion, 1, 20), tema: texto(a.tema, 160), preguntas } } : null
+    }
+    case 'copiar_plan': {
+      const letra = (v: any) => (/^[A-Za-z]$/.test(String(v ?? '').trim()) ? String(v).trim().toUpperCase() : '')
+      const desde = letra(a.desde), hacia = letra(a.hacia)
+      return desde && hacia && desde !== hacia ? { id, tipo: nombre, datos: { desde, hacia, dias: ent(a.dias, -120, 120) ?? 0, reemplazar: a.reemplazar === true } } : null
+    }
+    case 'mensaje_estudiantes': {
+      const dest = ['seccion', 'riesgo', 'nombres'].includes(a.destinatarios) ? a.destinatarios : 'seccion'
+      const nombres = Array.isArray(a.nombres) ? a.nombres.slice(0, 40).map((n: any) => texto(n, 80)).filter(Boolean) : []
+      const msg = texto(a.texto, 1200)
+      return msg.length >= 5 ? { id, tipo: nombre, datos: { destinatarios: dest === 'nombres' && !nombres.length ? 'seccion' : dest, nombres, texto: msg, incluirEnlace: a.incluirEnlace !== false } } : null
+    }
+    case 'cambiar_estado': {
+      const n = ent(a.evaluacion, 1, 20); const e = String(a.estado ?? '').toUpperCase()
+      return n && ['REALIZADA', 'CANCELADA', 'PROGRAMADA'].includes(e) ? { id, tipo: nombre, datos: { evaluacion: n, estado: e } } : null
+    }
+    case 'recordar_preferencia': {
+      const t = texto(a.texto, 200)
+      return t.length >= 4 ? { id, tipo: nombre, datos: { texto: t } } : null
+    }
     default:
       return null
   }
@@ -147,6 +241,11 @@ export function resumenAccion(a: Accion): string {
     case 'reprogramar': return `[Propuse mover #${a.datos.evaluacion} al ${a.datos.fecha} ${a.datos.hora || ''}]`
     case 'ajustar_pesos': return `[Propuse pesos: ${a.datos.pesos.map((p: any) => `#${p.evaluacion}=${p.peso}%`).join(', ')}]`
     case 'generar_plan_accion': return '[Propuse generar el Plan de Acción en PDF]'
+    case 'generar_preguntas': return `[Generé ${a.datos.preguntas.length} preguntas sobre ${a.datos.tema}]`
+    case 'copiar_plan': return `[Propuse copiar el plan de la sección ${a.datos.desde} a la ${a.datos.hacia}${a.datos.dias ? ` corriendo ${a.datos.dias} días` : ''}]`
+    case 'mensaje_estudiantes': return `[Preparé un WhatsApp para ${a.datos.destinatarios === 'riesgo' ? 'los estudiantes en riesgo' : a.datos.destinatarios === 'nombres' ? a.datos.nombres.join(', ') : 'toda la sección'}: "${a.datos.texto.slice(0, 120)}"]`
+    case 'cambiar_estado': return `[Propuse marcar #${a.datos.evaluacion} como ${a.datos.estado.toLowerCase()}]`
+    case 'recordar_preferencia': return `[Propuse recordar: ${a.datos.texto}]`
     default: return ''
   }
 }

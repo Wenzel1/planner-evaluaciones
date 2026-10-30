@@ -12,7 +12,7 @@ import {
   BarChart3, ClipboardList, Sparkles,
   Layers, Activity, BookMarked,
   MessageSquareMore, CalendarDays, ChevronLeft,
-  ChevronRight, LogOut, Copy, RotateCcw, ExternalLink, Lock, LockOpen, History, Square,
+  ChevronRight, LogOut, Copy, RotateCcw, ExternalLink, Lock, LockOpen, History, Square, ThumbsUp, ThumbsDown, Printer,
   Maximize2, Minimize2, CornerDownLeft, FileText,
   Users, Paperclip, Menu, PanelLeft, PanelRight, Pencil,
   Settings, X, CheckCircle, AlertCircle, Info, Phone, User, Users as UsersIcon,
@@ -79,8 +79,9 @@ interface PlanificacionExamen {
 }
 // Acción que propone el agente (tarjeta con botón en el chat)
 interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada'; resultado?: string }
-const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción' };
-interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; acciones?: AccionChat[]; streaming?: boolean; modelo?: string; respaldo?: boolean; aviso?: string; error?: boolean }
+const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar' };
+const TIPO_PREGUNTA: Record<string, string> = { seleccion: 'Selección', verdadero_falso: 'V o F', desarrollo: 'Desarrollo', caso: 'Caso', practica: 'Práctica' };
+interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; acciones?: AccionChat[]; streaming?: boolean; modelo?: string; respaldo?: boolean; aviso?: string; error?: boolean; dbId?: string; valoracion?: number; adjunto?: string }
 interface PropuestaEvaluacion {
   evaluaciones: Array<{
     tipo?: string; materia: string; tipoActividad?: string; enfoque?: string;
@@ -1742,6 +1743,75 @@ function PapeleraPanel({ usuario }: { usuario?: UsuarioSesion | null }) {
 // ============================================
 // CONFIGURACIÓN DEL SISTEMA (solo SUPERADMIN): chat, modelo de lenguaje, límites del planificador y acceso
 // ============================================
+// Uso del agente (solo superadmin): respuestas por día, modelos, respaldos y valoraciones
+function PanelUsoAgente() {
+  const [datos, setDatos] = useState<any>(null);
+  const [dias, setDias] = useState(14);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let vivo = true; setError('');
+    fetch(`/api/chat/uso?dias=${dias}`).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo cargar.'); return d; })
+      .then(d => { if (vivo) setDatos(d); }).catch(e => { if (vivo) setError(e.message); });
+    return () => { vivo = false; };
+  }, [dias]);
+  const tarjeta = 'bg-[#1f2035] border border-[#313248] rounded-2xl p-5';
+  if (error) return <div className={tarjeta}><p className="text-xs text-red-300">Uso del agente: {error}</p></div>;
+  if (!datos) return <div className={tarjeta}><p className="text-xs text-[#8a8b9e]">Cargando uso del agente…</p></div>;
+  const serie = Object.entries(datos.porDia as Record<string, number>);
+  const max = Math.max(1, ...serie.map(([, n]) => n));
+  const modelos = Object.entries(datos.porModelo as Record<string, number>).sort((a, b) => b[1] - a[1]);
+  const valoradas = datos.positivas + datos.negativas;
+  return (
+    <div className={tarjeta}>
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#a5b4fc]" />Uso del agente</h3>
+        <div className="ml-auto flex gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
+          {[7, 14, 30].map(d => <button key={d} type="button" onClick={() => setDias(d)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${dias === d ? 'bg-[#818cf8] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{d} días</button>)}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        {[
+          ['Respuestas', datos.respuestas, ''],
+          ['Profesores que lo usaron', datos.usuarios, ''],
+          ['Con modelo de respaldo', datos.respaldos, datos.respuestas ? `${Math.round((datos.respaldos / datos.respuestas) * 100)}%` : ''],
+          ['Valoración', valoradas ? `${Math.round((datos.positivas / valoradas) * 100)}% 👍` : '—', valoradas ? `${datos.positivas} 👍 · ${datos.negativas} 👎` : 'sin votos'],
+        ].map(([t, v, sub]) => (
+          <div key={String(t)} className="bg-[#191a26] border border-[#282a3f] rounded-xl p-3">
+            <p className="text-[11px] text-[#8a8b9e]">{t}</p>
+            <p className="text-xl font-bold text-[#e0e0ec] mt-1">{v}</p>
+            {sub && <p className="text-[10px] text-[#6a6b7e] mt-0.5">{sub}</p>}
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-[#8a8b9e] mb-2">Respuestas por día</p>
+      <div className="flex items-end gap-1 h-28">
+        {serie.map(([dia, n]) => (
+          <div key={dia} className="flex-1 flex flex-col items-center justify-end h-full group" title={`${dia}: ${n} respuesta(s)`}>
+            <span className="text-[9px] text-[#8a8b9e] opacity-0 group-hover:opacity-100">{n}</span>
+            <div className="w-full rounded-t bg-[#818cf8]/70 group-hover:bg-[#818cf8] transition-colors" style={{ height: `${Math.max(n ? 6 : 2, (n / max) * 100)}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-[10px] text-[#6a6b7e] mt-1"><span>{serie[0]?.[0]}</span><span>{serie[serie.length - 1]?.[0]}</span></div>
+      {modelos.length > 0 && (
+        <div className="mt-5">
+          <p className="text-[11px] text-[#8a8b9e] mb-2">Qué modelo respondió</p>
+          <div className="space-y-1.5">
+            {modelos.map(([m, n]) => (
+              <div key={m} className="flex items-center gap-3 text-xs">
+                <span className="w-44 truncate text-[#c0c0d0]">{m}</span>
+                <div className="flex-1 h-2 rounded-full bg-[#272839] overflow-hidden"><div className="h-full bg-[#818cf8]" style={{ width: `${(n / datos.respuestas) * 100}%` }} /></div>
+                <span className="w-10 text-right text-[#8a8b9e]">{n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {datos.incompletas > 0 && <p className="text-[11px] text-amber-300 mt-3">{datos.incompletas} respuesta(s) se cortaron (error o el profesor la detuvo).</p>}
+    </div>
+  );
+}
+
 function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => void }) {
   const [cfg, setCfg] = useState<ConfigCompleta | null>(null);
   const [original, setOriginal] = useState('');
@@ -1806,6 +1876,8 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
         <h2 className="text-lg font-semibold text-[#e0e0ec] flex items-center gap-2"><Settings className="w-5 h-5 text-[#818cf8]" />Configuración del sistema</h2>
         <p className="text-xs text-[#8a8b9e] mt-0.5">Solo el superadmin ve esta pantalla. {meta.por ? `Última modificación: ${meta.por}${meta.en ? `, ${new Date(meta.en).toLocaleString()}` : ''}.` : 'Todavía no se ha modificado: se usan los valores por defecto.'}</p>
       </div>
+
+      <PanelUsoAgente />
 
       {/* ---------- CHAT ---------- */}
       <div className={tarjeta}>
@@ -4503,6 +4575,10 @@ function AgentePanel({ planificacionId = null, seccionActiva = 'A', expandido, s
   const [verHistorial, setVerHistorial] = useState(false);
   const [conversaciones, setConversaciones] = useState<{ id: string; titulo: string; fecha: string; mensajes: number }[] | null>(null);
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
+  const [adjunto, setAdjunto] = useState<{ nombre: string; texto: string; recortado?: boolean } | null>(null); // documento para el próximo mensaje
+  const [subiendoAdjunto, setSubiendoAdjunto] = useState(false);
+  const [leyendoId, setLeyendoId] = useState<string | null>(null);
+  const [memorias, setMemorias] = useState<{ id: string; texto: string }[] | null>(null);
   const hayPropuestaRef = useRef(false);
   useEffect(() => { hayPropuestaRef.current = !!propuestaPendienteLocal; }, [propuestaPendienteLocal]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -4743,6 +4819,44 @@ if (sonCuatro && generarPDF) {
           resultado = 'Plan de acción generado (lo ves en el Planificador)';
           break;
         }
+        case 'copiar_plan': {
+          const { desde, hacia, dias, reemplazar } = a.datos;
+          const origen = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A').toUpperCase() === desde);
+          if (!origen.length) throw new Error(`La Sección ${desde} no tiene evaluaciones.`);
+          const enDestino = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A').toUpperCase() === hacia);
+          if (reemplazar && enDestino.length && !window.confirm(`Se borrarán las ${enDestino.length} evaluación(es) de la Sección ${hacia} y se pondrán las copias. ¿Continuar?`)) throw new Error('Cancelado.');
+          const base = Date.now();
+          const copias: SeccionExamen[] = origen.map((s: SeccionExamen, i: number) => {
+            const { estado: _e, preparados: _p, ...resto } = s;
+            return { ...resto, id: `copia${hacia}-${base}-${i}`, grupoSeccion: hacia, fecha: s.fecha ? new Date(new Date(s.fecha).getTime() + (Number(dias) || 0) * 86400000) : undefined };
+          });
+          setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: [...(reemplazar ? prev.secciones.filter(s => (s.grupoSeccion || 'A').toUpperCase() !== hacia) : prev.secciones), ...copias].map((s, idx) => ({ ...s, orden: idx })) }));
+          resultado = `${copias.length} evaluación(es) copiadas de la Sección ${desde} a la ${hacia}${dias ? ` (${dias > 0 ? '+' : ''}${dias} días)` : ''}`;
+          break;
+        }
+        case 'cambiar_estado': {
+          const s = ev(a.datos.evaluacion);
+          const r = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: a.datos.estado }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.error || 'No se pudo cambiar el estado.');
+          cambiar(s.id, { estado: d.estado || a.datos.estado, ...(d.fecha ? { fecha: new Date(d.fecha) } : {}) });
+          resultado = `«${limpiarTexto(s.nombre)}» marcada como ${String(a.datos.estado).toLowerCase()}`;
+          break;
+        }
+        case 'mensaje_estudiantes': {
+          const r = await fetch('/api/whatsapp/mensaje', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...a.datos, seccion: seccionActiva, planificacionId }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.error || 'No se pudo enviar.');
+          resultado = `Enviando por WhatsApp a ${d.total} estudiante(s)${d.sinTelefono?.length ? ` (${d.sinTelefono.length} sin teléfono)` : ''}`;
+          break;
+        }
+        case 'recordar_preferencia': {
+          const r = await fetch('/api/chat/memoria', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: a.datos.texto }) });
+          if (!r.ok) throw new Error('No se pudo guardar.');
+          setMemorias(null);
+          resultado = 'Lo recordaré en las próximas conversaciones';
+          break;
+        }
         default: throw new Error('Acción desconocida.');
       }
       marcarAccion(msgId, a.id, { estado: 'hecha', resultado });
@@ -4761,13 +4875,15 @@ if (sonCuatro && generarPDF) {
   // Confirmaciones escritas ("sí", "guárdalo", "dale"): solo si el mensaje es corto, para no confundir "sí, pero cambia la 2"
   const esConfirmacionCorta = (msg: string) => msg.trim().split(/\s+/).length <= 3 && esConfirmacionGuardado(msg) && !esNegacion(msg);
 
-  const handleSend = async (overrideMsg?: string, opciones: { regenerar?: boolean } = {}) => {
-    const msg = (overrideMsg ?? mensaje).trim();
-    if (!msg || pensando || escribiendo) return;
-    if (!opciones.regenerar) setHistorial(prev => [...prev, { rol: 'user', contenido: msg, completo: true, id: `user-${Date.now()}` }]);
+  const handleSend = async (overrideMsg?: string, opciones: { regenerar?: boolean; modo?: 'revision' } = {}) => {
+    const adj = opciones.regenerar ? null : adjunto;
+    const msg = ((overrideMsg ?? mensaje).trim() || (adj ? `Revisa el documento «${adj.nombre}» y dime cómo lo usarías para planificar las evaluaciones.` : '')).trim();
+    if (!msg || pensando || escribiendo || subiendoAdjunto) return;
+    if (!opciones.regenerar) setHistorial(prev => [...prev, { rol: 'user', contenido: msg, completo: true, id: `user-${Date.now()}`, adjunto: adj?.nombre }]);
+    if (adj) setAdjunto(null);
     setMensaje('');
     scrollToBottom(true);
-    if (!opciones.regenerar) {
+    if (!opciones.regenerar && !opciones.modo) {
       if (manejarComandoEliminacion(msg)) return;
       if (propuestaPendienteLocal && esNegacion(msg) && msg.split(/\s+/).length <= 4) {
         setHistorial(prev => prev.map(m => ({ ...m, acciones: m.acciones?.map(a => (a.tipo === 'proponer_evaluaciones' && (a.estado ?? 'pendiente') === 'pendiente' ? { ...a, estado: 'descartada' as const } : a)) })));
@@ -4797,7 +4913,7 @@ if (sonCuatro && generarPDF) {
     try {
       const r = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
-        body: JSON.stringify({ mensaje: msg, conversacionId, planificacionId, contexto: armarContexto(), eventos: eventosRef.current, regenerar: !!opciones.regenerar }),
+        body: JSON.stringify({ mensaje: msg, conversacionId, planificacionId, contexto: armarContexto(), eventos: eventosRef.current, regenerar: !!opciones.regenerar, modo: opciones.modo, adjunto: adj ? { nombre: adj.nombre, texto: adj.texto } : undefined }),
       });
       if (!r.ok || !r.body) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'El agente no pudo responder.'); }
       eventosRef.current = [];
@@ -4814,7 +4930,7 @@ if (sonCuatro && generarPDF) {
           scrollToBottom();
         }
         else if (ev.t === 'aviso') { asegurarMensaje(); actualizar(m => ({ ...m, aviso: ev.v })); }
-        else if (ev.t === 'fin') { asegurarMensaje(); actualizar(m => ({ ...m, completo: true, streaming: false })); }
+        else if (ev.t === 'fin') { asegurarMensaje(); actualizar(m => ({ ...m, completo: true, streaming: false, dbId: ev.mensajeId })); }
         else if (ev.t === 'error') throw new Error(ev.mensaje || 'El agente no pudo responder.');
       };
       while (true) {
@@ -4837,6 +4953,50 @@ if (sonCuatro && generarPDF) {
     }
   };
   const detener = () => abortRef.current?.abort('usuario');
+  const revisarPlan = () => handleSend(`Revisa mi plan de la Sección ${seccionActiva} y ponle nota`, { modo: 'revision' });
+  const valorar = (m: Mensaje, v: 1 | -1) => {
+    const nuevo = m.valoracion === v ? 0 : v;
+    setHistorial(prev => prev.map(x => (x.id === m.id ? { ...x, valoracion: nuevo || undefined } : x)));
+    if (m.dbId) fetch(`/api/chat/mensajes/${encodeURIComponent(m.dbId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ valoracion: nuevo }) }).catch(() => {});
+  };
+  // Leer en voz alta con la voz del navegador (en español)
+  useEffect(() => () => { try { window.speechSynthesis?.cancel(); } catch { /* sin voz */ } }, []);
+  const leerEnVoz = (m: Mensaje) => {
+    const sy = typeof window !== 'undefined' ? window.speechSynthesis : null;
+    if (!sy) { agregarNotificacion?.('⚠️ Tu navegador no puede leer en voz alta.'); return; }
+    if (leyendoId === m.id) { sy.cancel(); setLeyendoId(null); return; }
+    sy.cancel();
+    const texto = m.contenido.replace(/[#*_`>|]/g, '').replace(/\p{Extended_Pictographic}/gu, '').replace(/^\s*-\s+/gm, '').replace(/\n{2,}/g, '. ').replace(/\n/g, ', ');
+    const u = new SpeechSynthesisUtterance(texto);
+    const voces = sy.getVoices();
+    const voz = voces.find(v => /es[-_](VE|419|MX|US|CO|AR)/i.test(v.lang)) || voces.find(v => /^es/i.test(v.lang));
+    if (voz) u.voice = voz;
+    u.lang = voz?.lang || 'es-ES'; u.rate = 1.05;
+    u.onend = () => setLeyendoId(id => (id === m.id ? null : id)); u.onerror = u.onend;
+    setLeyendoId(m.id); sy.speak(u);
+  };
+  const cargarMemorias = async () => { try { const r = await fetch('/api/chat/memoria'); setMemorias(r.ok ? await r.json() : []); } catch { setMemorias([]); } };
+  const olvidarMemoria = async (id: string) => { setMemorias(prev => (prev || []).filter(m => m.id !== id)); await fetch(`/api/chat/memoria?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {}); };
+  // Preguntas generadas: imprimir (o guardar como PDF), copiar o descargar
+  const textoPreguntas = (a: AccionChat, conRespuestas: boolean) => {
+    const letras = 'abcdef';
+    return `${a.datos.tema}\n\n` + (a.datos.preguntas || []).map((q: any, i: number) => `${i + 1}. [${TIPO_PREGUNTA[q.tipo] || q.tipo}${q.puntos ? ` · ${q.puntos} pts` : ''}] ${q.enunciado}` + (q.opciones?.length ? '\n' + q.opciones.map((o: string, k: number) => `   ${letras[k]}) ${o}`).join('\n') : '') + (conRespuestas ? `\n   ✔ ${q.respuesta}` : '')).join('\n\n');
+  };
+  const imprimirPreguntas = (a: AccionChat) => {
+    const esc = (t: string) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const letras = 'abcdef';
+    const items = (conResp: boolean) => (a.datos.preguntas || []).map((q: any, i: number) => `<li><p><b>${esc(q.enunciado)}</b> <small>(${esc(TIPO_PREGUNTA[q.tipo] || q.tipo)}${q.puntos ? ` · ${q.puntos} pts` : ''})</small></p>${q.opciones?.length ? `<ol type="a">${q.opciones.map((o: string) => `<li>${esc(o)}</li>`).join('')}</ol>` : conResp ? '' : '<div class="linea"></div><div class="linea"></div>'}${conResp ? `<p class="resp">✔ ${esc(q.respuesta)}</p>` : ''}</li>`).join('');
+    const w = window.open('', '_blank');
+    if (!w) { agregarNotificacion?.('⚠️ El navegador bloqueó la ventana. Permite ventanas emergentes.'); return; }
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(a.datos.tema)}</title><style>body{font-family:system-ui,sans-serif;max-width:760px;margin:32px auto;padding:0 20px;color:#1e293b}h1{color:#1e3a8a;font-size:22px}h2{margin-top:40px;color:#1e3a8a;font-size:18px;page-break-before:always}li{margin:0 0 14px}small{color:#64748b}.linea{border-bottom:1px solid #cbd5e1;height:26px}.resp{color:#047857}.cab{display:flex;gap:24px;color:#475569;font-size:13px;margin-bottom:20px}</style></head><body><h1>${esc(a.datos.tema)}</h1><div class="cab"><span>${esc(planificacion.materia || '')}</span><span>Sección ${esc(seccionActiva)}</span><span>Nombre: ________________________</span></div><ol>${items(false)}</ol><h2>Hoja de respuestas (profesor)</h2><ol>${items(true)}</ol><script>setTimeout(()=>print(),300)<\/script></body></html>`);
+    w.document.close();
+  };
+  const descargarPreguntas = (a: AccionChat) => {
+    const blob = new Blob(['\uFEFF' + textoPreguntas(a, true)], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob); const link = document.createElement('a');
+    link.href = url; link.download = `preguntas_${String(a.datos.tema || 'examen').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_').slice(0, 40)}.txt`;
+    document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
   const regenerar = () => {
     const ultimoUsuario = [...historial].reverse().find(m => m.rol === 'user');
     if (!ultimoUsuario || pensando || escribiendo) return;
@@ -4849,6 +5009,7 @@ if (sonCuatro && generarPDF) {
 
   // --- Conversaciones guardadas ---
   const cargarConversaciones = async () => {
+    cargarMemorias();
     try { const r = await fetch(`/api/chat/conversaciones${planificacionId ? `?planificacionId=${encodeURIComponent(planificacionId)}` : ''}`); setConversaciones(r.ok ? await r.json() : []); } catch { setConversaciones([]); }
   };
   const abrirConversacion = async (id: string) => {
@@ -4858,7 +5019,9 @@ if (sonCuatro && generarPDF) {
       setConversacionId(id); setPropuestaPendienteLocal(null); eventosRef.current = []; setVerHistorial(false);
       setHistorial((d.mensajes || []).map((m: any) => ({
         id: m.id, rol: m.rol === 'USER' ? 'user' : 'agent', completo: true, modelo: m.modelo || undefined,
-        contenido: m.rol === 'USER' ? String(m.contenido).replace(/^\(En la app, desde tu último mensaje:[\s\S]*?\)\n\n/, '') : m.contenido,
+        contenido: m.rol === 'USER' ? String(m.contenido).replace(/^\(En la app, desde tu último mensaje:[\s\S]*?\)\n\n/, '').replace(/\n\n\[Documento adjunto «[^»]*»\][\s\S]*$/, '') : m.contenido,
+        adjunto: m.rol === 'USER' ? (String(m.contenido).match(/\[Documento adjunto «([^»]*)»\]/)?.[1] || undefined) : undefined,
+        dbId: m.rol === 'AGENT' ? m.id : undefined, valoracion: m.valoracion ?? undefined, respaldo: !!m.respaldo,
         acciones: Array.isArray(m.acciones) ? m.acciones.map((a: any) => ({ ...a, estado: 'pendiente' })) : undefined,
       })));
       setTimeout(() => scrollToBottom(true), 50);
@@ -4878,13 +5041,14 @@ if (sonCuatro && generarPDF) {
   // --- Sugerencias rápidas según lo que pasa en el plan ---
   const sugerencias = (() => {
     const evs = evaluacionesActivas();
-    const s: { texto: string; icono: any }[] = [];
+    const s: { texto: string; icono: any; accion?: () => void }[] = [];
     if (evs.length === 0) {
       s.push({ texto: 'Crea un plan completo de 4 evaluaciones', icono: Sparkles });
       s.push({ texto: 'Propón una evaluación práctica en grupos', icono: Users });
       s.push({ texto: '¿Qué estrategias de evaluación me recomiendas?', icono: Lightbulb });
       return s;
     }
+    s.push({ texto: 'Revisa mi plan y ponle nota', icono: ClipboardCheck, accion: revisarPlan });
     const suma = evs.reduce((t, e) => t + (Number(e.peso) || 0), 0);
     if (suma !== 100) s.push({ texto: `Ajusta los pesos para que sumen 100% (ahora ${suma}%)`, icono: Scale });
     const fechas = evs.filter(e => e.fecha).map(e => new Date(e.fecha as any).toDateString());
@@ -4892,9 +5056,10 @@ if (sonCuatro && generarPDF) {
     const futuras = evs.filter(e => e.fecha && new Date(e.fecha as any).getTime() > Date.now() && String(e.estado || '').toUpperCase() !== 'CANCELADA');
     if (futuras.some(e => !e.rubrica?.criterios?.length)) s.push({ texto: 'Crea las rúbricas que faltan', icono: ClipboardCheck });
     if (futuras.some(e => !e.recursos?.length)) s.push({ texto: 'Busca recursos para la próxima evaluación', icono: Search });
-    s.push({ texto: `¿Cómo va la Sección ${seccionActiva}?`, icono: BarChart3 });
+    if (evs.some(e => String(e.estado || '').toUpperCase() === 'REALIZADA')) s.push({ texto: `¿Cómo va la Sección ${seccionActiva}? ¿Quién está en riesgo?`, icono: BarChart3 });
+    s.push({ texto: 'Hazme 10 preguntas de examen para la próxima evaluación', icono: FileText });
     s.push({ texto: 'Genera el plan de acción', icono: FileText });
-    return s.slice(0, 4);
+    return s.slice(0, 5);
   })();
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
@@ -4920,16 +5085,28 @@ if (sonCuatro && generarPDF) {
   const estadoTexto = chatInactivo ? 'Desactivado' : pensando ? 'Pensando…' : escribiendo ? 'Escribiendo…' : isRecording ? 'Escuchando…' : transcribiendo ? 'Transcribiendo…' : 'En línea';
   const limiteCaracteres: number = config?.chat?.maxCaracteresMensaje ?? 2000;
 
+  // Documento adjunto (PDF, Word, .txt, .md, .csv): se lee y se manda con el próximo mensaje
   const adjuntarArchivo = async (archivo?: File) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!archivo) return;
-    if (!/\.(txt|csv|md)$/i.test(archivo.name)) { setHistorial(prev => [...prev, { rol: 'agent', contenido: '📎 Por ahora solo puedo leer archivos de texto (.txt, .csv o .md).', completo: true, id: `agent-${Date.now()}` }]); return; }
+    const ext = (archivo.name.match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();
+    if (!['pdf', 'docx', 'txt', 'md', 'csv'].includes(ext)) { agregarNotificacion?.('📎 Puedo leer PDF, Word (.docx), .txt, .md o .csv.'); return; }
+    if (archivo.size > 10 * 1024 * 1024) { agregarNotificacion?.('📎 El archivo pesa más de 10 MB.'); return; }
+    setSubiendoAdjunto(true);
     try {
-      const texto = (await archivo.text()).trim();
-      if (!texto) return;
-      setMensaje(prev => (prev ? prev + '\n\n' : '') + `Contenido de «${archivo.name}»:\n` + texto.slice(0, limiteCaracteres));
+      if (['txt', 'md', 'csv'].includes(ext)) {
+        const texto = (await archivo.text()).trim();
+        if (!texto) throw new Error('El archivo está vacío.');
+        setAdjunto({ nombre: archivo.name, texto: texto.slice(0, 15000), recortado: texto.length > 15000 });
+      } else {
+        const fd = new FormData(); fd.append('file', archivo, archivo.name);
+        const r = await fetch('/api/chat/archivo', { method: 'POST', body: fd });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'No se pudo leer el archivo.');
+        setAdjunto({ nombre: d.nombre, texto: d.texto, recortado: d.recortado });
+      }
       textareaRef.current?.focus();
-    } catch { setHistorial(prev => [...prev, { rol: 'agent', contenido: '📎 No se pudo leer el archivo.', completo: true, id: `agent-${Date.now()}` }]); }
+    } catch (e: any) { agregarNotificacion?.(`📎 ${e?.message || 'No se pudo leer el archivo.'}`); } finally { setSubiendoAdjunto(false); }
   };
 
   // --- Tarjeta de una acción propuesta por el agente ---
@@ -4987,12 +5164,65 @@ if (sonCuatro && generarPDF) {
         </div>
       );
     }
+    if (a.tipo === 'generar_preguntas') {
+      const preguntas: any[] = a.datos?.preguntas || [];
+      const ver = !!a.datos?.verRespuestas;
+      const total = preguntas.reduce((t, q) => t + (Number(q.puntos) || 0), 0);
+      return (
+        <div key={a.id} className="mt-3 rounded-2xl border border-[#818cf8]/30 bg-[#1d1e33] overflow-hidden">
+          <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
+            <FileText className="w-4 h-4 text-[#a5b4fc]" />
+            <span className="text-sm font-semibold text-[#e0e0ec]">{preguntas.length} preguntas · {a.datos?.tema}</span>
+            {total > 0 && <span className="text-[11px] text-[#8a8b9e]">{textoPuntos(total)} pts</span>}
+            <button type="button" onClick={() => marcarAccion(msg.id, a.id, { datos: { ...a.datos, verRespuestas: !ver } })} className="ml-auto text-[11px] text-[#a5b4fc] hover:text-white">{ver ? 'Ocultar respuestas' : 'Ver respuestas'}</button>
+          </div>
+          <ol className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[#2a2b3d] border-t border-[#2a2b3d]">
+            {preguntas.map((q, i) => (
+              <li key={i} className="px-3.5 py-2.5 text-[13px] text-[#d0d0da]">
+                <div className="flex gap-2"><span className="text-[#6a6b7e] w-5 flex-shrink-0">{i + 1}.</span><span className="flex-1">{q.enunciado}</span><span className="text-[10px] text-[#8a8b9e] whitespace-nowrap">{TIPO_PREGUNTA[q.tipo] || q.tipo}{q.puntos ? ` · ${textoPuntos(q.puntos)}` : ''}</span></div>
+                {q.opciones?.length > 0 && <ul className="mt-1 ml-7 space-y-0.5 text-[12px] text-[#a8a9bc]">{q.opciones.map((o: string, k: number) => <li key={k}>{'abcdef'[k]}) {o}</li>)}</ul>}
+                {ver && <p className="mt-1 ml-7 text-[12px] text-emerald-300">✔ {q.respuesta}</p>}
+              </li>
+            ))}
+          </ol>
+          <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 border-t border-[#2a2b3d] bg-[#191a26]/60">
+            <button type="button" onClick={() => imprimirPreguntas(a)} className="h-8 px-3.5 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" />Imprimir o guardar PDF</button>
+            <button type="button" onClick={() => copiar(textoPreguntas(a, true), a.id)} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white flex items-center gap-1.5">{copiadoId === a.id ? <CheckCircle className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}Copiar</button>
+            <button type="button" onClick={() => descargarPreguntas(a)} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />.txt</button>
+          </div>
+        </div>
+      );
+    }
+    if (a.tipo === 'mensaje_estudiantes') {
+      const dest = a.datos?.destinatarios === 'riesgo' ? 'Estudiantes en riesgo' : a.datos?.destinatarios === 'nombres' ? (a.datos?.nombres || []).join(', ') : `Toda la Sección ${seccionActiva}`;
+      return (
+        <div key={a.id} className={marco}>
+          <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
+            <MessageCircle className="w-4 h-4 text-emerald-300" />
+            <span className="text-sm font-semibold text-[#e0e0ec]">WhatsApp para estudiantes</span>
+            <span className="text-[11px] text-[#8a8b9e] truncate">Para: {dest}</span>
+          </div>
+          <div className="px-3.5 pb-3 space-y-2">
+            <textarea value={a.datos?.texto || ''} disabled={hecha || descartada || trabajando} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, texto: e.target.value.slice(0, 1200) } })} rows={4} className="w-full bg-[#191a26] border border-[#313248] rounded-xl px-3 py-2 text-[13px] text-[#e0e0ec] outline-none focus:border-[#818cf8]/60 resize-y disabled:opacity-70" />
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[#8a8b9e]">
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={a.datos?.incluirEnlace !== false} disabled={hecha || descartada} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, incluirEnlace: e.target.checked } })} className="w-3.5 h-3.5 accent-[#818cf8]" />Agregar el enlace a su página</label>
+              <span>{'{nombre}'} se cambia por el de cada uno</span>
+            </div>
+          </div>
+          {botones('Enviar por WhatsApp')}
+          {pie}
+        </div>
+      );
+    }
     const info: Record<string, { icono: any; titulo: string; detalle: string; boton: string }> = {
       crear_rubrica: { icono: ClipboardCheck, titulo: 'Crear rúbrica', detalle: `Rúbrica sugerida de 20 puntos para ${nombreEv(a.datos?.evaluacion)}`, boton: 'Crear rúbrica' },
       buscar_recursos: { icono: Search, titulo: 'Buscar recursos', detalle: `Videos de YouTube y páginas comprobadas para ${nombreEv(a.datos?.evaluacion)}`, boton: 'Buscar y agregar' },
       reprogramar: { icono: CalendarDays, titulo: 'Cambiar fecha', detalle: `${nombreEv(a.datos?.evaluacion)} → ${a.datos?.fecha ? new Date(`${a.datos.fecha}T${a.datos.hora || '08:00'}:00`).toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'short', ...(a.datos.hora ? { hour: 'numeric', minute: '2-digit' } : {}) }) : ''}${a.datos?.motivo ? ` · ${a.datos.motivo}` : ''}`, boton: 'Mover' },
       ajustar_pesos: { icono: Scale, titulo: 'Ajustar pesos', detalle: (a.datos?.pesos || []).map((p: any) => hecha ? `${nombreEv(p.evaluacion)}: ${p.peso}%` : `${nombreEv(p.evaluacion)}: ${evs[p.evaluacion - 1]?.peso ?? '–'}% → ${p.peso}%`).join(' · '), boton: 'Aplicar pesos' },
       generar_plan_accion: { icono: FileText, titulo: 'Plan de acción', detalle: `Generar el PDF de la Sección ${seccionActiva}`, boton: 'Generar PDF' },
+      copiar_plan: { icono: Copy, titulo: 'Copiar plan entre secciones', detalle: `Sección ${a.datos?.desde} → Sección ${a.datos?.hacia}${a.datos?.dias ? ` · fechas ${a.datos.dias > 0 ? '+' : ''}${a.datos.dias} días` : ' · mismas fechas'}${a.datos?.reemplazar ? ' · reemplaza lo que tenga' : ''}`, boton: 'Copiar' },
+      cambiar_estado: { icono: CheckCircle, titulo: 'Cambiar estado', detalle: `${nombreEv(a.datos?.evaluacion)} → ${String(a.datos?.estado || '').toLowerCase()}`, boton: 'Confirmar' },
+      recordar_preferencia: { icono: Brain, titulo: 'Recordar para la próxima', detalle: a.datos?.texto || '', boton: 'Recordar' },
     };
     const d = info[a.tipo];
     if (!d) return null;
@@ -5022,6 +5252,7 @@ if (sonCuatro && generarPDF) {
         </div>
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
           <div className="flex items-center gap-0.5 p-1 bg-[#161722]/80 border border-[#282a3f] rounded-xl">
+            <Tooltip text="Revisar mi plan (nota y mejoras)" lado="abajo"><button onClick={revisarPlan} disabled={ocupado || chatInactivo || evaluacionesActivas().length === 0} aria-label="Revisar mi plan" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-transparent"><ClipboardCheck className="w-4 h-4" /></button></Tooltip>
             <Tooltip text="Nueva conversación" lado="abajo"><button onClick={nuevaConversacion} aria-label="Nueva conversación" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button></Tooltip>
             <Tooltip text="Conversaciones anteriores" lado="abajo"><button onClick={() => { const abrir = !verHistorial; setVerHistorial(abrir); if (abrir) cargarConversaciones(); }} aria-label="Conversaciones anteriores" className={`p-2 rounded-lg transition-colors ${verHistorial ? 'text-[#c7d2fe] bg-[#818cf8]/15' : 'text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15'}`}><History className="w-4 h-4" /></button></Tooltip>
             {esSuperadmin && (<Tooltip text="Configuración del agente" lado="abajo"><button onClick={() => irAPanel('sistema')} aria-label="Configuración del agente" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Settings className="w-4 h-4" /></button></Tooltip>)}
@@ -5034,6 +5265,17 @@ if (sonCuatro && generarPDF) {
           {verHistorial && (
             <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="absolute right-3 top-full mt-2 z-30 w-[320px] max-w-[calc(100%-24px)] max-h-[60vh] overflow-y-auto custom-scrollbar bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl p-2">
               <button type="button" onClick={nuevaConversacion} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-[#c7d2fe] hover:bg-[#818cf8]/10"><Plus className="w-4 h-4" />Nueva conversación</button>
+              {memorias && memorias.length > 0 && (
+                <div className="mb-1">
+                  <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[#6a6b7e] font-semibold flex items-center gap-1.5"><Brain className="w-3 h-3" />Lo que recuerdo de ti</p>
+                  {memorias.map(m => (
+                    <div key={m.id} className="group flex items-start gap-2 px-3 py-1.5 rounded-lg hover:bg-[#232438]">
+                      <span className="flex-1 text-[12px] text-[#b0b0c4]">{m.texto}</span>
+                      <button type="button" onClick={() => olvidarMemoria(m.id)} className="p-0.5 text-[#6a6b7e] hover:text-red-300 opacity-0 group-hover:opacity-100" aria-label="Olvidar"><X className="w-3 h-3" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[#6a6b7e] font-semibold">Anteriores</p>
               {conversaciones === null && <p className="px-3 py-4 text-xs text-[#8a8b9e]">Cargando…</p>}
               {conversaciones?.length === 0 && <p className="px-3 py-4 text-xs text-[#8a8b9e]">Todavía no hay conversaciones guardadas.</p>}
@@ -5058,7 +5300,7 @@ if (sonCuatro && generarPDF) {
             <p className="text-sm text-[#8a8b9e] font-['Inter'] mb-5">Veo tu plan de la Sección {seccionActiva}: puedo crear evaluaciones, rúbricas, buscar recursos, mover fechas o revisar cómo va el grupo.</p>
             <div className="grid gap-2 w-full">
               {sugerencias.map((s, i) => { const I = s.icono; return (
-                <button key={i} type="button" disabled={chatInactivo} onClick={() => handleSend(s.texto)} className="flex items-center gap-3 text-left px-4 py-3 rounded-xl bg-[#1f2035] border border-[#313248] hover:border-[#818cf8]/50 hover:bg-[#232438] text-sm text-[#d0d0da] transition-colors disabled:opacity-50">
+                <button key={i} type="button" disabled={chatInactivo} onClick={() => (s.accion ? s.accion() : handleSend(s.texto))} className="flex items-center gap-3 text-left px-4 py-3 rounded-xl bg-[#1f2035] border border-[#313248] hover:border-[#818cf8]/50 hover:bg-[#232438] text-sm text-[#d0d0da] transition-colors disabled:opacity-50">
                   <I className="w-4 h-4 text-[#a5b4fc] flex-shrink-0" />{s.texto}
                 </button>
               ); })}
@@ -5078,16 +5320,19 @@ if (sonCuatro && generarPDF) {
                     {msg.acciones?.map(a => renderAccion(msg, a))}
                     {msg.aviso && <p className="mt-2 text-[11px] text-amber-300">{msg.aviso}</p>}
                     {msg.completo && !msg.error && (
-                      <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                      <div className={`mt-1.5 flex items-center gap-1 transition-opacity ${msg.id === ultimoAgenteId || msg.valoracion || leyendoId === msg.id ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}>
                         {msg.contenido && <Tooltip text={copiadoId === msg.id ? '¡Copiado!' : 'Copiar'}><button type="button" onClick={() => copiar(msg.contenido, msg.id)} className="p-1.5 rounded-md text-[#6a6b7e] hover:text-[#c7d2fe] hover:bg-[#232438]">{copiadoId === msg.id ? <CheckCircle className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}</button></Tooltip>}
                         {msg.id === ultimoAgenteId && <Tooltip text="Responder de nuevo"><button type="button" onClick={regenerar} disabled={ocupado} className="p-1.5 rounded-md text-[#6a6b7e] hover:text-[#c7d2fe] hover:bg-[#232438] disabled:opacity-40"><RotateCcw className="w-3.5 h-3.5" /></button></Tooltip>}
+                        {msg.contenido && <Tooltip text={leyendoId === msg.id ? 'Detener lectura' : 'Leer en voz alta'}><button type="button" onClick={() => leerEnVoz(msg)} className={`p-1.5 rounded-md hover:bg-[#232438] ${leyendoId === msg.id ? 'text-[#a5b4fc]' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}>{leyendoId === msg.id ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}</button></Tooltip>}
+                        <Tooltip text="Buena respuesta"><button type="button" onClick={() => valorar(msg, 1)} className={`p-1.5 rounded-md hover:bg-[#232438] ${msg.valoracion === 1 ? 'text-emerald-300' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}><ThumbsUp className="w-3.5 h-3.5" /></button></Tooltip>
+                        <Tooltip text="Mala respuesta"><button type="button" onClick={() => valorar(msg, -1)} className={`p-1.5 rounded-md hover:bg-[#232438] ${msg.valoracion === -1 ? 'text-red-300' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}><ThumbsDown className="w-3.5 h-3.5" /></button></Tooltip>
                         {msg.modelo && <span className="text-[10px] text-[#5f6074] ml-1">{msg.respaldo ? 'respaldo · ' : ''}{msg.modelo}</span>}
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
-                <div className="max-w-[85%] px-4 py-2.5 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-[15px] leading-relaxed font-['Inter'] border border-[#818cf8]/20"><span className="whitespace-pre-wrap break-words">{msg.contenido}</span></div>
+                <div className="max-w-[85%] px-4 py-2.5 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-[15px] leading-relaxed font-['Inter'] border border-[#818cf8]/20">{msg.adjunto && <span className="flex items-center gap-1.5 mb-1.5 text-[12px] text-[#c7d2fe] bg-[#818cf8]/15 rounded-lg px-2 py-1 w-fit"><Paperclip className="w-3.5 h-3.5" />{msg.adjunto}</span>}<span className="whitespace-pre-wrap break-words">{msg.contenido}</span></div>
               )}
             </motion.div>
           ))}
@@ -5106,20 +5351,27 @@ if (sonCuatro && generarPDF) {
         {isChatStarted && !ocupado && !chatInactivo && sugerencias.length > 0 && (
           <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1 custom-scrollbar">
             {sugerencias.map((s, i) => { const I = s.icono; return (
-              <button key={i} type="button" onClick={() => handleSend(s.texto)} className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-full bg-[#1f2035] border border-[#313248] text-xs text-[#b0b0c4] hover:text-white hover:border-[#818cf8]/50 transition-colors"><I className="w-3.5 h-3.5 text-[#a5b4fc]" />{s.texto}</button>
+              <button key={i} type="button" onClick={() => (s.accion ? s.accion() : handleSend(s.texto))} className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-full bg-[#1f2035] border border-[#313248] text-xs text-[#b0b0c4] hover:text-white hover:border-[#818cf8]/50 transition-colors"><I className="w-3.5 h-3.5 text-[#a5b4fc]" />{s.texto}</button>
             ); })}
+          </div>
+        )}
+        {(adjunto || subiendoAdjunto) && (
+          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[#818cf8]/10 border border-[#818cf8]/30 text-xs text-[#c7d2fe]">
+            {subiendoAdjunto ? <span className="w-3.5 h-3.5 border-2 border-[#a5b4fc]/40 border-t-[#a5b4fc] rounded-full animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+            <span className="truncate flex-1">{subiendoAdjunto ? 'Leyendo el documento…' : `${adjunto!.nombre} · ${adjunto!.texto.length.toLocaleString('es-VE')} caracteres${adjunto!.recortado ? ' (recortado)' : ''}`}</span>
+            {adjunto && <button type="button" onClick={() => setAdjunto(null)} className="p-0.5 text-[#8a8b9e] hover:text-white" aria-label="Quitar documento"><X className="w-3.5 h-3.5" /></button>}
           </div>
         )}
         <div className="relative">
           <div className="relative flex items-end gap-2 bg-[#1f2035] border border-[#313248] rounded-2xl px-3 py-2.5 focus-within:border-[#818cf8]/60 transition-colors shadow-lg shadow-black/20">
-            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar archivo de texto" title="Adjuntar texto (.txt, .csv, .md)" className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
-            <input ref={fileInputRef} type="file" className="hidden" accept=".txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} />
+            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar documento" title="Adjuntar documento: programa de la materia, guía… (PDF, Word, .txt)" className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
+            <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.docx,.txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} />
             <Tooltip text={isRecording ? 'Detener grabación' : 'Hablar'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo} className={`p-2 rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-t-red-400 rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3 h-3 bg-red-500 rounded-sm"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
             <div className="flex-1 relative"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="w-full bg-transparent text-[15px] text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-1.5 font-['Inter'] min-h-[40px] max-h-[120px] disabled:opacity-60" style={{ lineHeight: '1.5' }} /></div>
             {pensando || escribiendo ? (
               <Tooltip text="Detener"><button type="button" onClick={detener} aria-label="Detener respuesta" className="p-2.5 rounded-xl bg-[#272839] text-[#c7d2fe] hover:bg-red-500/20 hover:text-red-300 transition-colors flex-shrink-0 self-end"><Square className="w-4 h-4 fill-current" /></button></Tooltip>
             ) : (
-              <button type="button" onClick={() => handleSend()} disabled={!mensaje.trim() || chatInactivo} aria-label="Enviar" className={`p-2.5 rounded-xl transition-all flex-shrink-0 self-end ${mensaje.trim() ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
+              <button type="button" onClick={() => handleSend()} disabled={(!mensaje.trim() && !adjunto) || chatInactivo || subiendoAdjunto} aria-label="Enviar" className={`p-2.5 rounded-xl transition-all flex-shrink-0 self-end ${(mensaje.trim() || adjunto) && !subiendoAdjunto ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
             )}
           </div>
         </div>
