@@ -4,7 +4,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  url       = env("DATABASE_URL")   // app: pooler de transacciones de Supabase (puerto 6543, ?pgbouncer=true&connection_limit=1)
+  directUrl = env("DIRECT_URL")     // prisma db push: conexión directa o de sesión (puerto 5432)
 }
 
 // ============================================

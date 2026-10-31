@@ -132,6 +132,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   } catch (e: any) {
     console.error(e)
-    return NextResponse.json({ error: e?.message?.startsWith('Falta') ? e.message : 'No se pudo completar la acción del examen.' }, { status: 500 })
+    const msg = String(e?.message || '')
+    return NextResponse.json({ error: msg.startsWith('Falta') ? msg : /max clients|EMAXCONN|too many|connection/i.test(msg) ? 'La base de datos está saturada de conexiones. Espera unos segundos e intenta de nuevo (revisa DATABASE_URL: debe usar el pooler de transacciones, puerto 6543).' : `No se pudo completar la acción del examen: ${msg.slice(0, 160)}` }, { status: 500 })
   }
 }

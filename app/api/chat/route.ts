@@ -24,6 +24,14 @@ const json = (d: any, status = 200) => new Response(JSON.stringify(d), { status,
 // Cuerpo: { mensaje, conversacionId?, planificacionId?, contexto: { materia, seccion, evaluaciones[], otrasSecciones }, eventos?: string[], regenerar?: boolean }
 // Respuesta: líneas JSON (NDJSON): {t:'inicio'} {t:'texto',v} {t:'accion',accion} {t:'aviso',v} {t:'fin'} | {t:'error',mensaje}
 // ¿La acción apunta a una evaluación que no existe? (las nuevas de proponer_evaluaciones en esta misma respuesta sí valen)
+// Grupos siempre con números: si el modelo dio personas por grupo, se calcula cuántos grupos salen con los estudiantes de la sección
+function completarGrupos(a: Accion, estudiantes: number) {
+  for (const e of a.datos.evaluaciones || []) {
+    if (!e.personasPorGrupo) e.personasPorGrupo = /grup|equip|colabor|proyecto|debate|cooperat/i.test(`${e.tipoActividad} ${e.enfoque}`) ? 3 : 1
+    if (!e.cantidadGrupos && estudiantes > 0) e.cantidadGrupos = Math.max(1, Math.ceil(estudiantes / e.personasPorGrupo))
+  }
+}
+
 function referenciaInvalida(a: Accion, total: number, previas: Accion[]): string | null {
   if (a.tipo === 'proponer_evaluaciones') return null
   const nuevas = new Set<number>(previas.filter(x => x.tipo === 'proponer_evaluaciones').flatMap(x => (x.datos.evaluaciones || []).map((e: any) => e.numero)))
@@ -167,7 +175,8 @@ async function atender(request: Request) {
       agregar('user', registro ? `(Registro de la app: en tu respuesta anterior usaste herramientas → ${registro})\n\n${m.contenido}` : m.contenido)
       registro = ''
     } else {
-      agregar('model', limpiarResumenes(m.contenido) || '(respondí usando herramientas)')
+      const t = limpiarResumenes(m.contenido)
+      agregar('model', t.length > 1500 ? `${t.slice(0, 1500)}…` : t || '(respondí usando herramientas)')
       registro = Array.isArray(m.acciones) ? (m.acciones as any[]).map(a => resumenAccion(a).replace(/^\[|\]$/g, '')).filter(Boolean).join('; ') : ''
     }
   }
@@ -193,7 +202,9 @@ async function atender(request: Request) {
         // Varias rondas: si el modelo pide consultar datos, se le dan y vuelve a responder (máximo 3 consultas seguidas)
         const ctxConsulta = { usuarioId: actor.id, planId: plan?.id ?? null, materiaId: plan?.materiaId ?? null, seccion, evaluaciones: evaluaciones.map(e => ({ numero: e.numero, id: e.id, nombre: e.nombre })) }
         let reintentos = 0
+        let silencio = false // en un reintento de corrección no se muestra el texto (el modelo tiende a repetirse)
         for (let ronda = 0; ronda < 6; ronda++) {
+          let retenido = ''
           const consultas: any[] = []
           let textoRonda = ''
           let malformada = false
@@ -201,18 +212,22 @@ async function atender(request: Request) {
           const accionesAntes = acciones.length
           for await (const ev of responder(sistema, turnos, { temperatura, maxTokens, senal: request.signal }, chat.modelo)) {
             if (ev.t === 'modelo') { if (!modelo) { modelo = ev.v; respaldo = ev.respaldo; enviar({ t: 'modelo', v: ev.v, respaldo: ev.respaldo }) } }
-            else if (ev.t === 'texto') { texto += ev.v; textoRonda += ev.v; enviar({ t: 'texto', v: ev.v }) }
+            else if (ev.t === 'texto') { textoRonda += ev.v; if (silencio) retenido += ev.v; else { texto += ev.v; enviar({ t: 'texto', v: ev.v }) } }
             else if (ev.t === 'aviso') enviar({ t: 'aviso', v: ev.v })
             else if (ev.t === 'malformada') malformada = true
             else if (ev.t === 'herramienta') {
               if (HERRAMIENTAS_SERVIDOR.includes(ev.nombre)) { if (consultas.length < 3) consultas.push(ev.args || {}); continue }
               const a = normalizarAccion(ev.nombre, ev.args)
               if (!a || acciones.length >= 8) continue
+              if (a.tipo === 'proponer_evaluaciones') completarGrupos(a, typeof estudiantesSeccion === 'number' ? estudiantesSeccion : 0)
               const mala = referenciaInvalida(a, evaluaciones.length, acciones)
               if (mala) { invalidas.push(mala); continue }
               acciones.push(a); enviar({ t: 'accion', accion: a })
             }
           }
+          // Si un reintento no trajo herramienta, su texto sí se muestra (era una respuesta normal)
+          if (silencio && acciones.length === accionesAntes && retenido.trim() && !consultas.length) { texto += retenido; enviar({ t: 'texto', v: retenido }) }
+          silencio = false
           // Anunció una acción ("Aquí tienes la propuesta:") pero la herramienta no llegó o llegó mal formada: se le pide de nuevo
           const prometio = /(:|…|\.\.\.)\s*$/.test(textoRonda.trim()) && /propuesta|aqu[ií] (tienes|va|est[aá])|te propongo|quedar[ií]a|plan/i.test(textoRonda)
           const copioResumen = new RegExp(RESUMEN_COPIADO.source, 'im').test(textoRonda)
@@ -220,6 +235,7 @@ async function atender(request: Request) {
             reintentos++
             enviar({ t: 'consulta', v: ['corrigiendo el número de la evaluación'] })
             agregar('model', textoRonda || '(llamé una herramienta)')
+            silencio = true
             agregar('user', `[Sistema: ${invalidas.join(' ')} En la Sección ${seccion} existen ${evaluaciones.length ? evaluaciones.map(e => `#${e.numero} ${e.nombre}`).join(', ') : 'ninguna evaluación todavía'}. Vuelve a llamar la herramienta con el número correcto. No repitas lo que ya escribiste.]`)
             continue
           }
@@ -228,6 +244,7 @@ async function atender(request: Request) {
             enviar({ t: 'consulta', v: ['preparando la propuesta de nuevo'] })
             if (texto && !texto.endsWith('\n')) { texto += '\n\n'; enviar({ t: 'texto', v: '\n\n' }) }
             agregar('model', textoRonda || '(intenté llamar una herramienta)')
+            silencio = true
             agregar('user', '[Sistema: la herramienta que anunciaste no llegó (la llamada salió mal formada o faltó). Llámala AHORA con argumentos válidos y más cortos: descripción de máximo 100 palabras por evaluación, sin comillas dobles dentro del texto. No repitas lo que ya escribiste.]')
             continue
           }

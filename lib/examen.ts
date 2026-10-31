@@ -132,8 +132,13 @@ export function notaDe(e: Examen, c: Correccion | null | undefined): number | nu
 export const faltaCorregir = (e: Examen, c: Correccion | null | undefined) => e.preguntas.filter(p => c?.[p.id]?.puntos == null).length
 
 // Tipos de evaluación que se pueden presentar en línea (teóricas). Las prácticas o presenciales no.
-export function admiteExamenEnLinea(tipoActividad?: string | null, enfoque?: string | null): boolean {
+export function admiteExamenEnLinea(tipoActividad?: string | null, enfoque?: string | null, descripcion?: string | null): boolean {
   const t = `${tipoActividad || ''} ${enfoque || ''}`.toLowerCase()
-  if (/(exposici|laborator|taller pr[aá]ctico|debate|role|dramat|campo|demostraci|presentaci[oó]n oral|defensa|maqueta|prototipo|proyecto)/.test(t)) return false
-  return /(prueba|examen|quiz|test|escrit|selecci|desarrollo|ensayo|informe|cuestionario|te[oó]ric|an[aá]lisis de caso|caso|reporte|investigaci)/.test(t)
+  if (/(exposici|laborator|taller|debate|role|dramat|campo|demostraci|presentaci[oó]n|defensa|maqueta|prototipo|proyecto|pr[aá]ctic)/.test(t)) return false
+  if (!/(prueba|examen|quiz|test|escrit|selecci|desarrollo|ensayo|informe|cuestionario|te[oó]ric|an[aá]lisis de caso|caso|reporte|investigaci)/.test(t)) return false
+  // Si lo que se entrega se hace en otra herramienta (diagramas, código, repositorio…), no es un examen que se responda escribiendo
+  const d = String(descripcion || '').toLowerCase()
+  const entregables = (d.match(/entregables?:?([\s\S]{0,300})/) || [])[1] || d
+  if (/(diagrama|uml|draw\.io|lucidchart|repositorio|github|c[oó]digo fuente|programa|aplicaci[oó]n|prototipo|maqueta|video|presentaci[oó]n|diapositiva|despliegue|docker|base de datos implementada)/.test(entregables)) return false
+  return true
 }

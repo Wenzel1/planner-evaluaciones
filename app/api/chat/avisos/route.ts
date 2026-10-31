@@ -32,7 +32,7 @@ export async function GET(request: Request) {
         prisma.evaluacion.findMany({
           where: { planificacionId: plan.id, estado: { not: 'CANCELADA' } },
           orderBy: { fecha: 'asc' },
-          select: { id: true, nombre: true, fecha: true, estado: true, grupoSeccion: true, rubrica: true, recursos: true, examen: true, tipoActividad: true, enfoque: true, _count: { select: { calificaciones: { where: { puntaje: { not: null } } } as any, preparaciones: true } } },
+          select: { id: true, nombre: true, fecha: true, estado: true, grupoSeccion: true, rubrica: true, recursos: true, examen: true, tipoActividad: true, enfoque: true, descripcion: true, _count: { select: { calificaciones: { where: { puntaje: { not: null } } } as any, preparaciones: true } } },
         }),
         prisma.estudiante.findMany({ where: { usuarioId: actor.id, estado: 'ACTIVO' }, select: { grupo: true, portalVisitas: true } }),
       ])
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
         const e = evs.find(x => x.id === g.evaluacionId)
         if (e) avisos.push({ tipo: 'examen', seccion: e.grupoSeccion, urgente: true, texto: `${g._count._all} examen(es) de «${limpio(e.nombre)}» entregados esperan tu revisión (Sección ${e.grupoSeccion})`, pedido: `¿Cómo les fue en el examen de «${limpio(e.nombre)}» de la Sección ${e.grupoSeccion}?` })
       }
-      const sinExamen = evs.filter(e => !e.examen && e.fecha && e.fecha.getTime() > ahora && e.fecha.getTime() < ahora + 14 * DIA && admiteExamenEnLinea(e.tipoActividad, e.enfoque))
+      const sinExamen = evs.filter(e => !e.examen && e.fecha && e.fecha.getTime() > ahora && e.fecha.getTime() < ahora + 14 * DIA && admiteExamenEnLinea(e.tipoActividad, e.enfoque, e.descripcion))
       if (sinExamen.length) avisos.push({ tipo: 'examen', seccion: sinExamen[0].grupoSeccion, texto: `«${limpio(sinExamen[0].nombre)}» es teórica y todavía no tiene examen en línea${sinExamen.length > 1 ? ` (y ${sinExamen.length - 1} más)` : ''}`, pedido: `Prepárame el examen en línea de «${limpio(sinExamen[0].nombre)}» (Sección ${sinExamen[0].grupoSeccion})` })
       const sinLeer = await prisma.opinionPlan.count({ where: { materiaId: plan.materiaId, leida: false } })
       if (sinLeer) avisos.push({ tipo: 'opiniones', texto: `${sinLeer} opinión(es) nueva(s) de estudiantes sobre el plan`, pedido: 'Resúmeme las opiniones nuevas de los estudiantes' })

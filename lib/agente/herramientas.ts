@@ -32,6 +32,7 @@ export const HERRAMIENTAS: Herramienta[] = [
               fecha: { type: 'string', description: 'YYYY-MM-DD' },
               hora: { type: 'string', description: 'HH:MM (24 h)' },
               descripcion: { type: 'string', description: 'Texto plano (90-140 palabras) con OBJETIVO, ACTIVIDAD, HERRAMIENTAS, ENTREGABLES, CRITERIOS DE EVALUACIÓN' },
+              examenEnLinea: { type: 'boolean', description: 'true SOLO si el estudiante la responde escribiendo, individual, dentro de un examen en línea con tiempo (prueba escrita, cuestionario, selección simple, verdadero/falso, preguntas de desarrollo, ensayo, informe escrito). false si entrega diagramas, código, repositorio, prototipo, documento hecho en otra herramienta, presentación, laboratorio, taller práctico, proyecto o algo presencial/grupal.' },
             },
             required: ['numero', 'nombre', 'tipoActividad', 'enfoque', 'duracionMinutos', 'peso', 'fecha', 'hora', 'descripcion'],
           },
@@ -302,6 +303,7 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
         personasPorGrupo: ent(e?.personasPorGrupo, 1, 15),
         fecha: fechaOk(e?.fecha), hora: horaOk(e?.hora) || '08:00',
         descripcion: texto(e?.descripcion, 4000),
+        examenEnLinea: e?.examenEnLinea === true,
       }))
       return lista.length ? { id, tipo: nombre, datos: { evaluaciones: lista } } : null
     }

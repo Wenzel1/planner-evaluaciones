@@ -116,6 +116,7 @@ interface PropuestaEvaluacion {
     tipo?: string; materia: string; tipoActividad?: string; enfoque?: string;
     duracionMinutos?: number | null; peso?: number | null; cantidadGrupos?: number | null;
     personasPorGrupo?: number | null; fecha?: string; hora?: string; descripcion?: string;
+    numero?: number; existenteId?: string | null; examenEnLinea?: boolean;
   }>;
 }
 interface EvaluacionFormulario {
@@ -4246,7 +4247,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
           <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
           {onRubrica && <Tooltip text={seccion.rubrica ? 'Ver o editar la rúbrica' : 'Crear rúbrica'}><button onClick={() => onRubrica(seccion)} className={`p-1.5 rounded-lg ${seccion.rubrica ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><ClipboardCheck className="w-4 h-4" /></button></Tooltip>}
           {onRecursos && <Tooltip text={seccion.recursos?.length ? `${seccion.recursos.length} recurso(s) para los estudiantes` : 'Agregar recursos para los estudiantes'}><button onClick={() => onRecursos(seccion)} className={`relative p-1.5 rounded-lg ${seccion.recursos?.length ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><Paperclip className="w-4 h-4" />{seccion.abiertaManual && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400" title="Abierta antes de tiempo" />}</button></Tooltip>}
-          {onExamen && (seccion.examen || admiteExamenEnLinea(seccion.tipoActividad, seccion.enfoque)) && <Tooltip text={seccion.examen ? `Examen en línea (${seccion.examen.preguntas.length} preguntas) · ver entregas` : 'Crear examen en línea'}><button onClick={() => onExamen(seccion)} className={`relative p-1.5 rounded-lg ${seccion.examen ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><FileCheck className="w-4 h-4" />{seccion.examen?.desde && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400" title="Abierto a mano antes de la fecha" />}</button></Tooltip>}
+          {onExamen && (seccion.examen || admiteExamenEnLinea(seccion.tipoActividad, seccion.enfoque, seccion.descripcion)) && <Tooltip text={seccion.examen ? `Examen en línea (${seccion.examen.preguntas.length} preguntas) · ver entregas` : 'Crear examen en línea'}><button onClick={() => onExamen(seccion)} className={`relative p-1.5 rounded-lg ${seccion.examen ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><FileCheck className="w-4 h-4" />{seccion.examen?.desde && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400" title="Abierto a mano antes de la fecha" />}</button></Tooltip>}
           {onNotas && String(seccion.estado || '').toUpperCase() !== 'CANCELADA' && <Tooltip text="Notas de los estudiantes"><button onMouseEnter={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onTouchStart={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onClick={() => onNotas(seccion)} className="p-1.5 rounded-lg text-[#8a8b9e] hover:text-emerald-300 hover:bg-emerald-500/10"><GraduationCap className="w-4 h-4" /></button></Tooltip>}
           <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
           <Tooltip text="Eliminar"><button onClick={() => onDelete(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
@@ -4592,7 +4593,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
 // ============================================
 // AGENTE PANEL (CON SCROLL MEJORADO)
 // ============================================
-function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guardarAhora, formulariosLibres, planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
+function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guardarAhora, formulariosLibres, planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, arrastrando = false, esSuperadmin = false }: any) {
   // Atajos del encabezado del chat: llevan al panel de la derecha (en el celular el chat se oculta para dejarlo ver)
   const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
   const [mensaje, setMensaje] = useState(''); 
@@ -4741,10 +4742,11 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     nuevasSecciones.forEach(n => { n.grupoSeccion = seccionActiva; });
     setPlanificacion((prev: PlanificacionExamen) => {
       let secciones = [...prev.secciones];
+      let enSeccion = secciones.filter(s => (s.grupoSeccion || 'A') === seccionActiva).length;
       nuevasSecciones.forEach((nueva, idx) => {
-        const tipoBuscado = (propuesta.evaluaciones[idx]?.tipo || `Evaluación ${idx + 1}`).toLowerCase();
-        // Solo se reemplaza una evaluación con el mismo número DENTRO de la misma sección (antes podía pisar la de otra sección)
-        const indiceExistente = secciones.findIndex(s => (s.grupoSeccion || 'A') === seccionActiva && s.nombre.toLowerCase().startsWith(`${tipoBuscado}:`));
+        const idEditar = propuesta.evaluaciones[idx]?.existenteId;
+        const indiceExistente = idEditar ? secciones.findIndex(s => s.id === idEditar) : -1;
+        if (indiceExistente === -1) { enSeccion++; nueva.nombre = `Evaluación ${enSeccion}: ${limpiarTexto(nueva.nombre)}`; }
         if (indiceExistente !== -1) {
           // Ya existe una evaluación con ese mismo número/tipo → se actualiza en su lugar (edición)
           secciones[indiceExistente] = { ...nueva, id: secciones[indiceExistente].id, grupoSeccion: secciones[indiceExistente].grupoSeccion, rubrica: secciones[indiceExistente].rubrica, recursos: secciones[indiceExistente].recursos, abiertaManual: secciones[indiceExistente].abiertaManual };
@@ -4810,6 +4812,7 @@ if (sonCuatro && generarPDF) {
   };
   const propuestaDeAccion = (a: AccionChat) => ({
     evaluaciones: (a.datos?.evaluaciones || []).map((e: any) => ({
+      numero: e.numero, existenteId: evaluacionesActivas()[e.numero - 1]?.id ?? null, examenEnLinea: e.examenEnLinea,
       tipo: `Evaluación ${e.numero}`, materia: e.nombre, tipoActividad: e.tipoActividad, enfoque: e.enfoque, duracionMinutos: e.duracionMinutos,
       peso: e.peso, cantidadGrupos: e.cantidadGrupos, personasPorGrupo: e.personasPorGrupo, fecha: e.fecha, hora: e.hora, descripcion: e.descripcion,
     })),
@@ -5144,7 +5147,8 @@ if (sonCuatro && generarPDF) {
   const enviarRef = useRef<(m: string) => void>(() => {});
   // Evaluaciones recién guardadas desde una propuesta: se les buscan recursos y, a las teóricas, el agente les prepara el examen
   const prepararNuevas = async (prop: any) => {
-    const nombres = (prop?.evaluaciones || []).map((e: any) => limpiarTexto(e.materia).toLowerCase());
+    const propuestas: any[] = prop?.evaluaciones || [];
+    const nombres = propuestas.map((e: any) => limpiarTexto(e.materia).toLowerCase());
     const activas = (planRef.current.secciones as SeccionExamen[]).filter(s => (s.grupoSeccion || 'A') === seccionActiva);
     const nuevas = activas.map((s, i) => ({ s, numero: i + 1 })).filter(({ s }) => nombres.includes(limpiarTexto(s.nombre).toLowerCase()));
     if (!nuevas.length) return;
@@ -5157,7 +5161,11 @@ if (sonCuatro && generarPDF) {
       } catch { /* sin recursos: se pueden buscar después con 📎 */ }
     }
     if (conRecursos) agregarNotificacion?.(`⚡ Recursos agregados a ${conRecursos} evaluación(es) nueva(s).`);
-    const teoricas = nuevas.filter(({ s }) => !s.examen && admiteExamenEnLinea(s.tipoActividad, s.enfoque));
+    const teoricas = nuevas.filter(({ s }) => {
+      if (s.examen) return false;
+      const marcada = propuestas.find(e => limpiarTexto(e.materia).toLowerCase() === limpiarTexto(s.nombre).toLowerCase())?.examenEnLinea;
+      return typeof marcada === 'boolean' ? marcada && admiteExamenEnLinea(s.tipoActividad, s.enfoque, s.descripcion) : admiteExamenEnLinea(s.tipoActividad, s.enfoque, s.descripcion);
+    });
     if (teoricas.length) enviarRef.current(`Prepárame el examen en línea de ${teoricas.map(({ s, numero }) => `la #${numero} («${limpiarTexto(s.nombre)}»)`).join(' y ')}.`);
   };
   const aplicarTodo = async (msg: Mensaje) => {
@@ -5671,7 +5679,7 @@ if (sonCuatro && generarPDF) {
   const ultimoAgenteId = [...historial].reverse().find(m => m.rol === 'agent')?.id;
 
   return (
-    <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[#282a3f] flex flex-col bg-[#191a26] overflow-hidden' : 'relative border-r border-[#282a3f] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[#191a26] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
+    <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} transition={{ duration: arrastrando ? 0 : 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[#282a3f] flex flex-col bg-[#191a26] overflow-hidden' : 'relative border-r border-[#282a3f] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[#191a26] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
       {examenEditando && (
         <ModalExamen key={examenEditando.accion.id} evaluacion={examenEditando.seccion} inicial={examenEditando.accion.datos?.examen} notificar={agregarNotificacion}
           onCerrar={() => setExamenEditando(null)}
@@ -6305,23 +6313,28 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   useEffect(() => {
     if (propuestaPendiente?.evaluaciones) {
       const lista = propuestaPendiente.evaluaciones.slice(0, 4);
-      const casillas = lista.map((p, idx) => casillaDeEvaluacion(p, idx));
-      const mayor = Math.max(1, ...casillas);
-      // Plan completo → muestra justo esas casillas; edición de una sola → conserva las que ya estaban visibles
-      const esCompleta = casillas.every((c, i) => c === i + 1);
-      setNumEvaluaciones(prev => (esCompleta ? lista.length : Math.max(prev, mayor)));
+      // Casillas desde la 1: una evaluación propuesta = una casilla (antes la #4 caía en la casilla 4 con las de arriba vacías)
+      const casillas = lista.map((_, idx) => idx + 1);
+      const mayor = Math.max(1, lista.length);
+      setNumEvaluaciones(lista.length || 1);
       const fechaBase = new Date(); const fechas = calcularFechasEvaluaciones(fechaBase, Math.max(mayor, lista.length));
       lista.forEach((p, i) => {
         const idx = casillas[i] - 1;
         let fechaExamen = fechas[idx] || new Date();
         if (p.fecha && p.hora) fechaExamen = new Date(`${p.fecha}T${p.hora}:00`);
         else if (p.fecha) fechaExamen = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(p.fecha)) ? `${p.fecha}T08:00:00` : p.fecha);
-        const evalData: EvaluacionFormulario = { materia: p.materia, duracionMinutos: p.duracionMinutos ?? null, duracionUnidad: 'min', peso: p.peso ?? null, fecha: fechaExamen, tipoActividad: p.tipoActividad || '', descripcion: p.descripcion || '', cantidadGrupos: p.cantidadGrupos ?? null, personasPorGrupo: p.personasPorGrupo ?? null, editandoId: null, mostrarDescripcion: false, enfoque: p.enfoque || '', errores: {}, origenAgente: { materia: true, tipoActividad: true, descripcion: true } };
+        // Grupos con números: si solo vino "personas por grupo", se calcula cuántos grupos salen con los estudiantes de la sección
+        const personas = p.personasPorGrupo ?? null;
+        const grupos = p.cantidadGrupos ?? (personas && totalEstudiantes > 0 ? Math.max(1, Math.ceil(totalEstudiantes / personas)) : null);
+        // Si edita una evaluación ya guardada, el formulario queda "editando" esa (al guardar la actualiza en vez de agregar otra)
+        const evalData: EvaluacionFormulario = { materia: p.materia, duracionMinutos: p.duracionMinutos ?? null, duracionUnidad: 'min', peso: p.peso ?? null, fecha: fechaExamen, tipoActividad: p.tipoActividad || '', descripcion: p.descripcion || '', cantidadGrupos: grupos, personasPorGrupo: personas, editandoId: p.existenteId || null, mostrarDescripcion: false, enfoque: p.enfoque || '', errores: {}, origenAgente: { materia: true, tipoActividad: true, descripcion: true } };
         if (idx === 0) { setEvaluacion1(evalData); activarGlow(1); }
         else if (idx === 1) { setEvaluacion2(evalData); activarGlow(2); }
         else if (idx === 2) { setEvaluacion3(evalData); activarGlow(3); }
         else if (idx === 3) { setEvaluacion4(evalData); activarGlow(4); }
       });
+      // Las casillas que sobran quedan limpias (sin restos de una propuesta anterior)
+      [setEvaluacion1, setEvaluacion2, setEvaluacion3, setEvaluacion4].slice(lista.length).forEach(f => f({ ...evalInit, fecha: new Date() }));
       setPropuestaPendiente(null);
     }
   }, [propuestaPendiente, setPropuestaPendiente]);
@@ -7116,7 +7129,26 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
   const [agenteExpandido, setAgenteExpandido] = useState<boolean>(false);
   const anchoPantalla = useAnchoPantalla();
   const esMovil = anchoPantalla < 768;
-  const anchoChat = Math.min(640, Math.round(anchoPantalla * 0.45));
+  // Ancho del chat: el profesor lo ajusta arrastrando la barra divisora (se recuerda en este navegador)
+  const [anchoElegido, setAnchoElegido] = useState<number | null>(null);
+  useEffect(() => { try { const n = Number(localStorage.getItem('anchoChat')); if (n > 0) setAnchoElegido(n); } catch {} }, []);
+  const [arrastrando, setArrastrando] = useState(false);
+  const maxChat = Math.max(360, Math.min(1000, Math.round(anchoPantalla * 0.7)));
+  const anchoChat = Math.min(maxChat, Math.max(340, anchoElegido ?? Math.min(640, Math.round(anchoPantalla * 0.45))));
+  const empezarArrastre = (e: React.PointerEvent) => {
+    e.preventDefault();
+    setArrastrando(true);
+    let ultimo = anchoChat;
+    const mover = (ev: PointerEvent) => { ultimo = Math.min(maxChat, Math.max(340, Math.round(ev.clientX))); setAnchoElegido(ultimo); };
+    const soltar = () => {
+      setArrastrando(false);
+      try { localStorage.setItem('anchoChat', String(ultimo)); } catch {}
+      window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', soltar);
+      document.body.style.cursor = ''; document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', mover); window.addEventListener('pointerup', soltar);
+  };
   const [propuestaPendiente, setPropuestaPendiente] = useState<PropuestaEvaluacion | null>(null);
   const [seccionPlanificador, setSeccionPlanificador] = useState<string>('A'); // sección (A, B, C...) abierta en el planificador
   const [vistaActual, setVistaActual] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>('estadisticas');
@@ -7265,7 +7297,15 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
-                <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} formulariosLibres={() => panelDerechoRef.current?.formulariosLibres() ?? true} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
+                <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} formulariosLibres={() => panelDerechoRef.current?.formulariosLibres() ?? true} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} arrastrando={arrastrando} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
+        {!esMovil && agenteExpandido && (
+          <div role="separator" aria-orientation="vertical" aria-label="Arrastra para cambiar el ancho del chat" title="Arrastra para cambiar el ancho del chat (doble clic: tamaño normal)"
+            onPointerDown={empezarArrastre}
+            onDoubleClick={() => { setAnchoElegido(null); try { localStorage.removeItem('anchoChat'); } catch {} }}
+            className={`group relative w-1.5 -mx-[3px] z-20 flex-shrink-0 cursor-col-resize self-stretch ${arrastrando ? 'bg-indigo-500/60' : 'hover:bg-indigo-500/40'} transition-colors`}>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-10 w-1 rounded-full bg-[#3a3d5c] group-hover:bg-indigo-400" />
+          </div>
+        )}
         <PanelDerecho 
           onSeccionActivaCambia={setSeccionPlanificador}
           chatAbierto={agenteExpandido}
