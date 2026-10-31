@@ -84,6 +84,8 @@ interface PlanificacionExamen {
 // Acción que propone el agente (tarjeta con botón en el chat)
 interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada' | 'deshecha'; resultado?: string; automatica?: boolean }
 const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar', navegar: 'abrir pantalla', agregar_estudiantes: 'agregar estudiantes', modificar_estudiantes: 'modificar estudiantes', cargar_notas: 'cargar notas', abrir_en_portal: 'abrir en la página de estudiantes', enviar_plan: 'enviar plan', eliminar_evaluaciones: 'eliminar evaluaciones', cambiar_materia: 'cambiar de materia', crear_examen: 'examen en línea' };
+// El modelo a veces copia el registro interno ("[Propuse …]"): esas líneas no se muestran
+const sinResumenes = (t: string) => String(t || '').replace(/^\s*\[(Propuse|Prepar[eé]|Gener[eé]|Abr[ií]|Consult[eé]|Cre[eé])[^\]\n]*\]\s*$/gim, '').replace(/\n{3,}/g, '\n\n').trim();
 // Acciones del agente que no cambian datos: se ejecutan solas al llegar
 const ACCIONES_AUTOMATICAS = ['navegar'];
 // Con el modo automático también se aplican solas estas (todas se pueden deshacer). Notas, estudiantes, mensajes,
@@ -4853,6 +4855,7 @@ if (sonCuatro && generarPDF) {
             const r = await guardarEvaluacionesDirecto(prop);
             if (!r.success) throw new Error(r.mensaje);
             resultado = `${r.totalEvals} evaluación(es) guardadas en la Sección ${seccionActiva}${r.pdfGenerado ? ' y plan de acción generado' : ''}`;
+            if (modoAutoRef.current) setTimeout(() => prepararNuevas(prop), 700);
             if (modoAutoRef.current) setTimeout(async () => {
               const m = historialRef.current.find(x => x.id === msgId);
               for (const x of (m?.acciones || []).filter(x => x.id !== a.id && (x.estado || 'pendiente') === 'pendiente' && ACCIONES_SEGURAS.includes(x.tipo))) {
@@ -5137,6 +5140,26 @@ if (sonCuatro && generarPDF) {
   // Siempre la versión más reciente (con el plan actualizado), para aplicar varias seguidas
   const ejecutarRef = useRef(ejecutarAccion); ejecutarRef.current = ejecutarAccion;
   const historialRef = useRef(historial); historialRef.current = historial;
+  const planRef = useRef(planificacion); planRef.current = planificacion;
+  const enviarRef = useRef<(m: string) => void>(() => {});
+  // Evaluaciones recién guardadas desde una propuesta: se les buscan recursos y, a las teóricas, el agente les prepara el examen
+  const prepararNuevas = async (prop: any) => {
+    const nombres = (prop?.evaluaciones || []).map((e: any) => limpiarTexto(e.materia).toLowerCase());
+    const activas = (planRef.current.secciones as SeccionExamen[]).filter(s => (s.grupoSeccion || 'A') === seccionActiva);
+    const nuevas = activas.map((s, i) => ({ s, numero: i + 1 })).filter(({ s }) => nombres.includes(limpiarTexto(s.nombre).toLowerCase()));
+    if (!nuevas.length) return;
+    let conRecursos = 0;
+    for (const { s } of nuevas.filter(x => !x.s.recursos?.length)) {
+      try {
+        const d = await pedirSugerenciasRecursos(s, planRef.current.materia);
+        const lista = [...d.videos.slice(0, 2), ...d.paginas.slice(0, 2)].map(x => ({ titulo: x.titulo, url: x.url }));
+        if (lista.length) { setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.map(x => (x.id === s.id ? { ...x, recursos: lista } : x)) })); conRecursos++; }
+      } catch { /* sin recursos: se pueden buscar después con 📎 */ }
+    }
+    if (conRecursos) agregarNotificacion?.(`⚡ Recursos agregados a ${conRecursos} evaluación(es) nueva(s).`);
+    const teoricas = nuevas.filter(({ s }) => !s.examen && admiteExamenEnLinea(s.tipoActividad, s.enfoque));
+    if (teoricas.length) enviarRef.current(`Prepárame el examen en línea de ${teoricas.map(({ s, numero }) => `la #${numero} («${limpiarTexto(s.nombre)}»)`).join(' y ')}.`);
+  };
   const aplicarTodo = async (msg: Mensaje) => {
     const lista = (msg.acciones || []).filter(a => (a.estado || 'pendiente') === 'pendiente' && !FUERA_DE_APLICAR_TODO.includes(a.tipo));
     // Primero las que crean evaluaciones, para que las demás (rúbricas, recursos…) ya las encuentren
@@ -5167,6 +5190,7 @@ if (sonCuatro && generarPDF) {
   // Confirmaciones escritas ("sí", "guárdalo", "dale"): solo si el mensaje es corto, para no confundir "sí, pero cambia la 2"
   const esConfirmacionCorta = (msg: string) => msg.trim().split(/\s+/).length <= 3 && esConfirmacionGuardado(msg) && !esNegacion(msg);
 
+  enviarRef.current = (m: string) => { handleSend(m); };
   const handleSend = async (overrideMsg?: string, opciones: { regenerar?: boolean; modo?: 'revision' } = {}) => {
     const adj = opciones.regenerar ? null : adjunto;
     const msg = ((overrideMsg ?? mensaje).trim() || (adj ? `Revisa el documento «${adj.nombre}» y dime cómo lo usarías para planificar las evaluaciones.` : '')).trim();
@@ -5745,7 +5769,7 @@ if (sonCuatro && generarPDF) {
                 <div className="group/msg flex items-start gap-3 w-full max-w-[94%]">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.error ? 'bg-amber-500/20' : 'bg-gradient-to-br from-[#818cf8] to-[#6366f1] shadow-[#818cf8]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-white'}`} /></div>
                   <div className="flex-1 min-w-0 text-[15px] text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">
-                    {msg.contenido && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(msg.contenido) }} />{msg.streaming && <span className="inline-block w-2 h-4 ml-0.5 align-[-2px] bg-[#818cf8] animate-pulse rounded-sm" />}</div>}
+                    {msg.contenido && sinResumenes(msg.contenido) && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(sinResumenes(msg.contenido)) }} />{msg.streaming && <span className="inline-block w-2 h-4 ml-0.5 align-[-2px] bg-[#818cf8] animate-pulse rounded-sm" />}</div>}
                     {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="inline-block w-2 h-4 bg-[#818cf8] animate-pulse rounded-sm" />}
                     {msg.consultas?.length ? (
                       <div className="mb-1.5 flex flex-wrap gap-1.5">

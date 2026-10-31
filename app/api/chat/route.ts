@@ -14,11 +14,24 @@ export const dynamic = 'force-dynamic'
 
 const MAX_POR_VENTANA = 40 // mensajes por persona en la ventana del limitador (protege el cupo de IA)
 
+// Líneas tipo "[Propuse …]" / "[Preparé …]" que el modelo copió del registro: no son respuesta para el profesor
+const RESUMEN_COPIADO = /^\s*\[(Propuse|Prepar[eé]|Gener[eé]|Abr[ií]|Consult[eé]|Cre[eé])[^\]\n]*\]\s*$/gim
+const limpiarResumenes = (t: string) => String(t || '').replace(RESUMEN_COPIADO, '').replace(/\n{3,}/g, '\n\n').trim()
+
 const json = (d: any, status = 200) => new Response(JSON.stringify(d), { status, headers: { 'Content-Type': 'application/json' } })
 
 // POST /api/chat — el chat del agente EvaPlanner, con respuesta en tiempo real.
 // Cuerpo: { mensaje, conversacionId?, planificacionId?, contexto: { materia, seccion, evaluaciones[], otrasSecciones }, eventos?: string[], regenerar?: boolean }
 // Respuesta: líneas JSON (NDJSON): {t:'inicio'} {t:'texto',v} {t:'accion',accion} {t:'aviso',v} {t:'fin'} | {t:'error',mensaje}
+// ¿La acción apunta a una evaluación que no existe? (las nuevas de proponer_evaluaciones en esta misma respuesta sí valen)
+function referenciaInvalida(a: Accion, total: number, previas: Accion[]): string | null {
+  if (a.tipo === 'proponer_evaluaciones') return null
+  const nuevas = new Set<number>(previas.filter(x => x.tipo === 'proponer_evaluaciones').flatMap(x => (x.datos.evaluaciones || []).map((e: any) => e.numero)))
+  const nums: number[] = [a.datos?.evaluacion, ...(a.datos?.pesos || []).map((p: any) => p.evaluacion), ...(a.tipo === 'eliminar_evaluaciones' ? a.datos.evaluaciones : [])].filter((n: any) => Number.isInteger(n))
+  const malos = nums.filter(n => n > total && !nuevas.has(n))
+  return malos.length ? `La evaluación ${malos.map(n => `#${n}`).join(', ')} no existe.` : null
+}
+
 export async function POST(request: Request) {
   // Cualquier fallo antes de empezar a responder llega al chat con su motivo (antes salía solo "El agente no pudo responder")
   try {
@@ -146,11 +159,19 @@ async function atender(request: Request) {
     if (ultimo && ultimo.rol === rol) ultimo.texto += `\n\n${texto}` // Gemini exige turnos alternados
     else turnos.push({ rol, texto })
   }
+  // Lo que el agente hizo con herramientas se le cuenta en el SIGUIENTE turno del profesor, como registro de la app.
+  // (Antes iba pegado a su propio texto como "[Propuse…]" y el modelo empezó a escribir eso en vez de llamar la herramienta.)
+  let registro = ''
   for (const m of previos) {
-    const acciones = Array.isArray(m.acciones) ? (m.acciones as any[]).map(a => resumenAccion(a)).filter(Boolean).join('\n') : ''
-    agregar(m.rol === 'USER' ? 'user' : 'model', [m.contenido, acciones].filter(Boolean).join('\n'))
+    if (m.rol === 'USER') {
+      agregar('user', registro ? `(Registro de la app: en tu respuesta anterior usaste herramientas → ${registro})\n\n${m.contenido}` : m.contenido)
+      registro = ''
+    } else {
+      agregar('model', limpiarResumenes(m.contenido) || '(respondí usando herramientas)')
+      registro = Array.isArray(m.acciones) ? (m.acciones as any[]).map(a => resumenAccion(a).replace(/^\[|\]$/g, '')).filter(Boolean).join('; ') : ''
+    }
   }
-  agregar('user', textoUsuario)
+  agregar('user', registro ? `(Registro de la app: en tu respuesta anterior usaste herramientas → ${registro})\n\n${textoUsuario}` : textoUsuario)
   while (turnos.length && turnos[0].rol !== 'user') turnos.shift()
 
   if (!yaGuardado) await prisma.mensaje.create({ data: { conversacionId: conversacion.id, rol: 'USER', contenido: textoUsuario, completo: true } })
@@ -176,6 +197,7 @@ async function atender(request: Request) {
           const consultas: any[] = []
           let textoRonda = ''
           let malformada = false
+          const invalidas: string[] = []
           const accionesAntes = acciones.length
           for await (const ev of responder(sistema, turnos, { temperatura, maxTokens, senal: request.signal }, chat.modelo)) {
             if (ev.t === 'modelo') { if (!modelo) { modelo = ev.v; respaldo = ev.respaldo; enviar({ t: 'modelo', v: ev.v, respaldo: ev.respaldo }) } }
@@ -185,12 +207,23 @@ async function atender(request: Request) {
             else if (ev.t === 'herramienta') {
               if (HERRAMIENTAS_SERVIDOR.includes(ev.nombre)) { if (consultas.length < 3) consultas.push(ev.args || {}); continue }
               const a = normalizarAccion(ev.nombre, ev.args)
-              if (a && acciones.length < 8) { acciones.push(a); enviar({ t: 'accion', accion: a }) }
+              if (!a || acciones.length >= 8) continue
+              const mala = referenciaInvalida(a, evaluaciones.length, acciones)
+              if (mala) { invalidas.push(mala); continue }
+              acciones.push(a); enviar({ t: 'accion', accion: a })
             }
           }
           // Anunció una acción ("Aquí tienes la propuesta:") pero la herramienta no llegó o llegó mal formada: se le pide de nuevo
           const prometio = /(:|…|\.\.\.)\s*$/.test(textoRonda.trim()) && /propuesta|aqu[ií] (tienes|va|est[aá])|te propongo|quedar[ií]a|plan/i.test(textoRonda)
-          if (!consultas.length && acciones.length === accionesAntes && (malformada || prometio) && reintentos < 2) {
+          const copioResumen = new RegExp(RESUMEN_COPIADO.source, 'im').test(textoRonda)
+          if (invalidas.length && reintentos < 2) {
+            reintentos++
+            enviar({ t: 'consulta', v: ['corrigiendo el número de la evaluación'] })
+            agregar('model', textoRonda || '(llamé una herramienta)')
+            agregar('user', `[Sistema: ${invalidas.join(' ')} En la Sección ${seccion} existen ${evaluaciones.length ? evaluaciones.map(e => `#${e.numero} ${e.nombre}`).join(', ') : 'ninguna evaluación todavía'}. Vuelve a llamar la herramienta con el número correcto. No repitas lo que ya escribiste.]`)
+            continue
+          }
+          if (!consultas.length && acciones.length === accionesAntes && (malformada || prometio || copioResumen) && reintentos < 2) {
             reintentos++
             enviar({ t: 'consulta', v: ['preparando la propuesta de nuevo'] })
             if (texto && !texto.endsWith('\n')) { texto += '\n\n'; enviar({ t: 'texto', v: '\n\n' }) }
@@ -206,6 +239,7 @@ async function atender(request: Request) {
           agregar('model', `${textoRonda}\n[Consulté: ${descripciones.join('; ')}]`.trim())
           agregar('user', `[Resultado de tus consultas. Úsalo para responder al profesor; no lo copies tal cual ni menciones que consultaste]\n${resultados.map((r, i) => `## ${descripciones[i]}\n${r}`).join('\n\n').slice(0, 9000)}`)
         }
+        texto = limpiarResumenes(texto)
         const guardado = await prisma.mensaje.create({ data: { conversacionId, rol: 'AGENT', contenido: texto, completo: true, acciones: acciones.length ? (acciones as any) : undefined, modelo, respaldo } })
         await prisma.conversacion.update({ where: { id: conversacionId }, data: { updatedAt: new Date() } }).catch(() => {})
         enviar({ t: 'fin', mensajeId: guardado.id, modelo, respaldo })

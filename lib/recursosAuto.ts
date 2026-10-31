@@ -10,7 +10,7 @@ export interface TemaRecursos { nombre: string; tipoActividad?: string | null; e
 const TIEMPO = 8000
 
 // Palabras que describen la actividad, no el tema ("Laboratorio práctico de…", "Taller de…"): no ayudan a buscar
-const GENERICAS = /^(laboratorio|taller|pr[aá]ctica|pr[aá]ctico|guiad[oa]|exposici[oó]n|proyecto|examen|prueba|parcial|quiz|evaluaci[oó]n|actividad|trabajo|final|grupal|individual|escrit[oa]|oral|de|del|la|el|los|las|sobre|y|en|con)$/i
+const GENERICAS = /^(laboratorio|taller|pr[aá]cticas?|pr[aá]ctic[oa]s?|guiad[oa]|exposici[oó]n|proyecto|examen|ex[aá]menes|prueba|parcial|quiz|evaluaci[oó]n|actividad|trabajo|final|grupal|individual|escrit[oa]|oral|te[oó]ric[oa]s?|te[oó]rico-pr[aá]ctic[oa]|mixt[oa]|ensayo|informe|reporte|cuestionario|diagn[oó]stic[oa]|sumativ[oa]|formativ[oa]|integrador[a]?|corto|de|del|la|el|los|las|sobre|y|e|en|con|para|un|una)$/i
 export function temaParaBuscar(nombre: string): string {
   const palabras = temaLimpio(nombre).split(' ')
   let i = 0
@@ -74,6 +74,9 @@ export async function buscarVideos(tema: TemaRecursos, cuantos = 5): Promise<Vid
   const d2: any = await r2.json().catch(() => ({}))
   const porId = new Map<string, any>((d2.items || []).map((v: any) => [v.id, v]))
 
+  const normal = (t: string) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const claves = [...new Set(normal(base).split(/[^a-z0-9ñ]+/).filter(w => w.length >= 4 && !GENERICAS.test(w)))]
+  const raiz = (w: string) => w.slice(0, Math.max(4, w.length - 2)) // "pruebas" ≈ "prueba", "defectos" ≈ "defecto"
   const candidatos: (VideoSugerido & { puntaje: number })[] = []
   ids.forEach((id, pos) => {
     const v = porId.get(id)
@@ -84,8 +87,12 @@ export async function buscarVideos(tema: TemaRecursos, cuantos = 5): Promise<Vid
     const titulo = decodificar(v.snippet?.title)
     const pareceEspanol = idioma.startsWith('es') || /[áéíóúñ¿¡]|\b(qu[eé]|c[oó]mo|para|desde|explicaci[oó]n|tutorial en espa[nñ]ol|curso)\b/i.test(titulo)
     const vistas = Number(v.statistics?.viewCount) || 0
-    // Puntaje: español primero, luego popularidad, y un poco el orden de relevancia de YouTube
-    const puntaje = (pareceEspanol ? 100 : 0) + Math.log10(vistas + 1) * 8 - pos * 1.5
+    const texto = normal(`${titulo} ${v.snippet?.description || ''}`)
+    const coinciden = claves.filter(k => texto.includes(raiz(k))).length
+    if (claves.length && coinciden === 0) return // no habla del tema
+    if (claves.length >= 3 && coinciden < 2 && !normal(titulo).includes(raiz(claves[0]))) return
+    // Puntaje: que hable del tema primero, luego español, popularidad y el orden de relevancia de YouTube
+    const puntaje = (claves.length ? (coinciden / claves.length) * 150 : 0) + (pareceEspanol ? 100 : 0) + Math.log10(vistas + 1) * 6 - pos * 1.5
     candidatos.push({
       puntaje,
       titulo: decodificar(v.snippet?.title).slice(0, 120),
@@ -165,9 +172,23 @@ async function preguntarGemini(clave: string, prompt: string): Promise<string> {
   throw new Error(`Gemini no respondió. Último intento: ${ultimo}`)
 }
 
-export async function sugerirPaginas(tema: TemaRecursos, cuantas = 4): Promise<PaginaSugerida[]> {
+// Gemini directo (gratis) y, si no responde o no tiene cupo, los mismos modelos de respaldo del chat
+async function preguntarIA(prompt: string): Promise<string> {
   const clave = process.env.GEMINI_API_KEY
-  if (!clave) throw new Error('Falta GEMINI_API_KEY en las variables de entorno.')
+  let fallo: any = null
+  if (clave) { try { return await preguntarGemini(clave, prompt) } catch (e) { fallo = e } }
+  const { responder } = await import('@/lib/agente/modelos')
+  let cfg: any = {}
+  try { cfg = (await (await import('@/lib/configuracion')).leerConfig())?.chat || {} } catch { /* por defecto */ }
+  try {
+    let texto = ''
+    for await (const ev of responder('Respondes SOLO con JSON válido, sin texto antes ni después.', [{ rol: 'user', texto: prompt }], { temperatura: 0.3, maxTokens: 2048, sinHerramientas: true }, cfg.modelo)) if (ev.t === 'texto') texto += ev.v
+    if (texto.trim()) return texto.slice(Math.max(0, texto.indexOf('[')), texto.lastIndexOf(']') + 1) || texto
+  } catch (e) { fallo = fallo || e }
+  throw fallo || new Error('Ningún modelo de IA respondió.')
+}
+
+export async function sugerirPaginas(tema: TemaRecursos, cuantas = 4): Promise<PaginaSugerida[]> {
   const prompt = `Eres un docente universitario de computación. Para preparar esta evaluación, sugiere 7 páginas web REALES y conocidas que ayuden a un estudiante a estudiar o practicar:
 - Tema: ${temaLimpio(tema.nombre)}
 - Materia: ${tema.materia || 'Ingeniería de Software'}
@@ -178,7 +199,7 @@ Prioriza: documentación oficial, herramientas gratuitas para practicar (editore
 Usa SOLO direcciones https que estés seguro de que existen; mejor la página principal de una sección que una ruta muy específica. No incluyas YouTube.
 Responde SOLO con JSON: [{"titulo": "...", "url": "https://...", "descripcion": "para qué le sirve al estudiante, máximo 15 palabras"}]`
 
-  const texto = await preguntarGemini(clave, prompt)
+  const texto = await preguntarIA(prompt)
   let crudo: any[] = []
   try { crudo = JSON.parse(texto.replace(/^```(?:json)?\s*|\s*```$/g, '')) } catch { crudo = [] }
   if (!Array.isArray(crudo)) crudo = []
