@@ -4032,8 +4032,23 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
 const DIAS_APERTURA_PORTAL = 7;
 interface VideoSugeridoUI { titulo: string; url: string; canal: string; duracionSeg: number; miniatura: string; vistas: number }
 interface PaginaSugeridaUI { titulo: string; url: string; descripcion: string }
+// ¿Dos nombres hablan del mismo tema? Si el agente reemplaza una evaluación por otra de tema distinto,
+// sus recursos, rúbrica y examen viejos NO deben pasar a la nueva.
+function mismoTema(a?: string | null, b?: string | null): boolean {
+  const pal = (t?: string | null) => new Set(String(t || '').replace(/^(Evaluaci[oó]n\s*\d+\s*:\s*)+/i, '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(w => w.length >= 4));
+  const x = pal(a), y = pal(b);
+  if (!x.size || !y.size) return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+  const comunes = [...x].filter(w => y.has(w)).length;
+  return comunes / Math.min(x.size, y.size) >= 0.5;
+}
+// Al editar: si sigue siendo el mismo tema conserva rúbrica, recursos y examen; si cambió de tema, los borra (también en la base de datos)
+function heredado(vieja: SeccionExamen | undefined, nombreNuevo: string): Partial<SeccionExamen> & { quitarExamen?: boolean } {
+  if (!vieja) return {};
+  if (mismoTema(vieja.nombre, nombreNuevo)) return { rubrica: vieja.rubrica, recursos: vieja.recursos, examen: vieja.examen };
+  return { rubrica: null as any, recursos: [], examen: null, quitarExamen: true };
+}
 async function pedirSugerenciasRecursos(sec: SeccionExamen, materia?: string): Promise<{ videos: VideoSugeridoUI[]; paginas: PaginaSugeridaUI[]; avisos: string[] }> {
-  const r = await fetch('/api/recursos/sugerir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, enfoque: sec.enfoque, materia }) });
+  const r = await fetch('/api/recursos/sugerir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: sec.nombre, tipoActividad: sec.tipoActividad, enfoque: sec.enfoque, descripcion: String(sec.descripcion || '').slice(0, 600), materia }) });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || 'No se pudieron buscar recursos.');
   return { videos: d.videos || [], paginas: d.paginas || [], avisos: d.avisos || [] };
@@ -4749,7 +4764,9 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
         if (indiceExistente === -1) { enSeccion++; nueva.nombre = `Evaluación ${enSeccion}: ${limpiarTexto(nueva.nombre)}`; }
         if (indiceExistente !== -1) {
           // Ya existe una evaluación con ese mismo número/tipo → se actualiza en su lugar (edición)
-          secciones[indiceExistente] = { ...nueva, id: secciones[indiceExistente].id, grupoSeccion: secciones[indiceExistente].grupoSeccion, rubrica: secciones[indiceExistente].rubrica, recursos: secciones[indiceExistente].recursos, abiertaManual: secciones[indiceExistente].abiertaManual };
+          const vieja = secciones[indiceExistente];
+          // Otro tema → empieza sin los recursos/rúbrica/examen de la anterior
+          secciones[indiceExistente] = { ...nueva, id: vieja.id, grupoSeccion: vieja.grupoSeccion, ...heredado(vieja, nueva.nombre), abiertaManual: vieja.abiertaManual } as SeccionExamen;
         } else {
           secciones = [...secciones, nueva];
         }
@@ -6253,6 +6270,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           enfoque: ev.enfoque, fecha: ev.fecha ? ev.fecha.toISOString() : null, grupoSeccion: ev.grupoSeccion || 'A',
           rubrica: ev.rubrica, // undefined = no se toca; null = se borra
           recursos: ev.recursos, abiertaManual: ev.abiertaManual,
+          ...((ev as any).quitarExamen ? { quitarExamen: true } : {}), // cambió de tema: borra el examen viejo
         })),
         rubrica: planActualizada.rubrica.map(crit => ({
           nombre: crit.nombre, peso: crit.peso, descripcion: crit.descripcion,
@@ -6283,6 +6301,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
         setEvaluacion1(ajustarForm); setEvaluacion2(ajustarForm); setEvaluacion3(ajustarForm); setEvaluacion4(ajustarForm);
       }
 
+      // La marca de "borrar examen" ya se aplicó: se quita para no borrar uno que se adjunte después
+      const enviadas = new Set(planActualizada.secciones.filter(s => (s as any).quitarExamen).map(s => idsNuevos[s.id] || s.id));
+      if (enviadas.size) setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => (enviadas.has(s.id) && (s as any).quitarExamen ? (({ quitarExamen, ...resto }: any) => resto)(s) : s)) }));
       ultimaFirma.current = firma;
       setEstadoGuardado('guardado');
     } catch (error) {
@@ -6479,7 +6500,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const crearSeccion = (evalData: EvaluacionFormulario, tipo: string, idPrefix: string): SeccionExamen => {
     const materiaLimpia = limpiarTexto(evalData.materia);
     const duracionMin = evalData.duracionUnidad === 'hrs' ? (evalData.duracionMinutos || 0) * 60 : evalData.duracionMinutos;
-    return { id: evalData.editandoId || `${idPrefix}-${Date.now()}`, nombre: `${tipo}: ${materiaLimpia}`, tipoPregunta: 'desarrollo', peso: evalData.peso, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'comprender', tiempoEstimadoMinutos: duracionMin, tipoActividad: evalData.tipoActividad || undefined, descripcion: evalData.descripcion, cantidadGrupos: evalData.cantidadGrupos ?? undefined, personasPorGrupo: evalData.personasPorGrupo ?? undefined, orden: planificacion.secciones.length, enfoque: evalData.enfoque || undefined, fecha: evalData.fecha, grupoSeccion: evalData.editandoId ? (planificacion.secciones.find(s => s.id === evalData.editandoId)?.grupoSeccion || seccionActiva) : seccionActiva, rubrica: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.rubrica : undefined, recursos: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.recursos : undefined, abiertaManual: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.abiertaManual : undefined };
+    return { id: evalData.editandoId || `${idPrefix}-${Date.now()}`, nombre: `${tipo}: ${materiaLimpia}`, tipoPregunta: 'desarrollo', peso: evalData.peso, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'comprender', tiempoEstimadoMinutos: duracionMin, tipoActividad: evalData.tipoActividad || undefined, descripcion: evalData.descripcion, cantidadGrupos: evalData.cantidadGrupos ?? undefined, personasPorGrupo: evalData.personasPorGrupo ?? undefined, orden: planificacion.secciones.length, enfoque: evalData.enfoque || undefined, fecha: evalData.fecha, grupoSeccion: evalData.editandoId ? (planificacion.secciones.find(s => s.id === evalData.editandoId)?.grupoSeccion || seccionActiva) : seccionActiva, ...heredado(planificacion.secciones.find(s => s.id === evalData.editandoId), materiaLimpia), abiertaManual: evalData.editandoId ? planificacion.secciones.find(s => s.id === evalData.editandoId)?.abiertaManual : undefined };
   };
 
             const guardarEval = async (ev: EvaluacionFormulario, tipo: string, prefix: string, limpiar: () => void, setEv: (updater: (prev: EvaluacionFormulario) => EvaluacionFormulario) => void) => {

@@ -5,7 +5,7 @@
 
 export interface VideoSugerido { titulo: string; url: string; canal: string; duracionSeg: number; miniatura: string; vistas: number }
 export interface PaginaSugerida { titulo: string; url: string; descripcion: string }
-export interface TemaRecursos { nombre: string; tipoActividad?: string | null; enfoque?: string | null; materia?: string | null }
+export interface TemaRecursos { nombre: string; tipoActividad?: string | null; enfoque?: string | null; materia?: string | null; descripcion?: string | null }
 
 const TIEMPO = 8000
 
@@ -53,9 +53,19 @@ export async function buscarVideos(tema: TemaRecursos, cuantos = 5): Promise<Vid
   const palabras = base.split(' ').filter(Boolean).length
   // Si el tema es muy corto (ej. "UML"), se agrega la materia para dar contexto; "en español" ayuda mucho a YouTube
   const q = `${palabras <= 2 && tema.materia ? `${base} ${temaLimpio(tema.materia)}` : base} en español`
+  const recientes = await buscarVideosDesde(tema, base, q, clave, cuantos, new Date(Date.now() - 5 * 365 * 86400000))
+  if (recientes.length >= Math.min(2, cuantos)) return recientes
+  const todos = await buscarVideosDesde(tema, base, q, clave, cuantos, null)
+  const vistos = new Set(recientes.map(v => v.url))
+  return [...recientes, ...todos.filter(v => !vistos.has(v.url))].slice(0, cuantos)
+}
+
+const ANIO = 365 * 86400000
+async function buscarVideosDesde(tema: TemaRecursos, base: string, q: string, clave: string, cuantos: number, desde: Date | null): Promise<VideoSugerido[]> {
   const p = new URLSearchParams({
-    part: 'snippet', type: 'video', maxResults: '20', q, key: clave,
-    relevanceLanguage: 'es', safeSearch: 'strict', videoEmbeddable: 'true', videoSyndicated: 'true',
+    part: 'snippet', type: 'video', maxResults: '25', q, key: clave,
+    relevanceLanguage: 'es', regionCode: 'VE', safeSearch: 'strict', videoEmbeddable: 'true', videoSyndicated: 'true',
+    ...(desde ? { publishedAfter: desde.toISOString() } : {}),
   })
   const r = await conTiempo(`https://www.googleapis.com/youtube/v3/search?${p}`)
   const d: any = await r.json().catch(() => ({}))
@@ -85,14 +95,21 @@ export async function buscarVideos(tema: TemaRecursos, cuantos = 5): Promise<Vid
     if (seg < 180 || seg > 1800) return // ni shorts ni clases de horas
     const idioma = String(v.snippet?.defaultAudioLanguage || v.snippet?.defaultLanguage || '').toLowerCase()
     const titulo = decodificar(v.snippet?.title)
-    const pareceEspanol = idioma.startsWith('es') || /[áéíóúñ¿¡]|\b(qu[eé]|c[oó]mo|para|desde|explicaci[oó]n|tutorial en espa[nñ]ol|curso)\b/i.test(titulo)
+    const pareceEspanol = idioma.startsWith('es') || /[áéíóúñ¿¡]|\b(qu[eé]|c[oó]mo|para|desde|explicaci[oó]n|tutorial en espa[nñ]ol|curso|clase|ejemplo|introducci[oó]n|del|los|las|una)\b/i.test(titulo)
+    // Solo en español: fuera los que YouTube marca en otro idioma o cuyo título está claramente en inglés
+    if (idioma && !idioma.startsWith('es')) return
+    if (!pareceEspanol && /\b(the|and|how to|what is|what are|for beginners|explained|introduction to|with|in \d+ minutes|course|crash|full)\b/i.test(titulo)) return
+    // Antigüedad: más de 8 años, fuera; y cada año resta puntos (se prefieren los recientes)
+    const publicado = Date.parse(v.snippet?.publishedAt || '')
+    const anios = Number.isFinite(publicado) ? Math.max(0, (Date.now() - publicado) / ANIO) : 0
+    if (anios > 8) return
     const vistas = Number(v.statistics?.viewCount) || 0
     const texto = normal(`${titulo} ${v.snippet?.description || ''}`)
     const coinciden = claves.filter(k => texto.includes(raiz(k))).length
     if (claves.length && coinciden === 0) return // no habla del tema
     if (claves.length >= 3 && coinciden < 2 && !normal(titulo).includes(raiz(claves[0]))) return
     // Puntaje: que hable del tema primero, luego español, popularidad y el orden de relevancia de YouTube
-    const puntaje = (claves.length ? (coinciden / claves.length) * 150 : 0) + (pareceEspanol ? 100 : 0) + Math.log10(vistas + 1) * 6 - pos * 1.5
+    const puntaje = (claves.length ? (coinciden / claves.length) * 150 : 0) + (pareceEspanol ? 100 : 0) + Math.log10(vistas + 1) * 6 - pos * 1.5 - anios * 12
     candidatos.push({
       puntaje,
       titulo: decodificar(v.snippet?.title).slice(0, 120),
@@ -194,8 +211,8 @@ export async function sugerirPaginas(tema: TemaRecursos, cuantas = 4): Promise<P
 - Materia: ${tema.materia || 'Ingeniería de Software'}
 - Tipo de actividad: ${tema.tipoActividad || 'no indicado'}
 - Enfoque: ${tema.enfoque || 'no indicado'}
-
-Prioriza: documentación oficial, herramientas gratuitas para practicar (editores, simuladores, playgrounds), y guías reconocidas (MDN, Microsoft Learn, documentación oficial del producto, freeCodeCamp, Wikipedia en español si aplica). Prefiere contenido en español cuando exista.
+${tema.descripcion ? `- Lo que se evalúa: ${String(tema.descripcion).replace(/\s+/g, ' ').slice(0, 500)}\n` : ''}
+Prioriza: documentación oficial, herramientas gratuitas para practicar (editores, simuladores, playgrounds), y guías reconocidas (MDN, Microsoft Learn, documentación oficial del producto, freeCodeCamp, Wikipedia en español si aplica). TODO en español: usa la versión en español del sitio cuando exista (es.wikipedia.org, developer.mozilla.org/es/, learn.microsoft.com/es-es/, ibm.com/es-es, etc.). Solo pon algo en inglés si no hay nada equivalente en español, y como máximo uno. Los títulos y descripciones van en español. Que todo sea del tema exacto de ESTA evaluación.
 Usa SOLO direcciones https que estés seguro de que existen; mejor la página principal de una sección que una ruta muy específica. No incluyas YouTube.
 Responde SOLO con JSON: [{"titulo": "...", "url": "https://...", "descripcion": "para qué le sirve al estudiante, máximo 15 palabras"}]`
 

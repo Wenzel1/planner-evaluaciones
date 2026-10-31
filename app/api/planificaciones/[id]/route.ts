@@ -31,6 +31,8 @@ function datosEvaluacion(ev: any, index: number) {
     // Portal del estudiante: recursos de estudio y apertura manual
     ...(ev.recursos !== undefined ? { recursos: normalizarRecursos(ev.recursos) ?? Prisma.DbNull } : {}),
     ...(typeof ev.abiertaManual === 'boolean' ? { abiertaManual: ev.abiertaManual } : {}),
+    // La evaluación cambió de tema: su examen en línea viejo ya no sirve (solo se borra con esta marca explícita)
+    ...(ev.quitarExamen === true ? { examen: Prisma.DbNull } : {}),
   }
 }
 

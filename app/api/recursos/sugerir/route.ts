@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       tipoActividad: body.tipoActividad ? String(body.tipoActividad).slice(0, 120) : null,
       enfoque: body.enfoque ? String(body.enfoque).slice(0, 120) : null,
       materia: body.materia ? String(body.materia).slice(0, 120) : null,
+      descripcion: body.descripcion ? String(body.descripcion).slice(0, 600) : null,
     }
     if (temaLimpio(tema.nombre).length < 2) return NextResponse.json({ error: 'La evaluación necesita un nombre o tema para buscar recursos.' }, { status: 400 })
 
