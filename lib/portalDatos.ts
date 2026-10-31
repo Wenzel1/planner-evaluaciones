@@ -3,8 +3,20 @@ import prisma from '@/lib/prisma'
 import { normalizarRubrica } from '@/lib/rubrica'
 import { estaAbierta, normalizarRecursos, TOKEN_VALIDO } from '@/lib/portal'
 import { promedioPonderado } from '@/lib/notas'
+import { normalizarExamen, ventanaExamen } from '@/lib/examen'
 
 const limpiarNombre = (n: string) => String(n || '').replace(/^(Evaluaci[oó]n\s*\d+\s*:\s*|Pr[aá]ctica:\s*|Te[oó]rica:\s*)+/i, '').trim() || 'Evaluación'
+
+// Lo que el estudiante necesita saber del examen en línea (nunca las preguntas ni las respuestas correctas)
+function infoExamen(ev: { examen: unknown; fecha: Date | null; examenes: { entregadoEn: Date | null; publicada: boolean; nota: number | null; limite: Date }[] }, ahora: number) {
+  const ex = normalizarExamen(ev.examen)
+  if (!ex) return null
+  const { abre, cierra } = ventanaExamen(ex, ev.fecha)
+  const f = ev.examenes[0]
+  const estado = f?.entregadoEn || (f && ahora > f.limite.getTime() + 90000) ? (f.publicada ? 'calificado' : 'entregado')
+    : f ? 'en_curso' : !abre ? 'sin_fecha' : ahora < abre.getTime() ? 'bloqueado' : cierra && ahora > cierra.getTime() ? 'cerrado' : 'disponible'
+  return { tipo: ex.tipo, duracionMin: ex.duracionMin, preguntas: ex.preguntas.length, abre, cierra, estado, nota: f?.publicada ? f.nota : null }
+}
 
 export async function datosPortal(token: string) {
   if (!TOKEN_VALIDO.test(token)) return null
@@ -32,6 +44,8 @@ export async function datosPortal(token: string) {
               cantidadGrupos: true, personasPorGrupo: true, estado: true, abiertaManual: true, descripcion: true, recursos: true, rubrica: true,
               calificaciones: { where: { estudianteId: est.id }, select: { puntaje: true, observaciones: true, detalle: true } },
               preparaciones: { where: { estudianteId: est.id }, select: { id: true } },
+              examen: true,
+              examenes: { where: { estudianteId: est.id }, select: { entregadoEn: true, publicada: true, nota: true, limite: true } },
             },
           },
         },
@@ -55,6 +69,7 @@ export async function datosPortal(token: string) {
           recursos: abierta ? normalizarRecursos(ev.recursos) ?? [] : [],
           rubrica: abierta ? normalizarRubrica(ev.rubrica) : null,
           preparado: ev.preparaciones.length > 0,
+          examen: infoExamen(ev, ahora),
           nota: nota && nota.puntaje != null ? { puntaje: nota.puntaje, observaciones: nota.observaciones, detalle: Array.isArray(nota.detalle) ? nota.detalle : null } : null,
         }
       })

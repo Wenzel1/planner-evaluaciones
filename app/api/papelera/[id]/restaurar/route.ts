@@ -5,6 +5,7 @@ import { normalizarRecursos } from '@/lib/portal'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { recalcularPromedios } from '@/lib/notas'
+import { normalizarExamen } from '@/lib/examen'
 
 // Notas guardadas en la papelera → filas válidas para volver a crear
 const notasValidas = (lista: any): { estudianteId?: string; evaluacionId?: string; puntaje: number | null; observaciones: string | null; detalle: any }[] =>
@@ -76,6 +77,7 @@ export async function POST(
           grupoSeccion: d.grupoSeccion || 'A',
           ...(normalizarRubrica(d.rubrica) ? { rubrica: normalizarRubrica(d.rubrica) as any } : {}),
           ...(normalizarRecursos(d.recursos) ? { recursos: normalizarRecursos(d.recursos) as any } : {}),
+          ...(normalizarExamen(d.examen) ? { examen: normalizarExamen(d.examen) as any } : {}),
         },
       })
       idRestaurado = nueva.id

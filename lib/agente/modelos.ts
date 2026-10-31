@@ -5,7 +5,7 @@ import { herramientasGemini, herramientasGroq } from './herramientas'
 
 export interface Turno { rol: 'user' | 'model'; texto: string }
 export type Evento = { t: 'texto'; v: string } | { t: 'herramienta'; nombre: string; args: any } | { t: 'aviso'; v: string } | { t: 'malformada' }
-export interface Opciones { temperatura: number; maxTokens: number; senal?: AbortSignal }
+export interface Opciones { temperatura: number; maxTokens: number; senal?: AbortSignal; sinHerramientas?: boolean }
 interface Candidato { proveedor: 'gemini' | 'groq' | 'openrouter'; modelo: string }
 
 class FalloModelo extends Error { constructor(msg: string, public estado = 0) { super(msg) } }
@@ -47,8 +47,7 @@ async function* gemini(modelo: string, sistema: string, turnos: Turno[], op: Opc
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: sistema }] },
       contents: turnos.map(t => ({ role: t.rol, parts: [{ text: t.texto }] })),
-      tools: herramientasGemini(),
-      toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+      ...(op.sinHerramientas ? {} : { tools: herramientasGemini(), toolConfig: { functionCallingConfig: { mode: 'AUTO' } } }),
       generationConfig,
     }),
     signal: op.senal,
@@ -86,7 +85,7 @@ async function* groq(modelo: string, sistema: string, turnos: Turno[], op: Opcio
     body: JSON.stringify({
       model: modelo, stream: true, temperature: op.temperatura, max_tokens: Math.min(op.maxTokens, 8000),
       messages: [{ role: 'system', content: sistema }, ...turnos.map(t => ({ role: t.rol === 'model' ? 'assistant' : 'user', content: t.texto }))],
-      tools: herramientasGroq(), tool_choice: 'auto',
+      ...(op.sinHerramientas ? {} : { tools: herramientasGroq(), tool_choice: 'auto' }),
     }),
     signal: op.senal,
   })

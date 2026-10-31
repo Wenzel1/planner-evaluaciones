@@ -32,6 +32,7 @@ HERRAMIENTAS (la app muestra una tarjeta con botón; nada cambia hasta que el pr
 - cargar_notas: cuando dicte o pegue notas ("Ana 18, Pedro 12…"). Usa la evaluación que indique (si no la dice y no es obvia, pregúntale cuál). Notas de 0 a 20; si vienen sobre otra escala, conviértelas y dilo. enviar = true solo si pide mandarlas.
 - abrir_en_portal: cuando quiera que los estudiantes vean ya una evaluación (descripción, recursos, rúbrica) antes de la semana previa.
 - enviar_plan: cuando pida mandarles el plan o el enlace; soloSinAbrir = true si habla de "los que no lo han visto/abierto".
+- crear_examen: prepara el examen en línea que el estudiante presenta en su página. Úsala cuando lo pida, y OFRÉCELA tú (sin llamarla) después de crear o revisar un plan, para las evaluaciones teóricas que aún no tienen examen ("¿Te preparo el examen de la #2?"). Solo teóricas: prueba escrita, selección simple, desarrollo, ensayo, informe, análisis de caso. Nunca para exposiciones, laboratorios, proyectos, talleres prácticos o debates (dilo si te lo piden). Ajusta el tipo de preguntas a la estrategia: selección/VF para pruebas objetivas, 3-5 de desarrollo para ensayos, 1-2 consignas de informe con lo esperado. Preguntas basadas en el tema y la descripción de la evaluación y, si hay documento adjunto, en sus contenidos. Puntos que sumen 20. Una evaluación por llamada. En el texto di solo cuántas preguntas y de qué tipo (no las repitas).
 - eliminar_evaluaciones: solo si lo pide de forma explícita; recuérdale que quedan en la papelera con sus notas.
 - cambiar_materia: cuando quiera trabajar en otra materia o crear una (crear = true si dice "nueva" o no existe en MATERIAS).
 - consultar: para responder con datos que no ves en CONTEXTO (cómo le va a un estudiante, quién no tiene nota, otra sección, si fallaron WhatsApps, qué opinaron). Después de consultar responde directo con lo que encontraste; puedes consultar varias cosas antes de responder.
@@ -55,13 +56,13 @@ REGLAS DEL PLAN
 - Grupos: individual = 1 persona; laboratorios 2-3; proyectos 3-4; debates 3-5. Si conoces la cantidad de estudiantes, cantidadGrupos = estudiantes ÷ personas por grupo (redondeando hacia arriba).
 - Varía las estrategias (no todo exámenes escritos) y cuida la progresión de Bloom: primero comprender, luego aplicar, al final analizar o crear.
 - enfoque debe ser EXACTAMENTE uno de: ${ENFOQUES.join(', ')}.
-- descripcion (120-200 palabras, texto plano con saltos de línea) con estas secciones en mayúsculas: OBJETIVO, ACTIVIDAD, HERRAMIENTAS, ENTREGABLES, CRITERIOS DE EVALUACIÓN (con porcentajes) y, si es en grupos, TEMAS POR GRUPO.`
+- descripcion (90-140 palabras, texto plano con saltos de línea, sin comillas dobles) con estas secciones en mayúsculas: OBJETIVO, ACTIVIDAD, HERRAMIENTAS, ENTREGABLES, CRITERIOS DE EVALUACIÓN (con porcentajes) y, si es en grupos, TEMAS POR GRUPO.`
 
 // --------- Contexto vivo (lo arma el servidor con lo que manda la app + datos de la base) ---------
 export interface EvalContexto {
   numero: number; id?: string; nombre: string; tipoActividad?: string | null; enfoque?: string | null; peso?: number | null
   fecha?: string | null; duracion?: number | null; estado?: string | null; personasPorGrupo?: number | null; cantidadGrupos?: number | null
-  tieneRubrica?: boolean; recursos?: number; preparados?: number
+  tieneRubrica?: boolean; recursos?: number; preparados?: number; examen?: string | null
   promedio?: number | null; calificados?: number
 }
 export interface DatosContexto {
@@ -97,6 +98,7 @@ export function construirContexto(c: DatosContexto): string {
         (e.personasPorGrupo ?? 0) > 1 ? `grupos de ${e.personasPorGrupo}` : null,
         e.estado && e.estado !== 'PROGRAMADA' ? e.estado.toLowerCase() : null,
         e.tieneRubrica ? 'con rúbrica' : 'sin rúbrica',
+        e.examen ? `examen en línea (${e.examen})` : null,
         e.recursos ? `${e.recursos} recursos` : 'sin recursos',
         e.calificados ? `promedio ${e.promedio?.toFixed(1)} (${e.calificados} notas)` : null,
         e.preparados ? `${e.preparados} se prepararon` : null,

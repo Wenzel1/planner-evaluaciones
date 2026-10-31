@@ -37,6 +37,8 @@ import { validarNombre, validarEmail, validarPassword, validarTelefono, validarC
 import { csvAEstudiantes, plantillaCSV } from '@/lib/csvEstudiantes';
 import { NIVELES_RUBRICA, normalizarRubrica, puntosNivel, rubricaSugerida, textoPuntos, totalRubrica, type RubricaEval } from '@/lib/rubrica';
 import { calcularAlertas } from '@/lib/alertas';
+import ModalExamen, { EditorPreguntas } from '@/components/ModalExamen';
+import { normalizarExamen, admiteExamenEnLinea, TIPOS_PREGUNTA, type Examen } from '@/lib/examen';
 
 // ============================================
 // TIPOS
@@ -54,6 +56,8 @@ interface SeccionExamen {
   estado?: string;
   // Rúbrica propia de la evaluación (criterios × Excelente/Bueno/Regular/Deficiente)
   rubrica?: RubricaEval | null;
+  // Examen en línea que el estudiante presenta en su página (se guarda aparte con /api/evaluaciones/:id/examen)
+  examen?: Examen | null;
   // Portal del estudiante: recursos de estudio y apertura antes de tiempo
   recursos?: { titulo: string; url: string }[] | null;
   abiertaManual?: boolean;
@@ -79,13 +83,15 @@ interface PlanificacionExamen {
 }
 // Acción que propone el agente (tarjeta con botón en el chat)
 interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada' | 'deshecha'; resultado?: string; automatica?: boolean }
-const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar', navegar: 'abrir pantalla', agregar_estudiantes: 'agregar estudiantes', modificar_estudiantes: 'modificar estudiantes', cargar_notas: 'cargar notas', abrir_en_portal: 'abrir en la página de estudiantes', enviar_plan: 'enviar plan', eliminar_evaluaciones: 'eliminar evaluaciones', cambiar_materia: 'cambiar de materia' };
+const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar', navegar: 'abrir pantalla', agregar_estudiantes: 'agregar estudiantes', modificar_estudiantes: 'modificar estudiantes', cargar_notas: 'cargar notas', abrir_en_portal: 'abrir en la página de estudiantes', enviar_plan: 'enviar plan', eliminar_evaluaciones: 'eliminar evaluaciones', cambiar_materia: 'cambiar de materia', crear_examen: 'examen en línea' };
 // Acciones del agente que no cambian datos: se ejecutan solas al llegar
 const ACCIONES_AUTOMATICAS = ['navegar'];
 // Con el modo automático también se aplican solas estas (todas se pueden deshacer). Notas, estudiantes, mensajes,
 // eliminar y cambiar de materia SIEMPRE piden confirmación.
 const ACCIONES_SEGURAS = ['crear_rubrica', 'buscar_recursos', 'reprogramar', 'ajustar_pesos', 'abrir_en_portal', 'cambiar_estado', 'recordar_preferencia', 'generar_plan_accion'];
 const CLAVE_MODO_AUTO = 'agenteModoAuto';
+// "Aplicar todo" aplica de una vez las tarjetas pendientes de un mensaje, menos las que envían mensajes, borran o recargan
+const FUERA_DE_APLICAR_TODO = ['mensaje_estudiantes', 'enviar_plan', 'eliminar_evaluaciones', 'cambiar_materia', 'generar_preguntas', 'navegar', 'crear_examen'];
 interface AvisoChat { tipo: string; texto: string; pedido: string; seccion?: string; urgente?: boolean }
 const VISTA_DE_AGENTE: Record<string, string> = { dashboard: 'estadisticas', planificador: 'planificacion', calendario: 'calendario', estudiantes: 'estudiantes', papelera: 'papelera', perfil: 'perfil', configuracion: 'configuracion' };
 const NOMBRE_VISTA: Record<string, string> = { dashboard: 'el Dashboard', planificador: 'el Planificador', calendario: 'el Calendario', estudiantes: 'Estudiantes', papelera: 'la Papelera', perfil: 'tu perfil', configuracion: 'la configuración del plan' };
@@ -3458,10 +3464,11 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
   );
 }
 
-function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica, onEstadoLocal, onGuardarRecursos }: any) {
+function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica, onEstadoLocal, onGuardarRecursos, onExamenLocal }: any) {
   const [recursosDe, setRecursosDe] = useState<SeccionExamen | null>(null);
   const [rubricaDe, setRubricaDe] = useState<SeccionExamen | null>(null);
   const [notasDe, setNotasDe] = useState<SeccionExamen | null>(null);
+  const [examenDe, setExamenDe] = useState<SeccionExamen | null>(null);
   // Vista previa del plan: SOLO las evaluaciones de la sección activa que están marcadas
   const listaPlan: SeccionExamen[] = Array.isArray(seccionesPlan) ? seccionesPlan : secciones;
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
@@ -3591,6 +3598,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               onRubrica={onGuardarRubrica ? setRubricaDe : undefined}
               onNotas={setNotasDe}
               onRecursos={onGuardarRecursos ? setRecursosDe : undefined}
+              onExamen={onExamenLocal ? setExamenDe : undefined}
             />
           );
         })}
@@ -3613,6 +3621,10 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
         )}
       </AnimatePresence>
       <AnimatePresence>
+        {examenDe && onExamenLocal && (
+          <ModalExamen key={examenDe.id} evaluacion={examenDe} onCerrar={() => setExamenDe(null)} notificar={agregarNotificacion}
+            onGuardado={(ex) => onExamenLocal(examenDe.id, ex)} />
+        )}
         {notasDe && (
           <ModalNotas key={notasDe.id} seccion={notasDe} onCerrar={() => setNotasDe(null)} agregarNotificacion={agregarNotificacion} onEstadoCambiado={onEstadoLocal} />
         )}
@@ -4178,13 +4190,14 @@ function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: Se
 // ============================================
 // TARJETA DE EVALUACIÓN (draggable individual, fluida con Framer Motion)
 // ============================================
-function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas, onRecursos }: {
+function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas, onRecursos, onExamen }: {
   seccion: SeccionExamen; index: number; isSelected: boolean; onToggleSelect?: (id: string) => void;
   expanded: boolean; onToggleExpand: () => void; onEdit: (s: SeccionExamen) => void; onDelete: (id: string) => void;
   onEnviar: (s: SeccionExamen) => void; enviando: boolean; onCambiarEstado?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean>;
   onRubrica?: (s: SeccionExamen) => void;
   onNotas?: (s: SeccionExamen) => void;
   onRecursos?: (s: SeccionExamen) => void;
+  onExamen?: (s: SeccionExamen) => void;
 }) {
   const dragControls = useDragControls();
   const nombreLimpio = limpiarTexto(seccion.nombre);
@@ -4231,6 +4244,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
           <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
           {onRubrica && <Tooltip text={seccion.rubrica ? 'Ver o editar la rúbrica' : 'Crear rúbrica'}><button onClick={() => onRubrica(seccion)} className={`p-1.5 rounded-lg ${seccion.rubrica ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><ClipboardCheck className="w-4 h-4" /></button></Tooltip>}
           {onRecursos && <Tooltip text={seccion.recursos?.length ? `${seccion.recursos.length} recurso(s) para los estudiantes` : 'Agregar recursos para los estudiantes'}><button onClick={() => onRecursos(seccion)} className={`relative p-1.5 rounded-lg ${seccion.recursos?.length ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><Paperclip className="w-4 h-4" />{seccion.abiertaManual && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400" title="Abierta antes de tiempo" />}</button></Tooltip>}
+          {onExamen && (seccion.examen || admiteExamenEnLinea(seccion.tipoActividad, seccion.enfoque)) && <Tooltip text={seccion.examen ? `Examen en línea (${seccion.examen.preguntas.length} preguntas) · ver entregas` : 'Crear examen en línea'}><button onClick={() => onExamen(seccion)} className={`relative p-1.5 rounded-lg ${seccion.examen ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><FileCheck className="w-4 h-4" />{seccion.examen?.desde && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400" title="Abierto a mano antes de la fecha" />}</button></Tooltip>}
           {onNotas && String(seccion.estado || '').toUpperCase() !== 'CANCELADA' && <Tooltip text="Notas de los estudiantes"><button onMouseEnter={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onTouchStart={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onClick={() => onNotas(seccion)} className="p-1.5 rounded-lg text-[#8a8b9e] hover:text-emerald-300 hover:bg-emerald-500/10"><GraduationCap className="w-4 h-4" /></button></Tooltip>}
           <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
           <Tooltip text="Eliminar"><button onClick={() => onDelete(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
@@ -4576,7 +4590,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
 // ============================================
 // AGENTE PANEL (CON SCROLL MEJORADO)
 // ============================================
-function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guardarAhora, planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
+function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guardarAhora, formulariosLibres, planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, esSuperadmin = false }: any) {
   // Atajos del encabezado del chat: llevan al panel de la derecha (en el celular el chat se oculta para dejarlo ver)
   const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
   const [mensaje, setMensaje] = useState(''); 
@@ -4607,8 +4621,11 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   const [memorias, setMemorias] = useState<{ id: string; texto: string }[] | null>(null);
   // Deshacer: cómo revertir cada acción aplicada en esta sesión (por id de acción)
   const deshacerRef = useRef<Record<string, () => Promise<string>>>({});
+  const aplicadasRef = useRef<Set<string>>(new Set()); // acciones ya aplicadas o en curso
+  const [examenEditando, setExamenEditando] = useState<{ msgId: string; accion: AccionChat; seccion: SeccionExamen } | null>(null);
   // Modo automático: las acciones seguras se aplican solas (se recuerda en este navegador)
-  const [modoAuto, setModoAuto] = useState<boolean>(() => { try { return localStorage.getItem(CLAVE_MODO_AUTO) === '1'; } catch { return false; } });
+  // Activado por defecto (todo lo que hace solo se puede deshacer); se apaga con el botón ✨ y se recuerda
+  const [modoAuto, setModoAuto] = useState<boolean>(() => { try { return localStorage.getItem(CLAVE_MODO_AUTO) !== '0'; } catch { return true; } });
   const modoAutoRef = useRef(modoAuto); modoAutoRef.current = modoAuto;
   const alternarModoAuto = () => { const v = !modoAuto; setModoAuto(v); try { localStorage.setItem(CLAVE_MODO_AUTO, v ? '1' : '0'); } catch { /* sin almacenamiento */ } agregarNotificacion?.(v ? '⚡ Modo automático activado: rúbricas, recursos, fechas, pesos y estados se aplicarán solos (con botón Deshacer).' : 'Modo automático desactivado: todo pedirá confirmación.'); };
   // Avisos del día (se muestran al abrir el chat vacío)
@@ -4785,6 +4802,7 @@ if (sonCuatro && generarPDF) {
         fecha: s.fecha ? new Date(s.fecha).toISOString() : null, duracion: s.tiempoEstimadoMinutos, estado: s.estado,
         personasPorGrupo: s.personasPorGrupo, cantidadGrupos: s.cantidadGrupos, tieneRubrica: !!s.rubrica?.criterios?.length,
         recursos: s.recursos?.length || 0, preparados: s.preparados || 0,
+        examen: s.examen ? `${s.examen.preguntas.length} preguntas, ${s.examen.tipo}` : null,
       })),
     };
   };
@@ -4798,6 +4816,8 @@ if (sonCuatro && generarPDF) {
     setHistorial(prev => prev.map(m => (m.id === msgId ? { ...m, acciones: (m.acciones || []).map(a => (a.id === accId ? { ...a, ...cambio } : a)) } : m)));
 
   const ejecutarAccion = async (msgId: string, a: AccionChat, modo: 'aplicar' | 'ajustar' = 'aplicar') => {
+    // Nunca dos veces la misma acción (ej. "Aplicar todo" y el modo automático a la vez)
+    if (modo === 'aplicar') { if (aplicadasRef.current.has(a.id)) return; aplicadasRef.current.add(a.id); }
     marcarAccion(msgId, a.id, { estado: 'trabajando', resultado: undefined, ...(a.automatica ? { automatica: true } : {}) });
     let deshacer: (() => Promise<string>) | null = null;
     // Foto antes del cambio. Deshacer devuelve SOLO lo que tocó esta acción: ciertos campos de ciertas evaluaciones
@@ -4826,12 +4846,20 @@ if (sonCuatro && generarPDF) {
           const prop = propuestaDeAccion(a);
           if (modo === 'ajustar') {
             setPropuestaPendienteLocal(prop); setPropuestaPendiente(prop); setVistaPanel('planificacion'); if (esMovil) setExpandido(false);
-            resultado = 'Cargada en los formularios para que la ajustes y la guardes';
+            marcarAccion(msgId, a.id, { estado: 'pendiente', resultado: undefined });
+            return; // sigue pendiente: se guarda desde los formularios o con "Guardar en el planificador"
           } else {
             deshacer = foto(seccionActiva, 'Evaluaciones devueltas a como estaban', { quitarNuevas: true, ids: (a.datos?.evaluaciones || []).map((e: any) => evs[e.numero - 1]?.id).filter(Boolean) });
             const r = await guardarEvaluacionesDirecto(prop);
             if (!r.success) throw new Error(r.mensaje);
             resultado = `${r.totalEvals} evaluación(es) guardadas en la Sección ${seccionActiva}${r.pdfGenerado ? ' y plan de acción generado' : ''}`;
+            if (modoAutoRef.current) setTimeout(async () => {
+              const m = historialRef.current.find(x => x.id === msgId);
+              for (const x of (m?.acciones || []).filter(x => x.id !== a.id && (x.estado || 'pendiente') === 'pendiente' && ACCIONES_SEGURAS.includes(x.tipo))) {
+                await ejecutarRef.current(msgId, { ...x, automatica: true });
+                await new Promise(res => setTimeout(res, 80));
+              }
+            }, 150);
             setVistaPanel('planificacion');
           }
           break;
@@ -5074,6 +5102,22 @@ if (sonCuatro && generarPDF) {
           resultado = `${quitar.length} evaluación(es) eliminadas (están en la Papelera con sus notas)`;
           break;
         }
+        case 'crear_examen': {
+          const s = ev(a.datos.evaluacion);
+          const anterior = s.examen ?? null;
+          const r = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/examen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'guardar', examen: a.datos.examen }) });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.error || 'No se pudo adjuntar el examen.');
+          cambiar(s.id, { examen: d.examen });
+          deshacer = async () => {
+            const rr = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/examen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'guardar', examen: anterior }) });
+            if (!rr.ok) throw new Error('No se pudo quitar el examen.');
+            cambiar(s.id, { examen: anterior });
+            return anterior ? 'Se dejó el examen anterior' : 'Examen quitado de la evaluación';
+          };
+          resultado = `Examen de ${d.examen.preguntas.length} preguntas adjuntado a «${limpiarTexto(s.nombre)}» (los estudiantes lo verán bloqueado hasta la fecha)`;
+          break;
+        }
         case 'cambiar_materia': {
           if (!onCambiarMateria) throw new Error('No disponible.');
           resultado = await onCambiarMateria(a.datos.nombre, !!a.datos.crear);
@@ -5086,7 +5130,20 @@ if (sonCuatro && generarPDF) {
       eventosRef.current.push(`${ACCIONES_AUTOMATICAS.includes(a.tipo) || a.automatica ? 'se aplicó solo (modo automático)' : 'el profesor aplicó tu propuesta'}: ${resultado}`);
       if (!ACCIONES_AUTOMATICAS.includes(a.tipo)) agregarNotificacion?.(`${a.automatica ? '⚡' : '✅'} ${resultado}${/[.!?…]$/.test(resultado) ? '' : '.'}`);
     } catch (e: any) {
+      aplicadasRef.current.delete(a.id); // falló: se puede volver a intentar
       marcarAccion(msgId, a.id, { estado: 'pendiente', resultado: `⚠ ${e?.message || 'No se pudo aplicar.'}` });
+    }
+  };
+  // Siempre la versión más reciente (con el plan actualizado), para aplicar varias seguidas
+  const ejecutarRef = useRef(ejecutarAccion); ejecutarRef.current = ejecutarAccion;
+  const historialRef = useRef(historial); historialRef.current = historial;
+  const aplicarTodo = async (msg: Mensaje) => {
+    const lista = (msg.acciones || []).filter(a => (a.estado || 'pendiente') === 'pendiente' && !FUERA_DE_APLICAR_TODO.includes(a.tipo));
+    // Primero las que crean evaluaciones, para que las demás (rúbricas, recursos…) ya las encuentren
+    lista.sort((x, y) => (x.tipo === 'proponer_evaluaciones' ? -1 : 0) - (y.tipo === 'proponer_evaluaciones' ? -1 : 0));
+    for (const a of lista) {
+      await ejecutarRef.current(msg.id, a);
+      await new Promise(r => setTimeout(r, 80)); // deja que la pantalla se actualice antes de la siguiente
     }
   };
   const deshacerAccion = async (msgId: string, a: AccionChat) => {
@@ -5102,7 +5159,8 @@ if (sonCuatro && generarPDF) {
   };
   const descartarAccion = (msgId: string, a: AccionChat) => {
     marcarAccion(msgId, a.id, { estado: 'descartada' });
-    if (a.tipo === 'proponer_evaluaciones') setPropuestaPendienteLocal(null);
+    // Descartar una propuesta también limpia los formularios donde se había cargado
+    if (a.tipo === 'proponer_evaluaciones') { setPropuestaPendienteLocal(null); setPropuestaPendiente(null); limpiarYScroll?.(); }
     eventosRef.current.push(`el profesor descartó tu propuesta (${TITULO_ACCION[a.tipo] || a.tipo})`);
   };
 
@@ -5135,6 +5193,7 @@ if (sonCuatro && generarPDF) {
 
     const idAgente = `agent-${Date.now()}`;
     let creado = false;
+    let traePropuesta = false; // si el mensaje propone evaluaciones, lo automático espera a que se guarden
     const asegurarMensaje = () => {
       if (creado) return;
       creado = true; setPensando(false); setEscribiendo(true);
@@ -5149,7 +5208,10 @@ if (sonCuatro && generarPDF) {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
         body: JSON.stringify({ mensaje: msg, conversacionId, planificacionId, contexto: armarContexto(), eventos: eventosRef.current, regenerar: !!opciones.regenerar, modo: opciones.modo, modoAuto, adjunto: adj ? { nombre: adj.nombre, texto: adj.texto } : undefined }),
       });
-      if (!r.ok || !r.body) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'El agente no pudo responder.'); }
+      if (!r.ok || !r.body) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error || (r.status === 504 ? 'El servidor tardó demasiado (más de 60 s). Intenta de nuevo.' : `El agente no pudo responder (código ${r.status}). Si se repite, revisa en Vercel → Logs la línea que empieza con [Chat].`));
+      }
       eventosRef.current = [];
       const lector = r.body.getReader(); const dec = new TextDecoder(); let resto = '';
       const procesar = (linea: string) => {
@@ -5160,8 +5222,14 @@ if (sonCuatro && generarPDF) {
         else if (ev.t === 'texto') { asegurarMensaje(); actualizar(m => ({ ...m, contenido: m.contenido + ev.v })); scrollToBottom(); }
         else if (ev.t === 'accion' && ev.accion) {
           asegurarMensaje(); actualizar(m => ({ ...m, acciones: [...(m.acciones || []), { ...ev.accion, estado: 'pendiente' }] }));
-          if (ev.accion.tipo === 'proponer_evaluaciones') setPropuestaPendienteLocal(propuestaDeAccion(ev.accion)); // para que "sí" escrito también la guarde
-          const sola = ACCIONES_AUTOMATICAS.includes(ev.accion.tipo) || (modoAutoRef.current && ACCIONES_SEGURAS.includes(ev.accion.tipo));
+          if (ev.accion.tipo === 'proponer_evaluaciones') {
+            traePropuesta = true;
+            const prop = propuestaDeAccion(ev.accion);
+            setPropuestaPendienteLocal(prop); // para que "sí" escrito también la guarde
+            // Vista previa: la propuesta aparece sola en los formularios (sin guardar). Si estás escribiendo algo a mano, no se pisa.
+            if (!formulariosLibres || formulariosLibres()) { setPropuestaPendiente(prop); if (!esMovil) setVistaPanel('planificacion'); }
+          }
+          const sola = ACCIONES_AUTOMATICAS.includes(ev.accion.tipo) || (modoAutoRef.current && !traePropuesta && ACCIONES_SEGURAS.includes(ev.accion.tipo));
           if (sola) { const acc = { ...ev.accion, estado: 'pendiente' as const, automatica: true }; setTimeout(() => ejecutarAccion(idAgente, acc), 60); }
           scrollToBottom();
         }
@@ -5399,7 +5467,7 @@ if (sonCuatro && generarPDF) {
               </details>
             ))}
           </div>
-          {botones('Guardar en el planificador', <button type="button" disabled={trabajando} onClick={() => ejecutarAccion(msg.id, a, 'ajustar')} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white disabled:opacity-50">Ajustar en formularios</button>)}
+          {botones('Guardar en el planificador', <button type="button" disabled={trabajando} onClick={() => ejecutarAccion(msg.id, a, 'ajustar')} title="La propuesta está en los formularios del planificador: ahí puedes cambiar lo que quieras y guardar" className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white disabled:opacity-50">Ver y ajustar en formularios</button>)}
           {pie}
         </div>
       );
@@ -5511,6 +5579,34 @@ if (sonCuatro && generarPDF) {
         </div>
       );
     }
+    if (a.tipo === 'crear_examen') {
+      const ex: Examen = a.datos?.examen;
+      const ver = !!a.datos?.verRespuestas;
+      if (!ex) return null;
+      return (
+        <div key={a.id} className={marco}>
+          <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
+            <FileCheck className="w-4 h-4 text-[#a5b4fc]" />
+            <span className="text-sm font-semibold text-[#e0e0ec]">Examen en línea · {nombreEv(a.datos?.evaluacion)}</span>
+            <span className="text-[11px] text-[#8a8b9e]">{ex.preguntas.length} preguntas · {ex.duracionMin} min · {ex.modoCorreccion === 'automatica' ? 'corrección automática' : ex.modoCorreccion === 'profesor' ? 'corriges tú' : 'la IA sugiere, tú publicas'}</span>
+            <button type="button" onClick={() => marcarAccion(msg.id, a.id, { datos: { ...a.datos, verRespuestas: !ver } })} className="ml-auto text-[11px] text-[#a5b4fc] hover:text-white">{ver ? 'Ocultar respuestas' : 'Ver respuestas'}</button>
+          </div>
+          {ex.instrucciones && <p className="px-3.5 pb-2 text-[12px] text-[#a8a9bc] italic">{ex.instrucciones}</p>}
+          <ol className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[#2a2b3d] border-t border-[#2a2b3d]">
+            {ex.preguntas.map((q, i) => (
+              <li key={q.id} className="px-3.5 py-2.5 text-[13px] text-[#d0d0da]">
+                <div className="flex gap-2"><span className="text-[#6a6b7e] w-5 flex-shrink-0">{i + 1}.</span><span className="flex-1">{q.enunciado}</span><span className="text-[10px] text-[#8a8b9e] whitespace-nowrap">{TIPOS_PREGUNTA[q.tipo]} · {textoPuntos(q.puntos)} pts</span></div>
+                {q.tipo === 'seleccion' && <ul className="mt-1 ml-7 space-y-0.5 text-[12px]">{(q.opciones || []).map((o, k) => <li key={k} className={ver && k === q.correcta ? 'text-emerald-300 font-medium' : 'text-[#a8a9bc]'}>{'abcdef'[k]}) {o}{ver && k === q.correcta ? ' ✔' : ''}</li>)}</ul>}
+                {q.tipo === 'vf' && ver && <p className="mt-1 ml-7 text-[12px] text-emerald-300">✔ {q.correcta === 1 ? 'Verdadero' : 'Falso'}</p>}
+                {(q.tipo === 'desarrollo' || q.tipo === 'informe') && ver && q.esperado && <p className="mt-1 ml-7 text-[12px] text-emerald-300">Se espera: {q.esperado}</p>}
+              </li>
+            ))}
+          </ol>
+          {botones('Adjuntar a la evaluación', <button type="button" disabled={trabajando} onClick={() => { const s = evs[(a.datos?.evaluacion || 1) - 1]; if (!s) { marcarAccion(msg.id, a.id, { resultado: `⚠ No existe la evaluación #${a.datos?.evaluacion} en la Sección ${seccionActiva}.` }); return; } setExamenEditando({ msgId: msg.id, accion: a, seccion: s }); }} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white disabled:opacity-50">Editar antes de adjuntar</button>)}
+          {pie}
+        </div>
+      );
+    }
     if (a.tipo === 'navegar') {
       return (
         <div key={a.id} className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border border-[#818cf8]/25 bg-[#818cf8]/10 text-[#c7d2fe]">
@@ -5552,6 +5648,17 @@ if (sonCuatro && generarPDF) {
 
   return (
     <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[#282a3f] flex flex-col bg-[#191a26] overflow-hidden' : 'relative border-r border-[#282a3f] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[#191a26] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
+      {examenEditando && (
+        <ModalExamen key={examenEditando.accion.id} evaluacion={examenEditando.seccion} inicial={examenEditando.accion.datos?.examen} notificar={agregarNotificacion}
+          onCerrar={() => setExamenEditando(null)}
+          onGuardado={(ex) => {
+            const { msgId, accion, seccion } = examenEditando;
+            setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.map(x => (x.id === seccion.id ? { ...x, examen: ex } : x)) }));
+            aplicadasRef.current.add(accion.id);
+            marcarAccion(msgId, accion.id, { estado: 'hecha', resultado: ex ? `Examen de ${ex.preguntas.length} preguntas adjuntado a «${limpiarTexto(seccion.nombre)}» (editado por ti)` : 'Examen quitado' });
+            eventosRef.current.push(ex ? `el profesor editó y adjuntó el examen de «${limpiarTexto(seccion.nombre)}»` : 'el profesor quitó el examen');
+          }} />
+      )}
       {/* Encabezado */}
       <div className="flex-shrink-0 px-3 sm:px-5 py-3.5 border-b border-[#282a3f] flex items-center gap-3 bg-gradient-to-r from-[#191a26] to-[#1f2035] relative">
         <div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center shadow-lg shadow-[#818cf8]/30"><Bot className="w-5 h-5 text-white" /></div><div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-[#191a26] flex items-center justify-center ${chatInactivo ? 'bg-[#6a6b7e]' : ocupado ? 'bg-amber-400' : 'bg-emerald-400'}`}><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div>
@@ -5646,6 +5753,14 @@ if (sonCuatro && generarPDF) {
                       </div>
                     ) : null}
                     {msg.acciones?.map(a => renderAccion(msg, a))}
+                    {(() => {
+                      const pendientes = (msg.acciones || []).filter(a => (a.estado || 'pendiente') === 'pendiente' && !FUERA_DE_APLICAR_TODO.includes(a.tipo));
+                      return pendientes.length >= 2 && !msg.streaming ? (
+                        <button type="button" onClick={() => aplicarTodo(msg)} className="mt-3 w-full h-10 rounded-xl bg-gradient-to-r from-[#818cf8] to-[#6366f1] hover:from-[#6366f1] hover:to-[#4f46e5] text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-[#818cf8]/20">
+                          <CheckCircle className="w-4 h-4" />Aplicar todo ({pendientes.length})
+                        </button>
+                      ) : null;
+                    })()}
                     {msg.aviso && <p className="mt-2 text-[11px] text-amber-300">{msg.aviso}</p>}
                     {msg.completo && !msg.error && (
                       <div className={`mt-1.5 flex items-center gap-1 transition-opacity ${msg.id === ultimoAgenteId || msg.valoracion || leyendoId === msg.id ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}>
@@ -5711,7 +5826,7 @@ if (sonCuatro && generarPDF) {
 // ============================================
 // PANEL DERECHO (CONFIG Y NOTIFICACIONES MEJORADAS)
 // ============================================
-type PanelDerechoHandle = { limpiarYScroll: () => void; notificar: (mensaje: string) => void; guardarAhora: () => Promise<void>; cambiarSeccion: (letra: string) => void; };
+type PanelDerechoHandle = { limpiarYScroll: () => void; notificar: (mensaje: string) => void; guardarAhora: () => Promise<void>; cambiarSeccion: (letra: string) => void; formulariosLibres: () => boolean; };
 type MateriaCorta = { id: string; nombre: string };
 const CLAVE_MATERIA = 'materiaActiva'; // última materia abierta en este navegador
 
@@ -5728,10 +5843,10 @@ function SelectorMateria({ materias, actualId, actualNombre, onAbrir, onNueva }:
   const correr = async (f: () => Promise<void>) => { setOcupado(true); try { await f(); } catch (e: any) { alert(e?.message || 'No se pudo.'); setOcupado(false); } };
   return (
     <div ref={ref} className="relative">
-      <Tooltip text="Materia" lado="abajo">
+      <Tooltip text={actualNombre ? `Materia: ${actualNombre}` : 'Materia'} lado="abajo">
         <button type="button" disabled={ocupado} onClick={() => setAbierto(v => !v)} className="h-9 px-2 sm:px-3 flex items-center gap-1.5 rounded-xl border border-[#313248] bg-[#1d1e2e] text-[#c0c0d0] hover:text-white hover:border-[#818cf8]/40 text-xs font-medium max-w-[200px] disabled:opacity-60">
           {ocupado ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <BookOpen className="w-4 h-4 text-[#a5b4fc] flex-shrink-0" />}
-          <span className="hidden sm:inline truncate">{actualNombre || 'Materia'}</span>
+          <span className="hidden @6xl:inline truncate">{actualNombre || 'Materia'}</span>
           <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
         </button>
       </Tooltip>
@@ -6031,6 +6146,8 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const limpiarYScroll = () => { setEvaluacion1({...evalInit}); setEvaluacion2({...evalInit}); setEvaluacion3({...evalInit}); setEvaluacion4({...evalInit}); setNumEvaluaciones(1); setScrollToSections(true); setVista('planificacion'); setGlow1(false); setGlow2(false); setGlow3(false); setGlow4(false); };
   useImperativeHandle(ref, () => ({
     limpiarYScroll, notificar: agregarNotificacion,
+    // Libres = vacíos o llenados por el agente (no se pisa lo que el profesor esté escribiendo a mano)
+    formulariosLibres: () => [evaluacion1, evaluacion2, evaluacion3, evaluacion4].every(f => !f.editandoId && (f.origenAgente?.materia || (!String(f.materia || '').trim() && !String(f.descripcion || '').trim() && !String(f.tipoActividad || '').trim()))),
     // Guarda ya lo que esté pendiente (antes de cambiar de materia) y espera a que termine
     guardarAhora: async () => {
       if (datosCargados && !conflictoRef.current && firmaDePlan(planificacion) !== ultimaFirma.current && (planIdRef.current || planificacion.secciones.length > 0)) await sincronizarConBD(planificacion);
@@ -6533,7 +6650,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
       <style>{` input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } input[type="number"] { -moz-appearance: textfield; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } .sin-barra { scrollbar-width: none; } .sin-barra::-webkit-scrollbar { display: none; } `}</style>
-      <div className="px-2 sm:px-4 py-2 sm:py-3 border-b border-[#282a3f] flex items-center gap-2 bg-[#161722] flex-shrink-0">
+      <div className="@container px-2 sm:px-4 py-2 sm:py-3 border-b border-[#282a3f] flex items-center gap-2 bg-[#161722] flex-shrink-0">
         <AnimatePresence initial={false}>
           {!chatAbierto && onAbrirChat && (
             <motion.div key="abrir-chat" initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.2 }} className="flex-shrink-0 flex items-center gap-2 overflow-hidden">
@@ -6547,7 +6664,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           )}
         </AnimatePresence>
         <div className="flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra">
-        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[#313248] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} className={`relative flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className="relative z-10 hidden sm:inline">{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
+        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[#313248] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 md:gap-2 px-2.5 @5xl:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className={`relative z-10 ${vista === tab.id ? 'hidden sm:inline' : 'hidden @5xl:inline'}`}>{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
         </div>
         {/* Botón de configuración junto a la campanita */}
         <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
@@ -6800,7 +6917,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   setTarjetasExcluidas(prev => prev.filter(x => x !== id));
   agregarNotificacion(`🗑️ Evaluación eliminada de la BD.`); 
 }}
-                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion} onGuardarRubrica={guardarRubricaEvaluacion} onGuardarRecursos={guardarRecursosEvaluacion} onEstadoLocal={(id: string, estado: string) => setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === id ? { ...s, estado } : s) }))}
+                      selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion} onGuardarRubrica={guardarRubricaEvaluacion} onGuardarRecursos={guardarRecursosEvaluacion} onEstadoLocal={(id: string, estado: string) => setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === id ? { ...s, estado } : s) }))} onExamenLocal={(id: string, examen: Examen | null) => setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === id ? { ...s, examen } : s) }))}
                       mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
                       mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
   pdfAbierto={pdfAbiertoLocal}
@@ -7043,6 +7160,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
               grupoSeccion: ev.grupoSeccion || 'A',
               estado: ev.estado || 'PROGRAMADA',
               rubrica: normalizarRubrica(ev.rubrica),
+              examen: normalizarExamen(ev.examen),
               recursos: Array.isArray(ev.recursos) ? ev.recursos : null,
               abiertaManual: !!ev.abiertaManual,
               preparados: ev._count?.preparaciones ?? 0,
@@ -7123,7 +7241,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
-                <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
+                <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} formulariosLibres={() => panelDerechoRef.current?.formulariosLibres() ?? true} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
         <PanelDerecho 
           onSeccionActivaCambia={setSeccionPlanificador}
           chatAbierto={agenteExpandido}

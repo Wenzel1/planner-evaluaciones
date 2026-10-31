@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor } from '@/lib/permisos'
+import { admiteExamenEnLinea } from '@/lib/examen'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ const cuando = (d: Date) => {
   return dias === 0 ? `hoy ${hora}` : dias === 1 ? `mañana ${hora}` : new Intl.DateTimeFormat('es-VE', { timeZone: ZONA, weekday: 'long', day: 'numeric' }).format(d)
 }
 
-export interface Aviso { tipo: 'proxima' | 'confirmar' | 'notas' | 'opiniones' | 'envios' | 'rubrica'; texto: string; pedido: string; seccion?: string; urgente?: boolean }
+export interface Aviso { tipo: 'proxima' | 'confirmar' | 'notas' | 'opiniones' | 'envios' | 'rubrica' | 'examen'; texto: string; pedido: string; seccion?: string; urgente?: boolean }
 
 // GET /api/chat/avisos?planificacionId=… — pendientes del profesor para mostrarlos al abrir el chat (sin usar IA)
 export async function GET(request: Request) {
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
         prisma.evaluacion.findMany({
           where: { planificacionId: plan.id, estado: { not: 'CANCELADA' } },
           orderBy: { fecha: 'asc' },
-          select: { id: true, nombre: true, fecha: true, estado: true, grupoSeccion: true, rubrica: true, recursos: true, _count: { select: { calificaciones: { where: { puntaje: { not: null } } } as any, preparaciones: true } } },
+          select: { id: true, nombre: true, fecha: true, estado: true, grupoSeccion: true, rubrica: true, recursos: true, examen: true, tipoActividad: true, enfoque: true, _count: { select: { calificaciones: { where: { puntaje: { not: null } } } as any, preparaciones: true } } },
         }),
         prisma.estudiante.findMany({ where: { usuarioId: actor.id, estado: 'ACTIVO' }, select: { grupo: true, portalVisitas: true } }),
       ])
@@ -58,6 +59,14 @@ export async function GET(request: Request) {
         const conNota = (e._count as any).calificaciones || 0
         if (total && conNota < total) avisos.push({ tipo: 'notas', seccion: e.grupoSeccion, texto: `Faltan ${total - conNota} nota(s) de «${limpio(e.nombre)}» (Sección ${e.grupoSeccion})`, pedido: `¿Quiénes no tienen nota en «${limpio(e.nombre)}» de la Sección ${e.grupoSeccion}?` })
       }
+      // Exámenes en línea: entregados sin publicar y evaluaciones teóricas próximas que aún no tienen examen
+      const porPublicar = await prisma.respuestaExamen.groupBy({ by: ['evaluacionId'], where: { evaluacion: { planificacionId: plan.id }, entregadoEn: { not: null }, publicada: false }, _count: { _all: true } }).catch(() => [] as any[])
+      for (const g of (Array.isArray(porPublicar) ? porPublicar : []).slice(0, 2)) {
+        const e = evs.find(x => x.id === g.evaluacionId)
+        if (e) avisos.push({ tipo: 'examen', seccion: e.grupoSeccion, urgente: true, texto: `${g._count._all} examen(es) de «${limpio(e.nombre)}» entregados esperan tu revisión (Sección ${e.grupoSeccion})`, pedido: `¿Cómo les fue en el examen de «${limpio(e.nombre)}» de la Sección ${e.grupoSeccion}?` })
+      }
+      const sinExamen = evs.filter(e => !e.examen && e.fecha && e.fecha.getTime() > ahora && e.fecha.getTime() < ahora + 14 * DIA && admiteExamenEnLinea(e.tipoActividad, e.enfoque))
+      if (sinExamen.length) avisos.push({ tipo: 'examen', seccion: sinExamen[0].grupoSeccion, texto: `«${limpio(sinExamen[0].nombre)}» es teórica y todavía no tiene examen en línea${sinExamen.length > 1 ? ` (y ${sinExamen.length - 1} más)` : ''}`, pedido: `Prepárame el examen en línea de «${limpio(sinExamen[0].nombre)}» (Sección ${sinExamen[0].grupoSeccion})` })
       const sinLeer = await prisma.opinionPlan.count({ where: { materiaId: plan.materiaId, leida: false } })
       if (sinLeer) avisos.push({ tipo: 'opiniones', texto: `${sinLeer} opinión(es) nueva(s) de estudiantes sobre el plan`, pedido: 'Resúmeme las opiniones nuevas de los estudiantes' })
     }

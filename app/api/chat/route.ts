@@ -20,6 +20,16 @@ const json = (d: any, status = 200) => new Response(JSON.stringify(d), { status,
 // Cuerpo: { mensaje, conversacionId?, planificacionId?, contexto: { materia, seccion, evaluaciones[], otrasSecciones }, eventos?: string[], regenerar?: boolean }
 // Respuesta: líneas JSON (NDJSON): {t:'inicio'} {t:'texto',v} {t:'accion',accion} {t:'aviso',v} {t:'fin'} | {t:'error',mensaje}
 export async function POST(request: Request) {
+  // Cualquier fallo antes de empezar a responder llega al chat con su motivo (antes salía solo "El agente no pudo responder")
+  try {
+    return await atender(request)
+  } catch (e: any) {
+    console.error('[Chat] error antes de responder:', e)
+    return json({ error: `Error del servidor del chat: ${String(e?.message || e).slice(0, 200)}` }, 500)
+  }
+}
+
+async function atender(request: Request) {
   const { actor, error } = await requerirActor(request)
   if (error) return error
 
@@ -77,6 +87,7 @@ export async function POST(request: Request) {
     peso: e?.peso == null ? null : Number(e.peso), fecha: e?.fecha || null, duracion: Number(e?.duracion) || null,
     estado: e?.estado ? String(e.estado).toUpperCase() : null, personasPorGrupo: Number(e?.personasPorGrupo) || null, cantidadGrupos: Number(e?.cantidadGrupos) || null,
     tieneRubrica: !!e?.tieneRubrica, recursos: Number(e?.recursos) || 0, preparados: Number(e?.preparados) || 0,
+    examen: e?.examen ? String(e.examen).slice(0, 80) : null,
   }))
   const ids = evaluaciones.map(e => e.id).filter(Boolean) as string[]
   const [estudiantesSeccion, notas, opiniones, estudiantesLista, evsDB, memorias, materias] = await Promise.all([
@@ -160,20 +171,34 @@ export async function POST(request: Request) {
       try {
         // Varias rondas: si el modelo pide consultar datos, se le dan y vuelve a responder (máximo 3 consultas seguidas)
         const ctxConsulta = { usuarioId: actor.id, planId: plan?.id ?? null, materiaId: plan?.materiaId ?? null, seccion, evaluaciones: evaluaciones.map(e => ({ numero: e.numero, id: e.id, nombre: e.nombre })) }
-        for (let ronda = 0; ronda < 4; ronda++) {
+        let reintentos = 0
+        for (let ronda = 0; ronda < 6; ronda++) {
           const consultas: any[] = []
           let textoRonda = ''
+          let malformada = false
+          const accionesAntes = acciones.length
           for await (const ev of responder(sistema, turnos, { temperatura, maxTokens, senal: request.signal }, chat.modelo)) {
             if (ev.t === 'modelo') { if (!modelo) { modelo = ev.v; respaldo = ev.respaldo; enviar({ t: 'modelo', v: ev.v, respaldo: ev.respaldo }) } }
             else if (ev.t === 'texto') { texto += ev.v; textoRonda += ev.v; enviar({ t: 'texto', v: ev.v }) }
             else if (ev.t === 'aviso') enviar({ t: 'aviso', v: ev.v })
+            else if (ev.t === 'malformada') malformada = true
             else if (ev.t === 'herramienta') {
               if (HERRAMIENTAS_SERVIDOR.includes(ev.nombre)) { if (consultas.length < 3) consultas.push(ev.args || {}); continue }
               const a = normalizarAccion(ev.nombre, ev.args)
               if (a && acciones.length < 8) { acciones.push(a); enviar({ t: 'accion', accion: a }) }
             }
           }
-          if (!consultas.length || ronda === 3) break
+          // Anunció una acción ("Aquí tienes la propuesta:") pero la herramienta no llegó o llegó mal formada: se le pide de nuevo
+          const prometio = /(:|…|\.\.\.)\s*$/.test(textoRonda.trim()) && /propuesta|aqu[ií] (tienes|va|est[aá])|te propongo|quedar[ií]a|plan/i.test(textoRonda)
+          if (!consultas.length && acciones.length === accionesAntes && (malformada || prometio) && reintentos < 2) {
+            reintentos++
+            enviar({ t: 'consulta', v: ['preparando la propuesta de nuevo'] })
+            if (texto && !texto.endsWith('\n')) { texto += '\n\n'; enviar({ t: 'texto', v: '\n\n' }) }
+            agregar('model', textoRonda || '(intenté llamar una herramienta)')
+            agregar('user', '[Sistema: la herramienta que anunciaste no llegó (la llamada salió mal formada o faltó). Llámala AHORA con argumentos válidos y más cortos: descripción de máximo 100 palabras por evaluación, sin comillas dobles dentro del texto. No repitas lo que ya escribiste.]')
+            continue
+          }
+          if (!consultas.length || ronda >= 4) break
           const descripciones = consultas.map(describirConsulta)
           enviar({ t: 'consulta', v: descripciones })
           const resultados = await Promise.all(consultas.map(q => ejecutarConsulta(ctxConsulta, q)))

@@ -209,7 +209,7 @@ export async function PUT(
           tiempoEstimadoMinutos: ev.tiempoEstimadoMinutos, tipoActividad: ev.tipoActividad, descripcion: ev.descripcion,
           cantidadGrupos: ev.cantidadGrupos, personasPorGrupo: ev.personasPorGrupo, orden: ev.orden, enfoque: ev.enfoque,
           fecha: ev.fecha ? ev.fecha.toISOString() : null, rubrica: ev.rubrica ?? null, recursos: ev.recursos ?? null,
-          estado: ev.estado, calificaciones: notasBorradas.get(ev.id) ?? [],
+          estado: ev.estado, calificaciones: notasBorradas.get(ev.id) ?? [], examen: (ev as any).examen ?? null,
         },
       })))
     }

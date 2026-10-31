@@ -2,6 +2,7 @@
 // la app muestra una tarjeta y el profesor confirma con un botón.
 import crypto from 'crypto'
 import { ENFOQUES } from './prompt'
+import { normalizarExamen } from '@/lib/examen'
 
 type Esquema = { type: string; description?: string; properties?: Record<string, Esquema>; required?: string[]; items?: Esquema; enum?: string[] }
 export interface Herramienta { name: string; description: string; parameters: Esquema }
@@ -30,7 +31,7 @@ export const HERRAMIENTAS: Herramienta[] = [
               personasPorGrupo: { type: 'integer' },
               fecha: { type: 'string', description: 'YYYY-MM-DD' },
               hora: { type: 'string', description: 'HH:MM (24 h)' },
-              descripcion: { type: 'string', description: 'Texto plano con OBJETIVO, ACTIVIDAD, HERRAMIENTAS, ENTREGABLES, CRITERIOS DE EVALUACIÓN' },
+              descripcion: { type: 'string', description: 'Texto plano (90-140 palabras) con OBJETIVO, ACTIVIDAD, HERRAMIENTAS, ENTREGABLES, CRITERIOS DE EVALUACIÓN' },
             },
             required: ['numero', 'nombre', 'tipoActividad', 'enfoque', 'duracionMinutos', 'peso', 'fecha', 'hora', 'descripcion'],
           },
@@ -149,6 +150,35 @@ export const HERRAMIENTAS: Herramienta[] = [
         seccion: { type: 'string', description: 'Letra (para que = seccion)' },
       },
       required: ['que'],
+    },
+  },
+  {
+    name: 'crear_examen',
+    description: 'Prepara el examen en línea de una evaluación TEÓRICA de la sección activa (prueba escrita, selección simple, desarrollo, ensayo, informe, análisis de caso). El profesor lo revisa antes de adjuntarlo. No lo uses para exposiciones, laboratorios, proyectos, talleres prácticos ni debates.',
+    parameters: {
+      type: 'object',
+      properties: {
+        evaluacion: evaluacionRef,
+        instrucciones: { type: 'string', description: 'Instrucciones para el estudiante (1-3 frases)' },
+        duracionMin: { type: 'integer', description: 'Minutos para responder' },
+        modoCorreccion: { type: 'string', enum: ['sugerida', 'profesor', 'automatica'], description: 'sugerida (por defecto): la IA corrige y el profesor publica; automatica solo si es todo selección/VF' },
+        preguntas: {
+          type: 'array', description: 'Selección/VF: 8-15. Desarrollo: 3-5. Informe: 1-2. Mixto: combina. Los puntos suman 20.',
+          items: {
+            type: 'object',
+            properties: {
+              tipo: { type: 'string', enum: ['seleccion', 'vf', 'desarrollo', 'informe'] },
+              enunciado: { type: 'string', description: 'Pregunta clara y corta, sin comillas dobles' },
+              opciones: { type: 'array', items: { type: 'string' }, description: 'Solo selección: 4 opciones sin letras' },
+              correcta: { type: 'integer', description: 'Selección: índice (0-3) de la correcta. VF: 1 verdadero, 0 falso' },
+              esperado: { type: 'string', description: 'Desarrollo/informe: lo que debe incluir la respuesta (máx. 40 palabras)' },
+              puntos: { type: 'number' },
+            },
+            required: ['tipo', 'enunciado', 'puntos'],
+          },
+        },
+      },
+      required: ['evaluacion', 'preguntas'],
     },
   },
   // ----- Control de toda la app -----
@@ -354,6 +384,11 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
       const nums = [...new Set((Array.isArray(a.evaluaciones) ? a.evaluaciones : []).map((x: any) => ent(x, 1, 20)).filter(Boolean))].slice(0, 12)
       return nums.length ? { id, tipo: nombre, datos: { evaluaciones: nums } } : null
     }
+    case 'crear_examen': {
+      const n = ent(a.evaluacion, 1, 20)
+      const ex = normalizarExamen({ instrucciones: a.instrucciones, duracionMin: a.duracionMin, modoCorreccion: a.modoCorreccion, preguntas: a.preguntas })
+      return n && ex ? { id, tipo: nombre, datos: { evaluacion: n, examen: ex } } : null
+    }
     case 'cambiar_materia': {
       const m = texto(a.nombre, 120)
       return m.length >= 2 ? { id, tipo: nombre, datos: { nombre: m, crear: a.crear === true } } : null
@@ -384,6 +419,7 @@ export function resumenAccion(a: Accion): string {
     case 'abrir_en_portal': return `[Propuse ${a.datos.abrir ? 'abrir' : 'cerrar'} #${a.datos.evaluacion} en la página de los estudiantes]`
     case 'enviar_plan': return `[Propuse enviar el plan por WhatsApp${a.datos.soloSinAbrir ? ' a quienes no han abierto su página' : ''}]`
     case 'eliminar_evaluaciones': return `[Propuse eliminar ${a.datos.evaluaciones.map((n: number) => `#${n}`).join(', ')}]`
+    case 'crear_examen': return `[Preparé el examen en línea de #${a.datos.evaluacion}: ${a.datos.examen.preguntas.length} preguntas (${a.datos.examen.tipo}), ${a.datos.examen.duracionMin} min]`
     case 'cambiar_materia': return `[Propuse ${a.datos.crear ? 'abrir o crear' : 'abrir'} la materia «${a.datos.nombre}»]`
     default: return ''
   }

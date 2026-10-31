@@ -9,6 +9,7 @@ import {
   CheckCircle2, CircleDot, Hourglass, ClipboardCheck, MessageSquare, AlertCircle, BookOpen, Sparkles, FileText, CalendarPlus, Flag,
 } from 'lucide-react';
 import { NIVELES_RUBRICA, puntosNivel, textoPuntos, type RubricaEval } from '@/lib/rubrica';
+import { FranjaExamen, type InfoExamen } from '@/components/ExamenEstudiante';
 
 interface Recurso { titulo: string; url: string }
 interface Nota { puntaje: number; observaciones: string | null; detalle: (number | null)[] | null }
@@ -17,6 +18,7 @@ interface Evaluacion {
   fecha: string | null; duracion: number | null; cantidadGrupos: number | null; personasPorGrupo: number | null;
   estado: string; abierta: boolean; abreEl: string | null; descripcion: string | null;
   recursos: Recurso[]; rubrica: RubricaEval | null; nota: Nota | null; preparado?: boolean;
+  examen?: InfoExamen | null;
 }
 interface Opinion { deAcuerdo: boolean; comentario: string | null; fecha: string }
 interface Materia { id: string; nombre: string; evaluaciones: Evaluacion[]; promedio: number | null; opinion: Opinion | null }
@@ -107,7 +109,7 @@ export default function PortalEstudiante() {
       .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo cargar tu plan.'); return d; })
       .then((d: Datos) => { if (vivo) { setDatos(d); setMateriaId(d.materias[0]?.id ?? null); } })
       .catch(e => { if (vivo) setError(e instanceof TypeError ? 'Sin conexión. Revisa tu internet e intenta de nuevo.' : e.message); });
-    const t = setInterval(() => setAhora(Date.now()), 60000);
+    const t = setInterval(() => setAhora(Date.now()), 20000); // cada 20 s: el examen se habilita solo al llegar la hora
     return () => { vivo = false; clearInterval(t); };
   }, [token]);
 
@@ -150,6 +152,7 @@ export default function PortalEstudiante() {
     setTimeout(() => document.getElementById(`ev-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
   const calHref = materia ? `/api/portal/${encodeURIComponent(token)}/calendario?materia=${encodeURIComponent(materia.id)}` : '#';
+  const cambiarExamen = (id: string, cambio: Partial<InfoExamen>) => setDatos(prev => prev ? { ...prev, materias: prev.materias.map(m => ({ ...m, evaluaciones: m.evaluaciones.map(e => e.id === id && e.examen ? { ...e, examen: { ...e.examen, ...cambio } } : e) })) } : prev);
   const marcarPreparado = (id: string, valor: boolean) => setDatos(prev => prev ? { ...prev, materias: prev.materias.map(m => ({ ...m, evaluaciones: m.evaluaciones.map(e => e.id === id ? { ...e, preparado: valor } : e) })) } : prev);
   const pdfHref = materia ? `/api/portal/${encodeURIComponent(token)}/pdf?materia=${encodeURIComponent(materia.id)}` : '#';
 
@@ -259,7 +262,7 @@ export default function PortalEstudiante() {
               <h2 className="text-sm font-semibold text-[#9a9bb0] uppercase tracking-wider mb-3">Mis evaluaciones</h2>
               <ol className="space-y-3">
                 {lista.map(({ e, s }, i) => (
-                  <TarjetaPortal key={e.id} e={e} s={s} indice={i + 1} abierta={abierta === e.id} onAlternar={() => setAbierta(abierta === e.id ? null : e.id)} ahora={ahora} token={token} materiaNombre={materia.nombre} onPreparado={marcarPreparado} />
+                  <TarjetaPortal key={e.id} e={e} s={s} indice={i + 1} abierta={abierta === e.id} onAlternar={() => setAbierta(abierta === e.id ? null : e.id)} ahora={ahora} token={token} materiaNombre={materia.nombre} onPreparado={marcarPreparado} onExamen={cambiarExamen} />
                 ))}
               </ol>
 
@@ -377,7 +380,7 @@ function Pantalla({ children }: { children: React.ReactNode }) {
   return <main className="min-h-screen bg-[#13141d] text-[#d0d0da] font-['Inter',system-ui,sans-serif] [background-image:radial-gradient(ellipse_at_top,rgba(129,140,248,0.12),transparent_60%)]">{children}</main>;
 }
 
-function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora, token, materiaNombre, onPreparado }: { e: Evaluacion; s: Situacion; indice: number; abierta: boolean; onAlternar: () => void; ahora: number; token: string; materiaNombre: string; onPreparado: (id: string, v: boolean) => void }) {
+function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora, token, materiaNombre, onPreparado, onExamen }: { e: Evaluacion; s: Situacion; indice: number; abierta: boolean; onAlternar: () => void; ahora: number; token: string; materiaNombre: string; onPreparado: (id: string, v: boolean) => void; onExamen?: (id: string, cambio: Partial<InfoExamen>) => void }) {
   const porHacer = s === 'proxima' || s === 'abierta';
   const est = ESTILO[s];
   const bloqueada = s === 'bloqueada';
@@ -408,6 +411,11 @@ function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora, token, materi
         </div>
         {tieneContenido && <ChevronDown className={`w-5 h-5 shrink-0 mt-1.5 text-[#6a6b7e] transition-transform ${abierta ? 'rotate-180' : ''}`} />}
       </button>
+      {e.examen && (
+        <div className="px-4 pb-4 -mt-1 sm:pl-[60px]">
+          <FranjaExamen info={e.examen} token={token} evaluacionId={e.id} nombre={e.nombre} ahora={ahora} onCambio={(c) => onExamen?.(e.id, c)} />
+        </div>
+      )}
 
       <AnimatePresence initial={false}>
         {abierta && tieneContenido && (

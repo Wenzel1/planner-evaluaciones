@@ -168,6 +168,10 @@ model Evaluacion {
   abiertaManual Boolean   @default(false)
   preparaciones PreparacionEvaluacion[]
 
+  // Examen en línea (preguntas, respuestas correctas, duración, cómo se corrige) y lo que entregó cada estudiante
+  examen        Json?
+  examenes      RespuestaExamen[]
+
   @@index([planificacionId])
   @@index([fecha])
 }
@@ -212,6 +216,7 @@ model Estudiante {
   enlaceToken String? @unique
   opiniones   OpinionPlan[]
   preparaciones PreparacionEvaluacion[]
+  examenes    RespuestaExamen[]
   // Visitas a su página personal (no cuentan las del profesor)
   portalVisitas        Int       @default(0)
   portalPrimeraVisita  DateTime?
@@ -436,4 +441,27 @@ model MemoriaAgente {
   createdAt DateTime @default(now())
 
   @@index([usuarioId])
+}
+
+// Examen en línea que presentó un estudiante: sus respuestas, la corrección (automática, sugerida por la IA o del profesor)
+// y si la nota ya se publicó (pasa a Calificacion).
+model RespuestaExamen {
+  id           String     @id @default(cuid())
+  evaluacionId String
+  evaluacion   Evaluacion @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  inicio       DateTime   @default(now())
+  limite       DateTime
+  entregadoEn  DateTime?
+  respuestas   Json       @default("{}")
+  correccion   Json?
+  nota         Float?
+  comentario   String?
+  publicada    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([estudianteId, evaluacionId])
+  @@index([evaluacionId])
 }
