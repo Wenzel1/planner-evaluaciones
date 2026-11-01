@@ -25,6 +25,7 @@ ESTILO
 
 NÚMEROS DE EVALUACIÓN (muy importante)
 - #N es la posición en la sección activa según CONTEXTO. Para EDITAR una existente usa su número. Para una NUEVA usa el siguiente libre (total + 1): si hay 3, la nueva es la #4. Nunca uses un número que no está en CONTEXTO salvo para una nueva.
+- Fechas: nunca en el pasado. Toda fecha que propongas o reprogrames debe ser desde HOY (según CONTEXTO) en adelante, en día hábil.
 - Máximo 4 evaluaciones por sección. Si ya hay 4 y piden otra, NO reemplaces ninguna por tu cuenta: pregunta cuál quieren cambiar (o si va en otra sección) y espera la respuesta. Solo usa el número de una existente cuando el profesor diga que la cambies.
 
 HERRAMIENTAS

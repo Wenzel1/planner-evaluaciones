@@ -26,8 +26,10 @@ import {
   UsersRound, UserCheck, FileSearch, Layout, Puzzle, Gamepad2,
   Presentation, Handshake, Globe, Scale, BookType, ClipboardCheck,
   MessageCircleQuestion, Eye as EyeIcon, Speech, Download,
-  UserCog, ShieldCheck, RefreshCw, Upload, PanelLeftClose, PanelLeftOpen
+  UserCog, ShieldCheck, RefreshCw, Upload, PanelLeftClose, PanelLeftOpen,
+  CircleHelp,
 } from 'lucide-react';
+import Tutorial, { pasosTutorial, tutorialVisto, marcarTutorialVisto } from '@/components/Tutorial';
 
 // Agregar esto debajo de los imports de lucide-react
 import { apiEstudiantes, apiPlanificaciones } from '@/lib/api'; 
@@ -555,8 +557,8 @@ function TypewriterText({ text, onComplete, onUpdate }: { text: string; onComple
   return (<span className="inline leading-relaxed"><span dangerouslySetInnerHTML={{ __html: d }} />{!i && (<motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.6, repeat: Infinity, repeatType: "reverse" }} className="inline-block w-[2.5px] h-[1.2em] bg-[#818cf8] rounded-full ml-[1px] align-text-bottom" />)}</span>);
 }
 
-function DatePicker({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
-  const [isOpen, setIsOpen] = useState(false); const [viewDate, setViewDate] = useState(() => new Date(value)); const containerRef = useRef<HTMLDivElement>(null); const dropdownRef = useRef<HTMLDivElement>(null); const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 }); const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']; const daysOfWeek = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']; const year = viewDate.getFullYear(); const month = viewDate.getMonth(); const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const updatePosition = useCallback(() => { if (containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 280) }); } }, []); useEffect(() => { if (isOpen) updatePosition(); }, [isOpen, updatePosition]); useEffect(() => { if (!isOpen) return; const handle = () => updatePosition(); window.addEventListener('resize', handle); window.addEventListener('scroll', handle, true); return () => { window.removeEventListener('resize', handle); window.removeEventListener('scroll', handle, true); }; }, [isOpen, updatePosition]); useEffect(() => { const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node) && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, []); useEffect(() => { setViewDate(new Date(value)); }, [value]); const selectDate = (day: number) => { const d = new Date(year, month, day, value.getHours(), value.getMinutes()); onChange(d); }; const formatDisplay = (d: Date) => d.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }); const selectedDate = value; const dropdownContent = isOpen && (<motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}><div className="p-4"><div className="flex items-center justify-between mb-4"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setViewDate(new Date(year, month - 1, 1))} className="p-1.5 text-[#7a7b8e] hover:text-[#b0b0c4] hover:bg-[#272839] rounded-lg transition-colors"><ChevronLeft className="w-4 h-4" /></motion.button><span className="text-sm font-medium text-[#d0d0da]">{months[month]} {year}</span><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-1.5 text-[#7a7b8e] hover:text-[#b0b0c4] hover:bg-[#272839] rounded-lg transition-colors"><ChevronRight className="w-4 h-4" /></motion.button></div><div className="grid grid-cols-7 gap-1 mb-2">{daysOfWeek.map(d => (<div key={d} className="text-center text-xs text-[#6a6b7e] font-medium py-1">{d}</div>))}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: firstDay }).map((_, i) => (<div key={`e-${i}`} />))}{Array.from({ length: daysInMonth }).map((_, i) => { const day = i + 1; const isSelected = selectedDate && selectedDate.getDate() === day && selectedDate.getMonth() === month && selectedDate.getFullYear() === year; const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year; return (<motion.button key={day} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => selectDate(day)} className={`w-full aspect-square rounded-lg text-sm font-medium transition-all ${isSelected ? 'bg-[#818cf8] text-white shadow-lg shadow-indigo-500/20' : isToday ? 'bg-[#272839] text-[#818cf8] border border-[#818cf8]/30' : 'text-[#b0b0c4] hover:bg-[#272839] hover:text-[#d0d0da]'}`}>{day}</motion.button>); })}</div></div><div className="px-4 py-2 border-t border-[#282a3f]"><button onClick={() => { const now = new Date(); onChange(now); setViewDate(now); setIsOpen(false); }} className="w-full text-center text-xs text-[#7a7b8e] hover:text-[#b0b0c4] py-1 rounded-lg hover:bg-[#272839] transition-colors">Hoy</button></div></motion.div>); return (<div ref={containerRef}><button type="button" onClick={() => setIsOpen(!isOpen)} className={`${inputBase} flex items-center justify-between text-left cursor-pointer`}><span className="text-[#d8d8e2] text-sm truncate">{formatDisplay(value)}</span><Calendar className="w-4 h-4 text-[#818cf8] flex-shrink-0 ml-2" /></button>{createPortal(dropdownContent, document.body)}</div>);
+function DatePicker({ value, onChange, minimo }: { value: Date; onChange: (date: Date) => void; minimo?: Date }) {
+  const [isOpen, setIsOpen] = useState(false); const [viewDate, setViewDate] = useState(() => new Date(value)); const containerRef = useRef<HTMLDivElement>(null); const dropdownRef = useRef<HTMLDivElement>(null); const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 }); const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']; const daysOfWeek = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']; const year = viewDate.getFullYear(); const month = viewDate.getMonth(); const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const updatePosition = useCallback(() => { if (containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 280) }); } }, []); useEffect(() => { if (isOpen) updatePosition(); }, [isOpen, updatePosition]); useEffect(() => { if (!isOpen) return; const handle = () => updatePosition(); window.addEventListener('resize', handle); window.addEventListener('scroll', handle, true); return () => { window.removeEventListener('resize', handle); window.removeEventListener('scroll', handle, true); }; }, [isOpen, updatePosition]); useEffect(() => { const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node) && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, []); useEffect(() => { setViewDate(new Date(value)); }, [value]); const diaMin = minimo ? new Date(minimo.getFullYear(), minimo.getMonth(), minimo.getDate()).getTime() : -Infinity; const esPasado = (day: number) => new Date(year, month, day).getTime() < diaMin; const selectDate = (day: number) => { if (esPasado(day)) return; let d = new Date(year, month, day, value.getHours(), value.getMinutes()); if (minimo && d.getTime() < minimo.getTime()) { d = new Date(minimo); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0); } onChange(d); }; const formatDisplay = (d: Date) => d.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }); const selectedDate = value; const dropdownContent = isOpen && (<motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}><div className="p-4"><div className="flex items-center justify-between mb-4"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} disabled={new Date(year, month, 0).getTime() < diaMin} onClick={() => setViewDate(new Date(year, month - 1, 1))} className="disabled:opacity-25 disabled:pointer-events-none p-1.5 text-[#7a7b8e] hover:text-[#b0b0c4] hover:bg-[#272839] rounded-lg transition-colors"><ChevronLeft className="w-4 h-4" /></motion.button><span className="text-sm font-medium text-[#d0d0da]">{months[month]} {year}</span><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-1.5 text-[#7a7b8e] hover:text-[#b0b0c4] hover:bg-[#272839] rounded-lg transition-colors"><ChevronRight className="w-4 h-4" /></motion.button></div><div className="grid grid-cols-7 gap-1 mb-2">{daysOfWeek.map(d => (<div key={d} className="text-center text-xs text-[#6a6b7e] font-medium py-1">{d}</div>))}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: firstDay }).map((_, i) => (<div key={`e-${i}`} />))}{Array.from({ length: daysInMonth }).map((_, i) => { const day = i + 1; const isSelected = selectedDate && selectedDate.getDate() === day && selectedDate.getMonth() === month && selectedDate.getFullYear() === year; const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year; const pasado = esPasado(day); return (<motion.button key={day} whileHover={pasado ? undefined : { scale: 1.1 }} whileTap={pasado ? undefined : { scale: 0.9 }} disabled={pasado} title={pasado ? 'Esta fecha ya pasó' : undefined} onClick={() => selectDate(day)} className={`w-full aspect-square rounded-lg text-sm font-medium transition-all ${pasado ? 'text-[#3e3f52] line-through cursor-not-allowed' : isSelected ? 'bg-[#818cf8] text-white shadow-lg shadow-indigo-500/20' : isToday ? 'bg-[#272839] text-[#818cf8] border border-[#818cf8]/30' : 'text-[#b0b0c4] hover:bg-[#272839] hover:text-[#d0d0da]'}`}>{day}</motion.button>); })}</div></div><div className="px-4 py-2 border-t border-[#282a3f]"><button onClick={() => { const now = new Date(); onChange(now); setViewDate(now); setIsOpen(false); }} className="w-full text-center text-xs text-[#7a7b8e] hover:text-[#b0b0c4] py-1 rounded-lg hover:bg-[#272839] transition-colors">Hoy</button></div></motion.div>); return (<div ref={containerRef}><button type="button" onClick={() => setIsOpen(!isOpen)} className={`${inputBase} flex items-center justify-between text-left cursor-pointer`}><span className="text-[#d8d8e2] text-sm truncate">{formatDisplay(value)}</span><Calendar className="w-4 h-4 text-[#818cf8] flex-shrink-0 ml-2" /></button>{createPortal(dropdownContent, document.body)}</div>);
 }
 function TimePicker({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
   const [isOpen, setIsOpen] = useState(false); const [selectedHour, setSelectedHour] = useState(() => { const h = value.getHours(); return h % 12 || 12; }); const [selectedAmPm, setSelectedAmPm] = useState<'am' | 'pm'>(() => value.getHours() >= 12 ? 'pm' : 'am'); const [selectedMinute, setSelectedMinute] = useState(() => value.getMinutes()); const containerRef = useRef<HTMLDivElement>(null); const dropdownRef = useRef<HTMLDivElement>(null); const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 }); const minutesOptions = Array.from({ length: 12 }, (_, i) => i * 5); const updatePosition = useCallback(() => { if (containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 260) }); } }, []); useEffect(() => { if (isOpen) updatePosition(); }, [isOpen, updatePosition]); useEffect(() => { if (!isOpen) return; const handle = () => updatePosition(); window.addEventListener('resize', handle); window.addEventListener('scroll', handle, true); return () => { window.removeEventListener('resize', handle); window.removeEventListener('scroll', handle, true); }; }, [isOpen, updatePosition]); useEffect(() => { const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node) && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, []); useEffect(() => { const hours = value.getHours(); setSelectedHour(hours % 12 || 12); setSelectedAmPm(hours >= 12 ? 'pm' : 'am'); setSelectedMinute(value.getMinutes()); }, [value]); const convertTo24h = (h: number, ampm: 'am' | 'pm') => { if (ampm === 'am') return h === 12 ? 0 : h; return h === 12 ? 12 : h + 12; }; const handleTimeChange = (h: number, m: number, ampm: 'am' | 'pm') => { setSelectedHour(h); setSelectedMinute(m); setSelectedAmPm(ampm); const hour24 = convertTo24h(h, ampm); const d = new Date(value); d.setHours(hour24); d.setMinutes(m); onChange(d); }; const formatDisplay = (d: Date) => { const hours = d.getHours(); const minutes = d.getMinutes(); const ampm = hours >= 12 ? 'pm' : 'am'; const hours12 = hours % 12 || 12; return `${hours12}:${String(minutes).padStart(2, '0')} ${ampm}`; }; const dropdownContent = isOpen && (<motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}><div className="p-5"><div className="flex items-center gap-3 mb-4"><Clock className="w-5 h-5 text-[#818cf8] flex-shrink-0" /><span className="text-sm text-[#b0b0c4] font-medium">Seleccionar hora</span></div><div className="flex items-center gap-3 justify-center"><select value={selectedHour} onChange={(e) => handleTimeChange(parseInt(e.target.value), selectedMinute, selectedAmPm)} className="bg-[#191a26] border border-[#282a3f] rounded-lg px-4 py-3 text-lg text-[#d8d8e2] outline-none focus:border-[#818cf8]/40 cursor-pointer w-24 text-center font-medium">{Array.from({ length: 12 }, (_, i) => i + 1).map(h => (<option key={h} value={h} className="bg-[#1f2035]">{h}</option>))}</select><span className="text-[#8a8b9e] font-bold text-xl">:</span><select value={selectedMinute} onChange={(e) => handleTimeChange(selectedHour, parseInt(e.target.value), selectedAmPm)} className="bg-[#191a26] border border-[#282a3f] rounded-lg px-4 py-3 text-lg text-[#d8d8e2] outline-none focus:border-[#818cf8]/40 cursor-pointer w-24 text-center font-medium">{minutesOptions.map(i => (<option key={i} value={i} className="bg-[#1f2035]">{String(i).padStart(2, '0')}</option>))}</select><select value={selectedAmPm} onChange={(e) => handleTimeChange(selectedHour, selectedMinute, e.target.value as 'am' | 'pm')} className="bg-[#191a26] border border-[#282a3f] rounded-lg px-4 py-3 text-lg text-[#818cf8] outline-none focus:border-[#818cf8]/40 cursor-pointer w-24 text-center font-bold"><option value="am" className="bg-[#1f2035]">AM</option><option value="pm" className="bg-[#1f2035]">PM</option></select></div></div><div className="px-5 py-3 border-t border-[#282a3f]"><button onClick={() => { const now = new Date(); onChange(now); const h = now.getHours(); setSelectedHour(h % 12 || 12); setSelectedAmPm(h >= 12 ? 'pm' : 'am'); setSelectedMinute(now.getMinutes()); setIsOpen(false); }} className="w-full text-center text-sm text-[#7a7b8e] hover:text-[#b0b0c4] py-1.5 rounded-lg hover:bg-[#272839] transition-colors">Ahora</button></div></motion.div>); return (<div ref={containerRef}><button type="button" onClick={() => setIsOpen(!isOpen)} className={`${inputBase} flex items-center justify-between text-left cursor-pointer`}><span className="text-[#d8d8e2] text-sm truncate">{formatDisplay(value)}</span><Clock className="w-4 h-4 text-[#818cf8]/60 flex-shrink-0 ml-2" /></button>{createPortal(dropdownContent, document.body)}</div>);
@@ -2817,6 +2819,7 @@ function SelectorEstadoEvaluacion({ seccion, onCambiar }: { seccion: SeccionExam
   const [abierto, setAbierto] = useState(false);
   const [reprogramando, setReprogramando] = useState(false);
   const [nuevaFecha, setNuevaFecha] = useState('');
+  const [errorFecha, setErrorFecha] = useState('');
   const [guardando, setGuardando] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const v = estadoVisibleEvaluacion(seccion);
@@ -2854,13 +2857,13 @@ function SelectorEstadoEvaluacion({ seccion, onCambiar }: { seccion: SeccionExam
           ) : (
             <div className="p-2 space-y-2">
               <label className="text-[11px] text-[#8a8b9e] block">Nueva fecha y hora</label>
-              <input type="datetime-local" value={nuevaFecha} onChange={(e) => setNuevaFecha(e.target.value)}
+              <input type="datetime-local" value={nuevaFecha} min={aInputFechaHora(new Date())} onChange={(e) => setNuevaFecha(e.target.value)}
                 className="w-full bg-[#272839] border border-[#313248] rounded-lg px-2 py-1.5 text-xs text-[#e0e0ec] [color-scheme:dark]" />
-              <p className="text-[10px] text-[#6a6b7e]">Los recordatorios se enviarán de nuevo para la nueva fecha.</p>
+              {errorFecha ? <p className="text-[10px] text-red-300">{errorFecha}</p> : <p className="text-[10px] text-[#6a6b7e]">Los recordatorios se enviarán de nuevo para la nueva fecha.</p>}
               <div className="flex gap-2">
                 <button className="flex-1 px-2 py-1.5 text-xs rounded-lg bg-[#272839] text-[#b0b0c4]" onClick={() => setReprogramando(false)}>Volver</button>
                 <button disabled={guardando || !nuevaFecha} className="flex-1 px-2 py-1.5 text-xs rounded-lg bg-[#818cf8] text-white font-semibold disabled:opacity-50"
-                  onClick={() => elegir('REPROGRAMADA', new Date(nuevaFecha))}>Guardar</button>
+                  onClick={() => { const d = new Date(nuevaFecha); if (isNaN(d.getTime()) || d.getTime() < Date.now()) { setErrorFecha('Elige una fecha y hora que no hayan pasado.'); return; } setErrorFecha(''); elegir('REPROGRAMADA', d); }}>Guardar</button>
               </div>
             </div>
           )}
@@ -3415,7 +3418,7 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
                   <div className="space-y-1.5">
                     <label className="text-[11px] text-[#8a8b9e] block">Cambiar fecha y hora</label>
                     <div className="flex gap-2">
-                      <input type="datetime-local" value={nuevaFecha || (f ? aInputFechaHora(f) : '')} onChange={(e) => setNuevaFecha(e.target.value)}
+                      <input type="datetime-local" min={aInputFechaHora(new Date())} value={nuevaFecha || (f ? aInputFechaHora(f) : '')} onChange={(e) => setNuevaFecha(e.target.value)}
                         className="flex-1 min-w-0 bg-[#272839] border border-[#313248] rounded-lg px-2 py-1.5 text-xs text-[#e0e0ec] [color-scheme:dark]" />
                       <button disabled={!nuevaFecha} onClick={() => {
                         const d = new Date(nuevaFecha);
@@ -4508,7 +4511,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
         <div className="flex-1 min-w-[260px]">
           <label className={labelBase}>Fecha y hora</label>
           <div className="flex gap-2">
-            <div className="flex-1"><DatePicker value={ev.fecha} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
+            <div className="flex-1"><DatePicker value={ev.fecha} minimo={new Date()} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
             <div className="w-[130px]"><TimePicker value={ev.fecha} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
           </div>
         </div>
@@ -4747,10 +4750,18 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     const sonCuatro = totalEvals === 4;
     const fechaBase = new Date();
     const fechas = calcularFechasEvaluaciones(fechaBase, totalEvals);
+    let fechasCorregidas = 0;
     const nuevasSecciones: SeccionExamen[] = propuesta.evaluaciones.map((p: any, idx: number) => {
       let fechaExamen = fechas[idx] || new Date();
       if (p.fecha && p.hora) fechaExamen = new Date(`${p.fecha}T${p.hora}:00`);
       else if (p.fecha) fechaExamen = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(p.fecha)) ? `${p.fecha}T08:00:00` : p.fecha);
+      // Fecha pasada (o inválida) en una evaluación nueva: se mueve a una fecha futura en vez de guardarla atrás
+      const viejaFecha = p.existenteId ? planificacion.secciones.find((x: SeccionExamen) => x.id === p.existenteId)?.fecha : null;
+      const igualQueAntes = viejaFecha && Math.abs(new Date(viejaFecha).getTime() - fechaExamen.getTime()) < 60000;
+      if ((isNaN(fechaExamen.getTime()) || fechaExamen.getTime() < Date.now()) && !igualQueAntes) {
+        const f = new Date(); f.setDate(f.getDate() + 7 + idx * 14); f.setHours(8, 0, 0, 0); fechaExamen = f;
+        fechasCorregidas++;
+      }
       return { id: `eval${idx+1}-${Date.now()}`, nombre: `${p.tipo || `Evaluación ${idx+1}`}: ${limpiarTexto(p.materia)}`, tipoPregunta: 'desarrollo', peso: p.peso ?? null, cantidadPreguntas: 1, contenidosEvaluados: [], nivelBloom: 'aplicar', tiempoEstimadoMinutos: p.duracionMinutos ?? null, tipoActividad: p.tipoActividad || undefined, descripcion: p.descripcion || '', cantidadGrupos: p.cantidadGrupos ?? undefined, personasPorGrupo: p.personasPorGrupo ?? undefined, enfoque: p.enfoque || undefined, fecha: fechaExamen };
     });
     // Las evaluaciones del chat se guardan en la sección que está abierta en el planificador
@@ -4790,6 +4801,7 @@ if (sonCuatro && generarPDF) {
 }
     setPropuestaPendienteLocal(null);
     if (limpiarYScroll) limpiarYScroll();
+    if (fechasCorregidas) agregarNotificacion?.(`📅 ${fechasCorregidas === 1 ? 'Una fecha propuesta ya había pasado: se movió' : `${fechasCorregidas} fechas propuestas ya habían pasado: se movieron`} a una fecha futura. Puedes ajustarla.`);
     return { success: true, totalEvals, sonCuatro, pdfGenerado, mensaje: sonCuatro ? `✅ ¡Excelente! Se han guardado las ${totalEvals} evaluaciones y generado el Plan de Acción en PDF automáticamente. Puedes descargarlo en la sección "Planificador".` : `✅ ¡Excelente! Se han guardado las ${totalEvals} evaluaciones correctamente.` };
   };
 
@@ -4911,6 +4923,7 @@ if (sonCuatro && generarPDF) {
           const horaActual = s.fecha ? `${String(new Date(s.fecha).getHours()).padStart(2, '0')}:${String(new Date(s.fecha).getMinutes()).padStart(2, '0')}` : '08:00';
           const f = new Date(`${a.datos.fecha}T${a.datos.hora || horaActual}:00`);
           if (isNaN(f.getTime())) throw new Error('La fecha propuesta no es válida.');
+          if (f.getTime() < Date.now()) throw new Error('Esa fecha ya pasó: pídele al agente una fecha futura.');
           cambiar(s.id, { fecha: f });
           resultado = `«${limpiarTexto(s.nombre)}» movida al ${f.toLocaleString('es-VE', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`;
           break;
@@ -5696,7 +5709,7 @@ if (sonCuatro && generarPDF) {
   const ultimoAgenteId = [...historial].reverse().find(m => m.rol === 'agent')?.id;
 
   return (
-    <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} transition={{ duration: arrastrando ? 0 : 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[#282a3f] flex flex-col bg-[#191a26] overflow-hidden' : 'relative border-r border-[#282a3f] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[#191a26] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
+    <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} data-tutorial="agente" transition={{ duration: arrastrando ? 0 : 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[#282a3f] flex flex-col bg-[#191a26] overflow-hidden' : 'relative border-r border-[#282a3f] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[#191a26] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
       {examenEditando && (
         <ModalExamen key={examenEditando.accion.id} evaluacion={examenEditando.seccion} inicial={examenEditando.accion.datos?.examen} notificar={agregarNotificacion}
           onCerrar={() => setExamenEditando(null)}
@@ -5922,9 +5935,9 @@ let contadorNotif = 0; // ids de notificación únicos aunque lleguen dos en el 
 // Cuándo se guardó por última vez el plan que tiene abierto esta ventana (para no pisar cambios hechos en otra)
 let planVistoEn: string | null = null;
 interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO'; debeCambiarPassword?: boolean; }
-interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; materias?: MateriaCorta[]; materiaActivaId?: string | null; onAbrirMateria?: (id: string) => Promise<void>; onNuevaMateria?: (nombre: string) => Promise<void>; }
+interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; materias?: MateriaCorta[]; materiaActivaId?: string | null; onAbrirMateria?: (id: string) => Promise<void>; onNuevaMateria?: (nombre: string) => Promise<void>; onTutorial?: () => void; }
 
-const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId, materias = [], materiaActivaId = null, onAbrirMateria, onNuevaMateria }: PanelDerechoProps, ref) {
+const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId, materias = [], materiaActivaId = null, onAbrirMateria, onNuevaMateria, onTutorial }: PanelDerechoProps, ref) {
   const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
@@ -6532,6 +6545,14 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       else if (rDesc.advertencia) advertencias.push(`• Descripción: ${rDesc.advertencia}`);
     }
 
+    {
+      const original = ev.editandoId ? planificacion.secciones.find(s => s.id === ev.editandoId)?.fecha : null;
+      const misma = original && Math.abs(new Date(original).getTime() - ev.fecha.getTime()) < 60000;
+      if (ev.fecha.getTime() < Date.now() - 60000 && !misma) {
+        agregarNotificacion('📅 La fecha de la evaluación ya pasó. Elige hoy (a una hora que no haya pasado) o un día futuro.');
+        return;
+      }
+    }
     if (Object.keys(nuevosErrores).length > 0) {
       setEv(prev => ({ ...prev, errores: nuevosErrores }));
       agregarNotificacion('❌ Corrige los campos marcados en rojo antes de guardar.');
@@ -6721,13 +6742,20 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra">
+        <div data-tutorial="pestanas" className="flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra">
         {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[#313248] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 md:gap-2 px-2.5 @5xl:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className={`relative z-10 ${vista === tab.id ? 'hidden sm:inline' : 'hidden @5xl:inline'}`}>{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
         </div>
         {/* Botón de configuración junto a la campanita */}
         <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
           {onAbrirMateria && onNuevaMateria && (
-            <SelectorMateria materias={materias} actualId={materiaActivaId} actualNombre={planificacion.materia} onAbrir={onAbrirMateria} onNueva={onNuevaMateria} />
+            <div data-tutorial="materia" className="flex items-center"><SelectorMateria materias={materias} actualId={materiaActivaId} actualNombre={planificacion.materia} onAbrir={onAbrirMateria} onNueva={onNuevaMateria} /></div>
+          )}
+          {onTutorial && (
+            <Tooltip text="Ver el tutorial" lado="abajo">
+              <button data-tutorial="ayuda" onClick={onTutorial} aria-label="Ver el tutorial" className="flex items-center justify-center w-9 h-9 rounded-xl text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#1d1e2e] transition-colors">
+                <CircleHelp className="w-[18px] h-[18px]" />
+              </button>
+            </Tooltip>
           )}
           <motion.button
             onClick={() => setVista('configuracion')}
@@ -6780,7 +6808,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
                 <ObservacionesRecibidas items={observaciones} onLeer={marcarObservacionLeida} />
                 <OpinionesEstudiantes items={opiniones} onVistas={marcarOpinionesVistas} />
-                <div ref={tarjetaRef}>
+                <div ref={tarjetaRef} data-tutorial="formularios">
                 <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
                 evaluacion2={evaluacion2} setEvaluacion2={setEvaluacion2} guardarEvaluacion2={guardarEvaluacion2} limpiarEvaluacion2={limpiarEvaluacion2}
@@ -6791,7 +6819,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                 totalEstudiantes={totalEstudiantes}
               />
                 </div>
-              <div ref={seccionesGuardadasRef} className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl">
+              <div ref={seccionesGuardadasRef} data-tutorial="guardadas" className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider font-['Inter']">
@@ -6811,7 +6839,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                       )
                     </h2>
                     {/* Pestañas de Sección/Paralelo (grupos de estudiantes que ven la materia en común) */}
-                    <div className="flex items-center gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
+                    <div data-tutorial="secciones" className="flex items-center gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
                       {seccionesDisponibles.map((letra) => (
                         <Tooltip key={letra} text={`Sección ${letra}`}>
                           <button
@@ -7297,6 +7325,17 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
     cargar();
   }, []);
 
+  // Tutorial: se abre solo la primera vez que el profesor entra (en este navegador); "Omitir" o "Terminar" lo marcan como visto
+  const [tutorialAbierto, setTutorialAbierto] = useState(false);
+  const puedeVerTutorial = !!usuario && !usuario.debeCambiarPassword && usuario.rol !== 'SUPERADMIN';
+  const abrirTutorial = () => { setVistaActual('planificacion'); if (!esMovil) setAgenteExpandido(true); setTutorialAbierto(true); };
+  useEffect(() => {
+    if (!puedeVerTutorial || !configSistema || !usuario || tutorialVisto(usuario.id)) return;
+    const t = setTimeout(abrirTutorial, 1200); // deja que la pantalla termine de cargar
+    return () => clearTimeout(t);
+  }, [puedeVerTutorial, !!configSistema, usuario?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cerrarTutorial = () => { setTutorialAbierto(false); if (usuario) marcarTutorialVisto(usuario.id); };
+
   // Hasta saber quién entró no se dibuja la interfaz (evita que las pestañas "salten" al cargar)
   if (!usuario) {
     return (
@@ -7317,10 +7356,14 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
     <div className="fixed inset-0 flex flex-col bg-[#161722] text-[#b0b0c0] overflow-hidden">
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
+      {tutorialAbierto && (
+        <Tutorial pasos={pasosTutorial(usuario.nombre, esMovil)} onTerminar={cerrarTutorial}
+          alCambiarPaso={(p) => { if (p.objetivo && p.objetivo !== 'agente' && p.objetivo !== 'divisor') setVistaActual('planificacion'); if ((p.objetivo === 'agente' || p.objetivo === 'divisor') && !esMovil) setAgenteExpandido(true); }} />
+      )}
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
                 <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} formulariosLibres={() => panelDerechoRef.current?.formulariosLibres() ?? true} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} arrastrando={arrastrando} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
         {!esMovil && agenteExpandido && (
-          <div role="separator" aria-orientation="vertical" aria-label="Arrastra para cambiar el ancho del chat" title="Arrastra para cambiar el ancho del chat (doble clic: tamaño normal)"
+          <div data-tutorial="divisor" role="separator" aria-orientation="vertical" aria-label="Arrastra para cambiar el ancho del chat" title="Arrastra para cambiar el ancho del chat (doble clic: tamaño normal)"
             onPointerDown={empezarArrastre}
             onDoubleClick={() => { setAnchoElegido(null); try { localStorage.removeItem('anchoChat'); } catch {} }}
             className={`group relative w-1.5 -mx-[3px] z-20 flex-shrink-0 cursor-col-resize self-stretch ${arrastrando ? 'bg-indigo-500/60' : 'hover:bg-indigo-500/40'} transition-colors`}>
@@ -7355,6 +7398,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
           materiaActivaId={materiaActivaId}
           onAbrirMateria={abrirMateria}
           onNuevaMateria={crearMateria}
+          onTutorial={puedeVerTutorial ? abrirTutorial : undefined}
         />
       </div>
     </div>
