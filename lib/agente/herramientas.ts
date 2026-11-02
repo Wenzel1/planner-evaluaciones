@@ -22,7 +22,7 @@ export const HERRAMIENTAS: Herramienta[] = [
             type: 'object',
             properties: {
               numero: { type: 'integer', description: 'Número de la evaluación (1 a 4). Si editas una existente, usa su mismo número.' },
-              nombre: { type: 'string', description: 'Nombre descriptivo del tema evaluado (sin "Evaluación N:")' },
+              nombre: { type: 'string', description: 'El contenido concreto que se evalúa, 4-10 palabras (ej. "Historias de usuario y criterios de aceptación"). NO la estrategia ("Taller de…", "Examen final…") ni "Evaluación N:"' },
               tipoActividad: { type: 'string', description: 'Estrategia, ej. "Taller práctico", "Exposición grupal", "Ensayo"' },
               enfoque: { type: 'string', enum: ENFOQUES, description: 'Uno de los enfoques permitidos' },
               duracionMinutos: { type: 'integer' },

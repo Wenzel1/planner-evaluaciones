@@ -186,7 +186,9 @@ async function atender(request: Request) {
   if (!yaGuardado) await prisma.mensaje.create({ data: { conversacionId: conversacion.id, rol: 'USER', contenido: textoUsuario, completo: true } })
 
   const maxTokens = Number(chat.maxTokens) > 0 ? Math.max(2048, Number(chat.maxTokens)) : 8192
-  const temperatura = Number.isFinite(Number(chat.temperatura)) ? Math.min(1, Math.max(0, Number(chat.temperatura))) : 0.6
+  const temperaturaBase = Number.isFinite(Number(chat.temperatura)) ? Math.min(1, Math.max(0, Number(chat.temperatura))) : 0.6
+  const pideEvaluaciones = /\b(plan|evaluaci[oó]n|evaluaciones|recomi[eé]nd|prop[oó]n|sugi[eé]r|otras?|distint|diferent|nuev[oa]s?)\b/i.test(String(body?.mensaje || ''))
+  const temperatura = pideEvaluaciones ? Math.max(temperaturaBase, 0.9) : temperaturaBase
   const conversacionId = conversacion.id
   const codificador = new TextEncoder()
 
@@ -231,12 +233,23 @@ async function atender(request: Request) {
           // Anunció una acción ("Aquí tienes la propuesta:") pero la herramienta no llegó o llegó mal formada: se le pide de nuevo
           const prometio = /(:|…|\.\.\.)\s*$/.test(textoRonda.trim()) && /propuesta|aqu[ií] (tienes|va|est[aá])|te propongo|quedar[ií]a|plan/i.test(textoRonda)
           const copioResumen = new RegExp(RESUMEN_COPIADO.source, 'im').test(textoRonda)
+          // Dijo que ya lo hizo ("¡Listo! Ajusté los pesos…") pero no llamó ninguna herramienta: no se hizo nada
+          const dijoHecho = /(^|[^a-záéíóúñ])(ajust[eé]|reprogram[eé]|mov[ií]|cambi[eé]|elimin[eé]|borr[eé]|agregu[eé]|a[nñ]ad[ií]|actualic[eé]|cre[eé]|marqu[eé]|guard[eé]|cargu[eé]|asign[eé]|quit[eé]|modifiqu[eé]|distribu[ií])(?![a-záéíóúñ])/i.test(textoRonda)
+            && /\b(listo|hecho|ya |ahora|así quedaron|quedaron|quedó)/i.test(textoRonda)
           if (invalidas.length && reintentos < 2) {
             reintentos++
             enviar({ t: 'consulta', v: ['corrigiendo el número de la evaluación'] })
             agregar('model', textoRonda || '(llamé una herramienta)')
             silencio = true
             agregar('user', `[Sistema: ${invalidas.join(' ')} En la Sección ${seccion} existen ${evaluaciones.length ? evaluaciones.map(e => `#${e.numero} ${e.nombre}`).join(', ') : 'ninguna evaluación todavía'}. Vuelve a llamar la herramienta con el número correcto. No repitas lo que ya escribiste.]`)
+            continue
+          }
+          if (!consultas.length && acciones.length === accionesAntes && acciones.length === 0 && dijoHecho && !malformada && reintentos < 2) {
+            reintentos++
+            enviar({ t: 'consulta', v: ['aplicando el cambio'] })
+            agregar('model', textoRonda)
+            silencio = true
+            agregar('user', '[Sistema: dijiste que hiciste el cambio pero NO llamaste ninguna herramienta, así que en la app no cambió nada. Llama AHORA la herramienta que corresponde (ej. ajustar_pesos con todas las evaluaciones y pesos que sumen 100, reprogramar, proponer_evaluaciones…). No repitas lo que ya escribiste.]')
             continue
           }
           if (!consultas.length && acciones.length === accionesAntes && (malformada || prometio || copioResumen) && reintentos < 2) {

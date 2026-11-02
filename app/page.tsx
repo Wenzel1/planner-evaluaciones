@@ -4035,6 +4035,41 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
 const DIAS_APERTURA_PORTAL = 7;
 interface VideoSugeridoUI { titulo: string; url: string; canal: string; duracionSeg: number; miniatura: string; vistas: number }
 interface PaginaSugeridaUI { titulo: string; url: string; descripcion: string }
+const TITULOS_DESCRIPCION = ['OBJETIVO', 'ACTIVIDAD', 'HERRAMIENTAS', 'ENTREGABLES', 'CRITERIOS DE EVALUACIÓN', 'CRITERIOS DE EVALUACION', 'CRITERIOS', 'TEMAS POR GRUPO', 'RECURSOS', 'INSTRUCCIONES'];
+const ICONO_DESCRIPCION: Record<string, string> = { OBJETIVO: '🎯', ACTIVIDAD: '🛠️', HERRAMIENTAS: '🧰', ENTREGABLES: '📦', CRITERIOS: '✅', 'TEMAS POR GRUPO': '👥', RECURSOS: '📚', INSTRUCCIONES: '📝' };
+function partesDescripcion(texto: string): { titulo: string; cuerpo: string }[] {
+  const t = String(texto || '').replace(/\*\*/g, '').trim();
+  const re = new RegExp(`(^|\\n|\\.\\s|\\s)(${TITULOS_DESCRIPCION.join('|')})\\s*:`, 'g');
+  const cortes: { i: number; fin: number; titulo: string }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(t))) cortes.push({ i: m.index + m[1].length, fin: re.lastIndex, titulo: m[2] });
+  if (cortes.length < 2) return [{ titulo: '', cuerpo: t }];
+  const partes = cortes.map((c, k) => ({ titulo: c.titulo.replace('CRITERIOS DE EVALUACION', 'CRITERIOS DE EVALUACIÓN'), cuerpo: t.slice(c.fin, k + 1 < cortes.length ? cortes[k + 1].i : t.length).trim() }));
+  const antes = t.slice(0, cortes[0].i).trim();
+  return antes ? [{ titulo: '', cuerpo: antes }, ...partes] : partes;
+}
+function DescripcionOrdenada({ texto, compacta = false }: { texto: string; compacta?: boolean }) {
+  const partes = partesDescripcion(texto);
+  if (partes.length === 1 && !partes[0].titulo) return <p className={`${compacta ? 'text-[12px]' : 'text-sm'} text-[#b8b9cc] whitespace-pre-wrap leading-relaxed`}>{partes[0].cuerpo}</p>;
+  return (
+    <div className={`grid gap-2 ${compacta ? '' : 'sm:grid-cols-2'}`}>
+      {partes.map((p, k) => {
+        const clave = p.titulo.startsWith('CRITERIOS') ? 'CRITERIOS' : p.titulo;
+        const ancho = !compacta && (p.titulo.startsWith('CRITERIOS') || p.titulo === 'ACTIVIDAD' || p.titulo === 'TEMAS POR GRUPO' || !p.titulo);
+        // Listas "a; b; c" o con guiones → viñetas
+        const items = p.cuerpo.split(/\n+|\s*;\s*|\s+-\s+(?=[A-ZÁÉÍÓÚÑ0-9])/).map(x => x.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
+        return (
+          <div key={k} className={`rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-3 py-2 ${ancho ? 'sm:col-span-2' : ''}`}>
+            {p.titulo && <p className="text-[10px] font-semibold uppercase tracking-wider text-[#a5b4fc] mb-1">{ICONO_DESCRIPCION[clave] || '•'} {p.titulo.charAt(0) + p.titulo.slice(1).toLowerCase()}</p>}
+            {items.length > 1
+              ? <ul className={`${compacta ? 'text-[12px]' : 'text-[13px]'} text-[#c0c0cc] space-y-0.5 list-disc pl-4 marker:text-[#5f6080]`}>{items.map((x, j) => <li key={j}>{x}</li>)}</ul>
+              : <p className={`${compacta ? 'text-[12px]' : 'text-[13px]'} text-[#c0c0cc] leading-relaxed whitespace-pre-wrap`}>{p.cuerpo}</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 // ¿Dos nombres hablan del mismo tema? Si el agente reemplaza una evaluación por otra de tema distinto,
 // sus recursos, rúbrica y examen viejos NO deben pasar a la nueva.
 function mismoTema(a?: string | null, b?: string | null): boolean {
@@ -4271,7 +4306,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
           <Tooltip text="Eliminar"><button onClick={() => onDelete(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
         </div>
       </div>
-      <AnimatePresence>{expanded && seccion.descripcion && (<motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]"><div className="p-3 pl-14 text-sm text-[#c0c0cc] whitespace-pre-wrap">{seccion.descripcion}</div></motion.div>)}</AnimatePresence>
+      <AnimatePresence>{expanded && seccion.descripcion && (<motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]"><div className="p-3 sm:pl-14"><DescripcionOrdenada texto={seccion.descripcion} /></div></motion.div>)}</AnimatePresence>
     </Reorder.Item>
   );
 }
@@ -4787,18 +4822,13 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     setPropuestaPendiente(null);
     let pdfGenerado = false;
     // ✅ DESPUÉS (la solución):
-if (sonCuatro && generarPDF) { 
-  try {
-    const url = await generarPDF(nuevasSecciones); 
-    if (url) { 
-      pdfGenerado = true; 
-      if (agregarNotificacion) agregarNotificacion('📄 Plan de acción generado automáticamente.'); 
-    } 
-  } catch (error) {
-    console.error('Error generando PDF:', error);
-    
-  }
-}
+    // El PDF del plan se genera en segundo plano: las evaluaciones quedan guardadas al instante sin esperarlo
+    if (sonCuatro && generarPDF) {
+      pdfGenerado = true;
+      generarPDF(nuevasSecciones)
+        .then(url => { if (url) agregarNotificacion?.('📄 Plan de acción generado automáticamente.'); })
+        .catch(error => console.error('Error generando PDF:', error));
+    }
     setPropuestaPendienteLocal(null);
     if (limpiarYScroll) limpiarYScroll();
     if (fechasCorregidas) agregarNotificacion?.(`📅 ${fechasCorregidas === 1 ? 'Una fecha propuesta ya había pasado: se movió' : `${fechasCorregidas} fechas propuestas ya habían pasado: se movieron`} a una fecha futura. Puedes ajustarla.`);
@@ -4877,7 +4907,12 @@ if (sonCuatro && generarPDF) {
       let resultado = '';
       switch (a.tipo) {
         case 'proponer_evaluaciones': {
+          const excl: number[] = a.datos?.excluidas || [];
+          if (excl.length) a = { ...a, datos: { ...a.datos, evaluaciones: (a.datos?.evaluaciones || []).filter((_: any, i: number) => !excl.includes(i)) } };
+          if (!(a.datos?.evaluaciones || []).length) throw new Error('Marca al menos una evaluación para guardar.');
           const prop = propuestaDeAccion(a);
+          const nuevasSinLugar = prop.evaluaciones.filter((e: any) => !e.existenteId).length;
+          if (modo !== 'ajustar' && evs.length + nuevasSinLugar > 4) throw new Error(`Máximo 4 evaluaciones por sección: ya hay ${evs.length}. Desmarca ${evs.length + nuevasSinLugar - 4} o pídele que reemplace una existente.`);
           if (modo === 'ajustar') {
             setPropuestaPendienteLocal(prop); setPropuestaPendiente(prop); setVistaPanel('planificacion'); if (esMovil) setExpandido(false);
             marcarAccion(msgId, a.id, { estado: 'pendiente', resultado: undefined });
@@ -4887,7 +4922,7 @@ if (sonCuatro && generarPDF) {
             const r = await guardarEvaluacionesDirecto(prop);
             if (!r.success) throw new Error(r.mensaje);
             resultado = `${r.totalEvals} evaluación(es) guardadas en la Sección ${seccionActiva}${r.pdfGenerado ? ' y plan de acción generado' : ''}`;
-            if (modoAutoRef.current) setTimeout(() => prepararNuevas(prop), 700);
+            if (modoAutoRef.current) setTimeout(() => prepararNuevas(prop), 250);
             if (modoAutoRef.current) setTimeout(async () => {
               const m = historialRef.current.find(x => x.id === msgId);
               for (const x of (m?.acciones || []).filter(x => x.id !== a.id && (x.estado || 'pendiente') === 'pendiente' && ACCIONES_SEGURAS.includes(x.tipo))) {
@@ -5503,8 +5538,12 @@ if (sonCuatro && generarPDF) {
     );
     if (a.tipo === 'proponer_evaluaciones') {
       const lista: any[] = a.datos?.evaluaciones || [];
-      const suma = lista.reduce((t, e) => t + (Number(e.peso) || 0), 0);
-      const otras = evs.filter((_, i) => !lista.some(e => e.numero === i + 1)).reduce((t, e) => t + (Number(e.peso) || 0), 0);
+      const excluidas: number[] = a.datos?.excluidas || [];
+      const elegidas = lista.filter((_, i) => !excluidas.includes(i));
+      const pendiente = !hecha && !descartada && estado !== 'deshecha';
+      const alternar = (i: number) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, excluidas: excluidas.includes(i) ? excluidas.filter(x => x !== i) : [...excluidas, i] } });
+      const suma = elegidas.reduce((t, e) => t + (Number(e.peso) || 0), 0);
+      const otras = evs.filter((_, i) => !elegidas.some(e => e.numero === i + 1)).reduce((t, e) => t + (Number(e.peso) || 0), 0);
       return (
         <div key={a.id} className={marco}>
           <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
@@ -5515,21 +5554,35 @@ if (sonCuatro && generarPDF) {
           </div>
           <div className="divide-y divide-[#2a2b3d] border-t border-[#2a2b3d]">
             {lista.map((e, i) => (
-              <details key={i} className="group">
+              <details key={i} className={`group transition-opacity ${pendiente && excluidas.includes(i) ? 'opacity-45' : ''}`}>
                 <summary className="list-none cursor-pointer px-3.5 py-2.5 flex items-start gap-3 hover:bg-[#232438]/60">
+                  {pendiente && lista.length > 1 ? (
+                    <input type="checkbox" checked={!excluidas.includes(i)} onClick={(ev) => ev.stopPropagation()} onChange={() => alternar(i)}
+                      title={excluidas.includes(i) ? 'No se guardará: márcala para incluirla' : 'Se guardará: desmárcala para dejarla fuera'}
+                      aria-label={`Guardar «${e.nombre}»`} className="mt-1 w-4 h-4 accent-[#818cf8] cursor-pointer flex-shrink-0" />
+                  ) : null}
                   <span className="w-6 h-6 rounded-lg bg-[#818cf8]/15 text-[#a5b4fc] text-[11px] font-bold flex items-center justify-center flex-shrink-0">{e.numero}</span>
                   <span className="flex-1 min-w-0">
                     <span className="block text-[13px] text-[#e0e0ec] font-medium leading-snug">{e.nombre}</span>
-                    <span className="block text-[11px] text-[#8a8b9e] mt-0.5">{[e.tipoActividad, e.enfoque, e.duracionMinutos ? `${e.duracionMinutos} min` : null, (e.personasPorGrupo ?? 0) > 1 ? `grupos de ${e.personasPorGrupo}` : null, e.fecha ? new Date(`${e.fecha}T${e.hora || '08:00'}:00`).toLocaleString('es-VE', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'sin fecha'].filter(Boolean).join(' · ')}</span>
+                    <span className="flex flex-wrap gap-1 mt-1">
+                      {e.tipoActividad && <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-[#818cf8]/10 text-[#c7d2fe] border border-[#818cf8]/20">{e.tipoActividad}</span>}
+                      {e.enfoque && <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-[#272839] text-[#b0b0c4] border border-[#313248]">{e.enfoque}</span>}
+                      {e.examenEnLinea && <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">Examen en línea</span>}
+                    </span>
+                    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[#8a8b9e] mt-1">
+                      <span>📅 {e.fecha ? new Date(`${e.fecha}T${e.hora || '08:00'}:00`).toLocaleString('es-VE', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'sin fecha'}</span>
+                      {e.duracionMinutos ? <span>⏱️ {e.duracionMinutos} min</span> : null}
+                      <span>👥 {(e.personasPorGrupo ?? 1) > 1 ? `${e.cantidadGrupos ? `${e.cantidadGrupos} grupos de ` : 'grupos de '}${e.personasPorGrupo}` : 'Individual'}</span>
+                    </span>
                   </span>
                   <span className="text-sm font-bold text-[#a5b4fc]">{e.peso ?? '–'}%</span>
                   <ChevronDown className="w-4 h-4 text-[#6a6b7e] group-open:rotate-180 transition-transform mt-0.5" />
                 </summary>
-                {e.descripcion && <p className="px-3.5 pb-3 pl-[50px] text-[12px] text-[#a8a9bc] whitespace-pre-wrap leading-relaxed">{e.descripcion}</p>}
+                {e.descripcion && <div className="px-3.5 pb-3 sm:pl-[50px]"><DescripcionOrdenada texto={e.descripcion} compacta /></div>}
               </details>
             ))}
           </div>
-          {botones('Guardar en el planificador', <button type="button" disabled={trabajando} onClick={() => ejecutarAccion(msg.id, a, 'ajustar')} title="La propuesta está en los formularios del planificador: ahí puedes cambiar lo que quieras y guardar" className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white disabled:opacity-50">Ver y ajustar en formularios</button>)}
+          {botones(lista.length > 1 && excluidas.length ? (elegidas.length ? `Guardar ${elegidas.length} de ${lista.length}` : 'Marca al menos una') : 'Guardar en el planificador', <button type="button" disabled={trabajando || !elegidas.length} onClick={() => ejecutarAccion(msg.id, a, 'ajustar')} title="La propuesta está en los formularios del planificador: ahí puedes cambiar lo que quieras y guardar" className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white disabled:opacity-50">Ver y ajustar en formularios</button>)}
           {pie}
         </div>
       );
@@ -6340,7 +6393,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     if (ultimaFirma.current === null) { ultimaFirma.current = firma; return; }
     if (firma === ultimaFirma.current) return;
     if (!planIdRef.current && planificacion.secciones.length === 0) return; // todavía no hay nada que guardar
-    const temporizador = setTimeout(() => { sincronizarConBD(planificacion); }, 1200);
+    const temporizador = setTimeout(() => { sincronizarConBD(planificacion); }, 500); // se guarda medio segundo después del último cambio
     return () => clearTimeout(temporizador);
   }, [planificacion, datosCargados]);
 

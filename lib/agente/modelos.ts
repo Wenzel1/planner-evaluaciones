@@ -86,6 +86,8 @@ async function* groq(modelo: string, sistema: string, turnos: Turno[], op: Opcio
       model: modelo, stream: true, temperature: op.temperatura, max_tokens: Math.min(op.maxTokens, 8000),
       messages: [{ role: 'system', content: sistema }, ...turnos.map(t => ({ role: t.rol === 'model' ? 'assistant' : 'user', content: t.texto }))],
       ...(op.sinHerramientas ? {} : { tools: herramientasGroq(), tool_choice: 'auto' }),
+      // Gemini Flash por OpenRouter "piensa" antes de responder si no se le dice nada: sin eso responde mucho más rápido
+      ...(proveedor === 'openrouter' && /flash/i.test(modelo) ? { reasoning: { enabled: false } } : {}),
     }),
     signal: op.senal,
   })
