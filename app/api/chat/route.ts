@@ -32,6 +32,18 @@ function completarGrupos(a: Accion, estudiantes: number) {
   }
 }
 
+// Pesos de la sección después de aplicar lo que propuso el agente (null si no tocó evaluaciones ni pesos)
+function sumaFinal(evaluaciones: EvalContexto[], acciones: Accion[]): number | null {
+  const pesos = new Map<number, number>(evaluaciones.map(e => [e.numero, Number(e.peso) || 0]))
+  let toca = false
+  for (const a of acciones) {
+    if (a.tipo === 'proponer_evaluaciones') { toca = true; for (const e of a.datos.evaluaciones || []) pesos.set(e.numero, Number(e.peso) || 0) }
+    if (a.tipo === 'ajustar_pesos') { toca = true; for (const p of a.datos.pesos || []) pesos.set(p.evaluacion, Number(p.peso) || 0) }
+  }
+  if (!toca) return null
+  return [...pesos.values()].reduce((t, p) => t + p, 0)
+}
+
 function referenciaInvalida(a: Accion, total: number, previas: Accion[]): string | null {
   if (a.tipo === 'proponer_evaluaciones') return null
   const nuevas = new Set<number>(previas.filter(x => x.tipo === 'proponer_evaluaciones').flatMap(x => (x.datos.evaluaciones || []).map((e: any) => e.numero)))
@@ -204,6 +216,8 @@ async function atender(request: Request) {
         // Varias rondas: si el modelo pide consultar datos, se le dan y vuelve a responder (máximo 3 consultas seguidas)
         const ctxConsulta = { usuarioId: actor.id, planId: plan?.id ?? null, materiaId: plan?.materiaId ?? null, seccion, evaluaciones: evaluaciones.map(e => ({ numero: e.numero, id: e.id, nombre: e.nombre })) }
         let reintentos = 0
+        let pesosRevisados = false
+        let soloPesos = false
         let silencio = false // en un reintento de corrección no se muestra el texto (el modelo tiende a repetirse)
         for (let ronda = 0; ronda < 6; ronda++) {
           let retenido = ''
@@ -221,6 +235,8 @@ async function atender(request: Request) {
               if (HERRAMIENTAS_SERVIDOR.includes(ev.nombre)) { if (consultas.length < 3) consultas.push(ev.args || {}); continue }
               const a = normalizarAccion(ev.nombre, ev.args)
               if (!a || acciones.length >= 8) continue
+              // En la ronda de "cuadra los pesos" solo vale ajustar_pesos (si repite la propuesta, saldría duplicada)
+              if (soloPesos && a.tipo !== 'ajustar_pesos') continue
               if (a.tipo === 'proponer_evaluaciones') completarGrupos(a, typeof estudiantesSeccion === 'number' ? estudiantesSeccion : 0)
               const mala = referenciaInvalida(a, evaluaciones.length, acciones)
               if (mala) { invalidas.push(mala); continue }
@@ -260,6 +276,19 @@ async function atender(request: Request) {
             silencio = true
             agregar('user', '[Sistema: la herramienta que anunciaste no llegó (la llamada salió mal formada o faltó). Llámala AHORA con argumentos válidos y más cortos: descripción de máximo 100 palabras por evaluación, sin comillas dobles dentro del texto. No repitas lo que ya escribiste.]')
             continue
+          }
+          // Los pesos de la sección no suman 100 con lo propuesto (ej. agregó una 5ª sin reajustar las demás): se le pide cuadrarlos
+          if (!consultas.length && !pesosRevisados && reintentos < 3) {
+            const suma = sumaFinal(evaluaciones, acciones)
+            if (suma != null && Math.abs(suma - 100) > 0.5) {
+              pesosRevisados = true; soloPesos = true; reintentos++
+              enviar({ t: 'consulta', v: ['cuadrando los pesos para que sumen 100%'] })
+              agregar('model', textoRonda || '(llamé herramientas)')
+              silencio = true
+              const total = Math.max(evaluaciones.length, ...acciones.filter(a => a.tipo === 'proponer_evaluaciones').flatMap(a => (a.datos.evaluaciones || []).map((e: any) => e.numero)))
+              agregar('user', `[Sistema: con tus cambios los pesos de la Sección ${seccion} suman ${suma}%, no 100%. Llama ajustar_pesos con TODAS las evaluaciones (#1 a #${total}) para que sumen exactamente 100. No escribas nada más.]`)
+              continue
+            }
           }
           if (!consultas.length || ronda >= 4) break
           const descripciones = consultas.map(describirConsulta)

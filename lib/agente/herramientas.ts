@@ -17,11 +17,11 @@ export const HERRAMIENTAS: Herramienta[] = [
       type: 'object',
       properties: {
         evaluaciones: {
-          type: 'array', description: 'Entre 1 y 4 evaluaciones',
+          type: 'array', description: 'Entre 1 y 6 evaluaciones',
           items: {
             type: 'object',
             properties: {
-              numero: { type: 'integer', description: 'Número de la evaluación (1 a 4). Si editas una existente, usa su mismo número.' },
+              numero: { type: 'integer', description: 'Número de la evaluación (1 a 6). Si editas una existente, usa su mismo número; si es nueva, el siguiente libre.' },
               nombre: { type: 'string', description: 'El contenido concreto que se evalúa, 4-10 palabras (ej. "Historias de usuario y criterios de aceptación"). NO la estrategia ("Taller de…", "Examen final…") ni "Evaluación N:"' },
               tipoActividad: { type: 'string', description: 'Estrategia, ej. "Taller práctico", "Exposición grupal", "Ensayo"' },
               enfoque: { type: 'string', enum: ENFOQUES, description: 'Uno de los enfoques permitidos' },
@@ -33,6 +33,7 @@ export const HERRAMIENTAS: Herramienta[] = [
               hora: { type: 'string', description: 'HH:MM (24 h)' },
               descripcion: { type: 'string', description: 'Texto plano (90-140 palabras) con OBJETIVO, ACTIVIDAD, HERRAMIENTAS, ENTREGABLES, CRITERIOS DE EVALUACIÓN' },
               examenEnLinea: { type: 'boolean', description: 'true SOLO si el estudiante la responde escribiendo, individual, dentro de un examen en línea con tiempo (prueba escrita, cuestionario, selección simple, verdadero/falso, preguntas de desarrollo, ensayo, informe escrito). false si entrega diagramas, código, repositorio, prototipo, documento hecho en otra herramienta, presentación, laboratorio, taller práctico, proyecto o algo presencial/grupal.' },
+              casos: { type: 'array', items: { type: 'string' }, description: 'Una aplicación o caso práctico DISTINTO y sencillo por grupo (o por estudiante si es individual), del mismo tema. Ej.: "Caja de ahorro: formulario de afiliación de socios". Tantos como cantidadGrupos (máx. 40), 6-15 palabras cada uno. Si es individual, empieza cada uno con el nombre del estudiante y dos puntos.' },
             },
             required: ['numero', 'nombre', 'tipoActividad', 'enfoque', 'duracionMinutos', 'peso', 'fecha', 'hora', 'descripcion'],
           },
@@ -287,13 +288,24 @@ const horaOk = (v: any) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? '')
 const letra = (v: any) => (/^[A-Za-z]$/.test(String(v ?? '').trim()) ? String(v).trim().toUpperCase() : '')
 const enfoqueOk = (v: any) => { const s = String(v ?? '').trim().toLowerCase(); return ENFOQUES.find(e => e.toLowerCase() === s) || '' }
 
+// Casos o aplicaciones distintas por grupo/estudiante: se agregan al final de la descripción (así se guardan y los ven los estudiantes)
+function conCasos(descripcion: string, casos: any, personas: number | null): string {
+  const lista = (Array.isArray(casos) ? casos : []).map((c: any) => String(c ?? '').replace(/\s+/g, ' ').replace(/^(grupo\s*\d+|g\d+|\d+)\s*[:.)-]\s*/i, '').trim().slice(0, 160)).filter(Boolean).slice(0, 40)
+  if (!lista.length) return descripcion
+  // Si la descripción ya traía su propia sección de temas por grupo, se reemplaza por la lista ordenada
+  const base = descripcion.replace(/\n?\s*(TEMAS POR GRUPO|CASOS POR (GRUPO|ESTUDIANTE))\s*:[\s\S]*$/i, '').trim()
+  const individual = (personas ?? 1) <= 1
+  const items = lista.map((c, i) => (individual ? `${c}` : `Grupo ${i + 1}: ${c}`))
+  return `${base}\n${individual ? 'CASOS POR ESTUDIANTE' : 'TEMAS POR GRUPO'}:\n${items.join('\n')}`.trim()
+}
+
 export function normalizarAccion(nombre: string, args: any): Accion | null {
   const a = args && typeof args === 'object' ? args : {}
   const id = crypto.randomUUID()
   switch (nombre) {
     case 'proponer_evaluaciones': {
-      const lista = (Array.isArray(a.evaluaciones) ? a.evaluaciones : []).slice(0, 4).map((e: any, i: number) => ({
-        numero: ent(e?.numero, 1, 4) ?? i + 1,
+      const lista = (Array.isArray(a.evaluaciones) ? a.evaluaciones : []).slice(0, 6).map((e: any, i: number) => ({
+        numero: ent(e?.numero, 1, 6) ?? i + 1,
         nombre: texto(e?.nombre, 160).replace(/^Evaluaci[oó]n\s*\d+\s*:\s*/i, '') || `Evaluación ${i + 1}`,
         tipoActividad: texto(e?.tipoActividad, 80),
         enfoque: enfoqueOk(e?.enfoque),
@@ -302,7 +314,7 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
         cantidadGrupos: ent(e?.cantidadGrupos, 1, 60),
         personasPorGrupo: ent(e?.personasPorGrupo, 1, 15),
         fecha: fechaOk(e?.fecha), hora: horaOk(e?.hora) || '08:00',
-        descripcion: texto(e?.descripcion, 4000),
+        descripcion: conCasos(texto(e?.descripcion, 4000), e?.casos, ent(e?.personasPorGrupo, 1, 15)),
         examenEnLinea: e?.examenEnLinea === true,
       }))
       return lista.length ? { id, tipo: nombre, datos: { evaluaciones: lista } } : null

@@ -87,7 +87,25 @@ interface PlanificacionExamen {
 interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada' | 'deshecha'; resultado?: string; automatica?: boolean }
 const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar', navegar: 'abrir pantalla', agregar_estudiantes: 'agregar estudiantes', modificar_estudiantes: 'modificar estudiantes', cargar_notas: 'cargar notas', abrir_en_portal: 'abrir en la página de estudiantes', enviar_plan: 'enviar plan', eliminar_evaluaciones: 'eliminar evaluaciones', cambiar_materia: 'cambiar de materia', crear_examen: 'examen en línea' };
 // El modelo a veces copia el registro interno ("[Propuse …]"): esas líneas no se muestran
+const CAMPO_REPETIDO = /^\s*(?:[-•*]|\d+[.)])?\s*(?:\*\*)?\s*(nombre|contenido|tema|estrategia|tipo de actividad|tipo|enfoque|peso|ponderaci[oó]n|fecha|hora|duraci[oó]n|grupos?|personas por grupo|modalidad|descripci[oó]n|objetivo|actividad|herramientas|entregables|criterios(?: de evaluaci[oó]n)?|temas por grupo|casos(?: por (?:grupo|estudiante))?|examen en l[ií]nea)\s*(?:\*\*)?\s*:/i;
+const sinCamposPropuesta = (t: string) => {
+  const lineas = String(t || '').split('\n');
+  const fuera = new Set<number>();
+  lineas.forEach((l, i) => {
+    if (CAMPO_REPETIDO.test(l)) { fuera.add(i); return; }
+    // Encabezados de cada evaluación ("### Evaluación 4: …", "**#4 Refactorización…**", "4. **Refactorización…**") seguidos de campos
+    if (/^\s*(#{1,4}\s*|\*\*|\d+[.)]\s*\*\*|[-•*]\s*\*\*)\s*(evaluaci[oó]n\s*)?#?\d*/i.test(l) && CAMPO_REPETIDO.test(lineas[i + 1] || '')) fuera.add(i);
+    // Continuación de una descripción partida en varias líneas: la línea siguiente a un campo que no es otro campo ni está vacía
+  });
+  const res = lineas.filter((_, i) => !fuera.has(i)).join('\n');
+  return res.replace(/\n{3,}/g, '\n\n').trim();
+};
 const sinResumenes = (t: string) => String(t || '').replace(/^\s*\[(Propuse|Prepar[eé]|Gener[eé]|Abr[ií]|Consult[eé]|Cre[eé])[^\]\n]*\]\s*$/gim, '').replace(/\n{3,}/g, '\n\n').trim();
+// Lo que se muestra del texto del agente: sin resúmenes copiados y, si trae una propuesta, sin repetir los campos de la tarjeta
+const textoVisible = (m: { contenido?: string; acciones?: { tipo: string }[] }) => {
+  const t = sinResumenes(m.contenido || '');
+  return (m.acciones || []).some(a => a.tipo === 'proponer_evaluaciones') ? sinCamposPropuesta(t) : t;
+};
 // Acciones del agente que no cambian datos: se ejecutan solas al llegar
 const ACCIONES_AUTOMATICAS = ['navegar'];
 // Con el modo automático también se aplican solas estas (todas se pueden deshacer). Notas, estudiantes, mensajes,
@@ -484,7 +502,7 @@ function casillaDeEvaluacion(p: any, idx: number): number {
 // Solo se une si el profesor pidió CAMBIAR algo; si pidió crear evaluaciones nuevas, la propuesta se reemplaza.
 const PIDE_EDITAR = /\b(cambia\w*|edita\w*|modifica\w*|ajusta\w*|corrige\w*|actualiza\w*|reemplaza\w*|b[aá]ja\w*|s[uú]be\w*|aumenta\w*|reduce\w*|quita\w*|agrega\w*|añade\w*)\b/i;
 function unirPropuesta(anterior: any, nueva: any, mensaje = ''): any {
-  const nuevas = (nueva?.evaluaciones || []).slice(0, 4);
+  const nuevas = (nueva?.evaluaciones || []).slice(0, 6);
   const previas = anterior?.evaluaciones || [];
   const esParcial = previas.length > 0 && nuevas.length < previas.length && PIDE_EDITAR.test(mensaje) && nuevas.every((p: any) => /\d/.test(String(p?.tipo ?? '')));
   if (!esParcial) return { ...nueva, evaluaciones: nuevas };
@@ -4035,8 +4053,8 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
 const DIAS_APERTURA_PORTAL = 7;
 interface VideoSugeridoUI { titulo: string; url: string; canal: string; duracionSeg: number; miniatura: string; vistas: number }
 interface PaginaSugeridaUI { titulo: string; url: string; descripcion: string }
-const TITULOS_DESCRIPCION = ['OBJETIVO', 'ACTIVIDAD', 'HERRAMIENTAS', 'ENTREGABLES', 'CRITERIOS DE EVALUACIÓN', 'CRITERIOS DE EVALUACION', 'CRITERIOS', 'TEMAS POR GRUPO', 'RECURSOS', 'INSTRUCCIONES'];
-const ICONO_DESCRIPCION: Record<string, string> = { OBJETIVO: '🎯', ACTIVIDAD: '🛠️', HERRAMIENTAS: '🧰', ENTREGABLES: '📦', CRITERIOS: '✅', 'TEMAS POR GRUPO': '👥', RECURSOS: '📚', INSTRUCCIONES: '📝' };
+const TITULOS_DESCRIPCION = ['OBJETIVO', 'ACTIVIDAD', 'HERRAMIENTAS', 'ENTREGABLES', 'CRITERIOS DE EVALUACIÓN', 'CRITERIOS DE EVALUACION', 'CRITERIOS', 'TEMAS POR GRUPO', 'CASOS POR GRUPO', 'CASOS POR ESTUDIANTE', 'RECURSOS', 'INSTRUCCIONES'];
+const ICONO_DESCRIPCION: Record<string, string> = { OBJETIVO: '🎯', ACTIVIDAD: '🛠️', HERRAMIENTAS: '🧰', ENTREGABLES: '📦', CRITERIOS: '✅', 'TEMAS POR GRUPO': '👥', 'CASOS POR GRUPO': '👥', 'CASOS POR ESTUDIANTE': '🧑‍🎓', RECURSOS: '📚', INSTRUCCIONES: '📝' };
 function partesDescripcion(texto: string): { titulo: string; cuerpo: string }[] {
   const t = String(texto || '').replace(/\*\*/g, '').trim();
   const re = new RegExp(`(^|\\n|\\.\\s|\\s)(${TITULOS_DESCRIPCION.join('|')})\\s*:`, 'g');
@@ -4055,7 +4073,7 @@ function DescripcionOrdenada({ texto, compacta = false }: { texto: string; compa
     <div className={`grid gap-2 ${compacta ? '' : 'sm:grid-cols-2'}`}>
       {partes.map((p, k) => {
         const clave = p.titulo.startsWith('CRITERIOS') ? 'CRITERIOS' : p.titulo;
-        const ancho = !compacta && (p.titulo.startsWith('CRITERIOS') || p.titulo === 'ACTIVIDAD' || p.titulo === 'TEMAS POR GRUPO' || !p.titulo);
+        const ancho = !compacta && (p.titulo.startsWith('CRITERIOS') || p.titulo === 'ACTIVIDAD' || p.titulo.includes('POR GRUPO') || p.titulo.includes('ESTUDIANTE') || !p.titulo);
         // Listas "a; b; c" o con guiones → viñetas
         const items = p.cuerpo.split(/\n+|\s*;\s*|\s+-\s+(?=[A-ZÁÉÍÓÚÑ0-9])/).map(x => x.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
         return (
@@ -4912,7 +4930,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           if (!(a.datos?.evaluaciones || []).length) throw new Error('Marca al menos una evaluación para guardar.');
           const prop = propuestaDeAccion(a);
           const nuevasSinLugar = prop.evaluaciones.filter((e: any) => !e.existenteId).length;
-          if (modo !== 'ajustar' && evs.length + nuevasSinLugar > 4) throw new Error(`Máximo 4 evaluaciones por sección: ya hay ${evs.length}. Desmarca ${evs.length + nuevasSinLugar - 4} o pídele que reemplace una existente.`);
+          if (modo !== 'ajustar' && evs.length + nuevasSinLugar > 6) throw new Error(`Máximo 6 evaluaciones por sección: ya hay ${evs.length}. Desmarca ${evs.length + nuevasSinLugar - 6} o pídele que reemplace una existente.`);
           if (modo === 'ajustar') {
             setPropuestaPendienteLocal(prop); setPropuestaPendiente(prop); setVistaPanel('planificacion'); if (esMovil) setExpandido(false);
             marcarAccion(msgId, a.id, { estado: 'pendiente', resultado: undefined });
@@ -5860,7 +5878,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
                 <div className="group/msg flex items-start gap-3 w-full max-w-[94%]">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.error ? 'bg-amber-500/20' : 'bg-gradient-to-br from-[#818cf8] to-[#6366f1] shadow-[#818cf8]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-white'}`} /></div>
                   <div className="flex-1 min-w-0 text-[15px] text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">
-                    {msg.contenido && sinResumenes(msg.contenido) && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(sinResumenes(msg.contenido)) }} />{msg.streaming && <span className="inline-block w-2 h-4 ml-0.5 align-[-2px] bg-[#818cf8] animate-pulse rounded-sm" />}</div>}
+                    {msg.contenido && textoVisible(msg) && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(textoVisible(msg)) }} />{msg.streaming && <span className="inline-block w-2 h-4 ml-0.5 align-[-2px] bg-[#818cf8] animate-pulse rounded-sm" />}</div>}
                     {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="inline-block w-2 h-4 bg-[#818cf8] animate-pulse rounded-sm" />}
                     {msg.consultas?.length ? (
                       <div className="mb-1.5 flex flex-wrap gap-1.5">
