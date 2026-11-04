@@ -5,6 +5,7 @@ import { verifyPassword, hashPassword } from '@/lib/password'
 import { bloqueado, registrarFallo, limpiar, minutosRestantes } from '@/lib/rateLimit'
 import { ipDe, opcionesCookieSesion } from '@/lib/cookies'
 import { registrarActividad } from '@/lib/actividad'
+import { verificarDesafio } from '@/lib/captcha'
 
 // Hash de relleno para que el tiempo de respuesta sea similar exista o no el usuario
 let hashRelleno: string | null = null
@@ -18,6 +19,9 @@ export async function POST(request: Request) {
     if (!email || !password) {
       return NextResponse.json({ error: 'Ingresa tu correo y contraseña.' }, { status: 400 })
     }
+    // Suma de verificación (frena a los programas que prueban contraseñas en masa)
+    const errorCaptcha = verificarDesafio(body.captchaToken, body.captchaRespuesta)
+    if (errorCaptcha) return NextResponse.json({ error: errorCaptcha, codigo: 'CAPTCHA' }, { status: 400 })
 
     // Dos límites: por conexión+correo (5 intentos) y por correo (20). Así alguien que adivine claves
     // desde su propia conexión no puede dejar bloqueada a la persona real, que entra desde otra.

@@ -683,6 +683,8 @@ const LIMITES = { grupos: 20, personas: 300 };
 // Canal por el que se avisa a los estudiantes: 'correo' (Gmail) o 'whatsapp'. Lo decide el servidor según sus variables de entorno.
 const CANAL = { valor: 'whatsapp' as 'correo' | 'whatsapp' };
 const porCorreo = () => CANAL.valor === 'correo';
+/** ¿Es un id de la base de datos (cuid)? Las evaluaciones recién creadas en pantalla tienen ids locales como "eval1-1730…". */
+const esIdGuardado = (id: unknown) => /^[a-z0-9]{20,40}$/i.test(String(id || ''));
 const medioEnvio = () => (porCorreo() ? 'correo' : 'WhatsApp');
 /** ¿El estudiante puede recibir avisos por el canal activo? (correo válido, o teléfono de 7+ dígitos) */
 const puedeRecibir = (e: { email?: string | null; telefono?: string | null }) => porCorreo() ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e.email || '').trim()) : String(e.telefono || '').replace(/\D/g, '').length >= 7;
@@ -2055,8 +2057,8 @@ function UsuariosPanel() {
     const n = validarNombre(form.nombre); if (n) e.nombre = n;
     const m = validarEmail(form.email); if (m) e.email = m;
     // Al crear una cuenta teléfono y cédula son obligatorios; al editar (cuentas antiguas) solo se validan si se escriben
-    if (!editando || form.telefono.trim()) { const tl = validarTelefono(form.telefono); if (tl) e.telefono = tl; }
-    if (!editando || form.cedula.trim()) { const cd = validarCedula(form.cedula); if (cd) e.cedula = cd; }
+    if (form.telefono.trim()) { const tl = validarTelefono(form.telefono); if (tl) e.telefono = tl; } // opcional
+    if (form.cedula.trim()) { const cd = validarCedula(form.cedula); if (cd) e.cedula = cd; } // opcional
     if (!editando || form.password) { const p = validarPassword(form.password); if (p) e.password = p; }
     setErrores(e);
     return Object.keys(e).length === 0;
@@ -2901,6 +2903,16 @@ function SelectorEstadoEvaluacion({ seccion, onCambiar }: { seccion: SeccionExam
 // ============================================
 // ENVIAR EL PLAN DE ACCIÓN POR WHATSAPP (estudiantes de la sección)
 // ============================================
+// WhatsApp gratis (sin API): abre el WhatsApp del profesor con el mensaje ya escrito; él solo pulsa "Enviar".
+// 0412-123.4567 → 584121234567 (mismo criterio que el servidor). '' si no parece un número válido.
+function telefonoWa(t: string | null | undefined, pais = '58'): string {
+  let tel = String(t || '').replace(/\D/g, '');
+  if (tel.startsWith('00')) tel = tel.slice(2);
+  if (!tel.startsWith(pais)) { if (tel.startsWith('0')) tel = pais + tel.slice(1); else if (tel.length === 10) tel = pais + tel; }
+  return tel.length >= 11 && tel.length <= 15 ? tel : '';
+}
+const enlaceWa = (telefono: string, texto: string) => `https://wa.me/${telefono}?text=${encodeURIComponent(texto)}`;
+
 const MENSAJE_PLAN_DEFECTO = 'Hola {nombre} 👋\nYa está listo tu plan de evaluación de *{materia}* (sección {seccion}).\n\nAquí lo ves completo, con los recursos para estudiar y tus notas:\n{enlace}';
 
 function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, agregarNotificacion }: {
@@ -2957,6 +2969,18 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
     return () => { vivo = false; clearInterval(t); };
   }, [loteId]);
 
+  const abrirWhatsApp = async (e: EstudianteFila) => {
+    const ventana = window.open('', '_blank'); // se abre ya (si se abre después de esperar, el navegador la bloquea)
+    try {
+      const r = await fetch(`/api/estudiantes/${encodeURIComponent(e.id)}/enlace`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.url) throw new Error(d.error || 'No se pudo obtener el enlace del estudiante.');
+      const plantilla = mensaje.includes('{enlace}') ? mensaje : `${mensaje}\n\n{enlace}`;
+      const texto = plantilla.replace(/\{nombre\}/g, e.nombre.trim().split(/\s+/)[0] || '').replace(/\{materia\}/g, materia).replace(/\{seccion\}/g, seccion).replace(/\{enlace\}/g, d.url);
+      const url = enlaceWa(telefonoWa(e.telefono), texto);
+      if (ventana) ventana.location.href = url; else window.open(url, '_blank');
+    } catch (err: any) { ventana?.close(); setError(err.message); }
+  };
   const visibles = (estudiantes || []).filter(e => !buscar.trim() || e.nombre.toLowerCase().includes(buscar.trim().toLowerCase()));
   const elegibles = (estudiantes || []).filter(tieneTelefono);
   const todosMarcados = elegibles.length > 0 && elegibles.every(e => marcados.includes(e.id));
@@ -3059,6 +3083,11 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
                       <input type="checkbox" disabled={!ok} checked={ok && marcados.includes(e.id)} onChange={() => alternar(e.id)} className="w-4 h-4 accent-[#818cf8]" />
                       <span className="flex-1 truncate">{e.nombre}</span>
                       {e.portalUltimaVisita ? <span className="text-[10px] text-emerald-300 flex items-center gap-1 whitespace-nowrap" title="Ya abrió su página"><Eye className="w-3 h-3" />{haceCuanto(e.portalUltimaVisita, Date.now())}</span> : <span className="text-[10px] text-[#6a6b7e] whitespace-nowrap">sin abrir</span>}
+                      {telefonoWa(e.telefono) && (
+                        <button type="button" title={`Abrir WhatsApp con el mensaje para ${e.nombre} (gratis: lo envías tú desde tu WhatsApp)`} aria-label={`WhatsApp a ${e.nombre}`}
+                          onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); abrirWhatsApp(e); }}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 whitespace-nowrap">WhatsApp</button>
+                      )}
                       <span className="text-[11px] text-[#8a8b9e]">{ok ? (porCorreo() ? `✉️ ${e.email}` : `📞 …${(e.telefono || '').replace(/\D/g, '').slice(-4)}`) : (porCorreo() ? 'Sin correo' : 'Sin teléfono')}</span>
                     </label>
                   );
@@ -3524,6 +3553,24 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
   const handleCardClick = (seccionId: string) => { setExpandedId(expandedId === seccionId ? null : seccionId); };
   const handleClosePdf = () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(null); setPdfAbierto(false); setMostrarMenuEnvio(false); agregarNotificacion('🗑️ Plan eliminado.'); };
 
+  // Acta de notas de la sección activa (lo arma el servidor con las notas guardadas)
+  const [descargandoActa, setDescargandoActa] = useState(false);
+  const descargarActa = async () => {
+    const ids = secciones.map((s: SeccionExamen) => s.id).filter(esIdGuardado); // las que aún no se guardan no tienen notas
+    if (!ids.length || descargandoActa) return;
+    setDescargandoActa(true);
+    try {
+      const r = await fetch(`/api/acta?ids=${encodeURIComponent(ids.join(','))}`);
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'No se pudo generar el acta.'); }
+      const nombre = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || `Acta_Seccion_${seccionActiva}.csv`;
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      agregarNotificacion(`📊 Acta de notas de la sección ${seccionActiva} descargada.`);
+    } catch (e: any) { agregarNotificacion(`⚠️ ${e.message}`); }
+    finally { setDescargandoActa(false); }
+  };
+
   const exportToCSV = () => {
     const headers = ["Nombre", "Actividad", "Enfoque", "Duracion (min)", "Peso (%)", "Grupos", "Pers/Grupo", "Fecha", "Descripcion"];
     const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
@@ -3664,8 +3711,13 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
         {secciones.length === 0 && (<div className="text-center py-8 text-[#8a8b9e] border border-dashed border-[#313248] rounded-xl"><p className="text-sm">No hay evaluaciones</p></div>)}
       </div>
       
-      <div className="flex justify-end mt-4">
-        <Tooltip text="Exportar a Excel/CSV">
+      <div className="flex justify-end gap-2 mt-4">
+        <Tooltip text={`Acta de notas de la sección ${seccionActiva} (para Excel)`}>
+          <button onClick={descargarActa} disabled={descargandoActa || !secciones.some((s: SeccionExamen) => esIdGuardado(s.id))} className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-medium rounded-lg transition-all border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+            {descargandoActa ? <div className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />} Acta de notas
+          </button>
+        </Tooltip>
+        <Tooltip text="Exportar las evaluaciones a Excel/CSV">
           <button onClick={exportToCSV} disabled={secciones.length === 0} className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-lg transition-all border border-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
             <FileSpreadsheet className="w-3.5 h-3.5" /> Exportar CSV
           </button>
@@ -4851,8 +4903,8 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     if (sonCuatro && generarPDF) {
       pdfGenerado = true;
       generarPDF(nuevasSecciones)
-        .then(url => { if (url) agregarNotificacion?.('📄 Plan de acción generado automáticamente.'); })
-        .catch(error => console.error('Error generando PDF:', error));
+        .then((url: string | null) => { if (url) agregarNotificacion?.('📄 Plan de acción generado automáticamente.'); })
+        .catch((error: unknown) => console.error('Error generando PDF:', error));
     }
     setPropuestaPendienteLocal(null);
     if (limpiarYScroll) limpiarYScroll();

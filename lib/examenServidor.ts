@@ -15,7 +15,7 @@ const rubricaTexto = (r: unknown) => {
 // Si el tiempo del estudiante se acabó y no entregó (cerró la página), se da por entregado con lo que guardó
 export async function cerrarSiVencio(f: Fila, examen: Examen): Promise<Fila> {
   if (f.entregadoEn || Date.now() < f.limite.getTime() + GRACIA_SEG * 1000) return f
-  const correccion = corregirObjetivas(examen, f.respuestas || {}, (f.correccion as Correccion) || {})
+  const correccion = corregirObjetivas(examen, f.respuestas || {}, (f.correccion as unknown as Correccion) || {})
   const nota = notaDe(examen, correccion)
   const act = await prisma.respuestaExamen.update({ where: { id: f.id }, data: { entregadoEn: f.limite, correccion: correccion as any, nota } })
   return act as any
@@ -30,7 +30,7 @@ export async function procesarEntrega(respuestaId: string): Promise<Fila> {
   if (!f) throw new Error('No encontrado')
   const examen = normalizarExamen(f.evaluacion.examen)
   if (!examen) throw new Error('La evaluación ya no tiene examen.')
-  let correccion = corregirObjetivas(examen, (f.respuestas as any) || {}, (f.correccion as Correccion) || {})
+  let correccion = corregirObjetivas(examen, (f.respuestas as any) || {}, (f.correccion as unknown as Correccion) || {})
   const hayAbiertas = examen.preguntas.some(p => !esObjetiva(p))
   if (hayAbiertas && examen.modoCorreccion !== 'profesor') {
     try { correccion = { ...correccion, ...(await sugerirCorreccion(examen, (f.respuestas as any) || {}, f.evaluacion.planificacion.materia.nombre, rubricaTexto(f.evaluacion.rubrica))) } }
@@ -51,7 +51,7 @@ export async function sugerirOtraVez(respuestaId: string): Promise<Fila> {
   if (!f) throw new Error('No encontrado')
   const examen = normalizarExamen(f.evaluacion.examen)
   if (!examen) throw new Error('La evaluación ya no tiene examen.')
-  const previa = corregirObjetivas(examen, (f.respuestas as any) || {}, (f.correccion as Correccion) || {})
+  const previa = corregirObjetivas(examen, (f.respuestas as any) || {}, (f.correccion as unknown as Correccion) || {})
   const ia = await sugerirCorreccion(examen, (f.respuestas as any) || {}, f.evaluacion.planificacion.materia.nombre, rubricaTexto(f.evaluacion.rubrica))
   const correccion: Correccion = { ...previa }
   for (const [id, c] of Object.entries(ia)) if (previa[id]?.fuente !== 'profesor') correccion[id] = c

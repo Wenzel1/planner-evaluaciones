@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { TOKEN_VALIDO } from '@/lib/portal'
-import { normalizarExamen, examenParaEstudiante, ventanaExamen, limiteEstudiante, GRACIA_SEG, type Correccion } from '@/lib/examen'
+import { normalizarExamen, examenParaEstudiante, ventanaExamen, limiteEstudiante, GRACIA_SEG, semillaExamen, respuestasAOriginal, respuestasAMezcla, CLAVE_SALIDAS, salidasDe, type Correccion } from '@/lib/examen'
 import { cerrarSiVencio, procesarEntrega } from '@/lib/examenServidor'
 
 export const maxDuration = 60
@@ -54,7 +54,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     const estado = f?.entregadoEn ? 'entregado' : f ? 'en_curso' : !abre ? 'sin_fecha' : ahora < abre.getTime() ? 'bloqueado' : cierra && ahora > cierra.getTime() ? 'cerrado' : 'disponible'
     return NextResponse.json({
       estado, abre, cierra, duracionMin: examen.duracionMin, preguntas: examen.preguntas.length, tipo: examen.tipo,
-      ...(estado === 'en_curso' ? { examen: examenParaEstudiante(examen), respuestas: f.respuestas || {}, limite: f.limite, ahora: new Date().toISOString() } : {}),
+      ...(estado === 'en_curso' ? { examen: examenParaEstudiante(examen, semillaExamen(est.id, ev.id)), respuestas: respuestasAMezcla(examen, semillaExamen(est.id, ev.id), f.respuestas || {}), limite: f.limite, ahora: new Date().toISOString() } : {}),
       ...(estado === 'entregado' ? { entregadoEn: f.entregadoEn, resultado: resultado(examen, f, cerrado) } : {}),
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
@@ -74,6 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const ahora = new Date()
     const clave = { estudianteId_evaluacionId: { estudianteId: est.id, evaluacionId: ev.id } }
     let f: any = await prisma.respuestaExamen.findUnique({ where: clave })
+    const semilla = semillaExamen(est.id, ev.id) // cada estudiante ve su propio orden de preguntas y opciones
 
     if (body.accion === 'iniciar') {
       if (!f) {
@@ -90,7 +91,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       }
       f = await cerrarSiVencio(f, examen)
       if (f.entregadoEn) return no('Ya entregaste este examen.', 409)
-      return NextResponse.json({ examen: examenParaEstudiante(examen), respuestas: f.respuestas || {}, limite: f.limite, ahora: ahora.toISOString() }, { headers: { 'Cache-Control': 'no-store' } })
+      return NextResponse.json({ examen: examenParaEstudiante(examen, semilla), respuestas: respuestasAMezcla(examen, semilla, f.respuestas || {}), limite: f.limite, ahora: ahora.toISOString() }, { headers: { 'Cache-Control': 'no-store' } })
+    }
+
+    // El estudiante salió de la página del examen (cambió de pestaña o de aplicación): se cuenta para que el profesor lo vea
+    if (body.accion === 'salida') {
+      if (!f || f.entregadoEn) return NextResponse.json({ ok: true })
+      const respuestas = { ...(f.respuestas || {}), [CLAVE_SALIDAS]: salidasDe(f.respuestas) + 1 }
+      await prisma.respuestaExamen.update({ where: { id: f.id }, data: { respuestas } })
+      return NextResponse.json({ ok: true, salidas: respuestas[CLAVE_SALIDAS] })
     }
 
     if (body.accion === 'guardar' || body.accion === 'entregar') {
@@ -104,7 +113,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
         if (!ids.has(k)) continue
         nuevas[k] = typeof v === 'string' ? v.slice(0, 20000) : typeof v === 'number' || typeof v === 'boolean' ? v : null
       }
-      const respuestas = vencido ? (f.respuestas || {}) : { ...(f.respuestas || {}), ...nuevas } // pasado el tiempo ya no se cambia nada
+      // Lo que marcó el estudiante (en su orden mezclado) se guarda en el orden original del examen
+      const respuestas = vencido ? (f.respuestas || {}) : { ...(f.respuestas || {}), ...respuestasAOriginal(examen, semilla, nuevas) } // pasado el tiempo ya no se cambia nada
       if (body.accion === 'guardar' && !vencido) {
         await prisma.respuestaExamen.update({ where: { id: f.id }, data: { respuestas } })
         return NextResponse.json({ ok: true, guardado: ahora.toISOString() })

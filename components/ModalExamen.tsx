@@ -10,6 +10,7 @@ interface Entrega {
   estudianteId: string; nombre: string; estado: 'sin_empezar' | 'en_curso' | 'entregado' | 'publicada';
   inicio: string | null; limite: string | null; entregadoEn: string | null;
   respuestas: Record<string, any>; correccion: Correccion; nota: number | null; comentario: string; porCorregir: number;
+  salidas?: number; // veces que salió de la página durante el examen
 }
 
 const ZONA = 'America/Caracas';
@@ -214,6 +215,7 @@ export default function ModalExamen({ evaluacion, inicial, onCerrar, onGuardado,
                 {entregas.map(e => (
                   <button key={e.estudianteId} type="button" disabled={!e.entregadoEn && e.estado !== 'en_curso'} onClick={() => setViendo(e.estudianteId)} className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-[#1d1e2e] disabled:hover:bg-transparent">
                     <span className="flex-1 min-w-0 text-[13px] text-[#d0d0da] truncate">{e.nombre}</span>
+                    {!!e.salidas && <span title={`Salió ${e.salidas} vez/veces de la página del examen (cambió de pestaña o de aplicación)`} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 whitespace-nowrap">⚠️ salió {e.salidas}×</span>}
                     <span className={`text-[11px] px-2 py-0.5 rounded-full ${e.estado === 'publicada' ? 'bg-emerald-500/15 text-emerald-300' : e.estado === 'entregado' ? 'bg-[#818cf8]/15 text-[#c7d2fe]' : e.estado === 'en_curso' ? 'bg-amber-500/15 text-amber-300' : 'bg-[#232430] text-[#6a6b7e]'}`}>
                       {e.estado === 'publicada' ? 'Publicada' : e.estado === 'entregado' ? (e.porCorregir ? `Por corregir (${e.porCorregir})` : 'Por publicar') : e.estado === 'en_curso' ? <span className="flex items-center gap-1"><Clock className="w-3 h-3" />Respondiendo</span> : 'No ha empezado'}
                     </span>
@@ -255,6 +257,7 @@ function DetalleEntrega({ examen, entrega, ocupado, onVolver, onGuardar, onSuger
         <button type="button" onClick={onVolver} className="text-[12px] text-[#a5b4fc] hover:text-white flex items-center gap-1"><ChevronLeft className="w-3.5 h-3.5" />Entregas</button>
         <h3 className="text-[14px] font-semibold text-[#e0e0ec]">{entrega.nombre}</h3>
         <span className="text-[11px] text-[#8a8b9e]">{entrega.entregadoEn ? `entregó ${fHora(entrega.entregadoEn)}` : 'todavía respondiendo'}</span>
+        {!!entrega.salidas && <span className="text-[11px] text-amber-300" title="Puede ser una notificación del celular o una búsqueda: es un dato para conversar con el estudiante, no una prueba de copia.">⚠️ Salió {entrega.salidas} vez/veces de la página del examen</span>}
         <span className={`ml-auto text-lg font-bold ${nota == null ? 'text-[#6a6b7e]' : nota >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{nota == null ? 'Sin nota' : `${fNota(nota)}/20`}</span>
       </div>
       <ol className="space-y-3">

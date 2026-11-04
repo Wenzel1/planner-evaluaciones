@@ -40,7 +40,8 @@ export async function POST(request: Request) {
     if (actor.rol === 'ADMIN' && rol !== 'USUARIO') {
       return NextResponse.json({ error: 'Un administrador solo puede crear usuarios con rol USUARIO.' }, { status: 403 })
     }
-    const msg = validarNombre(body.nombre) || validarEmail(body.email) || validarPassword(body.password) || validarTelefono(String(body.telefono ?? '')) || validarCedula(String(body.cedula ?? ''))
+    const msg = validarNombre(body.nombre) || validarEmail(body.email) || validarPassword(body.password) ||
+      (String(body.telefono ?? '').trim() ? validarTelefono(String(body.telefono)) : null) || (String(body.cedula ?? '').trim() ? validarCedula(String(body.cedula)) : null) // ambos opcionales
     if (msg) return NextResponse.json({ error: msg }, { status: 400 })
 
     const creado = await prisma.usuario.create({
@@ -49,8 +50,8 @@ export async function POST(request: Request) {
         email: String(body.email).trim().toLowerCase(),
         passwordHash: await hashPassword(String(body.password)),
         rol: rol as any,
-        telefono: normalizarTelefono(String(body.telefono)),
-        cedula: normalizarCedula(String(body.cedula)),
+        telefono: String(body.telefono ?? '').trim() ? normalizarTelefono(String(body.telefono)) : null,
+        cedula: String(body.cedula ?? '').trim() ? normalizarCedula(String(body.cedula)) : null,
         debeCambiarPassword: true, // la clave la puso quien creó la cuenta: la persona debe elegir la suya al entrar
       },
       select: SELECT,

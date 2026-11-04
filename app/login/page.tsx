@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Lock, Mail, User, LogIn, ShieldCheck, AlertCircle, CheckCircle, UserPlus, Eye, EyeOff,
-  Phone, CreditCard, KeyRound, ArrowLeft, Sparkles, FileText, Users, Info, MessageCircle, RotateCw,
+  Phone, KeyRound, ArrowLeft, Sparkles, FileText, Users, Info, MessageCircle, RotateCw, Calculator,
 } from 'lucide-react'
-import { validarNombre, validarEmail, validarPassword, validarTelefono, validarCedula } from '@/lib/validacionesUsuario'
+import { validarNombre, validarEmail, validarPassword, validarTelefono } from '@/lib/validacionesUsuario'
 
 type Modo = 'login' | 'registro' | 'recuperar' | 'verificar'
 
@@ -39,7 +39,6 @@ export default function LoginPage() {
   const [enviando, setEnviando] = useState(false)
 
   const [nombre, setNombre] = useState('')
-  const [cedula, setCedula] = useState('')
   const [telefono, setTelefono] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -57,6 +56,13 @@ export default function LoginPage() {
   const [codigo, setCodigo] = useState('')
   const [reenvioEn, setReenvioEn] = useState(0)        // segundos que faltan para poder reenviar
   const [reenviando, setReenviando] = useState(false)
+  // Suma de verificación (login y registro): la genera y la valida el servidor; cada suma sirve una sola vez
+  const [captcha, setCaptcha] = useState<{ pregunta: string; token: string } | null>(null)
+  const [captchaResp, setCaptchaResp] = useState('')
+  const cargarCaptcha = () => {
+    setCaptchaResp('')
+    fetch('/api/auth/captcha', { cache: 'no-store' }).then(r => r.json()).then(d => setCaptcha(d?.token ? d : null)).catch(() => setCaptcha(null))
+  }
   const [destino, setDestino] = useState('') // a dónde se envió el código: "ad•••@gmail.com" o "número terminado en 4567"
 
   useEffect(() => {
@@ -126,6 +132,9 @@ export default function LoginPage() {
       .finally(() => setCargando(false))
   }, [])
 
+  const pideCaptcha = !cargando && (modo === 'login' || modo === 'registro')
+  useEffect(() => { if (pideCaptcha) cargarCaptcha() }, [pideCaptcha, modo]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const fallar = (msg: string) => { setError(msg); setSacudir((n) => n + 1) }
 
   const cambiarModo = (nuevo: Modo) => {
@@ -154,16 +163,17 @@ export default function LoginPage() {
       if (m) return fallar(m)
       if (!/^\d{6}$/.test(codigo)) return fallar(`Escribe los 6 dígitos del código que te llegó por ${medio}.`)
     } else if (modo === 'registro') {
-      const msg = validarNombre(nombre) || validarCedula(cedula) || validarTelefono(telefono) || validarEmail(email) || validarPassword(password)
+      const msg = validarNombre(nombre) || validarEmail(email) || (!porCorreo ? validarTelefono(telefono) : null) || validarPassword(password)
       if (msg) return fallar(msg)
       if (password !== confirmar) return fallar('Las contraseñas no coinciden.')
-      if (!acepta) return fallar('Debes aceptar el tratamiento de tus datos personales para solicitar la cuenta.')
+      if (!acepta) return fallar('Debes aceptar el tratamiento de tus datos personales para crear la cuenta.')
     } else if (modoSetup) {
       const msg = validarNombre(nombre) || validarEmail(email) || validarPassword(password)
       if (msg) return fallar(msg)
     } else if (!email.trim() || !password) {
       return fallar('Ingresa tu correo y tu contraseña.')
     }
+    if (pideCaptcha && !/^\d{1,3}$/.test(captchaResp.trim())) return fallar('Escribe el resultado de la suma de verificación.')
 
     setEnviando(true)
     try {
@@ -190,11 +200,11 @@ export default function LoginPage() {
       if (modo === 'registro') {
         const r = await fetch('/api/auth/registro', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre, cedula, telefono, email, password, aceptaTratamiento: acepta }),
+          body: JSON.stringify({ nombre, telefono, email, password, aceptaTratamiento: acepta, captchaToken: captcha?.token, captchaRespuesta: captchaResp }),
         })
         const d = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(d.error || 'No se pudo enviar la solicitud.')
-        setNombre(''); setCedula(''); setTelefono(''); setAcepta(false)
+        setNombre(''); setTelefono(''); setAcepta(false)
         if (d.verificar) {
           irAVerificar(
             d.enviado
@@ -216,7 +226,7 @@ export default function LoginPage() {
         if (!r.ok) throw new Error(d.error || 'No se pudo crear el superadmin.')
       }
 
-      const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
+      const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, captchaToken: captcha?.token, captchaRespuesta: captchaResp }) })
       const d = await r.json().catch(() => ({}))
       if (r.status === 403 && d.codigo === 'VERIFICAR_TELEFONO') { irAVerificar(d.error); return }
       if (!r.ok) throw new Error(d.error || 'No se pudo iniciar sesión.')
@@ -224,6 +234,7 @@ export default function LoginPage() {
       return // se queda en "Procesando..." mientras la página cambia
     } catch (err: any) {
       fallar(err instanceof TypeError ? 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.' : err.message)
+      if (modo === 'login' || modo === 'registro') cargarCaptcha()
     } finally {
       setEnviando(false)
     }
@@ -238,7 +249,7 @@ export default function LoginPage() {
   const titulo = modoSetup ? 'Configuración inicial' : modo === 'registro' ? 'Crea tu cuenta de profesor' : modo === 'recuperar' ? 'Recuperar contraseña' : modo === 'verificar' ? (porCorreo ? 'Confirma tu correo' : 'Confirma tu WhatsApp') : 'Bienvenido de nuevo'
   const subtitulo = modoSetup
     ? 'Crea la cuenta del superadmin para comenzar.'
-    : modo === 'registro' ? `Te enviaremos un código por ${medio} para activar tu cuenta.`
+    : modo === 'registro' ? `Solo necesitas tu nombre, tu correo y una contraseña. Te enviaremos un código por ${medio} para activar tu cuenta.`
     : modo === 'recuperar' ? (recPaso === 'telefono' ? (porCorreo ? 'Escribe el correo con el que te registraste. Te enviaremos un código para crear una contraseña nueva.' : 'Escribe el número de WhatsApp con el que te registraste. Te enviaremos un código para crear una contraseña nueva.') : `Escribe el código que te llegó por ${medio} y elige tu contraseña nueva.`)
     : modo === 'verificar' ? `Escribe el código de 6 dígitos que enviamos a tu ${medio}${destino ? ` (${destino})` : ''}. Vence en 10 minutos.`
     : 'Inicia sesión para continuar con tu planificación.'
@@ -319,16 +330,10 @@ export default function LoginPage() {
                   </div>
                 )}
 
-                {pideRegistro && (
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className={etiqueta}>Cédula</label>
-                      <div className="relative"><CreditCard className={icono} /><input inputMode="numeric" value={cedula} onChange={(e) => setCedula(e.target.value)} placeholder="Solo números" className={campo} autoComplete="off" /></div>
-                    </div>
-                    <div>
-                      <label className={etiqueta}>Teléfono</label>
-                      <div className="relative"><Phone className={icono} /><input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Ej: 0412 123 4567" className={campo} autoComplete="tel" /></div>
-                    </div>
+                {pideRegistro && !porCorreo && (
+                  <div>
+                    <label className={etiqueta}>Teléfono (WhatsApp)</label>
+                    <div className="relative"><Phone className={icono} /><input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Ej: 0412 123 4567" className={campo} autoComplete="tel" /></div>
                   </div>
                 )}
 
@@ -445,9 +450,22 @@ export default function LoginPage() {
                     </div>
                     <label className="flex items-start gap-3 text-xs text-[#9a9bb0] cursor-pointer leading-relaxed">
                       <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} className="mt-0.5 accent-[#818cf8] w-4 h-4 flex-shrink-0" />
-                      <span>Autorizo el tratamiento de mis datos personales (nombre, cédula, teléfono y correo) para fines académicos y administrativos de este sistema. Solo los verá el equipo administrador.</span>
+                      <span>Autorizo el tratamiento de mis datos personales (nombre y correo{porCorreo ? '' : ', y teléfono'}) para fines académicos y administrativos de este sistema. Solo los verá el equipo administrador.</span>
                     </label>
                   </>
+                )}
+
+                {pideCaptcha && (
+                  <div>
+                    <label className={etiqueta}>Verificación: ¿cuánto es {captcha ? captcha.pregunta : '…'}?</label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Calculator className={icono} />
+                        <input value={captchaResp} onChange={(e) => setCaptchaResp(e.target.value.replace(/\D/g, '').slice(0, 3))} inputMode="numeric" placeholder="Resultado" aria-label={captcha ? `Resultado de ${captcha.pregunta}` : 'Resultado de la suma'} className={campo} autoComplete="off" />
+                      </div>
+                      <button type="button" onClick={cargarCaptcha} title="Otra suma" aria-label="Cambiar la suma" className="px-3 rounded-xl border border-[#313248] bg-[#1b1c2b] text-[#8a8b9e] hover:text-[#c7d2fe] hover:border-[#818cf8]/40"><RotateCw className="w-4 h-4" /></button>
+                    </div>
+                  </div>
                 )}
 
                 {modo === 'recuperar' && (

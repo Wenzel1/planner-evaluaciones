@@ -78,7 +78,7 @@ async function* groq(modelo: string, sistema: string, turnos: Turno[], op: Opcio
   const clave = proveedor === 'openrouter' ? process.env.OPENROUTER_API_KEY : process.env.GROQ_API_KEY
   if (!clave) throw new FalloModelo(proveedor === 'openrouter' ? 'Falta OPENROUTER_API_KEY' : 'Falta GROQ_API_KEY')
   const url = proveedor === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.groq.com/openai/v1/chat/completions'
-  const extra = proveedor === 'openrouter' ? { 'HTTP-Referer': process.env.APP_URL || 'https://planner-evaluaciones.vercel.app', 'X-Title': 'Planificador de Evaluaciones' } : {}
+  const extra: Record<string, string> = proveedor === 'openrouter' ? { 'HTTP-Referer': process.env.APP_URL || 'https://planner-evaluaciones.vercel.app', 'X-Title': 'Planificador de Evaluaciones' } : {}
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${clave}`, ...extra },

@@ -77,11 +77,65 @@ export function normalizarExamen(e: any): Examen | null {
 
 export const esObjetiva = (p: Pregunta) => p.tipo === 'seleccion' || p.tipo === 'vf'
 
-// Lo que ve el estudiante: sin respuestas correctas ni guías de corrección
-export function examenParaEstudiante(e: Examen) {
+// ---------- Orden mezclado por estudiante (dificulta copiarse del compañero de al lado) ----------
+// Cada estudiante ve las preguntas y las opciones de selección en un orden distinto, pero SIEMPRE el mismo para él
+// (se calcula con una semilla: estudiante + evaluación), así que si recarga la página no le cambia nada.
+// En la base de datos las respuestas se guardan en el orden ORIGINAL: la corrección y la vista del profesor no cambian.
+function generador(semilla: string): () => number {
+  let h = 1779033703 ^ semilla.length
+  for (let i = 0; i < semilla.length; i++) { h = Math.imul(h ^ semilla.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19) }
+  return () => { // mulberry32
+    h = (h + 0x6D2B79F5) | 0
+    let t = Math.imul(h ^ (h >>> 15), 1 | h)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+/** Orden mezclado de 0..n-1: orden[k] = índice original que se muestra en la posición k. */
+export function ordenMezclado(n: number, semilla: string): number[] {
+  const orden = Array.from({ length: n }, (_, i) => i)
+  const azar = generador(semilla)
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(azar() * (i + 1)); [orden[i], orden[j]] = [orden[j], orden[i]] }
+  return orden
+}
+export const semillaExamen = (estudianteId: string, evaluacionId: string) => `${estudianteId}:${evaluacionId}`
+const ordenOpciones = (p: Pregunta, semilla: string) => ordenMezclado(p.opciones?.length || 0, `${semilla}:${p.id}`)
+
+/** Respuestas del estudiante (posición que vio) → posición original de la opción, para guardar y corregir. */
+export function respuestasAOriginal(e: Examen, semilla: string, r: Record<string, any>): Record<string, any> {
+  const salida = { ...r }
+  for (const p of e.preguntas) {
+    if (p.tipo !== 'seleccion' || !Number.isInteger(r[p.id])) continue
+    const orden = ordenOpciones(p, semilla)
+    salida[p.id] = orden[r[p.id]] ?? null
+  }
+  return salida
+}
+/** Respuestas guardadas (posición original) → posición en el orden que ve ese estudiante. */
+export function respuestasAMezcla(e: Examen, semilla: string, r: Record<string, any>): Record<string, any> {
+  const salida = { ...r }
+  for (const p of e.preguntas) {
+    if (p.tipo !== 'seleccion' || !Number.isInteger(r[p.id])) continue
+    const k = ordenOpciones(p, semilla).indexOf(r[p.id])
+    salida[p.id] = k >= 0 ? k : null
+  }
+  delete salida[CLAVE_SALIDAS] // dato interno: no se le devuelve al estudiante
+  return salida
+}
+
+// Veces que el estudiante salió de la página del examen (cambió de pestaña o de aplicación). Se guarda junto a sus respuestas.
+export const CLAVE_SALIDAS = '__salidas'
+export const salidasDe = (respuestas: unknown) => Math.max(0, Number((respuestas as any)?.[CLAVE_SALIDAS]) || 0)
+
+// Lo que ve el estudiante: sin respuestas correctas ni guías de corrección. Con semilla, en su orden mezclado.
+export function examenParaEstudiante(e: Examen, semilla?: string) {
+  const preguntas = semilla ? ordenMezclado(e.preguntas.length, `${semilla}:preguntas`).map(i => e.preguntas[i]) : e.preguntas
   return {
     tipo: e.tipo, instrucciones: e.instrucciones, duracionMin: e.duracionMin,
-    preguntas: e.preguntas.map(p => ({ id: p.id, tipo: p.tipo, enunciado: p.enunciado, opciones: p.tipo === 'seleccion' ? p.opciones : p.tipo === 'vf' ? ['Verdadero', 'Falso'] : undefined, puntos: p.puntos })),
+    preguntas: preguntas.map(p => ({
+      id: p.id, tipo: p.tipo, enunciado: p.enunciado, puntos: p.puntos,
+      opciones: p.tipo === 'seleccion' ? (semilla ? ordenOpciones(p, semilla).map(i => p.opciones![i]) : p.opciones) : p.tipo === 'vf' ? ['Verdadero', 'Falso'] : undefined,
+    })),
   }
 }
 

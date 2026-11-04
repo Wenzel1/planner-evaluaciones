@@ -1,12 +1,6 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  typescript: {
-    // !! ADVERTENCIA !!
-    // Esto permite que la compilación de producción termine con éxito
-    // incluso si tu proyecto tiene errores de TypeScript.
-    ignoreBuildErrors: true,
-  },
-};
+// La compilación revisa los tipos de TypeScript: si hay un error, el despliegue se detiene antes de publicar algo roto.
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

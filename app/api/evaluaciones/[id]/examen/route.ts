@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
-import { normalizarExamen, notaDe, faltaCorregir, ventanaExamen, type Correccion } from '@/lib/examen'
+import { normalizarExamen, notaDe, faltaCorregir, ventanaExamen, salidasDe, type Correccion } from '@/lib/examen'
 import { cerrarSiVencio, publicar, sugerirOtraVez } from '@/lib/examenServidor'
 import { recalcularPromedios } from '@/lib/notas'
 
@@ -45,6 +45,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         inicio: f?.inicio ?? null, limite: f?.limite ?? null, entregadoEn: f?.entregadoEn ?? null,
         respuestas: f?.respuestas ?? {}, correccion: f?.correccion ?? {}, nota: f?.nota ?? null, comentario: f?.comentario ?? '',
         porCorregir: f?.entregadoEn ? faltaCorregir(examen, f.correccion as Correccion) : 0,
+        salidas: salidasDe(f?.respuestas), // veces que salió de la página durante el examen
       }
     })
     return NextResponse.json({ examen, abre, cierra, entregas }, { headers: { 'Cache-Control': 'no-store' } })
@@ -92,7 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         if (!actual) return NextResponse.json({ error: 'Esta evaluación no tiene examen.' }, { status: 400 })
         const f = await prisma.respuestaExamen.findUnique({ where: { estudianteId_evaluacionId: { estudianteId: String(body.estudianteId), evaluacionId: id } } })
         if (!f) return NextResponse.json({ error: 'Ese estudiante no presentó el examen.' }, { status: 404 })
-        const previa = (f.correccion || {}) as Correccion
+        const previa = (f.correccion || {}) as unknown as Correccion
         const correccion: Correccion = { ...previa }
         for (const p of actual.preguntas) {
           const c = body.correccion?.[p.id]

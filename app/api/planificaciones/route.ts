@@ -24,9 +24,9 @@ function datosEvaluacion(ev: any, index: number) {
     fecha: ev.fecha && !isNaN(new Date(ev.fecha).getTime()) ? new Date(ev.fecha) : null,
     grupoSeccion: ev.grupoSeccion || 'A',
     // Si no viene la rúbrica, no se toca la que ya tenía; null la borra
-    ...(ev.rubrica !== undefined ? { rubrica: normalizarRubrica(ev.rubrica) ?? Prisma.DbNull } : {}),
+    ...(ev.rubrica !== undefined ? { rubrica: (normalizarRubrica(ev.rubrica) as unknown as Prisma.InputJsonValue | null) ?? Prisma.DbNull } : {}),
     // Portal del estudiante: recursos de estudio y apertura manual
-    ...(ev.recursos !== undefined ? { recursos: normalizarRecursos(ev.recursos) ?? Prisma.DbNull } : {}),
+    ...(ev.recursos !== undefined ? { recursos: (normalizarRecursos(ev.recursos) as unknown as Prisma.InputJsonValue | null) ?? Prisma.DbNull } : {}),
     ...(typeof ev.abiertaManual === 'boolean' ? { abiertaManual: ev.abiertaManual } : {}),
   }
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
-import { validarNombre, validarEmail, validarPassword, validarTelefono, validarCedula, normalizarTelefono, normalizarCedula } from '@/lib/validacionesUsuario'
+import { validarNombre, validarEmail, validarPassword, validarTelefono, normalizarTelefono } from '@/lib/validacionesUsuario'
 import { bloqueado, registrarFallo, minutosRestantes } from '@/lib/rateLimit'
 import { ipDe } from '@/lib/cookies'
 import { mensajeDuplicado } from '@/lib/duplicados'
@@ -9,28 +9,32 @@ import { registrarActividad } from '@/lib/actividad'
 import { leerConfig } from '@/lib/configuracion'
 import { nuevoCodigoParaGuardar, enviarCodigo } from '@/lib/codigoWhatsapp'
 import { canalMensajes, ocultarCorreo } from '@/lib/correo'
+import { verificarDesafio } from '@/lib/captcha'
 
 // Render (plan gratis) puede tardar en despertar a n8n: se da margen a la función en Vercel
 export const maxDuration = 60
 
 // POST /api/auth/registro  (público)
-// Un profesor solicita su cuenta desde la pantalla de login. La cuenta se crea SIEMPRE con rol USUARIO
-// y en estado "pendiente": no puede iniciar sesión hasta que un ADMIN o SUPERADMIN la apruebe.
-// Se piden teléfono y cédula (registro del profesor) y la aceptación del tratamiento de datos personales.
+// Un profesor crea su cuenta desde la pantalla de login con nombre, correo y contraseña. La cuenta se crea con rol USUARIO,
+// en estado "pendiente", y se activa cuando la persona escribe el código de 6 dígitos que le llega (por correo o WhatsApp).
+// Solo se pide el teléfono si los avisos van por WhatsApp (sin correo configurado). Ya no se pide la cédula.
 export async function POST(request: Request) {
   try {
     const body = await request.json()
     const nombre = String(body.nombre ?? '').trim()
     const email = String(body.email ?? '').trim().toLowerCase()
     const password = String(body.password ?? '')
-    const telefono = String(body.telefono ?? '')
-    const cedula = String(body.cedula ?? '')
+    const canal = canalMensajes()
+    const telefono = canal === 'whatsapp' ? String(body.telefono ?? '') : ''
 
-    const msg = validarNombre(nombre) || validarEmail(email) || validarTelefono(telefono) || validarCedula(cedula) || validarPassword(password)
+    const msg = validarNombre(nombre) || validarEmail(email) || (canal === 'whatsapp' ? validarTelefono(telefono) : null) || validarPassword(password)
     if (msg) return NextResponse.json({ error: msg }, { status: 400 })
     if (body.aceptaTratamiento !== true) {
-      return NextResponse.json({ error: 'Debes aceptar el tratamiento de tus datos personales para solicitar la cuenta.' }, { status: 400 })
+      return NextResponse.json({ error: 'Debes aceptar el tratamiento de tus datos personales para crear la cuenta.' }, { status: 400 })
     }
+    // Suma de verificación (frena la creación de cuentas falsas por programas automáticos)
+    const errorCaptcha = verificarDesafio(body.captchaToken, body.captchaRespuesta)
+    if (errorCaptcha) return NextResponse.json({ error: errorCaptcha, codigo: 'CAPTCHA' }, { status: 400 })
 
     // Mientras no exista ningún usuario, primero hay que crear al superadmin (pantalla de configuración inicial)
     const total = await prisma.usuario.count()
@@ -52,7 +56,7 @@ export async function POST(request: Request) {
 
     // Código de 6 dígitos para confirmar la cuenta, por correo o WhatsApp según el canal activo (se guarda cifrado)
     const { codigo, data: datosCodigo } = nuevoCodigoParaGuardar()
-    const telefonoNormalizado = normalizarTelefono(telefono)
+    const telefonoNormalizado = telefono ? normalizarTelefono(telefono) : null
 
     await prisma.usuario.create({
       data: {
@@ -64,7 +68,6 @@ export async function POST(request: Request) {
         activo: false,
         pendiente: true,
         telefono: telefonoNormalizado,
-        cedula: normalizarCedula(cedula),
         consentimientoEn: new Date(),
       },
       select: { id: true },
@@ -73,8 +76,8 @@ export async function POST(request: Request) {
 
     const enviado = await enviarCodigo({ email, telefono: telefonoNormalizado, nombre, codigo, motivo: 'registro' })
     // verificar: true → el login pasa a la pantalla "Escribe el código"
-    const canal = canalMensajes()
-    return NextResponse.json({ ok: true, verificar: true, enviado, canal, telefonoFinal: telefonoNormalizado.slice(-4), destino: canal === 'correo' ? ocultarCorreo(email) : `número terminado en ${telefonoNormalizado.slice(-4)}` }, { status: 201 })
+    const final = (telefonoNormalizado || '').slice(-4)
+    return NextResponse.json({ ok: true, verificar: true, enviado, canal, telefonoFinal: final, destino: canal === 'correo' ? ocultarCorreo(email) : `número terminado en ${final}` }, { status: 201 })
   } catch (e: any) {
     if (e.code === 'P2002') return NextResponse.json({ error: mensajeDuplicado(e) }, { status: 409 })
     console.error(e)

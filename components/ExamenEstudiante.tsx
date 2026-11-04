@@ -77,6 +77,7 @@ function VentanaExamen({ token, evaluacionId, nombre, info, onCerrar }: { token:
   const respRef = useRef(resp); respRef.current = resp;
   const sucio = useRef(false);
   const entregado = useRef(false);
+  const [salidas, setSalidas] = useState(0); // veces que salió de la página en esta sesión (el servidor lleva la cuenta real)
 
   const iniciar = async () => {
     setFase('cargando');
@@ -131,6 +132,22 @@ function VentanaExamen({ token, evaluacionId, nombre, info, onCerrar }: { token:
     window.addEventListener('beforeunload', salir);
     return () => { clearInterval(t); clearInterval(g); window.removeEventListener('beforeunload', salir); };
   }, [fase, limite, desfase]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Salir de la página (otra pestaña, otra aplicación o minimizar) queda registrado para el profesor. Se cuenta una vez por salida.
+  useEffect(() => {
+    if (fase !== 'respondiendo') return;
+    let fuera = false;
+    const salio = () => {
+      if (fuera || entregado.current) return;
+      fuera = true; setSalidas(n => n + 1);
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evaluacionId, accion: 'salida' }), keepalive: true }).catch(() => {});
+    };
+    const volvio = () => { fuera = false; };
+    const cambioVisibilidad = () => (document.hidden ? salio() : volvio());
+    document.addEventListener('visibilitychange', cambioVisibilidad);
+    window.addEventListener('blur', salio);
+    window.addEventListener('focus', volvio);
+    return () => { document.removeEventListener('visibilitychange', cambioVisibilidad); window.removeEventListener('blur', salio); window.removeEventListener('focus', volvio); };
+  }, [fase]); // eslint-disable-line react-hooks/exhaustive-deps
   const responder = (id: string, v: any) => { setResp(prev => ({ ...prev, [id]: v })); sucio.current = true; setGuardado('pendiente'); };
   useEffect(() => { if (guardado !== 'pendiente') return; const t = setTimeout(guardar, 2500); return () => clearTimeout(t); }, [resp]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -148,6 +165,8 @@ function VentanaExamen({ token, evaluacionId, nombre, info, onCerrar }: { token:
             <li>• Tienes <b className="text-white">{info.duracionMin} minutos</b> desde que empieces. El tiempo corre aunque cierres la página.</li>
             <li>• Tus respuestas se guardan solas. Al acabarse el tiempo se entrega automáticamente.</li>
             <li>• Solo puedes presentarlo una vez.</li>
+            <li>• Las preguntas y opciones aparecen en un orden distinto para cada estudiante.</li>
+            <li>• Si sales de esta página (otra pestaña u otra aplicación), <b className="text-amber-300">tu profesor lo verá</b>.</li>
           </ul>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={() => onCerrar()} className="flex-1 h-11 rounded-xl border border-[#313248] text-[#c0c0d0] hover:text-white">Ahora no</button>
@@ -189,6 +208,7 @@ function VentanaExamen({ token, evaluacionId, nombre, info, onCerrar }: { token:
         <div className="h-1 bg-[#1c1d2a]"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${examen ? (respondidas / examen.preguntas.length) * 100 : 0}%` }} /></div>
       </div>
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+        {salidas > 0 && <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">⚠️ Saliste de la página del examen {salidas} {salidas === 1 ? 'vez' : 'veces'}. Tu profesor puede verlo.</p>}
         {examen?.instrucciones && <p className="text-sm text-[#a8a9bc] italic">{examen.instrucciones}</p>}
         {examen?.preguntas.map((p, i) => (
           <div key={p.id} className="rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-4 sm:p-5 space-y-3">
