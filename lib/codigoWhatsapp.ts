@@ -4,6 +4,7 @@
 import crypto from 'crypto'
 import { leerConfig } from '@/lib/configuracion'
 import { ultramsgConfigurado, enviarUltraMsg } from '@/lib/ultramsg'
+import { correoConfigurado, enviarCorreo } from '@/lib/correo'
 
 export const CODIGO_MINUTOS = 10       // tiempo de validez del código
 export const CODIGO_MAX_INTENTOS = 5   // intentos fallidos antes de tener que pedir uno nuevo
@@ -59,6 +60,23 @@ export async function direccionN8n(): Promise<string> {
     return limpia
   }
   return ''
+}
+
+// Envía el código por el canal activo: correo (si GMAIL_USER y GMAIL_APP_PASSWORD están configurados) o WhatsApp.
+// Nunca lanza error: devuelve true solo si el envío se confirmó.
+export async function enviarCodigo(datos: { email: string; telefono?: string | null; nombre: string; codigo: string; motivo?: 'registro' | 'recuperar' }): Promise<boolean> {
+  if (correoConfigurado()) {
+    const nombre = String(datos.nombre || '').trim().split(/\s+/)[0] || ''
+    const para = datos.motivo === 'recuperar' ? 'crear una contraseña nueva' : 'activar tu cuenta'
+    const r = await enviarCorreo({
+      para: datos.email,
+      asunto: `Tu código es ${datos.codigo} · Planificador de Evaluaciones`,
+      texto: `Hola ${nombre} 👋\n\nTu código para ${para} en el *Planificador de Evaluaciones* es:\n\n*${datos.codigo}*\n\nVence en ${CODIGO_MINUTOS} minutos. No lo compartas con nadie.\n\nSi no fuiste tú, ignora este correo.`,
+    })
+    return r.ok
+  }
+  if (!datos.telefono) { console.error('[Código] No hay correo configurado ni teléfono para enviar el código.'); return false }
+  return enviarCodigoWhatsApp({ telefono: datos.telefono, nombre: datos.nombre, codigo: datos.codigo })
 }
 
 // Pide a n8n que envíe el código por WhatsApp. Devuelve true solo si n8n confirma el envío.

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { NOTA_MAXIMA, recalcularPromedios, redondearNota } from '@/lib/notas'
+import { tieneDestino } from '@/lib/whatsappLotes'
 
 async function cargarEvaluacion(id: string) {
   return prisma.evaluacion.findUnique({
@@ -33,7 +34,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const [estudiantes, notas] = await Promise.all([
       prisma.estudiante.findMany({
         where: { usuarioId: dueno ?? actor.id, grupo: seccion },
-        select: { id: true, nombre: true, telefono: true, estado: true },
+        select: { id: true, nombre: true, telefono: true, email: true, estado: true },
         orderBy: { nombre: 'asc' },
       }),
       prisma.calificacion.findMany({ where: { evaluacionId: id }, select: { estudianteId: true, puntaje: true, observaciones: true, detalle: true } }),
@@ -46,7 +47,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         .filter(e => e.estado === 'ACTIVO' || porEstudiante.has(e.id))
         .map(e => {
           const n = porEstudiante.get(e.id)
-          return { id: e.id, nombre: e.nombre, tieneTelefono: (e.telefono || '').replace(/\D/g, '').length >= 7, activo: e.estado === 'ACTIVO', puntaje: n?.puntaje ?? null, observaciones: n?.observaciones ?? '', detalle: n?.detalle ?? null }
+          return { id: e.id, nombre: e.nombre, tieneTelefono: tieneDestino(e), /* "puede recibir el aviso" por el canal activo (correo o WhatsApp) */ activo: e.estado === 'ACTIVO', puntaje: n?.puntaje ?? null, observaciones: n?.observaciones ?? '', detalle: n?.detalle ?? null }
         }),
     })
   } catch (e) {

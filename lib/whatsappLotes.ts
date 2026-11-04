@@ -6,16 +6,36 @@ import crypto from 'crypto'
 import prisma from '@/lib/prisma'
 import { direccionN8n } from '@/lib/codigoWhatsapp'
 import { ultramsgConfigurado, enviarVariosUltraMsg } from '@/lib/ultramsg'
+import { correoConfigurado, correoValido, enviarVariosCorreos } from '@/lib/correo'
 
 export const ZONA_HORARIA = process.env.ZONA_HORARIA || 'America/Caracas'
 
 export interface MensajeLote {
   id: string
-  telefono: string
+  telefono: string       // destino: el teléfono (WhatsApp) o el correo (si el canal es correo); ver destinoDe()
   texto: string
+  asunto?: string        // solo correo
+  responderA?: string    // solo correo: si el estudiante responde, le llega al profesor
   documentoUrl?: string
   archivo?: string
 }
+
+// ---------- Canal (correo o WhatsApp) ----------
+export { canalMensajes } from '@/lib/correo'
+const telefonoOk = (t: string | null | undefined) => String(t || '').replace(/\D/g, '').length >= 7
+
+/** A dónde se le escribe a un estudiante según el canal activo ('' = no tiene cómo recibirlo). */
+export function destinoDe(e: { email?: string | null; telefono?: string | null }): string {
+  if (correoConfigurado()) {
+    const email = String(e.email || '').trim().toLowerCase()
+    // Los estudiantes de demostración tienen correos inventados: escribirles rebotaría y dañaría la reputación de la cuenta de Gmail
+    return correoValido(email) && !email.endsWith('@demo.planificador') ? email : ''
+  }
+  return telefonoOk(e.telefono) ? String(e.telefono) : ''
+}
+export const tieneDestino = (e: { email?: string | null; telefono?: string | null }) => destinoDe(e) !== ''
+/** Texto para los errores: "correo" o "teléfono". */
+export const nombreDestino = () => (correoConfigurado() ? 'correo' : 'teléfono')
 
 export function nuevoId(): string {
   return crypto.randomUUID()
@@ -51,6 +71,25 @@ export function fechaBonita(fecha: Date): string {
 // Envía el lote a n8n. Si n8n no lo acepta, marca todos los mensajes como FALLIDO y devuelve el motivo.
 export async function enviarLoteN8n(request: Request, mensajes: MensajeLote[]): Promise<{ ok: boolean; error?: string }> {
   if (mensajes.length === 0) return { ok: true }
+  // Correo (Gmail): si está configurado, todos los avisos salen por correo
+  if (correoConfigurado()) {
+    const r = await enviarVariosCorreos(
+      mensajes.map(m => ({ ...m, para: m.telefono, asunto: m.asunto || 'Aviso de tu profesor · Planificador de Evaluaciones' })),
+      async (m, res) => {
+        await prisma.envioWhatsApp.updateMany({
+          where: { id: m.id, estado: 'PENDIENTE' },
+          data: res.ok ? { estado: 'ENVIADO', enviadoEn: new Date(), error: null } : { estado: 'FALLIDO', error: String(res.error || 'No se pudo enviar').slice(0, 300) },
+        }).catch(() => {})
+      },
+    )
+    if (r.enviados === 0) {
+      const error = `No se envió ningún correo: ${r.primerError || 'motivo desconocido'}`
+      console.error('[Correo lote]', error)
+      return { ok: false, error }
+    }
+    if (r.fallidos) console.error(`[Correo lote] ${r.fallidos} de ${mensajes.length} fallaron. Primer motivo: ${r.primerError}`)
+    return { ok: true }
+  }
   // Vía directa (sin n8n): si están las variables de UltraMsg, se envía desde aquí y se registra el resultado de cada mensaje
   if (ultramsgConfigurado()) {
     const r = await enviarVariosUltraMsg(mensajes, async (m, res) => {

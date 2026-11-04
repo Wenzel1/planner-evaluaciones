@@ -32,7 +32,7 @@ export function pasosTutorial(nombre: string, esMovil: boolean): PasoTutorial[] 
     { objetivo: 'materia', titulo: 'Tus materias', texto: 'Cambia de materia o crea una nueva. Cada materia tiene su propio plan de evaluaciones.', opcional: true },
     { objetivo: 'formularios', titulo: 'Crear evaluaciones a mano', texto: 'Llena el tema, la estrategia, el peso, la fecha y los grupos, y presiona Guardar. Lo que te proponga el asistente también aparece aquí para que lo revises antes.' },
     { objetivo: 'secciones', titulo: 'Secciones', texto: 'Si das la misma materia a varios grupos (A, B, C…), cada sección tiene sus propias evaluaciones y estudiantes.', opcional: true },
-    { objetivo: 'guardadas', titulo: 'Tus evaluaciones', texto: 'Desde cada tarjeta puedes ver la rúbrica, los recursos de estudio, el examen en línea, las notas y el estado (realizada, reprogramada…), y enviar el plan por WhatsApp.' },
+    { objetivo: 'guardadas', titulo: 'Tus evaluaciones', texto: 'Desde cada tarjeta puedes ver la rúbrica, los recursos de estudio, el examen en línea, las notas y el estado (realizada, reprogramada…), y enviar el plan a tus estudiantes (por correo o WhatsApp).' },
     { objetivo: 'pestanas', titulo: 'Más herramientas', texto: 'Dashboard con estadísticas, Calendario para ver y mover fechas, Estudiantes (cada uno tiene su página personal) y Papelera para recuperar lo borrado.' },
     { objetivo: 'ayuda', titulo: '¡Listo! 🎉', texto: 'Ya conoces lo principal. Cuando quieras repetir este recorrido, presiona este botón.' },
   ];

@@ -7,7 +7,7 @@ import { registrarActividad } from '@/lib/actividad'
 import { codigoCoincide, CODIGO_MAX_INTENTOS } from '@/lib/codigoWhatsapp'
 import { crearToken, COOKIE_SESION, DURACION_SESION_SEG } from '@/lib/session'
 
-const LISTO = '¡Listo! WhatsApp confirmado. Entrando al sistema...'
+const LISTO = '¡Listo! Cuenta confirmada. Entrando al sistema...'
 
 // Activa la cuenta y abre la sesión (mismo token y cookie que el login)
 async function activarYEntrar(request: Request, usuario: { id: string; nombre: string; email: string; rol: any }) {
@@ -19,7 +19,7 @@ async function activarYEntrar(request: Request, usuario: { id: string; nombre: s
 }
 
 // POST /api/auth/verificar-telefono  { email, codigo }  (público)
-// Confirma el número de WhatsApp de una cuenta recién registrada con el código de 6 dígitos.
+// Confirma una cuenta recién registrada con el código de 6 dígitos (llegó por correo o por WhatsApp, según el canal activo).
 // Ya no hace falta la aprobación de un administrador: al confirmar, la cuenta se activa y se inicia la sesión.
 export async function POST(request: Request) {
   try {
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       where: { id: usuario.id },
       data: { telefonoVerificado: true, codigoHash: null, codigoExpira: null, codigoIntentos: 0 },
     })
-    await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'VERIFICAR', entidad: 'Usuario', detalle: `Confirmó su WhatsApp y activó su cuenta (${usuario.email})` })
+    await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'VERIFICAR', entidad: 'Usuario', detalle: `Confirmó su código y activó su cuenta (${usuario.email})` })
     return await activarYEntrar(request, usuario)
   } catch (e) {
     console.error(e)

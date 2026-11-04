@@ -7,7 +7,8 @@ import { ipDe } from '@/lib/cookies'
 import { mensajeDuplicado } from '@/lib/duplicados'
 import { registrarActividad } from '@/lib/actividad'
 import { leerConfig } from '@/lib/configuracion'
-import { nuevoCodigoParaGuardar, enviarCodigoWhatsApp } from '@/lib/codigoWhatsapp'
+import { nuevoCodigoParaGuardar, enviarCodigo } from '@/lib/codigoWhatsapp'
+import { canalMensajes, ocultarCorreo } from '@/lib/correo'
 
 // Render (plan gratis) puede tardar en despertar a n8n: se da margen a la función en Vercel
 export const maxDuration = 60
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     }
     registrarFallo(clave)
 
-    // Código de 6 dígitos para confirmar el WhatsApp (se guarda cifrado)
+    // Código de 6 dígitos para confirmar la cuenta, por correo o WhatsApp según el canal activo (se guarda cifrado)
     const { codigo, data: datosCodigo } = nuevoCodigoParaGuardar()
     const telefonoNormalizado = normalizarTelefono(telefono)
 
@@ -70,9 +71,10 @@ export async function POST(request: Request) {
     })
     await registrarActividad({ usuarioNombre: nombre, accion: 'REGISTRO', entidad: 'Usuario', detalle: `Solicitó una cuenta (${email})` })
 
-    const enviado = await enviarCodigoWhatsApp({ telefono: telefonoNormalizado, nombre, codigo })
+    const enviado = await enviarCodigo({ email, telefono: telefonoNormalizado, nombre, codigo, motivo: 'registro' })
     // verificar: true → el login pasa a la pantalla "Escribe el código"
-    return NextResponse.json({ ok: true, verificar: true, enviado, telefonoFinal: telefonoNormalizado.slice(-4) }, { status: 201 })
+    const canal = canalMensajes()
+    return NextResponse.json({ ok: true, verificar: true, enviado, canal, telefonoFinal: telefonoNormalizado.slice(-4), destino: canal === 'correo' ? ocultarCorreo(email) : `número terminado en ${telefonoNormalizado.slice(-4)}` }, { status: 201 })
   } catch (e: any) {
     if (e.code === 'P2002') return NextResponse.json({ error: mensajeDuplicado(e) }, { status: 409 })
     console.error(e)

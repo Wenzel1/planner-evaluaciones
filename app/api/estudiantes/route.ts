@@ -63,7 +63,8 @@ export async function POST(request: Request) {
     const estado = body.estado ? String(body.estado).trim().toUpperCase() : undefined
     if (!/^[A-Z]$/.test(grupo)) return NextResponse.json({ error: 'El grupo debe ser una letra (A, B, C...).' }, { status: 400 })
     if (estado && estado !== 'ACTIVO' && estado !== 'INACTIVO') return NextResponse.json({ error: 'Estado no válido.' }, { status: 400 })
-    if (telefono.replace(/\D/g, '').length < 7) {
+    // El teléfono es opcional (los avisos pueden ir por correo); si se escribe, debe tener al menos 7 dígitos
+    if (telefono && telefono.replace(/\D/g, '').length < 7) {
       return NextResponse.json({ error: 'El teléfono debe tener al menos 7 dígitos.' }, { status: 400 })
     }
 
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
       data: {
         nombre: body.nombre.trim(),
         email: body.email.trim().toLowerCase(),
-        telefono,
+        telefono: telefono || null,
         grupo,
         estado: (estado as any) || 'ACTIVO',
         usuarioId: actor.id,
@@ -117,7 +118,8 @@ export async function PUT(request: Request) {
     const estado = body.estado ? String(body.estado).trim().toUpperCase() : undefined
     if (!/^[A-Z]$/.test(grupo)) return NextResponse.json({ error: 'El grupo debe ser una letra (A, B, C...).' }, { status: 400 })
     if (estado && estado !== 'ACTIVO' && estado !== 'INACTIVO') return NextResponse.json({ error: 'Estado no válido.' }, { status: 400 })
-    if (telefono.replace(/\D/g, '').length < 7) {
+    // El teléfono es opcional (los avisos pueden ir por correo); si se escribe, debe tener al menos 7 dígitos
+    if (telefono && telefono.replace(/\D/g, '').length < 7) {
       return NextResponse.json({ error: 'El teléfono debe tener al menos 7 dígitos.' }, { status: 400 })
     }
 
@@ -126,7 +128,7 @@ export async function PUT(request: Request) {
       data: {
         nombre: body.nombre.trim(),
         email: body.email.trim().toLowerCase(),
-        telefono,
+        telefono: telefono || null,
         grupo,
         estado: (estado as any) ?? undefined,
       },

@@ -32,7 +32,7 @@ export function describirConsulta(a: any): string {
     case 'estudiante': return `historial de ${a.nombre || 'un estudiante'}`
     case 'notas_evaluacion': return `notas de la evaluación #${a.evaluacion ?? '?'}`
     case 'seccion': return `la Sección ${String(a.seccion || '?').toUpperCase()}`
-    case 'envios_whatsapp': return 'los envíos de WhatsApp'
+    case 'envios_whatsapp': return 'los envíos de mensajes'
     case 'opiniones': return 'las opiniones de los estudiantes'
     case 'materias': return 'tus materias'
     default: return 'datos'
@@ -71,7 +71,7 @@ async function consultaEstudiante(c: ContextoConsulta, nombre: string): Promise<
     },
   })
   if (!e) return 'No encontrado.'
-  const l: string[] = [`${e.nombre} · sección ${e.grupo} · ${e.estado === 'ACTIVO' ? 'activo' : 'retirado'} · ${(e.telefono || '').replace(/\D/g, '').length >= 7 ? 'tiene WhatsApp' : 'SIN teléfono'}`]
+  const l: string[] = [`${e.nombre} · sección ${e.grupo} · ${e.estado === 'ACTIVO' ? 'activo' : 'retirado'} · ${(e.telefono || '').replace(/\D/g, '').length >= 7 ? 'tiene teléfono' : 'SIN teléfono'}`]
   l.push(e.portalVisitas ? `Abrió su página ${e.portalVisitas} vez/veces (última: ${dia(e.portalUltimaVisita)}).` : 'Nunca ha abierto su página personal.')
   const notas = e.calificaciones.filter(n => n.puntaje != null)
   if (notas.length) {
@@ -122,7 +122,7 @@ async function consultaSeccion(c: ContextoConsulta, sec: string): Promise<string
 
 async function consultaEnvios(c: ContextoConsulta): Promise<string> {
   const envios = await prisma.envioWhatsApp.findMany({ where: { usuarioId: c.usuarioId }, orderBy: { createdAt: 'desc' }, take: 60, select: { tipo: true, nombre: true, estado: true, error: true, createdAt: true } })
-  if (!envios.length) return 'No hay envíos de WhatsApp registrados.'
+  if (!envios.length) return 'No hay envíos de mensajes registrados.'
   const cuenta = (est: string) => envios.filter(e => e.estado === est).length
   const l = [`Últimos ${envios.length} mensajes: ${cuenta('ENVIADO')} enviados, ${cuenta('PENDIENTE')} pendientes, ${cuenta('FALLIDO')} fallidos.`]
   const fallidos = envios.filter(e => e.estado === 'FALLIDO').slice(0, 12)

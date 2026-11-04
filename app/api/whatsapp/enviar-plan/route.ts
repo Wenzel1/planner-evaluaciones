@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
-import { enviarLoteN8n, nuevoId, primerNombre, type MensajeLote } from '@/lib/whatsappLotes'
+import { enviarLoteN8n, nuevoId, primerNombre, destinoDe, tieneDestino, nombreDestino, type MensajeLote } from '@/lib/whatsappLotes'
 import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
+import { nombreCanal } from '@/lib/correo'
 
 export const maxDuration = 60
 
@@ -32,11 +33,12 @@ export async function POST(request: Request) {
     // Solo estudiantes activos del profesor y de esa sección
     const estudiantes = await prisma.estudiante.findMany({
       where: { id: { in: ids }, usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' },
-      select: { id: true, nombre: true, telefono: true },
+      select: { id: true, nombre: true, telefono: true, email: true },
     })
-    const conTelefono = estudiantes.filter(e => (e.telefono || '').replace(/\D/g, '').length >= 7)
+    // Con correo configurado se usa el correo del estudiante; si no, su teléfono (WhatsApp)
+    const conTelefono = estudiantes.filter(tieneDestino)
     const sinTelefono = estudiantes.filter(e => !conTelefono.includes(e)).map(e => e.nombre)
-    if (conTelefono.length === 0) return NextResponse.json({ error: 'Ninguno de los estudiantes elegidos tiene un teléfono válido.' }, { status: 400 })
+    if (conTelefono.length === 0) return NextResponse.json({ error: `Ninguno de los estudiantes elegidos tiene un ${nombreDestino()} válido.` }, { status: 400 })
 
     const tokens = await tokensDeEstudiantes(conTelefono.map(e => e.id))
     let plantilla = String(body.mensaje || '').trim().slice(0, 900) || MENSAJE_POR_DEFECTO
@@ -45,7 +47,9 @@ export async function POST(request: Request) {
 
     const mensajes: MensajeLote[] = conTelefono.map(e => ({
       id: nuevoId(),
-      telefono: e.telefono as string,
+      telefono: destinoDe(e),
+      asunto: `Tu plan de evaluación de ${materia} (sección ${seccion})`,
+      responderA: actor.email,
       texto: plantilla
         .replace(/\{nombre\}/g, primerNombre(e.nombre))
         .replace(/\{materia\}/g, materia)
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
     })
 
     const r = await enviarLoteN8n(request, mensajes)
-    await registrarActividad({ actor, accion: 'ENVIAR', entidad: 'Plan', detalle: `Envió por WhatsApp el enlace del plan de "${materia}" (sección ${seccion}) a ${mensajes.length} estudiante(s)${r.ok ? '' : ' — falló: ' + r.error}`.slice(0, 300) })
+    await registrarActividad({ actor, accion: 'ENVIAR', entidad: 'Plan', detalle: `Envió por ${nombreCanal()} el enlace del plan de "${materia}" (sección ${seccion}) a ${mensajes.length} estudiante(s)${r.ok ? '' : ' — falló: ' + r.error}`.slice(0, 300) })
     if (!r.ok) return NextResponse.json({ error: r.error, loteId }, { status: 502 })
 
     return NextResponse.json({ ok: true, loteId, total: mensajes.length, sinTelefono })

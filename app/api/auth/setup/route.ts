@@ -4,12 +4,13 @@ import { hashPassword } from '@/lib/password'
 import { validarNombre, validarEmail, validarPassword } from '@/lib/validacionesUsuario'
 import { registrarActividad } from '@/lib/actividad'
 import { leerConfig } from '@/lib/configuracion'
+import { canalMensajes } from '@/lib/correo'
 
 // GET: ¿hay que crear el primer superadmin?
 export async function GET() {
   const total = await prisma.usuario.count()
   const cfg = await leerConfig()
-  return NextResponse.json({ necesitaSetup: total === 0, registroAbierto: cfg.acceso.registroAbierto })
+  return NextResponse.json({ necesitaSetup: total === 0, registroAbierto: cfg.acceso.registroAbierto, canal: canalMensajes() })
 }
 
 // POST: crea el primer SUPERADMIN. Solo funciona si NO existe ningún usuario.

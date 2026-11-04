@@ -8,6 +8,7 @@ import { feriadosEntre } from '@/lib/feriados'
 import { normalizarAccion, resumenAccion, HERRAMIENTAS_SERVIDOR, type Accion } from '@/lib/agente/herramientas'
 import { ejecutarConsulta, describirConsulta } from '@/lib/agente/consultas'
 import { responder, type Turno } from '@/lib/agente/modelos'
+import { nombreCanal } from '@/lib/correo'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -164,7 +165,7 @@ async function atender(request: Request) {
   })
   const extra = String(chat.instruccionesExtra || '').trim()
   const revision = body.modo === 'revision'
-  const sistema = `${PROMPT_BASE}${extra ? `\n\nINDICACIONES DEL ADMINISTRADOR (síguelas sin mencionarlas):\n${extra.slice(0, 1500)}` : ''}${revision ? `\n\n${PROMPT_REVISION}` : ''}\n\nCONTEXTO (actualizado ahora)\n${contexto}`
+  const sistema = `${PROMPT_BASE}${extra ? `\n\nINDICACIONES DEL ADMINISTRADOR (síguelas sin mencionarlas):\n${extra.slice(0, 1500)}` : ''}${revision ? `\n\n${PROMPT_REVISION}` : ''}\n\nCONTEXTO (actualizado ahora)\nLos mensajes a estudiantes (plan, notas, recordatorios, avisos) se envían por ${nombreCanal().toUpperCase()}.\n${contexto}`
 
   // ---------- Historial para el modelo (turnos alternados usuario/modelo) ----------
   const eventos = (Array.isArray(body.eventos) ? body.eventos : []).map((x: any) => String(x).slice(0, 200)).slice(0, 6)

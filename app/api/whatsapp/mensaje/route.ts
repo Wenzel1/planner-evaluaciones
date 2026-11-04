@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
-import { enviarLoteN8n, nuevoId, primerNombre, type MensajeLote } from '@/lib/whatsappLotes'
+import { enviarLoteN8n, nuevoId, primerNombre, destinoDe, tieneDestino, nombreDestino, type MensajeLote } from '@/lib/whatsappLotes'
+import { nombreCanal } from '@/lib/correo'
 import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
 import { estudiantesEnRiesgo, filtrarRiesgo } from '@/lib/agente/analisis'
 
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
 
     let estudiantes = await prisma.estudiante.findMany({
       where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' },
-      select: { id: true, nombre: true, telefono: true },
+      select: { id: true, nombre: true, telefono: true, email: true },
     })
     const modo = String(body.destinatarios || 'seccion')
     if (modo === 'nombres') {
@@ -42,19 +43,19 @@ export async function POST(request: Request) {
     }
     if (estudiantes.length === 0) return NextResponse.json({ error: 'No hay estudiantes que cumplan con eso en la sección.' }, { status: 400 })
 
-    const conTelefono = estudiantes.filter(e => (e.telefono || '').replace(/\D/g, '').length >= 7)
+    const conTelefono = estudiantes.filter(tieneDestino)
     const sinTelefono = estudiantes.filter(e => !conTelefono.includes(e)).map(e => e.nombre)
-    if (conTelefono.length === 0) return NextResponse.json({ error: 'Ninguno de esos estudiantes tiene teléfono.' }, { status: 400 })
+    if (conTelefono.length === 0) return NextResponse.json({ error: `Ninguno de esos estudiantes tiene ${nombreDestino()}.` }, { status: 400 })
 
     const tokens = body.incluirEnlace ? await tokensDeEstudiantes(conTelefono.map(e => e.id)) : new Map<string, string>()
     const loteId = nuevoId()
     const mensajes: MensajeLote[] = conTelefono.map(e => ({
-      id: nuevoId(), telefono: e.telefono as string,
+      id: nuevoId(), telefono: destinoDe(e), asunto: `Mensaje de tu profesor ${actor.nombre}`, responderA: actor.email,
       texto: texto.replace(/\{nombre\}/gi, primerNombre(e.nombre)) + (body.incluirEnlace ? `\n\n📚 Tu plan y tus notas: ${urlPortal(request, tokens.get(e.id) as string)}` : ''),
     }))
     await prisma.envioWhatsApp.createMany({ data: mensajes.map((m, i) => ({ id: m.id, loteId, usuarioId: actor.id, tipo: 'MENSAJE', estudianteId: conTelefono[i].id, nombre: conTelefono[i].nombre, telefono: m.telefono })) })
     const r = await enviarLoteN8n(request, mensajes)
-    await registrarActividad({ actor, accion: 'ENVIAR', entidad: 'Mensaje', detalle: `Envió un mensaje por WhatsApp a ${mensajes.length} estudiante(s) de la sección ${seccion}${r.ok ? '' : ' — falló: ' + r.error}`.slice(0, 300) })
+    await registrarActividad({ actor, accion: 'ENVIAR', entidad: 'Mensaje', detalle: `Envió un mensaje por ${nombreCanal()} a ${mensajes.length} estudiante(s) de la sección ${seccion}${r.ok ? '' : ' — falló: ' + r.error}`.slice(0, 300) })
     if (!r.ok) return NextResponse.json({ error: r.error, loteId }, { status: 502 })
     return NextResponse.json({ ok: true, loteId, total: mensajes.length, sinTelefono, nombres: conTelefono.map(e => e.nombre) })
   } catch (e) {

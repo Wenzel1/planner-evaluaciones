@@ -680,6 +680,12 @@ const CONFIG_CLIENTE_DEFECTO: ConfigCliente = {
 const CONFIG_COMPLETA_DEFECTO: ConfigCompleta = { ...CONFIG_CLIENTE_DEFECTO, acceso: { registroAbierto: true, diasPapelera: 30 } };
 // Límites del planificador: se actualizan al cargar la configuración (los formularios los leen al dibujarse)
 const LIMITES = { grupos: 20, personas: 300 };
+// Canal por el que se avisa a los estudiantes: 'correo' (Gmail) o 'whatsapp'. Lo decide el servidor según sus variables de entorno.
+const CANAL = { valor: 'whatsapp' as 'correo' | 'whatsapp' };
+const porCorreo = () => CANAL.valor === 'correo';
+const medioEnvio = () => (porCorreo() ? 'correo' : 'WhatsApp');
+/** ¿El estudiante puede recibir avisos por el canal activo? (correo válido, o teléfono de 7+ dígitos) */
+const puedeRecibir = (e: { email?: string | null; telefono?: string | null }) => porCorreo() ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e.email || '').trim()) : String(e.telefono || '').replace(/\D/g, '').length >= 7;
 function aplicarConfig(c: ConfigCliente) { LIMITES.grupos = c.planificador.maxGrupos; LIMITES.personas = c.planificador.maxPersonasPorGrupo; }
 
 // ============================================
@@ -1426,7 +1432,7 @@ function DatosDemostracion() {
   const [error, setError] = useState('');
   const accion = async (a: 'crear' | 'borrar') => {
     const aviso = a === 'crear'
-      ? 'Se creará la materia «Ingeniería de Software (Demo)» con secciones A y B, 14 estudiantes de ejemplo, notas, rúbricas, recursos y opiniones. Mientras exista, la app abrirá esa materia. Los estudiantes de ejemplo no tienen teléfono: no se envía ningún WhatsApp. ¿Crear?'
+      ? 'Se creará la materia «Ingeniería de Software (Demo)» con secciones A y B, 14 estudiantes de ejemplo, notas, rúbricas, recursos y opiniones. Mientras exista, la app abrirá esa materia. Los estudiantes de ejemplo no tienen teléfono ni correo real: nunca se les envía nada. ¿Crear?'
       : 'Se borrará la materia de demostración y sus 14 estudiantes de ejemplo. Tus materias y estudiantes reales no se tocan. ¿Borrar?';
     if (!window.confirm(aviso)) return;
     setTrabajando(a); setError('');
@@ -1946,7 +1952,7 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
           <div>
             <label className={etiqueta}>Dirección de n8n (solo respaldo de WhatsApp)</label>
             <input value={cfg.chat.webhookUrl} onChange={(e) => cambiarChat({ webhookUrl: e.target.value })} placeholder="(la variable NEXT_PUBLIC_N8N_URL)" className={campo} />
-            <p className={ayuda}>El chat ya no usa n8n. Esta dirección solo se usa para WhatsApp si no configuraste ULTRAMSG_INSTANCE y ULTRAMSG_TOKEN en Vercel.</p>
+            <p className={ayuda}>El chat ya no usa n8n. Esta dirección solo se usa para WhatsApp si no configuraste el correo (GMAIL_USER y GMAIL_APP_PASSWORD) ni UltraMsg (ULTRAMSG_INSTANCE y ULTRAMSG_TOKEN) en Vercel.</p>
           </div>
         </div>
         <div>
@@ -2199,8 +2205,8 @@ function UsuariosPanel() {
                     <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-amber-300" /></div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-[#d0d0da] truncate flex items-center gap-2">{u.nombre}{u.telefonoVerificado
-                        ? <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-300 border-emerald-500/30">WhatsApp verificado</span>
-                        : <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30" title="La persona todavía no escribió el código que le llegó por WhatsApp">WhatsApp sin verificar</span>}</div>
+                        ? <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-300 border-emerald-500/30">Cuenta verificada</span>
+                        : <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30" title="La persona todavía no escribió el código de verificación que le llegó">Sin verificar</span>}</div>
                       <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · C.I. ${u.cedula}` : ''}</div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -2346,6 +2352,7 @@ function EstudiantesPanel() {
     }
     if (campo === 'telefono') {
       const limpio = String(valor || '').replace(/[\s().-]/g, '');
+      if (!limpio) return ''; // opcional: los avisos pueden ir por correo
       if (!/^\+?\d+$/.test(limpio)) error = 'Solo se permiten números (puede empezar con +).';
       else {
         // Venezuela: 0412/0414/0416/0422/0424/0426 o fijo 02XX; también +58 o 58 delante. Otro país: con + y 8 a 15 dígitos.
@@ -2900,7 +2907,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
   seccion: string; lista: SeccionExamen[]; materia: string; fechaExamen: Date | string;
   onCerrar: () => void; agregarNotificacion: (m: string) => void;
 }) {
-  interface EstudianteFila { id: string; nombre: string; telefono: string | null; estado?: string; portalUltimaVisita?: string | null }
+  interface EstudianteFila { id: string; nombre: string; email?: string | null; telefono: string | null; estado?: string; portalUltimaVisita?: string | null }
   interface EnvioFila { id: string; estudianteId: string | null; nombre: string; estado: string; error: string | null }
   const [estudiantes, setEstudiantes] = useState<EstudianteFila[] | null>(null);
   const [errorCarga, setErrorCarga] = useState('');
@@ -2911,7 +2918,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
   const [error, setError] = useState('');
   const [loteId, setLoteId] = useState<string | null>(null);
   const [envios, setEnvios] = useState<EnvioFila[]>([]);
-  const tieneTelefono = (e: EstudianteFila) => (e.telefono || '').replace(/\D/g, '').length >= 7;
+  const tieneTelefono = (e: EstudianteFila) => puedeRecibir(e); // según el canal: correo o teléfono
 
   useEffect(() => {
     let vivo = true;
@@ -2921,7 +2928,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
         if (!vivo) return;
         const activos: EstudianteFila[] = (Array.isArray(d) ? d : []).filter((e: any) => String(e.estado || 'ACTIVO').toUpperCase() === 'ACTIVO');
         setEstudiantes(activos);
-        setMarcados(activos.filter(tieneTelefono).map(e => e.id)); // por defecto: todos los que tienen teléfono
+        setMarcados(activos.filter(tieneTelefono).map(e => e.id)); // por defecto: todos los que pueden recibirlo
       })
       .catch((e: any) => { if (vivo) setErrorCarga(e.message); });
     return () => { vivo = false; };
@@ -2942,7 +2949,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
       if ((items.length && pendientes === 0) || vueltas > 300) {
         clearInterval(t);
         const ok = items.filter(i => i.estado === 'ENVIADO').length;
-        if (items.length) agregarNotificacion(`📤 Plan de la sección ${seccion}: ${ok} de ${items.length} enviado(s) por WhatsApp.`);
+        if (items.length) agregarNotificacion(`📤 Plan de la sección ${seccion}: ${ok} de ${items.length} enviado(s) por ${medioEnvio()}.`);
       }
     };
     const t = setInterval(consultar, 2500);
@@ -2994,7 +3001,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
       <div className="px-5 py-4 border-b border-[#313248] flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><Send className="w-5 h-5 text-emerald-300" /></div>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-white">Enviar plan por WhatsApp · Sección {seccion}</h3>
+          <h3 className="text-sm font-semibold text-white">Enviar plan por {medioEnvio()} · Sección {seccion}</h3>
           <p className="text-xs text-[#8a8b9e]">Cada estudiante activo del grupo {seccion} recibe el enlace a su página personal</p>
         </div>
         <button onClick={onCerrar} className="ml-auto p-1.5 text-[#8a8b9e] hover:text-white hover:bg-[#272839] rounded-lg" aria-label="Cerrar"><X className="w-4 h-4" /></button>
@@ -3007,7 +3014,7 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3"><p className="text-xl font-bold text-amber-300">{pendientes}</p><p className="text-[11px] text-[#8a8b9e]">En cola</p></div>
             <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3"><p className="text-xl font-bold text-red-300">{fallidos}</p><p className="text-[11px] text-[#8a8b9e]">Fallidos</p></div>
           </div>
-          {pendientes > 0 && <p className="text-xs text-[#8a8b9e]">Se envían de a uno, con unos segundos entre cada mensaje para que WhatsApp no lo tome como spam. Puedes cerrar esta ventana: el envío continúa.</p>}
+          {pendientes > 0 && <p className="text-xs text-[#8a8b9e]">{porCorreo() ? 'Se están enviando los correos. Puedes cerrar esta ventana: el envío continúa.' : 'Se envían de a uno, con unos segundos entre cada mensaje para que WhatsApp no lo tome como spam. Puedes cerrar esta ventana: el envío continúa.'}</p>}
           <div className="max-h-64 overflow-y-auto custom-scrollbar divide-y divide-[#282a3f] border border-[#282a3f] rounded-xl">
             {envios.map(e => (
               <div key={e.id} className="px-3 py-2 flex items-center gap-3 text-sm">
@@ -3052,12 +3059,12 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
                       <input type="checkbox" disabled={!ok} checked={ok && marcados.includes(e.id)} onChange={() => alternar(e.id)} className="w-4 h-4 accent-[#818cf8]" />
                       <span className="flex-1 truncate">{e.nombre}</span>
                       {e.portalUltimaVisita ? <span className="text-[10px] text-emerald-300 flex items-center gap-1 whitespace-nowrap" title="Ya abrió su página"><Eye className="w-3 h-3" />{haceCuanto(e.portalUltimaVisita, Date.now())}</span> : <span className="text-[10px] text-[#6a6b7e] whitespace-nowrap">sin abrir</span>}
-                      <span className="text-[11px] text-[#8a8b9e]">{ok ? `📞 …${(e.telefono || '').replace(/\D/g, '').slice(-4)}` : 'Sin teléfono'}</span>
+                      <span className="text-[11px] text-[#8a8b9e]">{ok ? (porCorreo() ? `✉️ ${e.email}` : `📞 …${(e.telefono || '').replace(/\D/g, '').slice(-4)}`) : (porCorreo() ? 'Sin correo' : 'Sin teléfono')}</span>
                     </label>
                   );
                 })}
               </div>
-              {sinTelefono > 0 && <p className="text-[11px] text-amber-300">{sinTelefono} estudiante(s) sin teléfono no recibirán el enlace (puedes copiárselo desde la pestaña Estudiantes).</p>}
+              {sinTelefono > 0 && <p className="text-[11px] text-amber-300">{sinTelefono} estudiante(s) sin {porCorreo() ? 'correo válido' : 'teléfono'} no recibirán el enlace (puedes copiárselo desde la pestaña Estudiantes).</p>}
               <div>
                 <label className="text-[11px] font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5">Mensaje</label>
                 <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={3} maxLength={900}
@@ -3481,7 +3488,7 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
             {diaSel && <button onClick={() => setDiaSel(null)} className="mt-3 text-[11px] text-[#a5b4fc] hover:text-[#c7d2fe]">Ver próximas evaluaciones</button>}
           </div>
 
-          <p className="text-[11px] text-[#6a6b7e] px-1">💡 Al cambiar la fecha de una evaluación, los recordatorios de WhatsApp se ajustan solos a la nueva fecha.</p>
+          <p className="text-[11px] text-[#6a6b7e] px-1">💡 Al cambiar la fecha de una evaluación, los recordatorios ({medioEnvio()}) se ajustan solos a la nueva fecha.</p>
         </div>
       </div>
     </div>
@@ -3555,12 +3562,12 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               </a>
 
               {/* ENVIAR — Click simple: nada. Mantener presionado 500ms: muestra ventana */}
-              <Tooltip text="Enviar por WhatsApp">
+              <Tooltip text={`Enviar por ${medioEnvio()}`}>
                 <button
                   onMouseEnter={() => precargar(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}`)}
                   onTouchStart={() => precargar(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}`)}
                   onClick={() => setMostrarMenuEnvio(true)} // abre la ventana flotante de envío (igual que las demás ventanas)
-                  aria-label="Enviar el plan por WhatsApp"
+                  aria-label={`Enviar el plan por ${medioEnvio()}`}
                   className={`p-1.5 rounded-lg border transition-all duration-200 active:scale-95 ${
                     mostrarMenuEnvio
                       ? 'bg-sky-500/20 text-sky-400 border-sky-500/40'
@@ -3909,7 +3916,7 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
   const enviar = async () => {
     if (cambiadas.length > 0) { alert('Primero guarda las notas.'); return; }
     if (destinatarios.length === 0) { alert('Nadie con nota guardada tiene teléfono.'); return; }
-    if (!window.confirm(`Se enviará por WhatsApp su nota a ${destinatarios.length} estudiante(s). Cada uno recibe solo la suya. ¿Continuar?`)) return;
+    if (!window.confirm(`Se enviará por ${medioEnvio()} su nota a ${destinatarios.length} estudiante(s). Cada uno recibe solo la suya. ¿Continuar?`)) return;
     setEnviando(true); setEnvio(null);
     try {
       const r = await fetch(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas/enviar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteIds: destinatarios.map(f => f.id) }) });
@@ -3926,7 +3933,7 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
         setEnvio({ total: e.items.length, enviados, fallidos });
         if (enviados + fallidos >= e.items.length) break;
       }
-      agregarNotificacion(`📲 Notas de "${nombre}" enviadas por WhatsApp.`);
+      agregarNotificacion(`📲 Notas de "${nombre}" enviadas por ${medioEnvio()}.`);
     } catch (e: any) { alert(e.message); } finally { setEnviando(false); }
   };
 
@@ -4031,7 +4038,7 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
             <div className="ml-auto flex gap-2">
               <button type="button" onClick={enviar} disabled={enviando || guardando || destinatarios.length === 0} title={destinatarios.length === 0 ? 'Guarda notas de estudiantes con teléfono' : `Enviar a ${destinatarios.length}`}
                 className="h-9 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center gap-1.5 hover:bg-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed">
-                {enviando ? <div className="w-3.5 h-3.5 border-2 border-emerald-300 border-t-transparent rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}Enviar por WhatsApp
+                {enviando ? <div className="w-3.5 h-3.5 border-2 border-emerald-300 border-t-transparent rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}Enviar por {medioEnvio()}
               </button>
               <button type="button" onClick={guardar} disabled={guardando || hayErrores || cambiadas.length === 0}
                 className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -5034,7 +5041,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           const r = await fetch('/api/whatsapp/mensaje', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...a.datos, seccion: seccionActiva, planificacionId }) });
           const d = await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(d.error || 'No se pudo enviar.');
-          resultado = `Enviando por WhatsApp a ${d.total} estudiante(s)${d.sinTelefono?.length ? ` (${d.sinTelefono.length} sin teléfono)` : ''}`;
+          resultado = `Enviando por ${medioEnvio()} a ${d.total} estudiante(s)${d.sinTelefono?.length ? ` (${d.sinTelefono.length} sin ${porCorreo() ? 'correo' : 'teléfono'})` : ''}`;
           break;
         }
         case 'recordar_preferencia': {
@@ -5143,7 +5150,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           if (a.datos.enviar) {
             const re = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/notas/enviar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteIds: notas.map(n => n.estudianteId) }) });
             const de = await re.json().catch(() => ({}));
-            enviadas = re.ok ? ` y enviadas por WhatsApp a ${de.total}` : ` (no se enviaron: ${de.error || 'error'})`;
+            enviadas = re.ok ? ` y enviadas por ${medioEnvio()} a ${de.total}` : ` (no se enviaron: ${de.error || 'error'})`;
           }
           resultado = `${dd.guardadas ?? notas.length} nota(s) guardadas en «${limpiarTexto(s.nombre)}»${enviadas}${faltan.length ? `; no encontré a ${faltan.join(', ')}` : ''}`;
           break;
@@ -5640,7 +5647,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
         <div key={a.id} className={marco}>
           <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
             <MessageCircle className="w-4 h-4 text-emerald-300" />
-            <span className="text-sm font-semibold text-[#e0e0ec]">WhatsApp para estudiantes</span>
+            <span className="text-sm font-semibold text-[#e0e0ec]">{porCorreo() ? 'Mensaje para estudiantes' : 'WhatsApp para estudiantes'}</span>
             <span className="text-[11px] text-[#8a8b9e] truncate">Para: {dest}</span>
           </div>
           <div className="px-3.5 pb-3 space-y-2">
@@ -5650,7 +5657,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
               <span>{'{nombre}'} se cambia por el de cada uno</span>
             </div>
           </div>
-          {botones('Enviar por WhatsApp')}
+          {botones(`Enviar por ${medioEnvio()}`)}
           {pie}
         </div>
       );
@@ -5673,11 +5680,11 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
               <div key={i} className="grid grid-cols-[1.3fr_1.3fr_1fr_auto] gap-1.5 items-center">
                 <input value={f.nombre || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'nombre', e.target.value)} placeholder="Nombre" className={celda} />
                 <input value={f.email || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'email', e.target.value)} placeholder="correo@…" className={`${celda} ${!f.email ? 'border-amber-500/40' : ''}`} />
-                <input value={f.telefono || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'telefono', e.target.value)} placeholder="0412…" className={`${celda} ${!f.telefono ? 'border-amber-500/40' : ''}`} />
+                <input value={f.telefono || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'telefono', e.target.value)} placeholder="0412… (opcional)" className={`${celda} ${!f.telefono && !porCorreo() ? 'border-amber-500/40' : ''}`} />
                 {editable ? <button type="button" onClick={() => quitarFila(i)} aria-label="Quitar" className="p-1 text-[#6a6b7e] hover:text-red-300"><X className="w-3.5 h-3.5" /></button> : <span />}
               </div>
             ))}
-            {editable && filas.some(f => !f.email || !f.telefono) && <p className="text-[11px] text-amber-300 pt-1">Completa el correo y el teléfono que faltan (marcados en amarillo).</p>}
+            {editable && filas.some(f => !f.email || (!f.telefono && !porCorreo())) && <p className="text-[11px] text-amber-300 pt-1">{porCorreo() ? 'Completa el correo que falta (marcado en amarillo).' : 'Completa el correo y el teléfono que faltan (marcados en amarillo).'}</p>}
           </div>
           {filas.length > 0 && botones('Agregar estudiantes')}
           {pie}
@@ -5705,7 +5712,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
             ))}
           </div>
           <label className="px-3.5 pb-2 flex items-center gap-1.5 text-[11px] text-[#8a8b9e] cursor-pointer">
-            <input type="checkbox" checked={!!a.datos?.enviar} disabled={!editable} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, enviar: e.target.checked } })} className="w-3.5 h-3.5 accent-[#818cf8]" />Enviar a cada estudiante su nota por WhatsApp
+            <input type="checkbox" checked={!!a.datos?.enviar} disabled={!editable} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, enviar: e.target.checked } })} className="w-3.5 h-3.5 accent-[#818cf8]" />Enviar a cada estudiante su nota por {medioEnvio()}
           </label>
           {botones('Guardar notas')}
           {pie}
@@ -5758,7 +5765,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       recordar_preferencia: { icono: Brain, titulo: 'Recordar para la próxima', detalle: a.datos?.texto || '', boton: 'Recordar' },
       modificar_estudiantes: { icono: UserCheck, titulo: a.datos?.accion === 'mover' ? `Mover a la Sección ${a.datos?.seccion}` : a.datos?.accion === 'retirar' ? 'Retirar estudiantes' : 'Reactivar estudiantes', detalle: (a.datos?.nombres || []).join(', ') + (a.datos?.accion === 'retirar' ? ' · quedan inactivos (no reciben mensajes); sus notas se conservan' : ''), boton: a.datos?.accion === 'mover' ? 'Mover' : a.datos?.accion === 'retirar' ? 'Retirar' : 'Reactivar' },
       abrir_en_portal: { icono: a.datos?.abrir ? LockOpen : Lock, titulo: a.datos?.abrir ? 'Abrir en la página de estudiantes' : 'Cerrar en la página de estudiantes', detalle: `${nombreEv(a.datos?.evaluacion)} ${a.datos?.abrir ? '→ verán descripción, recursos y rúbrica desde ya' : '→ se abrirá sola 7 días antes'}`, boton: a.datos?.abrir ? 'Abrir' : 'Cerrar' },
-      enviar_plan: { icono: Send, titulo: 'Enviar el plan por WhatsApp', detalle: `Enlace a su página personal · Sección ${seccionActiva}${a.datos?.soloSinAbrir ? ' · solo a quienes no la han abierto' : ' · a todos los activos'}`, boton: 'Enviar' },
+      enviar_plan: { icono: Send, titulo: `Enviar el plan por ${medioEnvio()}`, detalle: `Enlace a su página personal · Sección ${seccionActiva}${a.datos?.soloSinAbrir ? ' · solo a quienes no la han abierto' : ' · a todos los activos'}`, boton: 'Enviar' },
       eliminar_evaluaciones: { icono: Trash2, titulo: 'Eliminar evaluaciones', detalle: `${(a.datos?.evaluaciones || []).map((n: number) => nombreEv(n)).join(', ')} · quedan en la Papelera con sus notas`, boton: 'Eliminar' },
       cambiar_materia: { icono: BookOpen, titulo: a.datos?.crear ? 'Abrir o crear materia' : 'Cambiar de materia', detalle: `«${a.datos?.nombre}»${(materias as any[]).length ? ` · tus materias: ${(materias as any[]).map((m: any) => m.nombre).join(', ')}` : ''}`, boton: 'Abrir' },
     };
@@ -7194,7 +7201,7 @@ export default function PlanificadorExamenes() {
   const aplicarYGuardarConfig = (c: ConfigCliente) => { aplicarConfig(c); setConfigSistema(c); };
   useEffect(() => {
     if (!usuario) return;
-    fetch('/api/configuracion').then(r => (r.ok ? r.json() : null)).then(d => aplicarYGuardarConfig(d?.config ?? CONFIG_CLIENTE_DEFECTO)).catch(() => aplicarYGuardarConfig(CONFIG_CLIENTE_DEFECTO));
+    fetch('/api/configuracion').then(r => (r.ok ? r.json() : null)).then(d => { if (d?.canal === 'correo' || d?.canal === 'whatsapp') CANAL.valor = d.canal; return d; }).then(d => aplicarYGuardarConfig(d?.config ?? CONFIG_CLIENTE_DEFECTO)).catch(() => aplicarYGuardarConfig(CONFIG_CLIENTE_DEFECTO));
   }, [usuario?.id]);
   useEffect(() => {
     // Si la sesión expira mientras se usa la app, cualquier llamada a /api responde 401 → volver al login

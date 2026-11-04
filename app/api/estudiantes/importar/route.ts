@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       let motivo = ''
       if (nombre.length < 3) motivo = 'El nombre debe tener al menos 3 caracteres.'
       else if (!EMAIL.test(email)) motivo = 'El correo electrónico no es válido.'
-      else if (telefono.replace(/\D/g, '').length < 7) motivo = 'El teléfono debe tener al menos 7 dígitos.'
+      else if (telefono && telefono.replace(/\D/g, '').length < 7) motivo = 'El teléfono debe tener al menos 7 dígitos (o déjalo vacío).'
       else if (!GRUPO_VALIDO.test(grupo)) motivo = 'Grupo no válido (usa una letra: A, B, C...).'
       else if (vistos.has(email)) motivo = 'Correo repetido dentro del archivo.'
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     let creados = 0
     if (nuevos.length > 0) {
       const r = await prisma.estudiante.createMany({
-        data: nuevos.map(({ fila, ...d }) => ({ ...d, estado: 'ACTIVO' as const, usuarioId: actor.id })),
+        data: nuevos.map(({ fila, ...d }) => ({ ...d, telefono: d.telefono || null, estado: 'ACTIVO' as const, usuarioId: actor.id })),
         skipDuplicates: true,
       })
       creados = r.count

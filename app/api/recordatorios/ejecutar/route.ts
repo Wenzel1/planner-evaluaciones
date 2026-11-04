@@ -2,14 +2,15 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import prisma from '@/lib/prisma'
 import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
-import { enviarLoteN8n, fechaBonita, nombreLimpio, nuevoId, primerNombre, ZONA_HORARIA, type MensajeLote } from '@/lib/whatsappLotes'
+import { enviarLoteN8n, fechaBonita, nombreLimpio, nuevoId, primerNombre, destinoDe, tieneDestino, ZONA_HORARIA, type MensajeLote } from '@/lib/whatsappLotes'
 import { ultramsgConfigurado } from '@/lib/ultramsg'
+import { correoConfigurado } from '@/lib/correo'
 
 export const maxDuration = 60
 
 const HORA = 60 * 60 * 1000
-// Con UltraMsg directo los mensajes salen desde aquí y la función tiene 60 s: se mandan menos por pasada (la siguiente, en 15 min, sigue)
-const maxPorPasada = () => (ultramsgConfigurado() ? 120 : 300)
+// Con correo o UltraMsg directo los mensajes salen desde aquí y la función tiene 60 s: se mandan menos por pasada (la siguiente, en 15 min, sigue)
+const maxPorPasada = () => (correoConfigurado() ? 100 : ultramsgConfigurado() ? 120 : 300)
 
 // Ventanas: se envía el recordatorio que corresponde al tiempo que falta (si ya pasó la ventana de 3 días, va el de 1 día)
 function tipoSegunTiempo(msFaltan: number): '3D' | '1D' | '2H' | null {
@@ -81,9 +82,9 @@ async function ejecutar(request: Request) {
 
       const seccion = ev.grupoSeccion || 'A'
       const estudiantes = (await prisma.estudiante.findMany({
-        where: { usuarioId: materia.usuarioId, grupo: seccion, estado: 'ACTIVO', telefono: { not: null } },
-        select: { id: true, nombre: true, telefono: true },
-      })).filter(e => (e.telefono || '').replace(/\D/g, '').length >= 7)
+        where: { usuarioId: materia.usuarioId, grupo: seccion, estado: 'ACTIVO' },
+        select: { id: true, nombre: true, telefono: true, email: true },
+      })).filter(tieneDestino) // con correo configurado: los que tienen correo; si no: los que tienen teléfono
       // Si la sección completa no cabe en esta pasada, queda para la siguiente (salvo que sea la primera: esa va entera)
       if (mensajes.length > 0 && mensajes.length + estudiantes.length > maxPorPasada()) break
 
@@ -100,11 +101,13 @@ async function ejecutar(request: Request) {
       let cuenta = 0
       for (const est of estudiantes) {
         const id = nuevoId()
+        const destino = destinoDe(est)
         mensajes.push({
-          id, telefono: est.telefono as string,
+          id, telefono: destino,
+          asunto: `Recordatorio: ${nombreLimpio(ev.nombre)} · ${fechaBonita(ev.fecha)}`,
           texto: texto(tipo, { nombre: primerNombre(est.nombre), evaluacion: nombreLimpio(ev.nombre), materia: materia.nombre, seccion, fecha: ev.fecha, peso: ev.peso, actividad: ev.tipoActividad, enlace: urlPortal(request, tokens.get(est.id) as string) }),
         })
-        filas.push({ id, loteId, usuarioId: materia.usuarioId, tipo: 'RECORDATORIO', estudianteId: est.id, nombre: est.nombre, telefono: est.telefono })
+        filas.push({ id, loteId, usuarioId: materia.usuarioId, tipo: 'RECORDATORIO', estudianteId: est.id, nombre: est.nombre, telefono: destino })
         cuenta++
       }
       await prisma.recordatorioEnviado.updateMany({ where: { evaluacionId: ev.id, tipo, fechaEvaluacion: ev.fecha }, data: { enviados: cuenta } })

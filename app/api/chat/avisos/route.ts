@@ -46,7 +46,7 @@ export async function GET(request: Request) {
         avisos.push({
           tipo: 'proxima', seccion: e.grupoSeccion, urgente: e.fecha!.getTime() - ahora < DIA,
           texto: `«${limpio(e.nombre)}» es ${cuando(e.fecha!)} (Sección ${e.grupoSeccion})${grupo.length ? ` · ${prep} de ${grupo.length} se prepararon${sinAbrir ? ` · ${sinAbrir} no han abierto su página` : ''}` : ''}`,
-          pedido: sinAbrir ? `Mándale el plan por WhatsApp a los de la Sección ${e.grupoSeccion} que no han abierto su página` : `¿Cómo se ve la Sección ${e.grupoSeccion} para «${limpio(e.nombre)}»?`,
+          pedido: sinAbrir ? `Mándale el plan a los de la Sección ${e.grupoSeccion} que no han abierto su página` : `¿Cómo se ve la Sección ${e.grupoSeccion} para «${limpio(e.nombre)}»?`,
         })
         if (!e.rubrica) avisos.push({ tipo: 'rubrica', seccion: e.grupoSeccion, texto: `«${limpio(e.nombre)}» todavía no tiene rúbrica`, pedido: `Crea la rúbrica de «${limpio(e.nombre)}» (Sección ${e.grupoSeccion})` })
       }
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
       if (sinLeer) avisos.push({ tipo: 'opiniones', texto: `${sinLeer} opinión(es) nueva(s) de estudiantes sobre el plan`, pedido: 'Resúmeme las opiniones nuevas de los estudiantes' })
     }
     const fallidos = await prisma.envioWhatsApp.count({ where: { usuarioId: actor.id, estado: 'FALLIDO', createdAt: { gt: new Date(ahora - 2 * DIA) } } })
-    if (fallidos) avisos.push({ tipo: 'envios', urgente: true, texto: `${fallidos} WhatsApp no se pudieron enviar en los últimos 2 días`, pedido: '¿Qué WhatsApp fallaron y por qué?' })
+    if (fallidos) avisos.push({ tipo: 'envios', urgente: true, texto: `${fallidos} mensaje(s) a estudiantes no se pudieron enviar en los últimos 2 días`, pedido: '¿Qué mensajes fallaron y por qué?' })
 
     return NextResponse.json({ avisos: avisos.slice(0, 6) }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {

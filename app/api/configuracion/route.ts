@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { leerConfigCompleta, guardarConfig, sanitizarConfig, parteDeUsuario, validarUrl, camposCambiados } from '@/lib/configuracion'
+import { canalMensajes } from '@/lib/correo'
 
 // GET /api/configuracion — cualquier usuario con sesión recibe la parte que el chat y el planificador necesitan;
 // el SUPERADMIN recibe además el apartado de acceso y quién la modificó por última vez.
@@ -10,8 +11,9 @@ export async function GET(request: Request) {
     const { actor, error } = await requerirActor(request)
     if (error) return error
     const { config, actualizadoPor, actualizadoEn } = await leerConfigCompleta()
-    if (actor.rol !== 'SUPERADMIN') return NextResponse.json({ config: parteDeUsuario(config) })
-    return NextResponse.json({ config, actualizadoPor, actualizadoEn })
+    // canal: por dónde se avisa a los estudiantes ('correo' si GMAIL_USER y GMAIL_APP_PASSWORD están configurados; si no, 'whatsapp')
+    if (actor.rol !== 'SUPERADMIN') return NextResponse.json({ config: parteDeUsuario(config), canal: canalMensajes() })
+    return NextResponse.json({ config, actualizadoPor, actualizadoEn, canal: canalMensajes() })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'Error al leer la configuración' }, { status: 500 })

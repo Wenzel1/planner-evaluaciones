@@ -5,57 +5,71 @@ import { validarTelefono, validarPassword, normalizarTelefono } from '@/lib/vali
 import { bloqueado, registrarFallo, limpiar, minutosRestantes } from '@/lib/rateLimit'
 import { ipDe, opcionesCookieSesion } from '@/lib/cookies'
 import { registrarActividad } from '@/lib/actividad'
-import { nuevoCodigoParaGuardar, enviarCodigoWhatsApp, codigoCoincide, CODIGO_MAX_INTENTOS, REENVIO_SEGUNDOS } from '@/lib/codigoWhatsapp'
+import { nuevoCodigoParaGuardar, enviarCodigo, codigoCoincide, CODIGO_MAX_INTENTOS, REENVIO_SEGUNDOS } from '@/lib/codigoWhatsapp'
+import { correoConfigurado, nombreCanal } from '@/lib/correo'
+import { validarEmail } from '@/lib/validacionesUsuario'
 import { crearToken, COOKIE_SESION, DURACION_SESION_SEG } from '@/lib/session'
 
 export const maxDuration = 60
 
-// Respuesta igual exista o no el número: así nadie puede averiguar qué teléfonos están registrados
-const ENVIADO = 'Si ese número está registrado, te llegó un código por WhatsApp. Escríbelo abajo junto con tu contraseña nueva.'
+// Respuesta igual exista o no la cuenta: así nadie puede averiguar qué correos o teléfonos están registrados
+const ENVIADO = () => correoConfigurado()
+  ? 'Si ese correo está registrado, te llegó un código (revisa también la carpeta de spam). Escríbelo abajo junto con tu contraseña nueva.'
+  : 'Si ese número está registrado, te llegó un código por WhatsApp. Escríbelo abajo junto con tu contraseña nueva.'
 
-// POST /api/auth/recuperar  (público) — "Olvidé mi contraseña" con el número de WhatsApp
-//  1) { paso: 'pedir', telefono }                      → envía un código de 6 dígitos por WhatsApp
-//  2) { paso: 'cambiar', telefono, codigo, password }  → si el código es correcto, cambia la contraseña y entra
-// Si WhatsApp no funciona, se deja una solicitud al superadmin (como antes).
+// POST /api/auth/recuperar  (público) — "Olvidé mi contraseña"
+// Con correo configurado la cuenta se identifica por su correo ({ email }); si no, por su número de WhatsApp ({ telefono }).
+//  1) { paso: 'pedir', email | telefono }                      → envía un código de 6 dígitos
+//  2) { paso: 'cambiar', email | telefono, codigo, password }  → si el código es correcto, cambia la contraseña y entra
+// Si el envío falla, se deja una solicitud al superadmin (como antes).
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}))
-    const telefonoTexto = String(body.telefono ?? '')
-    const msgTel = validarTelefono(telefonoTexto)
-    if (msgTel) return NextResponse.json({ error: msgTel }, { status: 400 })
-    const telefono = normalizarTelefono(telefonoTexto)
+    const porCorreo = correoConfigurado()
+    let telefono = '', email = ''
+    if (porCorreo) {
+      email = String(body.email ?? '').trim().toLowerCase()
+      const msg = validarEmail(email)
+      if (msg) return NextResponse.json({ error: msg }, { status: 400 })
+    } else {
+      const telefonoTexto = String(body.telefono ?? '')
+      const msgTel = validarTelefono(telefonoTexto)
+      if (msgTel) return NextResponse.json({ error: msgTel }, { status: 400 })
+      telefono = normalizarTelefono(telefonoTexto)
+    }
+    const identificador = porCorreo ? email : telefono
     const claveIp = `recuperar:${ipDe(request)}`
 
-    // Busca la cuenta activa con ese teléfono (si hay varias, la usada más recientemente)
+    // Busca la cuenta activa con ese correo (o teléfono; si hay varias, la usada más recientemente)
     const usuario = await prisma.usuario.findFirst({
-      where: { telefono, activo: true, pendiente: false },
+      where: { ...(porCorreo ? { email } : { telefono }), activo: true, pendiente: false },
       orderBy: { updatedAt: 'desc' },
     })
 
     // ---------- Paso 1: pedir el código ----------
     if (body.paso !== 'cambiar') {
-      const claveTel = `recuperar-tel:${telefono}`
+      const claveTel = `recuperar-id:${identificador}`
       const bloqueo = bloqueado(claveIp, 6) ? claveIp : bloqueado(claveTel, 4) ? claveTel : null
       if (bloqueo) return NextResponse.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${minutosRestantes(bloqueo)} minuto(s).` }, { status: 429 })
       registrarFallo(claveIp); registrarFallo(claveTel)
 
-      if (!usuario) return NextResponse.json({ ok: true, enviado: true, mensaje: ENVIADO })
+      if (!usuario) return NextResponse.json({ ok: true, enviado: true, mensaje: ENVIADO() })
       if (usuario.codigoEnviadoEn && Date.now() - usuario.codigoEnviadoEn.getTime() < REENVIO_SEGUNDOS * 1000) {
         const s = Math.ceil((REENVIO_SEGUNDOS * 1000 - (Date.now() - usuario.codigoEnviadoEn.getTime())) / 1000)
         return NextResponse.json({ error: `Espera ${s} segundos para pedir otro código.` }, { status: 429 })
       }
       const { codigo, data } = nuevoCodigoParaGuardar()
       await prisma.usuario.update({ where: { id: usuario.id }, data })
-      const enviado = await enviarCodigoWhatsApp({ telefono, nombre: usuario.nombre, codigo })
+      const enviado = await enviarCodigo({ email: usuario.email, telefono: usuario.telefono, nombre: usuario.nombre, codigo, motivo: 'recuperar' })
       if (!enviado) {
         // Plan B: se avisa al superadmin, que restablece la clave a mano (no se duplica en 24 h)
         const reciente = await prisma.solicitudRecuperacion.findFirst({ where: { usuarioId: usuario.id, estado: 'PENDIENTE', createdAt: { gt: new Date(Date.now() - 86400000) } }, select: { id: true } })
         if (!reciente) await prisma.solicitudRecuperacion.create({ data: { usuarioId: usuario.id } })
-        await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'RECUPERAR', entidad: 'Sesión', detalle: 'Pidió recuperar su contraseña; WhatsApp falló y se avisó al superadmin' })
-        return NextResponse.json({ ok: true, enviado: false, mensaje: 'No pudimos enviarte el código por WhatsApp en este momento. Ya se avisó al superadmin: te contactará a ese número con una clave temporal.' })
+        await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'RECUPERAR', entidad: 'Sesión', detalle: `Pidió recuperar su contraseña; el ${nombreCanal()} falló y se avisó al superadmin` })
+        return NextResponse.json({ ok: true, enviado: false, mensaje: `No pudimos enviarte el código por ${nombreCanal()} en este momento. Ya se avisó al superadmin: te contactará con una clave temporal.` })
       }
-      await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'RECUPERAR', entidad: 'Sesión', detalle: 'Pidió un código por WhatsApp para recuperar su contraseña' })
-      return NextResponse.json({ ok: true, enviado: true, mensaje: ENVIADO })
+      await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'RECUPERAR', entidad: 'Sesión', detalle: `Pidió un código por ${nombreCanal()} para recuperar su contraseña` })
+      return NextResponse.json({ ok: true, enviado: true, mensaje: ENVIADO() })
     }
 
     // ---------- Paso 2: código + contraseña nueva ----------
@@ -86,8 +100,8 @@ export async function POST(request: Request) {
       data: { passwordHash: await hashPassword(password), codigoHash: null, codigoExpira: null, codigoIntentos: 0, telefonoVerificado: true, debeCambiarPassword: false, sesionesDesde: new Date(Math.floor(Date.now() / 1000) * 1000 - 1000) },
     })
     // Si había una solicitud al superadmin pendiente, ya no hace falta
-    await prisma.solicitudRecuperacion.updateMany({ where: { usuarioId: usuario.id, estado: 'PENDIENTE' }, data: { estado: 'ATENDIDA', atendidaPor: 'La misma persona (código de WhatsApp)', atendidaEn: new Date() } }).catch(() => {})
-    await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'RECUPERAR', entidad: 'Sesión', detalle: 'Cambió su contraseña con el código de WhatsApp' })
+    await prisma.solicitudRecuperacion.updateMany({ where: { usuarioId: usuario.id, estado: 'PENDIENTE' }, data: { estado: 'ATENDIDA', atendidaPor: `La misma persona (código por ${nombreCanal()})`, atendidaEn: new Date() } }).catch(() => {})
+    await registrarActividad({ actor: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol }, accion: 'RECUPERAR', entidad: 'Sesión', detalle: `Cambió su contraseña con el código recibido por ${nombreCanal()}` })
 
     // Entra directo (misma sesión que el login)
     const token = await crearToken({ sub: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol })

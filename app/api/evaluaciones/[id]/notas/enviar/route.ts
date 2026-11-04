@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
-import { enviarLoteN8n, nombreLimpio, nuevoId, primerNombre, type MensajeLote } from '@/lib/whatsappLotes'
+import { enviarLoteN8n, nombreLimpio, nuevoId, primerNombre, destinoDe, tieneDestino, nombreDestino, type MensajeLote } from '@/lib/whatsappLotes'
+import { nombreCanal } from '@/lib/correo'
 import { NIVELES_RUBRICA, normalizarRubrica, puntosNivel, textoPuntos } from '@/lib/rubrica'
 import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
 import { NOTA_APROBATORIA, NOTA_MAXIMA, textoNota } from '@/lib/notas'
@@ -31,10 +32,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const notas = await prisma.calificacion.findMany({
       where: { evaluacionId: id, estudianteId: { in: ids }, puntaje: { not: null }, estudiante: { usuarioId: dueno ?? actor.id } },
-      select: { puntaje: true, observaciones: true, detalle: true, estudiante: { select: { id: true, nombre: true, telefono: true } } },
+      select: { puntaje: true, observaciones: true, detalle: true, estudiante: { select: { id: true, nombre: true, telefono: true, email: true } } },
     })
-    const conTelefono = notas.filter(n => (n.estudiante.telefono || '').replace(/\D/g, '').length >= 7)
-    if (conTelefono.length === 0) return NextResponse.json({ error: 'Ninguno de los elegidos tiene nota guardada y teléfono válido.' }, { status: 400 })
+    const conTelefono = notas.filter(n => tieneDestino(n.estudiante))
+    if (conTelefono.length === 0) return NextResponse.json({ error: `Ninguno de los elegidos tiene nota guardada y ${nombreDestino()} válido.` }, { status: 400 })
 
     const rubrica = normalizarRubrica(ev.rubrica)
     const evaluacion = nombreLimpio(ev.nombre)
@@ -62,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (n.observaciones) lineas.push('', `💬 ${n.observaciones}`)
       lineas.push('', `📊 Todas tus notas y tu promedio: ${urlPortal(request, tokens.get(n.estudiante.id) as string)}`)
       lineas.push('', aprobado ? '¡Sigue así! 💪' : 'Puedes consultar con tu profesor cómo mejorar. ¡Ánimo! 💪')
-      return { id: nuevoId(), telefono: n.estudiante.telefono as string, texto: lineas.join('\n') }
+      return { id: nuevoId(), telefono: destinoDe(n.estudiante), asunto: `Tu nota de ${evaluacion}: ${textoNota(nota)}/${NOTA_MAXIMA}`, responderA: actor.email, texto: lineas.join('\n') }
     })
 
     const loteId = nuevoId()
@@ -70,7 +71,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       data: mensajes.map((m, i) => ({ id: m.id, loteId, usuarioId: actor.id, tipo: 'NOTA', estudianteId: conTelefono[i].estudiante.id, nombre: conTelefono[i].estudiante.nombre, telefono: m.telefono })),
     })
     const r = await enviarLoteN8n(request, mensajes)
-    await registrarActividad({ actor, accion: 'ENVIAR', entidad: 'Notas', detalle: `Envió por WhatsApp ${mensajes.length} nota(s) de "${evaluacion}" (${materia})${r.ok ? '' : ' — falló: ' + r.error}`.slice(0, 300) })
+    await registrarActividad({ actor, accion: 'ENVIAR', entidad: 'Notas', detalle: `Envió por ${nombreCanal()} ${mensajes.length} nota(s) de "${evaluacion}" (${materia})${r.ok ? '' : ' — falló: ' + r.error}`.slice(0, 300) })
     if (!r.ok) return NextResponse.json({ error: r.error, loteId }, { status: 502 })
     const sinEnviar = ids.length - mensajes.length
     return NextResponse.json({ ok: true, loteId, total: mensajes.length, sinEnviar })

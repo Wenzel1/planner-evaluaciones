@@ -112,7 +112,7 @@ export const HERRAMIENTAS: Herramienta[] = [
   },
   {
     name: 'mensaje_estudiantes',
-    description: 'Prepara un mensaje de WhatsApp para estudiantes de la sección activa (el profesor lo revisa antes de enviar).',
+    description: 'Prepara un mensaje (correo o WhatsApp, según el canal de la app) para estudiantes de la sección activa (el profesor lo revisa antes de enviar).',
     parameters: {
       type: 'object',
       properties: {
@@ -142,7 +142,7 @@ export const HERRAMIENTAS: Herramienta[] = [
   // ----- Consultas propias (solo lectura, se ejecutan en el servidor y vuelves a responder con el resultado) -----
   {
     name: 'consultar',
-    description: 'Busca datos que NO están en el CONTEXTO y te los devuelve para que sigas respondiendo: historial completo de un estudiante, la lista de notas de una evaluación, otra sección, los envíos de WhatsApp, todas las opiniones o las materias. Úsala antes de responder cuando necesites esos detalles; no le digas al profesor que vas a consultar, solo hazlo.',
+    description: 'Busca datos que NO están en el CONTEXTO y te los devuelve para que sigas respondiendo: historial completo de un estudiante, la lista de notas de una evaluación, otra sección, los envíos de mensajes (correo/WhatsApp), todas las opiniones o las materias. Úsala antes de responder cuando necesites esos detalles; no le digas al profesor que vas a consultar, solo hazlo.',
     parameters: {
       type: 'object',
       properties: {
@@ -229,7 +229,7 @@ export const HERRAMIENTAS: Herramienta[] = [
       properties: {
         evaluacion: evaluacionRef,
         notas: { type: 'array', items: { type: 'object', properties: { nombre: { type: 'string' }, nota: { type: 'number', description: 'Nota de 0 a 20' }, observacion: { type: 'string' } }, required: ['nombre', 'nota'] } },
-        enviar: { type: 'boolean', description: 'true = enviar a cada uno su nota por WhatsApp al guardarlas (solo si el profesor lo pide)' },
+        enviar: { type: 'boolean', description: 'true = enviar a cada uno su nota (por correo o WhatsApp) al guardarlas (solo si el profesor lo pide)' },
       },
       required: ['evaluacion', 'notas'],
     },
@@ -241,7 +241,7 @@ export const HERRAMIENTAS: Herramienta[] = [
   },
   {
     name: 'enviar_plan',
-    description: 'Envía por WhatsApp a los estudiantes de la sección activa el enlace a su página personal con el plan.',
+    description: 'Envía (por correo o WhatsApp, según el canal de la app) a los estudiantes de la sección activa el enlace a su página personal con el plan.',
     parameters: { type: 'object', properties: { soloSinAbrir: { type: 'boolean', description: 'true = solo a quienes todavía no han abierto su página' } } },
   },
   {
@@ -423,7 +423,7 @@ export function resumenAccion(a: Accion): string {
     case 'generar_plan_accion': return '[Propuse generar el Plan de Acción en PDF]'
     case 'generar_preguntas': return `[Generé ${a.datos.preguntas.length} preguntas sobre ${a.datos.tema}]`
     case 'copiar_plan': return `[Propuse copiar el plan de la sección ${a.datos.desde} a la ${a.datos.hacia}${a.datos.dias ? ` corriendo ${a.datos.dias} días` : ''}]`
-    case 'mensaje_estudiantes': return `[Preparé un WhatsApp para ${a.datos.destinatarios === 'riesgo' ? 'los estudiantes en riesgo' : a.datos.destinatarios === 'nombres' ? a.datos.nombres.join(', ') : 'toda la sección'}: "${a.datos.texto.slice(0, 120)}"]`
+    case 'mensaje_estudiantes': return `[Preparé un mensaje para ${a.datos.destinatarios === 'riesgo' ? 'los estudiantes en riesgo' : a.datos.destinatarios === 'nombres' ? a.datos.nombres.join(', ') : 'toda la sección'}: "${a.datos.texto.slice(0, 120)}"]`
     case 'cambiar_estado': return `[Propuse marcar #${a.datos.evaluacion} como ${a.datos.estado.toLowerCase()}]`
     case 'recordar_preferencia': return `[Propuse recordar: ${a.datos.texto}]`
     case 'navegar': return `[Abrí la pantalla ${a.datos.vista}${a.datos.seccion ? ` (sección ${a.datos.seccion})` : ''}]`
@@ -431,7 +431,7 @@ export function resumenAccion(a: Accion): string {
     case 'modificar_estudiantes': return `[Propuse ${a.datos.accion} a ${a.datos.nombres.join(', ').slice(0, 200)}${a.datos.seccion ? ` → sección ${a.datos.seccion}` : ''}]`
     case 'cargar_notas': return `[Propuse cargar ${a.datos.notas.length} nota(s) en #${a.datos.evaluacion}${a.datos.enviar ? ' y enviarlas' : ''}]`
     case 'abrir_en_portal': return `[Propuse ${a.datos.abrir ? 'abrir' : 'cerrar'} #${a.datos.evaluacion} en la página de los estudiantes]`
-    case 'enviar_plan': return `[Propuse enviar el plan por WhatsApp${a.datos.soloSinAbrir ? ' a quienes no han abierto su página' : ''}]`
+    case 'enviar_plan': return `[Propuse enviar el plan${a.datos.soloSinAbrir ? ' a quienes no han abierto su página' : ''}]`
     case 'eliminar_evaluaciones': return `[Propuse eliminar ${a.datos.evaluaciones.map((n: number) => `#${n}`).join(', ')}]`
     case 'crear_examen': return `[Preparé el examen en línea de #${a.datos.evaluacion}: ${a.datos.examen.preguntas.length} preguntas (${a.datos.examen.tipo}), ${a.datos.examen.duracionMin} min]`
     case 'cambiar_materia': return `[Propuse ${a.datos.crear ? 'abrir o crear' : 'abrir'} la materia «${a.datos.nombre}»]`
