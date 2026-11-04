@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Lock, Mail, User, LogIn, ShieldCheck, AlertCircle, CheckCircle, UserPlus, Eye, EyeOff,
-  Phone, KeyRound, ArrowLeft, Sparkles, FileText, Users, Info, MessageCircle, RotateCw, Calculator,
+  Phone, KeyRound, ArrowLeft, Sparkles, FileText, Users, Info, MessageCircle, RotateCw,
 } from 'lucide-react'
 import { validarNombre, validarEmail, validarPassword, validarTelefono } from '@/lib/validacionesUsuario'
 
@@ -457,13 +457,19 @@ export default function LoginPage() {
 
                 {pideCaptcha && (
                   <div>
-                    <label className={etiqueta}>Verificación: ¿cuánto es {captcha ? captcha.pregunta : '…'}?</label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Calculator className={icono} />
-                        <input value={captchaResp} onChange={(e) => setCaptchaResp(e.target.value.replace(/\D/g, '').slice(0, 3))} inputMode="numeric" placeholder="Resultado" aria-label={captcha ? `Resultado de ${captcha.pregunta}` : 'Resultado de la suma'} className={campo} autoComplete="off" />
+                    <label htmlFor="captcha-respuesta" className={etiqueta}>Verificación humana</label>
+                    <div className="flex items-stretch gap-2">
+                      {/* La operación, en grande */}
+                      <div aria-hidden="true" className="flex-1 min-w-0 flex items-center justify-center gap-3 rounded-xl border border-[#313248] bg-gradient-to-br from-[#1f2136] to-[#1b1c2b] py-3 font-mono text-lg font-bold text-[#e0e0ec] select-none">
+                        {captcha
+                          ? <>{captcha.pregunta.split(' + ').map((n, i) => <span key={i} className="flex items-center gap-3">{i > 0 && <span className="text-[#818cf8]">+</span>}{n}</span>)}<span className="text-[#818cf8]">=</span><span className="text-[#a5b4fc]">?</span></>
+                          : <span className="w-4 h-4 border-2 border-[#313248] border-t-[#818cf8] rounded-full animate-spin" />}
                       </div>
-                      <button type="button" onClick={cargarCaptcha} title="Otra suma" aria-label="Cambiar la suma" className="px-3 rounded-xl border border-[#313248] bg-[#1b1c2b] text-[#8a8b9e] hover:text-[#c7d2fe] hover:border-[#818cf8]/40"><RotateCw className="w-4 h-4" /></button>
+                      {/* La respuesta, al lado */}
+                      <input id="captcha-respuesta" value={captchaResp} onChange={(e) => setCaptchaResp(e.target.value.replace(/\D/g, '').slice(0, 3))} inputMode="numeric" placeholder="Resultado"
+                        aria-label={captcha ? `Resultado de ${captcha.pregunta}` : 'Resultado de la suma'} autoComplete="off"
+                        className="w-28 sm:w-32 bg-[#1b1c2b] border border-[#313248] rounded-xl px-3 text-center text-lg font-semibold text-[#e0e0ec] placeholder:text-sm placeholder:font-normal placeholder-[#5f6074] focus:outline-none focus:border-[#818cf8] focus:ring-2 focus:ring-[#818cf8]/20 transition-all" />
+                      <button type="button" onClick={cargarCaptcha} title="Otra suma" aria-label="Cambiar la suma" className="px-3 rounded-xl border border-[#313248] bg-[#1b1c2b] text-[#8a8b9e] hover:text-[#c7d2fe] hover:border-[#818cf8]/40 transition-colors"><RotateCw className="w-4 h-4" /></button>
                     </div>
                   </div>
                 )}
