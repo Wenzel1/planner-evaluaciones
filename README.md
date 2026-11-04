@@ -10,10 +10,10 @@ Pensada para el contexto venezolano: notas de 0 a 20, feriados nacionales y hora
 |---|---|
 | **Planificador** | Hasta 6 evaluaciones por sección (A, B, C…), con peso, fecha, estrategia, enfoque, grupos, descripción, rúbrica y recursos de estudio. Los pesos de cada sección deben sumar 100 %. |
 | **EvaPlanner (IA)** | Chat en tiempo real que propone evaluaciones, crea rúbricas y exámenes, reprograma, ajusta pesos, carga notas y prepara mensajes. Cada acción aparece como una tarjeta que **el profesor confirma** antes de aplicarse. Acepta documentos (PDF, Word) y dictado por voz. |
-| **Exámenes en línea** | El estudiante los presenta en su página, dentro de una ventana de tiempo y con cronómetro. Las preguntas de selección se corrigen solas; las abiertas las corrige la IA como **sugerencia** y el profesor publica la nota. |
-| **Notas** | Escala 0–20, promedio ponderado, calificación con rúbrica, detección de estudiantes en riesgo y análisis por criterio. |
+| **Exámenes en línea** | El estudiante los presenta en su página, dentro de una ventana de tiempo y con cronómetro. Cada estudiante ve las preguntas y opciones en un **orden distinto**, y el profesor ve cuántas veces **salió de la página** durante el examen. Las preguntas de selección se corrigen solas; las abiertas las corrige la IA como **sugerencia** y el profesor publica la nota. |
+| **Notas** | Escala 0–20, promedio ponderado, calificación con rúbrica, detección de estudiantes en riesgo, análisis por criterio y **acta de notas por sección para Excel**. |
 | **Portal del estudiante** | Cada estudiante tiene un enlace secreto (`/e/<token>`) con su plan, recursos, rúbricas y notas. Puede marcar «ya me preparé», opinar sobre el plan y descargar el calendario (`.ics`) y el PDF. No necesita cuenta. |
-| **Avisos** | Envío del plan, de las notas y de mensajes; recordatorios automáticos 3 días, 1 día y 2 horas antes de cada evaluación. Por **correo** (Gmail) o por WhatsApp. |
+| **Avisos** | Envío del plan, de las notas y de mensajes; recordatorios automáticos 3 días, 1 día y 2 horas antes de cada evaluación. Por **correo** (Gmail) o por WhatsApp; además, un botón abre el WhatsApp del profesor con el mensaje ya escrito (gratis). |
 | **Administración** | Roles, supervisión del trabajo de los profesores, observaciones, registro de actividad, papelera de 30 días y configuración del sistema. |
 
 ## Roles
@@ -35,7 +35,8 @@ Pensada para el contexto venezolano: notas de 0 a 20, feriados nacionales y hora
 
 - Contraseñas cifradas con **scrypt**; sesiones en cookie `httpOnly` firmada con **HMAC-SHA256**, renovación automática y tope de 24 h.
 - Permisos por dueño de los datos (cada profesor solo ve lo suyo) y por rol.
-- Verificación de la cuenta con un código de 6 dígitos que se guarda cifrado, con límite de intentos.
+- Registro solo con nombre, correo y contraseña; la cuenta se activa con un código de 6 dígitos que llega al correo (se guarda cifrado, con límite de intentos).
+- Suma de verificación en el login y el registro, generada y validada en el servidor (cada suma sirve una sola vez y vence en 10 minutos).
 - Enlaces de estudiante imposibles de adivinar; las respuestas correctas de los exámenes nunca se envían al navegador del estudiante (las preguntas solo cuando empieza el examen).
 - Consentimiento para el tratamiento de datos personales al registrarse, y registro de actividad (auditoría).
 
@@ -101,6 +102,6 @@ proxy.ts              protección de rutas y cabeceras de seguridad
 
 ## Limitaciones conocidas
 
-- Los límites de intentos (login, códigos) se guardan en memoria del servidor; en Vercel cada instancia lleva su propio contador.
+- Los límites de intentos (login, códigos) y el registro de sumas ya usadas se guardan en memoria del servidor; en Vercel cada instancia lleva su propio registro.
 - `app/page.tsx` concentra casi toda la interfaz del profesor en un solo archivo; está pendiente dividirlo en componentes.
 - No hay pruebas automatizadas.
