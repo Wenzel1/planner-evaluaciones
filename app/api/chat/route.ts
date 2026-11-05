@@ -347,7 +347,7 @@ async function atender(request: Request) {
         const propuestas = acciones.filter(a => a.tipo === 'proponer_evaluaciones').reduce((t, a) => t + (a.datos.evaluaciones?.length || 0), 0)
         if (!texto.trim() && propuestas) {
           texto = propuestas > 1
-            ? `¡Listo! Te preparé ${propuestas} evaluaciones encadenadas: cada una retoma lo que el estudiante construyó en la anterior. Revísalas abajo y guarda las que te sirvan.`
+            ? `¡Listo! Te preparé ${propuestas} evaluaciones. Revísalas abajo y guarda las que te sirvan.`
             : '¡Listo! Te preparé la evaluación. Revísala abajo y guárdala si te sirve.'
           enviar({ t: 'texto', v: texto })
         }

@@ -28,7 +28,7 @@ Si no, busca en Google novedades REALES y recientes (últimos 12 a 18 meses) que
 1) Inteligencia artificial aplicada al desarrollo: agentes de IA, automatizaciones (n8n, Make, Zapier), asistentes de código (GitHub Copilot, Cursor y similares), APIs de modelos, RAG, MCP.
 2) Herramientas que hoy se usan para construir y publicar software: GitHub Actions, Docker, Vercel, Hostinger, Supabase, nube.
 Y mantén el EQUILIBRIO con novedades propias de la ingeniería de software (requisitos, diseño, arquitectura, pruebas, calidad, seguridad, metodologías ágiles).
-Responde en español con 8 viñetas cortas: 4 de IA y herramientas y 4 de ingeniería de software, cada una así: «- Tema: por qué es actual (mes y año)». Sin introducción ni cierre.`
+Responde en español con 8 viñetas cortas: más o menos 4 de IA y herramientas y 4 de ingeniería de software (si la materia no se presta para IA, pon solo las que encajen de verdad), cada una así: «- Tema: por qué es actual (mes y año)». Sin introducción ni cierre.`
 }
 
 function conLimite(senal?: AbortSignal): AbortSignal {
