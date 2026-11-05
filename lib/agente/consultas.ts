@@ -141,7 +141,7 @@ async function consultaOpiniones(c: ContextoConsulta): Promise<string> {
 async function consultaMaterias(c: ContextoConsulta): Promise<string> {
   const ms = await prisma.materia.findMany({
     where: { usuarioId: c.usuarioId }, orderBy: { nombre: 'asc' },
-    select: { nombre: true, planificaciones: { orderBy: { updatedAt: 'desc' }, take: 1, select: { evaluaciones: { select: { grupoSeccion: true, estado: true } } } } },
+    select: { nombre: true, planificaciones: { orderBy: { createdAt: 'desc' }, take: 1, select: { evaluaciones: { select: { grupoSeccion: true, estado: true } } } } },
   })
   if (!ms.length) return 'No tiene materias guardadas.'
   return ms.map(m => {

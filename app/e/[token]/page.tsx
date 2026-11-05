@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { NIVELES_RUBRICA, puntosNivel, textoPuntos, type RubricaEval } from '@/lib/rubrica';
 import { FranjaExamen, type InfoExamen } from '@/components/ExamenEstudiante';
+import { DescripcionEstudiante } from '@/components/DescripcionOrdenada';
 
 interface Recurso { titulo: string; url: string }
 interface Nota { puntaje: number; observaciones: string | null; detalle: (number | null)[] | null }
@@ -262,7 +263,7 @@ export default function PortalEstudiante() {
               <h2 className="text-sm font-semibold text-[#9a9bb0] uppercase tracking-wider mb-3">Mis evaluaciones</h2>
               <ol className="space-y-3">
                 {lista.map(({ e, s }, i) => (
-                  <TarjetaPortal key={e.id} e={e} s={s} indice={i + 1} abierta={abierta === e.id} onAlternar={() => setAbierta(abierta === e.id ? null : e.id)} ahora={ahora} token={token} materiaNombre={materia.nombre} onPreparado={marcarPreparado} onExamen={cambiarExamen} />
+                  <TarjetaPortal key={e.id} e={e} s={s} indice={i + 1} abierta={abierta === e.id} onAlternar={() => setAbierta(abierta === e.id ? null : e.id)} ahora={ahora} token={token} materiaNombre={materia.nombre} estudiante={datos.estudiante.nombre} onPreparado={marcarPreparado} onExamen={cambiarExamen} />
                 ))}
               </ol>
 
@@ -380,7 +381,7 @@ function Pantalla({ children }: { children: React.ReactNode }) {
   return <main className="min-h-screen bg-[#13141d] text-[#d0d0da] font-['Inter',system-ui,sans-serif] [background-image:radial-gradient(ellipse_at_top,rgba(129,140,248,0.12),transparent_60%)]">{children}</main>;
 }
 
-function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora, token, materiaNombre, onPreparado, onExamen }: { e: Evaluacion; s: Situacion; indice: number; abierta: boolean; onAlternar: () => void; ahora: number; token: string; materiaNombre: string; onPreparado: (id: string, v: boolean) => void; onExamen?: (id: string, cambio: Partial<InfoExamen>) => void }) {
+function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora, token, materiaNombre, estudiante, onPreparado, onExamen }: { e: Evaluacion; s: Situacion; indice: number; abierta: boolean; onAlternar: () => void; ahora: number; token: string; materiaNombre: string; estudiante?: string; onPreparado: (id: string, v: boolean) => void; onExamen?: (id: string, cambio: Partial<InfoExamen>) => void }) {
   const porHacer = s === 'proxima' || s === 'abierta';
   const est = ESTILO[s];
   const bloqueada = s === 'bloqueada';
@@ -425,7 +426,7 @@ function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora, token, materi
               {e.descripcion && (
                 <div>
                   <Subtitulo Icono={BookOpen}>De qué se trata</Subtitulo>
-                  <p className="text-sm text-[#c0c0d0] whitespace-pre-wrap leading-relaxed">{e.descripcion}</p>
+                  <DescripcionEstudiante texto={e.descripcion} estudiante={estudiante} />
                 </div>
               )}
               {e.recursos.length > 0 && (

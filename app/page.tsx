@@ -29,6 +29,8 @@ import {
   UserCog, ShieldCheck, RefreshCw, Upload, PanelLeftClose, PanelLeftOpen,
   CircleHelp,
 } from 'lucide-react';
+import DescripcionOrdenada from '@/components/DescripcionOrdenada';
+import { aWav16k } from '@/lib/audioWav';
 import Tutorial, { pasosTutorial, tutorialVisto, marcarTutorialVisto } from '@/components/Tutorial';
 
 // Agregar esto debajo de los imports de lucide-react
@@ -601,6 +603,10 @@ function Dashboard({ planificacion }: { planificacion: PlanificacionExamen }) {
   const evaluacion2 = planificacion.secciones.filter(s => s.nombre?.toLowerCase().includes('evaluación 2') || s.nombre?.toLowerCase().includes('evaluacion 2'));
   const evaluacion3 = planificacion.secciones.filter(s => s.nombre?.toLowerCase().includes('evaluación 3') || s.nombre?.toLowerCase().includes('evaluacion 3'));
   const evaluacion4 = planificacion.secciones.filter(s => s.nombre?.toLowerCase().includes('evaluación 4') || s.nombre?.toLowerCase().includes('evaluacion 4'));
+  // Distribución real por estrategia (taller, laboratorio, proyecto…), de mayor a menor
+  const COLORES_TIPO = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-pink-500', 'bg-amber-500', 'bg-cyan-500'];
+  const porTipo = Object.entries(planificacion.secciones.reduce((acc: Record<string, SeccionExamen[]>, s) => { const t = String(s.tipoActividad || 'Sin estrategia').trim(); (acc[t] ||= []).push(s); return acc; }, {}))
+    .sort((x, y) => y[1].length - x[1].length).slice(0, 6).map(([l, d], i) => ({ l, d, c: COLORES_TIPO[i % COLORES_TIPO.length] }));
   const nivelesBloom = ['recordar', 'comprender', 'aplicar', 'analizar', 'evaluar', 'crear'];
   const distribucionBloom = nivelesBloom.map(nivel => ({ nivel, count: planificacion.secciones.filter(s => s.nivelBloom === nivel).length }));
   const bloomDominante = [...distribucionBloom].sort((a, b) => b.count - a.count)[0];
@@ -613,15 +619,15 @@ function Dashboard({ planificacion }: { planificacion: PlanificacionExamen }) {
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between"><div><h2 className="text-2xl font-bold text-[#d0d0da] flex items-center gap-3"><BarChart3 className="w-6 h-6 text-[#818cf8]" />Dashboard</h2><p className="text-sm text-[#8a8b9e] mt-1">Resumen para {planificacion.materia || 'la asignatura'}</p></div><div className="flex items-center gap-2 text-xs text-[#8a8b9e]"><Calendar className="w-4 h-4" /><span>{new Date().toLocaleDateString()}</span></div></div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{statsCards.map((stat, index) => (<motion.div key={stat.titulo} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.08, duration: 0.3 }} className={`bg-[#1f2035] border ${stat.borde} rounded-xl p-4 shadow-lg`}><div className="flex items-center justify-between"><div><p className="text-xs text-[#8a8b9e] font-medium">{stat.titulo}</p><p className="text-2xl font-bold text-[#d0d0da] mt-1">{stat.valor}</p></div><div className={`${stat.bg} p-3 rounded-xl`}><stat.icono className={`w-5 h-5 ${stat.color}`} /></div></div></motion.div>))}</div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.3 }} className="bg-[#1f2035] border border-[#313248] rounded-xl p-5"><h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><PieChart className="w-4 h-4 text-[#818cf8]" />Distribución por Tipo</h3><div className="space-y-3">{[{l:'Evaluación 1',d:evaluacion1,c:'bg-blue-500'},{l:'Evaluación 2',d:evaluacion2,c:'bg-emerald-500'},{l:'Evaluación 3',d:evaluacion3,c:'bg-purple-500'},{l:'Evaluación 4',d:evaluacion4,c:'bg-pink-500'}].map(e=>(<div key={e.l}><div className="flex justify-between text-xs text-[#b0b0c4] mb-1"><span>{e.l}</span><span>{e.d.length} eval.</span></div><div className="w-full h-2 bg-[#313248] rounded-full overflow-hidden"><div className={`h-full ${e.c} rounded-full transition-all duration-500`} style={{ width: totalEvaluaciones > 0 ? `${(e.d.length / totalEvaluaciones) * 100}%` : '0%' }} /></div></div>))}</div></motion.div>
+    <div className="@container space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-bold text-[#d0d0da] flex items-center gap-3"><BarChart3 className="w-6 h-6 text-[#818cf8]" />Dashboard</h2><p className="text-sm text-[#8a8b9e] mt-1">Resumen para {planificacion.materia || 'la asignatura'}</p></div><div className="flex items-center gap-2 text-xs text-[#8a8b9e]"><Calendar className="w-4 h-4" /><span>{new Date().toLocaleDateString()}</span></div></div>
+      <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-3 @lg:gap-4">{statsCards.map((stat, index) => (<motion.div key={stat.titulo} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.08, duration: 0.3 }} className={`bg-[#1f2035] border ${stat.borde} rounded-xl p-4 shadow-lg`}><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs text-[#8a8b9e] font-medium leading-tight">{stat.titulo}</p><p className="text-xl @lg:text-2xl font-bold text-[#d0d0da] mt-1 whitespace-nowrap">{stat.valor}</p></div><div className={`${stat.bg} p-2.5 rounded-xl flex-shrink-0`}><stat.icono className={`w-5 h-5 ${stat.color}`} /></div></div></motion.div>))}</div>
+      <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.3 }} className="bg-[#1f2035] border border-[#313248] rounded-xl p-5"><h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><PieChart className="w-4 h-4 text-[#818cf8]" />Distribución por Tipo</h3><div className="space-y-3">{porTipo.map(e=>(<div key={e.l}><div className="flex justify-between text-xs text-[#b0b0c4] mb-1"><span>{e.l}</span><span>{e.d.length} eval.</span></div><div className="w-full h-2 bg-[#313248] rounded-full overflow-hidden"><div className={`h-full ${e.c} rounded-full transition-all duration-500`} style={{ width: totalEvaluaciones > 0 ? `${(e.d.length / totalEvaluaciones) * 100}%` : '0%' }} /></div></div>))}</div></motion.div>
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4, duration: 0.3 }} className="bg-[#1f2035] border border-[#313248] rounded-xl p-5"><h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><Brain className="w-4 h-4 text-[#818cf8]" />Niveles Bloom</h3><div className="space-y-1.5">{distribucionBloom.map((item, idx) => (<div key={item.nivel}><div className="flex justify-between text-xs text-[#b0b0c4] mb-0.5"><span className="capitalize">{item.nivel}</span><span>{item.count}</span></div><div className="w-full h-1.5 bg-[#313248] rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-500 ${['bg-red-500','bg-orange-500','bg-yellow-500','bg-green-500','bg-blue-500','bg-purple-500'][idx]}`} style={{ width: totalEvaluaciones > 0 ? `${(item.count / totalEvaluaciones) * 100}%` : '0%' }} /></div></div>))}</div></motion.div>
       </div>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.3 }} className="bg-[#1f2035] border border-[#313248] rounded-xl p-5"><h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-[#818cf8]" />Detalle</h3><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-xs text-[#8a8b9e] border-b border-[#313248]"><th className="pb-2 font-medium">#</th><th className="pb-2 font-medium">Evaluación</th><th className="pb-2 font-medium">Peso</th><th className="pb-2 font-medium">Tiempo</th><th className="pb-2 font-medium">Bloom</th><th className="pb-2 font-medium">Estado</th></tr></thead><tbody className="divide-y divide-[#313248]">{planificacion.secciones.map((sec, idx) => (<tr key={sec.id} className="hover:bg-[#272839]/50 transition-colors"><td className="py-2 text-[#8a8b9e] text-xs">{idx + 1}</td><td className="py-2 text-[#d0d0da] font-medium">{limpiarTexto(sec.nombre)}</td><td className="py-2 text-[#b0b0c4]">{sec.peso || 0}%</td><td className="py-2 text-[#b0b0c4]">{sec.tiempoEstimadoMinutos || '?'} min</td><td className="py-2"><span className="capitalize text-xs text-[#b0b0c4]">{sec.nivelBloom || '-'}</span></td><td className="py-2">{sec.descripcion ? <span className="text-emerald-400 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />OK</span> : <span className="text-amber-400 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3" />Sin desc</span>}</td></tr>))}{planificacion.secciones.length === 0 && (<tr><td colSpan={6} className="py-4 text-center text-[#8a8b9e]">No hay evaluaciones</td></tr>)}</tbody></table></div></motion.div>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.3 }} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.3 }} className="grid grid-cols-1 @2xl:grid-cols-3 gap-4">
         <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-4 flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-lg"><BookOpen className="w-5 h-5 text-blue-400" /></div><div><p className="text-xs text-[#8a8b9e]">Asignatura</p><p className="text-sm font-semibold text-[#d0d0da]">{planificacion.materia || 'Sin asignar'}</p></div></div>
         <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-4 flex items-center gap-3"><div className="bg-emerald-500/10 p-2 rounded-lg"><Brain className="w-5 h-5 text-emerald-400" /></div><div><p className="text-xs text-[#8a8b9e]">Bloom Dominante</p><p className="text-sm font-semibold text-[#d0d0da] capitalize">{bloomDominante && bloomDominante.count > 0 ? bloomDominante.nivel : 'Sin datos'}</p></div></div>
         <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-4 flex items-center gap-3"><div className="bg-purple-500/10 p-2 rounded-lg"><Award className="w-5 h-5 text-purple-400" /></div><div><p className="text-xs text-[#8a8b9e]">Estado</p><p className="text-sm font-semibold text-[#d0d0da] capitalize">{totalEvaluaciones > 0 ? 'En progreso' : 'Sin eval.'}</p></div></div>
@@ -3374,7 +3380,8 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[1fr_300px] gap-4">
+      <div className="@container">
+      <div className="grid @4xl:grid-cols-[1fr_300px] gap-4">
         {/* Cuadrícula del mes */}
         <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
           <div className="grid grid-cols-7 border-b border-[#313248]">
@@ -3494,6 +3501,7 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
 
           <p className="text-[11px] text-[#6a6b7e] px-1">💡 Al cambiar la fecha de una evaluación, los recordatorios ({medioEnvio()}) se ajustan solos a la nueva fecha.</p>
         </div>
+      </div>
       </div>
     </div>
   );
@@ -4087,41 +4095,6 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
 const DIAS_APERTURA_PORTAL = 7;
 interface VideoSugeridoUI { titulo: string; url: string; canal: string; duracionSeg: number; miniatura: string; vistas: number }
 interface PaginaSugeridaUI { titulo: string; url: string; descripcion: string }
-const TITULOS_DESCRIPCION = ['OBJETIVO', 'ACTIVIDAD', 'HERRAMIENTAS', 'ENTREGABLES', 'CRITERIOS DE EVALUACIÓN', 'CRITERIOS DE EVALUACION', 'CRITERIOS', 'TEMAS POR GRUPO', 'CASOS POR GRUPO', 'CASOS POR ESTUDIANTE', 'RECURSOS', 'INSTRUCCIONES'];
-const ICONO_DESCRIPCION: Record<string, string> = { OBJETIVO: '🎯', ACTIVIDAD: '🛠️', HERRAMIENTAS: '🧰', ENTREGABLES: '📦', CRITERIOS: '✅', 'TEMAS POR GRUPO': '👥', 'CASOS POR GRUPO': '👥', 'CASOS POR ESTUDIANTE': '🧑‍🎓', RECURSOS: '📚', INSTRUCCIONES: '📝' };
-function partesDescripcion(texto: string): { titulo: string; cuerpo: string }[] {
-  const t = String(texto || '').replace(/\*\*/g, '').trim();
-  const re = new RegExp(`(^|\\n|\\.\\s|\\s)(${TITULOS_DESCRIPCION.join('|')})\\s*:`, 'g');
-  const cortes: { i: number; fin: number; titulo: string }[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(t))) cortes.push({ i: m.index + m[1].length, fin: re.lastIndex, titulo: m[2] });
-  if (cortes.length < 2) return [{ titulo: '', cuerpo: t }];
-  const partes = cortes.map((c, k) => ({ titulo: c.titulo.replace('CRITERIOS DE EVALUACION', 'CRITERIOS DE EVALUACIÓN'), cuerpo: t.slice(c.fin, k + 1 < cortes.length ? cortes[k + 1].i : t.length).trim() }));
-  const antes = t.slice(0, cortes[0].i).trim();
-  return antes ? [{ titulo: '', cuerpo: antes }, ...partes] : partes;
-}
-function DescripcionOrdenada({ texto, compacta = false }: { texto: string; compacta?: boolean }) {
-  const partes = partesDescripcion(texto);
-  if (partes.length === 1 && !partes[0].titulo) return <p className={`${compacta ? 'text-[12px]' : 'text-sm'} text-[#b8b9cc] whitespace-pre-wrap leading-relaxed`}>{partes[0].cuerpo}</p>;
-  return (
-    <div className={`grid gap-2 ${compacta ? '' : 'sm:grid-cols-2'}`}>
-      {partes.map((p, k) => {
-        const clave = p.titulo.startsWith('CRITERIOS') ? 'CRITERIOS' : p.titulo;
-        const ancho = !compacta && (p.titulo.startsWith('CRITERIOS') || p.titulo === 'ACTIVIDAD' || p.titulo.includes('POR GRUPO') || p.titulo.includes('ESTUDIANTE') || !p.titulo);
-        // Listas "a; b; c" o con guiones → viñetas
-        const items = p.cuerpo.split(/\n+|\s*;\s*|\s+-\s+(?=[A-ZÁÉÍÓÚÑ0-9])/).map(x => x.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
-        return (
-          <div key={k} className={`rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-3 py-2 ${ancho ? 'sm:col-span-2' : ''}`}>
-            {p.titulo && <p className="text-[10px] font-semibold uppercase tracking-wider text-[#a5b4fc] mb-1">{ICONO_DESCRIPCION[clave] || '•'} {p.titulo.charAt(0) + p.titulo.slice(1).toLowerCase()}</p>}
-            {items.length > 1
-              ? <ul className={`${compacta ? 'text-[12px]' : 'text-[13px]'} text-[#c0c0cc] space-y-0.5 list-disc pl-4 marker:text-[#5f6080]`}>{items.map((x, j) => <li key={j}>{x}</li>)}</ul>
-              : <p className={`${compacta ? 'text-[12px]' : 'text-[13px]'} text-[#c0c0cc] leading-relaxed whitespace-pre-wrap`}>{p.cuerpo}</p>}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 // ¿Dos nombres hablan del mismo tema? Si el agente reemplaza una evaluación por otra de tema distinto,
 // sus recursos, rúbrica y examen viejos NO deben pasar a la nueva.
 function mismoTema(a?: string | null, b?: string | null): boolean {
@@ -5565,11 +5538,16 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
         mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop()); setTranscribiendo(true);
-          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob, 'audio.webm');
+          const grabado = new Blob(audioChunksRef.current, { type: (mediaRecorder.mimeType || 'audio/webm').split(';')[0] });
+          // Se envía en WAV (lo aceptan todos los servicios de transcripción); si el navegador no puede convertirlo, va el original
+          const wav = await aWav16k(grabado);
+          const audioBlob = wav && wav.size < 4 * 1024 * 1024 ? wav : grabado;
+          const formData = new FormData(); formData.append('file', audioBlob, wav && audioBlob === wav ? 'audio.wav' : 'audio.webm');
           try { const res = await fetch('/api/chat/voz', { method: 'POST', body: formData }); const data = await res.json(); if (data.text) setMensaje(prev => prev ? prev + ' ' + data.text : data.text); else agregarNotificacion?.(`⚠️ ${data.error || 'No se pudo transcribir.'}`); }
           catch { agregarNotificacion?.('⚠️ No se pudo transcribir el audio.'); } finally { setTranscribiendo(false); textareaRef.current?.focus(); }
         };
         mediaRecorder.start(); mediaRecorderRef.current = mediaRecorder; setIsRecording(true);
+        setTimeout(() => { if (mediaRecorder.state === 'recording') { mediaRecorder.stop(); setIsRecording(false); } }, 120000); // máximo 2 minutos
       } catch { alert('No se pudo acceder al micrófono.'); }
     }
   };
@@ -6065,7 +6043,7 @@ function SelectorMateria({ materias, actualId, actualNombre, onAbrir, onNueva }:
         </button>
       </Tooltip>
       {abierto && (
-        <div className="absolute right-0 top-11 z-50 w-64 bg-[#1f2035] border border-[#313248] rounded-xl shadow-2xl p-1.5">
+        <div className="fixed left-4 right-4 top-[4.5rem] sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-64 z-50 bg-[#1f2035] border border-[#313248] rounded-xl shadow-2xl p-1.5">
           <p className="px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-[#6a6b7e] font-semibold">Mis materias</p>
           <div className="max-h-64 overflow-y-auto custom-scrollbar">
             {materias.length === 0 && <p className="px-2.5 py-2 text-xs text-[#8a8b9e]">Todavía no hay materias guardadas.</p>}

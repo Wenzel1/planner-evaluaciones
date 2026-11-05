@@ -32,8 +32,11 @@ export async function datosPortal(token: string) {
     select: {
       id: true, nombre: true,
       opiniones: { where: { estudianteId: est.id }, select: { deAcuerdo: true, comentario: true, updatedAt: true } },
+      // El MISMO plan que ve el profesor en la app: el último creado de la materia (antes era el último modificado
+      // y, si la materia tenía un plan viejo, el estudiante veía evaluaciones que ya no son las del profesor)
       planificaciones: {
-        orderBy: { updatedAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
         select: {
           id: true,
           evaluaciones: {
@@ -55,7 +58,7 @@ export async function datosPortal(token: string) {
 
   const ahora = Date.now()
   const lista = materias
-    .map(m => ({ m, plan: m.planificaciones.find(p => p.evaluaciones.length > 0) })) // el plan más reciente con evaluaciones de su sección
+    .map(m => ({ m, plan: m.planificaciones[0] && m.planificaciones[0].evaluaciones.length > 0 ? m.planificaciones[0] : undefined })) // el plan actual, si tiene evaluaciones de su sección
     .filter(x => x.plan)
     .map(({ m, plan }) => {
       const evaluaciones = plan!.evaluaciones.map(ev => {
