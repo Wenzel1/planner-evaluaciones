@@ -550,31 +550,6 @@ const formatMessage = (text: string) => {
     .replace(/\n/g, '<br/>');
 };
 
-// TypewriterText con soporte para auto-scroll
-function TypewriterText({ text, onComplete, onUpdate }: { text: string; onComplete?: () => void; onUpdate?: () => void }) {
-  const [d, setD] = useState(''); const [c, setC] = useState(0); const [i, setI] = useState(false); const r = useRef<NodeJS.Timeout | null>(null);
-  const onCompleteRef = useRef(onComplete); const onUpdateRef = useRef(onUpdate);
-  useEffect(() => { onCompleteRef.current = onComplete; onUpdateRef.current = onUpdate; });
-  useEffect(() => {
-    if (!text) { onCompleteRef.current?.(); return; }
-    const t = limpiarBloqueJSON(text);
-    // Velocidad constante en tiempo: textos largos avanzan varios caracteres por paso (~2 s máximo)
-    const paso = Math.max(1, Math.ceil(t.length / 120));
-    setD(''); setC(0); setI(false);
-    let actual = 0; let terminado = false;
-    r.current = setInterval(() => {
-      actual = Math.min(t.length, actual + paso);
-      setC(actual);
-      onUpdateRef.current?.();
-      if (actual >= t.length && !terminado) { terminado = true; if (r.current) clearInterval(r.current); setI(true); setTimeout(() => onCompleteRef.current?.(), 0); }
-    }, 16);
-    return () => { if (r.current) clearInterval(r.current); };
-  }, [text]);
-  useEffect(() => { if (!text) return; const t = limpiarBloqueJSON(text); setD(formatMessage(t.slice(0, c))); }, [c, text]);
-  if (!text) return null;
-  return (<span className="inline leading-relaxed"><span dangerouslySetInnerHTML={{ __html: d }} />{!i && (<motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.6, repeat: Infinity, repeatType: "reverse" }} className="inline-block w-[2.5px] h-[1.2em] bg-[#818cf8] rounded-full ml-[1px] align-text-bottom" />)}</span>);
-}
-
 function DatePicker({ value, onChange, minimo }: { value: Date; onChange: (date: Date) => void; minimo?: Date }) {
   const [isOpen, setIsOpen] = useState(false); const [viewDate, setViewDate] = useState(() => new Date(value)); const containerRef = useRef<HTMLDivElement>(null); const dropdownRef = useRef<HTMLDivElement>(null); const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 }); const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']; const daysOfWeek = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']; const year = viewDate.getFullYear(); const month = viewDate.getMonth(); const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const updatePosition = useCallback(() => { if (containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 280) }); } }, []); useEffect(() => { if (isOpen) updatePosition(); }, [isOpen, updatePosition]); useEffect(() => { if (!isOpen) return; const handle = () => updatePosition(); window.addEventListener('resize', handle); window.addEventListener('scroll', handle, true); return () => { window.removeEventListener('resize', handle); window.removeEventListener('scroll', handle, true); }; }, [isOpen, updatePosition]); useEffect(() => { const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node) && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, []); useEffect(() => { setViewDate(new Date(value)); }, [value]); const diaMin = minimo ? new Date(minimo.getFullYear(), minimo.getMonth(), minimo.getDate()).getTime() : -Infinity; const esPasado = (day: number) => new Date(year, month, day).getTime() < diaMin; const selectDate = (day: number) => { if (esPasado(day)) return; let d = new Date(year, month, day, value.getHours(), value.getMinutes()); if (minimo && d.getTime() < minimo.getTime()) { d = new Date(minimo); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0); } onChange(d); }; const formatDisplay = (d: Date) => d.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }); const selectedDate = value; const dropdownContent = isOpen && (<motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}><div className="p-4"><div className="flex items-center justify-between mb-4"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} disabled={new Date(year, month, 0).getTime() < diaMin} onClick={() => setViewDate(new Date(year, month - 1, 1))} className="disabled:opacity-25 disabled:pointer-events-none p-1.5 text-[#7a7b8e] hover:text-[#b0b0c4] hover:bg-[#272839] rounded-lg transition-colors"><ChevronLeft className="w-4 h-4" /></motion.button><span className="text-sm font-medium text-[#d0d0da]">{months[month]} {year}</span><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-1.5 text-[#7a7b8e] hover:text-[#b0b0c4] hover:bg-[#272839] rounded-lg transition-colors"><ChevronRight className="w-4 h-4" /></motion.button></div><div className="grid grid-cols-7 gap-1 mb-2">{daysOfWeek.map(d => (<div key={d} className="text-center text-xs text-[#6a6b7e] font-medium py-1">{d}</div>))}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: firstDay }).map((_, i) => (<div key={`e-${i}`} />))}{Array.from({ length: daysInMonth }).map((_, i) => { const day = i + 1; const isSelected = selectedDate && selectedDate.getDate() === day && selectedDate.getMonth() === month && selectedDate.getFullYear() === year; const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year; const pasado = esPasado(day); return (<motion.button key={day} whileHover={pasado ? undefined : { scale: 1.1 }} whileTap={pasado ? undefined : { scale: 0.9 }} disabled={pasado} title={pasado ? 'Esta fecha ya pasó' : undefined} onClick={() => selectDate(day)} className={`w-full aspect-square rounded-lg text-sm font-medium transition-all ${pasado ? 'text-[#3e3f52] line-through cursor-not-allowed' : isSelected ? 'bg-[#818cf8] text-white shadow-lg shadow-indigo-500/20' : isToday ? 'bg-[#272839] text-[#818cf8] border border-[#818cf8]/30' : 'text-[#b0b0c4] hover:bg-[#272839] hover:text-[#d0d0da]'}`}>{day}</motion.button>); })}</div></div><div className="px-4 py-2 border-t border-[#282a3f]"><button onClick={() => { const now = new Date(); onChange(now); setViewDate(now); setIsOpen(false); }} className="w-full text-center text-xs text-[#7a7b8e] hover:text-[#b0b0c4] py-1 rounded-lg hover:bg-[#272839] transition-colors">Hoy</button></div></motion.div>); return (<div ref={containerRef}><button type="button" onClick={() => setIsOpen(!isOpen)} className={`${inputBase} flex items-center justify-between text-left cursor-pointer`}><span className="text-[#d8d8e2] text-sm truncate">{formatDisplay(value)}</span><Calendar className="w-4 h-4 text-[#818cf8] flex-shrink-0 ml-2" /></button>{createPortal(dropdownContent, document.body)}</div>);
 }
@@ -1975,7 +1950,7 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
         </div>
         <div className="flex items-start gap-2 text-xs text-[#9a9bb0] bg-[#161722] border border-[#282a3f] rounded-xl p-3">
           <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#a5b4fc]" />
-          <span>Estos valores viajan a n8n con cada mensaje. Para que el <strong className="text-[#c0c0cc]">modelo, la creatividad, la memoria y las instrucciones</strong> se apliquen, importa en n8n el flujo <code className="text-emerald-300">My_workflow_configurable.json</code>. Con el flujo antiguo siguen funcionando el interruptor, el límite de caracteres, la espera máxima y la dirección.</span>
+          <span>Estos valores los usa el agente EvaPlanner en cada mensaje: el <strong className="text-[#c0c0cc]">modelo</strong> (vacío = Gemini con respaldo automático en OpenRouter y Groq), la <strong className="text-[#c0c0cc]">creatividad</strong>, la <strong className="text-[#c0c0cc]">memoria</strong>, el largo máximo y las <strong className="text-[#c0c0cc]">instrucciones extra</strong>. La dirección de n8n ya no la usa el chat.</span>
         </div>
       </div>
 
@@ -4728,7 +4703,6 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
   const [mensaje, setMensaje] = useState(''); 
   // Configuración del superadmin: dirección de n8n, tiempo máximo y lo que se le pide al modelo en cada mensaje
-  const urlChat: string = config?.chat?.webhookUrl || process.env.NEXT_PUBLIC_N8N_URL || 'http://localhost:5678';
   const tiempoChat: number = (config?.chat?.timeoutSegundos ?? 60) * 1000;
   const configParaN8n = config ? { modelo: config.chat.modelo, temperatura: config.chat.temperatura, maxTokens: config.chat.maxTokens, ventanaMemoria: config.chat.ventanaMemoria, instruccionesExtra: config.chat.instruccionesExtra } : undefined;
   const [pensando, setPensando] = useState(false); 
@@ -4739,7 +4713,6 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   const isAtBottomRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isChatStarted = historial.length > 0; 
-  const [navegarAlPlan, setNavegarAlPlan] = useState(false);
   const [propuestaPendienteLocal, setPropuestaPendienteLocal] = useState<any>(null);
   // Chat nuevo: conversación guardada, botón detener, eventos de las tarjetas e historial
   const [conversacionId, setConversacionId] = useState<string | null>(null);
@@ -4757,8 +4730,8 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   const aplicadasRef = useRef<Set<string>>(new Set()); // acciones ya aplicadas o en curso
   const [examenEditando, setExamenEditando] = useState<{ msgId: string; accion: AccionChat; seccion: SeccionExamen } | null>(null);
   // Modo automático: las acciones seguras se aplican solas (se recuerda en este navegador)
-  // Activado por defecto (todo lo que hace solo se puede deshacer); se apaga con el botón ✨ y se recuerda
-  const [modoAuto, setModoAuto] = useState<boolean>(() => { try { return localStorage.getItem(CLAVE_MODO_AUTO) !== '0'; } catch { return true; } });
+  // Apagado por defecto: al principio el profesor confirma cada tarjeta. Lo activa con el botón ✨ cuando ya confía en el agente (se recuerda)
+  const [modoAuto, setModoAuto] = useState<boolean>(() => { try { return localStorage.getItem(CLAVE_MODO_AUTO) === '1'; } catch { return false; } });
   const modoAutoRef = useRef(modoAuto); modoAutoRef.current = modoAuto;
   const alternarModoAuto = () => { const v = !modoAuto; setModoAuto(v); try { localStorage.setItem(CLAVE_MODO_AUTO, v ? '1' : '0'); } catch { /* sin almacenamiento */ } agregarNotificacion?.(v ? '⚡ Modo automático activado: rúbricas, recursos, fechas, pesos y estados se aplicarán solos (con botón Deshacer).' : 'Modo automático desactivado: todo pedirá confirmación.'); };
   // Avisos del día (se muestran al abrir el chat vacío)
@@ -4769,8 +4742,6 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     fetch(`/api/chat/avisos?planificacionId=${encodeURIComponent(planificacionId)}`).then(r => (r.ok ? r.json() : { avisos: [] })).then(d => { if (vivo) setAvisos(Array.isArray(d.avisos) ? d.avisos : []); }).catch(() => { if (vivo) setAvisos([]); });
     return () => { vivo = false; };
   }, [planificacionId]);
-  const hayPropuestaRef = useRef(false);
-  useEffect(() => { hayPropuestaRef.current = !!propuestaPendienteLocal; }, [propuestaPendienteLocal]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // El cuadro de texto crece con el contenido (hasta 160px)
   useEffect(() => { const t = textareaRef.current; if (!t) return; t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 120)}px`; }, [mensaje]);
@@ -4800,36 +4771,12 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     }
   };
 
-  useEffect(() => { if (navegarAlPlan) { setVistaPanel('planificacion'); setNavegarAlPlan(false); } }, [navegarAlPlan, setVistaPanel]);
-  
-  const detectarOpciones = (texto: string) => { 
-    const regex = /\[(✅|🔄|📝|⏱️|🔴)\s+([^\]]+)\]/g; 
-    const opciones: { emoji: string; texto: string; accion: string }[] = []; 
-    let match; 
-    while ((match = regex.exec(texto)) !== null) opciones.push({ emoji: match[1], texto: match[2], accion: match[2] }); 
-    return opciones; 
-  };
-  
-  const traducirOpcion = (opcion: string) => { 
-    if (opcion.includes('Aceptar')) return 'aceptar'; 
-    if (opcion.includes('Cambiar estrategia')) return 'cambiar'; 
-    if (opcion.includes('Generar')) return 'generar pdf'; 
-    return opcion.toLowerCase(); 
-  };
   
   useEffect(() => { if (!escribiendo) scrollToBottom(); }, [historial.length, pensando]);
   useEffect(() => { if (escribiendo) scrollToBottom(); }, [escribiendo, historial]);
   // NOTA: scrollToBottom ahora respeta si el usuario se desplazó hacia arriba (ver comprobarSiEstaAbajo),
   // por lo que estos efectos ya no lo arrastran forzosamente hacia abajo mientras lee mensajes anteriores.
   
-  const onTypewriterComplete = useCallback((mensajeId: string) => { 
-    setTimeout(() => { 
-      setEscribiendo(false); 
-      setHistorial(prev => prev.map(m => m.id === mensajeId ? { ...m, completo: true } : m)); 
-      if (hayPropuestaRef.current) setNavegarAlPlan(true); 
-    }, 0); 
-  }, []);
-
   const esConfirmacionGuardado = (msg: string): boolean => {
     // Se usan límites de palabra (\b) para evitar falsos positivos y para reconocer tanto el
     // infinitivo ("guardar") como el imperativo ("guarda") u otras formas coloquiales de afirmar.
@@ -4843,11 +4790,6 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     ];
     const msgLower = msg.toLowerCase().trim();
     return palabras.some(p => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(msgLower));
-  };
-
-  const esSolicitudPlanAccion = (msg: string): boolean => {
-    const msgLower = msg.toLowerCase().trim();
-    return msgLower.includes('plan de acción') || msgLower.includes('plan de accion') || msgLower.includes('genera plan');
   };
 
   const esNegacion = (msg: string): boolean => {
@@ -4912,17 +4854,6 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     return { success: true, totalEvals, sonCuatro, pdfGenerado, mensaje: sonCuatro ? `✅ ¡Excelente! Se han guardado las ${totalEvals} evaluaciones y generado el Plan de Acción en PDF automáticamente. Puedes descargarlo en la sección "Planificador".` : `✅ ¡Excelente! Se han guardado las ${totalEvals} evaluaciones correctamente.` };
   };
 
-  const manejarComandoEliminacion = (texto: string): boolean => {
-    const msgLower = texto.toLowerCase().trim();
-    const verbosBorrar = '(borrar|borra|eliminar|elimina|quitar|quita|suprimir|suprime)';
-    const borrarTodasRegex = new RegExp(`^${verbosBorrar}\\s+(todas\\s+las\\s+)?evaluacion(es)?(\\s*guardad[ao]s?)?$`, 'i');
-    if (borrarTodasRegex.test(msgLower)) { setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: [] })); if (limpiarYScroll) limpiarYScroll(); setHistorial(prev => [...prev, { rol: 'agent', contenido: '🗑️ Todas las evaluaciones han sido eliminadas.', completo: true, id: `agent-${Date.now()}` }]); return true; }
-    const borrarUnaRegex = new RegExp(`^${verbosBorrar}\\s+(la\\s+)?evaluaci[oó]n\\s+(\\d+)`, 'i');
-    const match = msgLower.match(borrarUnaRegex);
-    if (match) { const num = parseInt(match[3], 10); const index = num - 1; const secciones = planificacion.secciones; if (index >= 0 && index < secciones.length) { const nombre = limpiarTexto(secciones[index].nombre); setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.filter((_: SeccionExamen, i: number) => i !== index) })); setHistorial(prev => [...prev, { rol: 'agent', contenido: `🗑️ Evaluación ${num} «${nombre}» eliminada.`, completo: true, id: `agent-${Date.now()}` }]); return true; } else { setHistorial(prev => [...prev, { rol: 'agent', contenido: `❌ No se encontró la evaluación ${num}.`, completo: true, id: `agent-${Date.now()}` }]); return true; } }
-    return false;
-  };
-
   const cancelarPropuesta = () => {
     if (propuestaPendienteLocal) { setPropuestaPendienteLocal(null); setPropuestaPendiente(null); if (limpiarYScroll) limpiarYScroll(); setHistorial(prev => [...prev, { rol: 'agent', contenido: '✅ Propuesta descartada. Los formularios se han limpiado.', completo: true, id: `agent-${Date.now()}` }]); }
   };
@@ -4980,6 +4911,19 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     try {
       const evs = evaluacionesActivas();
       const ev = (n: number) => { const s = evs[n - 1]; if (!s) throw new Error(`No existe la evaluación #${n} en la Sección ${seccionActiva}.`); return s; };
+      // Para lo que se guarda directo en la base de datos (examen, notas, estado) la evaluación tiene que existir allí:
+      // si es recién creada, primero se guarda el plan y se espera a que tenga su id definitivo.
+      const evGuardada = async (n: number): Promise<SeccionExamen> => {
+        let s = ev(n);
+        if (esIdGuardado(s.id)) return s;
+        await guardarAhora?.();
+        for (let i = 0; i < 20 && !esIdGuardado(s.id); i++) {
+          await new Promise(res => setTimeout(res, 100));
+          s = (planRef.current.secciones as SeccionExamen[]).filter(x => (x.grupoSeccion || 'A') === seccionActiva)[n - 1] ?? s;
+        }
+        if (!esIdGuardado(s.id)) throw new Error('Esa evaluación todavía se está guardando. Espera a que diga "Guardado" y vuelve a intentarlo.');
+        return s;
+      };
       const cambiar = (id: string, cambio: Partial<SeccionExamen>) => setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.map(x => (x.id === id ? { ...x, ...cambio } : x)) }));
       let resultado = '';
       switch (a.tipo) {
@@ -5074,7 +5018,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           break;
         }
         case 'cambiar_estado': {
-          const s = ev(a.datos.evaluacion);
+          const s = await evGuardada(a.datos.evaluacion);
           const estadoAntes = String(s.estado || 'PROGRAMADA').toUpperCase() === 'REPROGRAMADA' ? 'PROGRAMADA' : String(s.estado || 'PROGRAMADA').toUpperCase();
           deshacer = async () => {
             const rr = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: estadoAntes }) });
@@ -5166,7 +5110,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           break;
         }
         case 'cargar_notas': {
-          const s = ev(a.datos.evaluacion);
+          const s = await evGuardada(a.datos.evaluacion);
           const r = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/notas`);
           const d = await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(d.error || 'No se pudieron leer los estudiantes de esa evaluación.');
@@ -5251,7 +5195,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           break;
         }
         case 'crear_examen': {
-          const s = ev(a.datos.evaluacion);
+          const s = await evGuardada(a.datos.evaluacion);
           const anterior = s.examen ?? null;
           const r = await fetch(`/api/evaluaciones/${encodeURIComponent(s.id)}/examen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'guardar', examen: a.datos.examen }) });
           const d = await r.json().catch(() => ({}));
@@ -5339,6 +5283,13 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
 
   // Confirmaciones escritas ("sí", "guárdalo", "dale"): solo si el mensaje es corto, para no confundir "sí, pero cambia la 2"
   const esConfirmacionCorta = (msg: string) => msg.trim().split(/\s+/).length <= 3 && esConfirmacionGuardado(msg) && !esNegacion(msg);
+  // Un "sí" corto guarda la propuesta SOLO si lo último que dijo el agente fue esa propuesta y no hizo otra pregunta
+  // (si preguntó "¿creo también las rúbricas?", el "sí" es la respuesta a eso y va al agente).
+  const propuestaEsLoUltimo = () => {
+    const ultimo = [...historialRef.current].reverse().find(m => m.rol === 'agent');
+    const tienePropuesta = !!ultimo?.acciones?.some(a => a.tipo === 'proponer_evaluaciones' && (a.estado ?? 'pendiente') === 'pendiente');
+    return tienePropuesta && !String(ultimo?.contenido || '').includes('?');
+  };
 
   enviarRef.current = (m: string) => { handleSend(m); };
   const handleSend = async (overrideMsg?: string, opciones: { regenerar?: boolean; modo?: 'revision' } = {}) => {
@@ -5350,12 +5301,12 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     setMensaje('');
     scrollToBottom(true);
     if (!opciones.regenerar && !opciones.modo) {
-      if (manejarComandoEliminacion(msg)) return;
-      if (propuestaPendienteLocal && esNegacion(msg) && msg.split(/\s+/).length <= 4) {
+      // "Borra la evaluación 2" ya no se intercepta aquí: lo resuelve el agente con eliminar_evaluaciones (tarjeta con confirmación)
+      if (propuestaPendienteLocal && propuestaEsLoUltimo() && esNegacion(msg) && msg.split(/\s+/).length <= 4) {
         setHistorial(prev => prev.map(m => ({ ...m, acciones: m.acciones?.map(a => (a.tipo === 'proponer_evaluaciones' && (a.estado ?? 'pendiente') === 'pendiente' ? { ...a, estado: 'descartada' as const } : a)) })));
         cancelarPropuesta(); return;
       }
-      if (propuestaPendienteLocal && esConfirmacionCorta(msg)) {
+      if (propuestaPendienteLocal && propuestaEsLoUltimo() && esConfirmacionCorta(msg)) {
         const r = await guardarEvaluacionesDirecto();
         setHistorial(prev => [...prev.map(m => ({ ...m, acciones: m.acciones?.map(a => (a.tipo === 'proponer_evaluaciones' && (a.estado ?? 'pendiente') === 'pendiente' ? { ...a, estado: 'hecha' as const, resultado: 'Guardada' } : a)) })), { rol: 'agent', contenido: r.success ? r.mensaje : '⚠️ ' + r.mensaje, completo: true, id: `agent-${Date.now()}` }]);
         if (r.success) { eventosRef.current.push('el profesor guardó tu propuesta de evaluaciones'); setVistaPanel('planificacion'); }
@@ -7433,7 +7384,6 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
   // El chat y el resto de la pantalla usan las mismas notificaciones (las del panel derecho)
   const agregarNotificacion = (mensaje: string) => { if (panelDerechoRef.current) panelDerechoRef.current.notificar(mensaje); else console.log('📢 Notificación:', mensaje); };
 
-  const urlN8n = configSistema?.chat.webhookUrl || process.env.NEXT_PUBLIC_N8N_URL || 'http://localhost:5678';
   const generarPDF = async (secciones?: SeccionExamen[]): Promise<string | null> => {
     const seccionesParaPDF = secciones || planificacion.secciones;
     if (seccionesParaPDF.length === 0) { alert('No hay evaluaciones guardadas'); return null; }

@@ -126,7 +126,7 @@ async function atender(request: Request) {
   const ids = evaluaciones.map(e => e.id).filter(Boolean) as string[]
   const [estudiantesSeccion, notas, opiniones, estudiantesLista, evsDB, memorias, materias] = await Promise.all([
     prisma.estudiante.count({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' } }).catch(() => null),
-    ids.length ? prisma.calificacion.groupBy({ by: ['evaluacionId'], where: { evaluacionId: { in: ids }, puntaje: { not: null } }, _avg: { puntaje: true }, _count: { _all: true } }).catch(() => []) : Promise.resolve([] as any[]),
+    ids.length ? prisma.calificacion.groupBy({ by: ['evaluacionId'], where: { evaluacionId: { in: ids }, puntaje: { not: null }, evaluacion: { planificacion: { materia: { usuarioId: actor.id } } } }, _avg: { puntaje: true }, _count: { _all: true } }).catch(() => []) : Promise.resolve([] as any[]),
     plan ? prisma.opinionPlan.findMany({ where: { materiaId: plan.materiaId, leida: false }, orderBy: { updatedAt: 'desc' }, take: 20, select: { deAcuerdo: true, comentario: true, estudiante: { select: { nombre: true, grupo: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
     prisma.estudiante.findMany({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' }, select: { id: true, nombre: true, portalVisitas: true }, orderBy: { nombre: 'asc' }, take: 200 }).catch(() => []),
     plan ? prisma.evaluacion.findMany({ where: { planificacionId: plan.id, grupoSeccion: seccion }, select: { id: true, nombre: true, peso: true, estado: true, fecha: true, rubrica: true, calificaciones: { select: { estudianteId: true, puntaje: true, detalle: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
@@ -200,8 +200,12 @@ async function atender(request: Request) {
 
   const maxTokens = Number(chat.maxTokens) > 0 ? Math.max(2048, Number(chat.maxTokens)) : 8192
   const temperaturaBase = Number.isFinite(Number(chat.temperatura)) ? Math.min(1, Math.max(0, Number(chat.temperatura))) : 0.6
-  const pideEvaluaciones = /\b(plan|evaluaci[oó]n|evaluaciones|recomi[eé]nd|prop[oó]n|sugi[eé]r|otras?|distint|diferent|nuev[oa]s?)\b/i.test(String(body?.mensaje || ''))
-  const temperatura = pideEvaluaciones ? Math.max(temperaturaBase, 0.9) : temperaturaBase
+  // Más creatividad (0,9) solo cuando el profesor pide IDEAS nuevas (proponer, recomendar, otras opciones…).
+  // Para notas, pesos, fechas o consultas se usa la temperatura configurada: ahí importa la precisión.
+  const textoMensaje = String(body?.mensaje || '')
+  const pideIdeas = /(recomi[eé]nd|prop[oó]n|sugi[eé]r|\bideas?\b|\bopciones\b|\bdame (otr|m[aá]s)|\botr[oa]s? (plan|evaluaci)|plan (completo|nuevo)|nuev[oa]s? evaluaci|\bdistint|\bdiferent|creativ)/i.test(textoMensaje)
+  const esDeDatos = /(\bnotas?\b|calificaci|\bcarg[ao]\b|\bpesos?\b|porcentaje|reprogram|\bfecha|asistencia|\bpromedio)/i.test(textoMensaje)
+  const temperatura = pideIdeas && !esDeDatos ? Math.max(temperaturaBase, 0.9) : temperaturaBase
   const conversacionId = conversacion.id
   const codificador = new TextEncoder()
 
@@ -220,7 +224,10 @@ async function atender(request: Request) {
         let pesosRevisados = false
         let soloPesos = false
         let silencio = false // en un reintento de corrección no se muestra el texto (el modelo tiende a repetirse)
+        const inicio = Date.now()
         for (let ronda = 0; ronda < 6; ronda++) {
+          // Vercel corta la función a los 60 s: pasados 40 s no se empieza otra ronda (consulta o corrección)
+          if (ronda > 0 && Date.now() - inicio > 40000) { console.error('[Chat] se alcanzó el tiempo máximo; se responde con lo que hay'); break }
           let retenido = ''
           const consultas: any[] = []
           let textoRonda = ''
@@ -300,6 +307,10 @@ async function atender(request: Request) {
           agregar('user', `[Resultado de tus consultas. Úsalo para responder al profesor; no lo copies tal cual ni menciones que consultaste]\n${resultados.map((r, i) => `## ${descripciones[i]}\n${r}`).join('\n\n').slice(0, 9000)}`)
         }
         texto = limpiarResumenes(texto)
+        if (!texto.trim() && !acciones.length) {
+          texto = 'No alcancé a terminar la respuesta a tiempo. ¿Me lo pides de nuevo, quizás en partes más cortas?'
+          enviar({ t: 'texto', v: texto })
+        }
         const guardado = await prisma.mensaje.create({ data: { conversacionId, rol: 'AGENT', contenido: texto, completo: true, acciones: acciones.length ? (acciones as any) : undefined, modelo, respaldo } })
         await prisma.conversacion.update({ where: { id: conversacionId }, data: { updatedAt: new Date() } }).catch(() => {})
         enviar({ t: 'fin', mensajeId: guardado.id, modelo, respaldo })
