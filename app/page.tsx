@@ -6201,6 +6201,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   };
   // Evaluaciones que pertenecen a la sección activa (A, B, C...)
   const seccionesFiltradas = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva);
+  // Los 4 formularios manuales ocupan mucho: si la sección ya tiene evaluaciones se pliegan.
+  // Se abren solos cuando tienen algo (una propuesta del agente o una evaluación en edición) o con el botón.
+  const [verFormularios, setVerFormularios] = useState(false);
   // El plan usa solo las evaluaciones de la sección activa que siguen marcadas
   const seccionesParaPlan = seccionesFiltradas.filter((s: SeccionExamen) => !tarjetasExcluidas.includes(s.id));
   const idsSeleccionados = seccionesParaPlan.map((s: SeccionExamen) => s.id);
@@ -6284,11 +6287,13 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   // existe en el modelo de Estudiante, para que el cálculo de equipos de la
   // evaluación corresponda solo a los estudiantes de la sección activa.
   const [totalEstudiantes, setTotalEstudiantes] = useState(8); // 8 por defecto
+  const [estudiantesSeccion, setEstudiantesSeccion] = useState<number | null>(null); // número real (null = cargando), para la guía de primeros pasos
 
   useEffect(() => {
     const cargarTotal = async () => {
       try {
         const data = await apiEstudiantes.listar();
+        setEstudiantesSeccion(Array.isArray(data) ? data.filter((e: any) => (e?.grupo || 'A') === seccionActiva && String(e?.estado || 'ACTIVO').toUpperCase() === 'ACTIVO').length : 0);
         if (Array.isArray(data) && data.length > 0) {
           const delaSeccion = data.filter((e: any) => (e?.grupo || 'A') === seccionActiva);
           // Si aún no hay estudiantes cargados con ese código de sección específico,
@@ -6300,7 +6305,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       }
     };
     cargarTotal();
-  }, [seccionActiva]);
+  }, [seccionActiva, vista === 'planificacion']); // también al volver al planificador (por si agregó estudiantes)
 
   // Estados para el efecto glow
   const [glow1, setGlow1] = useState(false);
@@ -6347,6 +6352,8 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   const [evaluacion2, setEvaluacion2] = useState<EvaluacionFormulario>({...evalInit});
   const [evaluacion3, setEvaluacion3] = useState<EvaluacionFormulario>({...evalInit});
   const [evaluacion4, setEvaluacion4] = useState<EvaluacionFormulario>({...evalInit});
+  const formulariosConContenido = [evaluacion1, evaluacion2, evaluacion3, evaluacion4].some(f => !!f.editandoId || !!String(f.materia || '').trim() || !!String(f.descripcion || '').trim() || !!String(f.tipoActividad || '').trim());
+  const mostrarFormularios = seccionesFiltradas.length === 0 || formulariosConContenido || verFormularios;
 
   const limpiarYScroll = () => { setEvaluacion1({...evalInit}); setEvaluacion2({...evalInit}); setEvaluacion3({...evalInit}); setEvaluacion4({...evalInit}); setNumEvaluaciones(1); setScrollToSections(true); setVista('planificacion'); setGlow1(false); setGlow2(false); setGlow3(false); setGlow4(false); };
   useImperativeHandle(ref, () => ({
@@ -6951,7 +6958,40 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
                 <ObservacionesRecibidas items={observaciones} onLeer={marcarObservacionLeida} />
                 <OpinionesEstudiantes items={opiniones} onVistas={marcarOpinionesVistas} />
+                {/* Guía de primeros pasos: solo mientras falten estudiantes o evaluaciones en la sección */}
+                {datosCargados && estudiantesSeccion !== null && (estudiantesSeccion === 0 || seccionesFiltradas.length === 0) && (
+                  <div className="rounded-2xl border border-[#818cf8]/25 bg-gradient-to-br from-[#22234a]/70 to-[#1d1e2e] p-5">
+                    <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#a5b4fc]" /><h3 className="text-sm font-semibold text-white">Primeros pasos · Sección {seccionActiva}</h3></div>
+                    <p className="text-xs text-[#9a9bb0] mt-1">Tres pasos y tus estudiantes tendrán su plan de evaluación.</p>
+                    <ol className="mt-4 grid gap-2 sm:grid-cols-3">
+                      {[
+                        { hecho: (estudiantesSeccion ?? 0) > 0, titulo: 'Agrega tus estudiantes', texto: (estudiantesSeccion ?? 0) > 0 ? `${estudiantesSeccion} en la sección` : 'Uno por uno o desde Excel', boton: 'Ir a Estudiantes', hacer: () => setVista('estudiantes') },
+                        { hecho: seccionesFiltradas.length > 0, titulo: 'Crea tu plan', texto: seccionesFiltradas.length > 0 ? `${seccionesFiltradas.length} evaluación(es)` : 'Pídeselo a EvaPlanner: «Hazme un plan de 4 evaluaciones»', boton: 'Abrir el chat', hacer: () => onAbrirChat?.() },
+                        { hecho: false, titulo: 'Envíales el plan', texto: 'Con el botón ✉️ del plan, cada estudiante recibe el enlace a su página personal.', boton: '', hacer: () => {} },
+                      ].map((paso, i) => (
+                        <li key={paso.titulo} className={`rounded-xl border p-3 flex flex-col gap-2 ${paso.hecho ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-[#313248] bg-[#1b1c2b]'}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${paso.hecho ? 'bg-emerald-500 text-white' : 'bg-[#2c2d42] text-[#a5b4fc]'}`}>{paso.hecho ? '✓' : i + 1}</span>
+                            <span className={`text-[13px] font-medium ${paso.hecho ? 'text-emerald-200' : 'text-[#e0e0ec]'}`}>{paso.titulo}</span>
+                          </div>
+                          <p className="text-[11px] text-[#8a8b9e] leading-snug flex-1">{paso.texto}</p>
+                          {!paso.hecho && paso.boton && <button type="button" onClick={paso.hacer} className="self-start text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#818cf8]/15 text-[#c7d2fe] border border-[#818cf8]/30 hover:bg-[#818cf8]/25 disabled:opacity-40 disabled:cursor-not-allowed">{paso.boton}</button>}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
                 <div ref={tarjetaRef} data-tutorial="formularios">
+                {!mostrarFormularios ? (
+                  <button type="button" onClick={() => setVerFormularios(true)} className="w-full flex items-center gap-3 rounded-2xl border border-dashed border-[#3a3b52] bg-[#1b1c2b]/60 px-5 py-4 text-left hover:border-[#818cf8]/50 hover:bg-[#1f2035] transition-colors">
+                    <span className="w-9 h-9 rounded-xl bg-[#818cf8]/10 border border-[#818cf8]/25 flex items-center justify-center"><Pencil className="w-4 h-4 text-[#a5b4fc]" /></span>
+                    <span className="flex-1 min-w-0"><span className="block text-sm font-medium text-[#e0e0ec]">Crear o editar evaluaciones a mano</span><span className="block text-xs text-[#8a8b9e]">O pídeselo a EvaPlanner en el chat: las propuestas aparecen aquí solas.</span></span>
+                    <ChevronDown className="w-4 h-4 text-[#8a8b9e]" />
+                  </button>
+                ) : (<>
+                {seccionesFiltradas.length > 0 && !formulariosConContenido && (
+                  <div className="flex justify-end -mb-2"><button type="button" onClick={() => setVerFormularios(false)} className="text-xs text-[#8a8b9e] hover:text-[#c7d2fe] flex items-center gap-1"><ChevronUp className="w-3.5 h-3.5" />Ocultar formularios</button></div>
+                )}
                 <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
                 evaluacion2={evaluacion2} setEvaluacion2={setEvaluacion2} guardarEvaluacion2={guardarEvaluacion2} limpiarEvaluacion2={limpiarEvaluacion2}
@@ -6961,6 +7001,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                 justFilled1={glow1} justFilled2={glow2} justFilled3={glow3} justFilled4={glow4}
                 totalEstudiantes={totalEstudiantes}
               />
+                </>)}
                 </div>
               <div ref={seccionesGuardadasRef} data-tutorial="guardadas" className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
