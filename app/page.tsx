@@ -4867,7 +4867,8 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   }, [planificacionId]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // El cuadro de texto crece con el contenido (hasta 160px)
-  useEffect(() => { const t = textareaRef.current; if (!t) return; t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 128)}px`; }, [mensaje]);
+  // El campo no crece: el texto se desplaza a lo ancho; si se agregó al final (dictado), se muestra el final
+  useEffect(() => { const t = textareaRef.current; if (!t) return; if (t.selectionEnd >= t.value.length) t.scrollLeft = t.scrollWidth; }, [mensaje]);
   useEffect(() => { mensajeRef.current = mensaje; }, [mensaje]);
 
   const [isRecording, setIsRecording] = useState(false);
@@ -5628,7 +5629,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     return s.slice(0, 5);
   })();
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter') { e.preventDefault(); if (!e.shiftKey) handleSend(); } };
 
   // Micrófono: barras de volumen en vivo, se detiene solo tras 5 s de silencio (después de hablar),
   // Esc o la X cancelan sin transcribir, y opcionalmente envía el mensaje apenas termina de transcribir.
@@ -6155,7 +6156,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
             <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar documento" title="Adjuntar documento: programa de la materia, guía… (PDF, Word, .txt)" className="w-10 h-10 flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-272839)] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
             <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.docx,.txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} />
             <Tooltip text={isRecording ? 'Terminar y transcribir' : 'Hablar (se detiene solo tras 5 s de silencio)'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo || chatInactivo} aria-label={isRecording ? 'Terminar grabación' : 'Hablar'} className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-[color:var(--c-ddd6fe)] bg-[color:var(--c-8b5cf6)]/20 ring-1 ring-[color:var(--c-8b5cf6)]/50 hover:bg-[color:var(--c-8b5cf6)]/30' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-272839)]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-[color:var(--c-818cf8)]/30 border-t-[color:var(--c-a5b4fc)] rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3.5 h-3.5 bg-[color:var(--c-a78bfa)] rounded-[3px]"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
-            <div className="flex-1 min-w-0 relative self-stretch flex items-end"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo tu audio…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="block w-full bg-transparent text-[15px] leading-[22px] text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] outline-none resize-none py-[9px] font-['Inter'] min-h-[40px] max-h-[128px] overflow-y-auto custom-scrollbar [overflow-wrap:anywhere] disabled:opacity-60" />
+            <div className="flex-1 min-w-0 relative self-stretch flex items-end"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo tu audio…' : 'Pídele algo a EvaPlanner…'} rows={1} wrap="off" disabled={chatInactivo} className="block w-full h-10 bg-transparent text-[15px] leading-[22px] text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] outline-none resize-none py-[9px] font-['Inter'] whitespace-pre overflow-x-auto overflow-y-hidden sin-barra disabled:opacity-60" />
               {isRecording && (
                 <div className="absolute inset-0 flex items-center gap-2.5 bg-[color:var(--c-1f2035)] rounded-lg" role="status" aria-live="polite">
                   <span className="w-2 h-2 rounded-full bg-[color:var(--c-a78bfa)] animate-pulse flex-shrink-0" />

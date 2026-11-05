@@ -267,6 +267,11 @@ async function atender(request: Request) {
           const ultimo = turnos[turnos.length - 1]
           if (ultimo?.rol === 'user') ultimo.texto += `\n\n[Sistema: la Sección ${seccion} tiene ${evaluaciones.length} evaluaciones y el máximo es 6, así que solo caben ${caben} nuevas (#${evaluaciones.length + 1}${caben > 1 ? ` a #6` : ''}). Si el profesor pidió más de ${caben}, NO llames ninguna herramienta ni digas que ya las preparaste: pregúntale primero si quiere reemplazar algunas (cuáles) o agregar solo ${caben}.]`
         }
+        // "Reemplaza todas" / "desde cero": las nuevas ocupan #1..#k y las que sobren se eliminan, para que los pesos sumen 100%
+        if (!revision && evaluaciones.length && /((reemplaz|sustitu|cambia|reh[aá]z|rehacer)\w*\s.{0,25}\btod[ao]s?\b|todo el plan|desde cero|plan (completo|nuevo))/i.test(mensaje)) {
+          const ultimo = turnos[turnos.length - 1]
+          if (ultimo?.rol === 'user') ultimo.texto += `\n\n[Sistema: el profesor quiere REEMPLAZAR TODO el plan de la Sección ${seccion}, que hoy tiene ${evaluaciones.length} evaluaciones (#1 a #${evaluaciones.length}). Llama proponer_evaluaciones con las nuevas usando los números #1, #2… (reemplazan a esas). Si propones menos de ${evaluaciones.length}, llama TAMBIÉN eliminar_evaluaciones con las sobrantes (#k+1 a #${evaluaciones.length}). Los pesos de las nuevas deben sumar exactamente 100%.]`
+        }
         if (!sinCupo && pideNuevas) {
           enviar({ t: 'consulta', v: ['buscando temas actuales en Google'] })
           const act = await buscarActualidad({ materia: materiaActiva, perfil, pedido: mensaje, existentes: evaluaciones.map(e => e.nombre).filter(Boolean), senal: request.signal })

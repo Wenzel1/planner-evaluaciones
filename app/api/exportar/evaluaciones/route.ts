@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requerirActor } from '@/lib/permisos'
 import { partesDescripcion } from '@/lib/descripcion'
-import { nuevoLibro, titulo, encabezados, filaDatos, respuestaExcel, nombreArchivo, textoSeguro, COLOR, BORDES } from '@/lib/excel'
+import { nuevoLibro, titulo, encabezados, filaDatos, respuestaExcel, nombreArchivo, textoSeguro, etiqueta, COLOR, BORDES } from '@/lib/excel'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,13 +49,16 @@ export async function POST(request: Request) {
         ESTADO[String(e.estado || '').toUpperCase()] || 'Programada',
       ]
       filaDatos(plan, f, cols.length, i % 2 === 1, [1, 2, 6, 7, 8, 9, 10, 11, 12])
-      r.getCell(3).font = { size: 10, bold: true }
+      r.getCell(3).font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLOR.tinta } }
+      r.getCell(9).font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLOR.indigo } }
       if (e._f) r.getCell(6).numFmt = 'dd/mm/yyyy'
       const estado = r.getCell(12)
       const est = String(e.estado || '').toUpperCase()
-      if (est === 'REALIZADA') estado.font = { size: 10, color: { argb: COLOR.verde }, bold: true }
-      else if (est === 'CANCELADA') estado.font = { size: 10, color: { argb: COLOR.rojo }, bold: true }
-      else if (est === 'REPROGRAMADA') estado.font = { size: 10, color: { argb: COLOR.ambar }, bold: true }
+      if (est === 'REALIZADA') etiqueta(estado, COLOR.verde, COLOR.verdeFondo)
+      else if (est === 'CANCELADA') etiqueta(estado, COLOR.rojo, COLOR.rojoFondo)
+      else if (est === 'REPROGRAMADA') etiqueta(estado, COLOR.ambar, COLOR.ambarFondo)
+      else etiqueta(estado, COLOR.indigo, COLOR.indigoClaro)
+      r.height = 22
       pesoPorSeccion.set(e._s, (pesoPorSeccion.get(e._s) || 0) + (Number(e.peso) || 0))
     })
     // Total de pesos por sección (debe dar 100%)
@@ -68,13 +71,10 @@ export async function POST(request: Request) {
       const ok = Math.round(total) === 100
       ;[8, 9].forEach(c => {
         const cel = r.getCell(c)
-        cel.font = { bold: true, size: 10, color: { argb: ok ? COLOR.verde : COLOR.rojo } }
-        cel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ok ? COLOR.verdeFondo : COLOR.rojoFondo } }
-        cel.alignment = { horizontal: 'center' }
-        cel.border = BORDES
+        etiqueta(cel, ok ? COLOR.verde : COLOR.rojo, ok ? COLOR.verdeFondo : COLOR.rojoFondo)
       })
     }
-    plan.views = [{ state: 'frozen', ySplit: 4 }]
+    plan.views = [{ state: 'frozen', ySplit: 4, showGridLines: false }]
     plan.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + lista.length, column: cols.length } }
 
     // ---------- Hoja 2: Detalle ----------
@@ -93,12 +93,13 @@ export async function POST(request: Request) {
       const r = det.getRow(f)
       r.values = [i + 1, txt(`${limpio(e.nombre)}\nSec. ${e._s} · ${Number(e.peso) || 0}%`), txt(de('OBJETIVO') || sinTitulo), txt(de('ACTIVIDAD')), txt(de('HERRAMIENTAS')), txt(de('ENTREGABLES')), txt(de('CRITERIOS')), txt(casos)]
       filaDatos(det, f, colsD.length, i % 2 === 1, [1])
-      r.getCell(2).font = { size: 10, bold: true }
+      for (let c = 2; c <= colsD.length; c++) r.getCell(c).alignment = { vertical: 'top', wrapText: true, horizontal: 'left', indent: 1 }
+      r.getCell(2).font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLOR.tinta } }
       // Altura aproximada según el texto más largo (Excel no la calcula sola en celdas combinadas con ajuste)
       const largo = Math.max(...[3, 4, 5, 6, 7, 8].map(c => { const v = String(r.getCell(c).value || ''); const ancho = (det.getColumn(c).width || 30) * 1.1; return v.split('\n').reduce((t, l) => t + Math.max(1, Math.ceil(l.length / ancho)), 0) }))
       r.height = Math.min(400, Math.max(30, largo * 13.5))
     })
-    det.views = [{ state: 'frozen', xSplit: 2, ySplit: 4 }]
+    det.views = [{ state: 'frozen', xSplit: 2, ySplit: 4, showGridLines: false }]
 
     return respuestaExcel(libro, `Evaluaciones_${nombreArchivo(materia)}.xlsx`)
   } catch (e) {

@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { NOTA_APROBATORIA, promedioPonderado } from '@/lib/notas'
-import { nuevoLibro, titulo, encabezados, filaDatos, respuestaExcel, nombreArchivo, textoSeguro, COLOR, BORDES } from '@/lib/excel'
+import { nuevoLibro, titulo, encabezados, filaDatos, respuestaExcel, nombreArchivo, textoSeguro, etiqueta, COLOR, BORDES } from '@/lib/excel'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,14 +69,16 @@ export async function GET(request: Request) {
       fila.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
       for (let k = 0; k < nEv + 1; k++) fila.getCell(4 + k + (k === nEv ? 1 : 0)).numFmt = '0.00'
       // Notas en rojo si están por debajo de la mínima
-      notas.forEach((n, k) => { if (n != null) fila.getCell(4 + k).font = { size: 10, color: { argb: n >= NOTA_APROBATORIA ? 'FF111827' : COLOR.rojo } } })
+      notas.forEach((n, k) => { if (n != null && n < NOTA_APROBATORIA) fila.getCell(4 + k).font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLOR.rojo } } })
+      fila.getCell(2).font = { name: 'Calibri', size: 10, bold: true, color: { argb: COLOR.tinta } }
+      fila.getCell(3).font = { name: 'Calibri', size: 10, color: { argb: COLOR.gris } }
       const prom = fila.getCell(5 + nEv)
-      prom.font = { size: 10, bold: true, color: { argb: promedio == null ? COLOR.gris : promedio >= NOTA_APROBATORIA ? COLOR.verde : COLOR.rojo } }
+      prom.font = { name: 'Calibri', size: 11, bold: true, color: { argb: promedio == null ? COLOR.gris : promedio >= NOTA_APROBATORIA ? COLOR.verde : COLOR.rojo } }
       const cond = fila.getCell(6 + nEv)
-      const [txt, fondo] = condicion === 'Aprobado' ? [COLOR.verde, COLOR.verdeFondo] : condicion === 'Reprobado' ? [COLOR.rojo, COLOR.rojoFondo] : [COLOR.gris, 'FFF3F4F6']
-      cond.font = { size: 10, bold: true, color: { argb: txt } }
-      cond.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondo } }
-      fila.height = 20
+      if (condicion === 'Aprobado') etiqueta(cond, COLOR.verde, COLOR.verdeFondo)
+      else if (condicion === 'Reprobado') etiqueta(cond, COLOR.rojo, COLOR.rojoFondo)
+      else etiqueta(cond, COLOR.gris, 'FFF3F4F6')
+      fila.height = 22
     })
     if (estudiantes.length === 0) {
       hoja.mergeCells(5, 1, 5, cols.length)
@@ -96,12 +98,12 @@ export async function GET(request: Request) {
     resumen.forEach(([k, v], i) => {
       const r = hoja.getRow(r0 + i)
       r.getCell(2).value = k; r.getCell(3).value = v
-      r.getCell(2).font = { bold: true, size: 10, color: { argb: 'FF3730A3' } }
-      r.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.indigoClaro } }
-      r.getCell(3).font = { size: 10, bold: true }
+      r.getCell(2).font = { name: 'Calibri', size: 10, color: { argb: COLOR.gris } }
+      r.getCell(3).font = { name: 'Calibri', size: 11, bold: true, color: { argb: i === 1 ? COLOR.verde : i === 2 ? COLOR.rojo : COLOR.tinta } }
       r.getCell(3).alignment = { horizontal: 'left' }
+      ;[2, 3].forEach(c => { r.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.indigoClaro } }; r.getCell(c).border = BORDES })
       if (typeof v === 'number' && i === 4) r.getCell(3).numFmt = '0.00'
-      r.getCell(2).border = BORDES; r.getCell(3).border = BORDES
+      r.height = 20
     })
     // Firma
     const rf = r0 + resumen.length + 2
@@ -109,7 +111,7 @@ export async function GET(request: Request) {
     hoja.getCell(rf + 1, 2).value = 'Firma del profesor'
     hoja.getCell(rf + 1, 2).font = { size: 9, color: { argb: COLOR.gris } }
 
-    hoja.views = [{ state: 'frozen', xSplit: 2, ySplit: 4 }]
+    hoja.views = [{ state: 'frozen', xSplit: 2, ySplit: 4, showGridLines: false }]
     if (estudiantes.length) hoja.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + estudiantes.length, column: cols.length } }
 
     await registrarActividad({ actor, accion: 'EXPORTAR', entidad: 'Notas', detalle: `Descargó el acta de notas de ${materia}, sección ${seccion}`.slice(0, 300) })

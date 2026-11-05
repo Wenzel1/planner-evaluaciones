@@ -2,19 +2,23 @@
 // texto ajustado, bordes suaves y filas alternas. Los usan el Acta de notas y la exportación de evaluaciones.
 import ExcelJS from 'exceljs'
 
+// Estilo plano: colores sólidos y suaves, sin cuadrícula pesada ni filas rayadas.
+// Solo una línea fina bajo cada fila, encabezado de un color y estados con su color de fondo.
 export const COLOR = {
   indigo: 'FF4F46E5',
-  indigoClaro: 'FFEEF2FF',
+  indigoClaro: 'FFEEF0FF',
+  tinta: 'FF1F2937',
   gris: 'FF6B7280',
-  borde: 'FFD9DCE8',
-  alterna: 'FFF7F8FC',
-  verde: 'FF047857', verdeFondo: 'FFD1FAE5',
+  linea: 'FFE5E7EB',
+  alterna: 'FFFFFFFF',
+  verde: 'FF166534', verdeFondo: 'FFDCFCE7',
   rojo: 'FFB91C1C', rojoFondo: 'FFFEE2E2',
-  ambar: 'FFB45309', ambarFondo: 'FFFEF3C7',
+  ambar: 'FF92400E', ambarFondo: 'FFFEF3C7',
 }
 
-const bordeFino = { style: 'thin' as const, color: { argb: COLOR.borde } }
-export const BORDES = { top: bordeFino, left: bordeFino, bottom: bordeFino, right: bordeFino }
+const linea = { style: 'thin' as const, color: { argb: COLOR.linea } }
+export const BORDES = { bottom: linea }
+const FUENTE = 'Calibri'
 
 export function nuevoLibro() {
   const libro = new ExcelJS.Workbook()
@@ -23,47 +27,56 @@ export function nuevoLibro() {
   return libro
 }
 
-// Título grande (fila 1) y subtítulo gris (fila 2), ocupando todas las columnas
+// Título grande (fila 1), subtítulo gris (fila 2) y una franja fina de color (fila 3)
 export function titulo(hoja: ExcelJS.Worksheet, columnas: number, texto: string, subtitulo: string) {
+  hoja.properties.defaultRowHeight = 18
+  hoja.views = [{ showGridLines: false }]
   hoja.mergeCells(1, 1, 1, columnas)
   const t = hoja.getCell(1, 1)
   t.value = texto
-  t.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } }
-  t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.indigo } }
-  t.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }
-  hoja.getRow(1).height = 30
+  t.font = { name: FUENTE, bold: true, size: 18, color: { argb: COLOR.tinta } }
+  t.alignment = { vertical: 'middle', horizontal: 'left' }
+  hoja.getRow(1).height = 32
   hoja.mergeCells(2, 1, 2, columnas)
   const s = hoja.getCell(2, 1)
   s.value = subtitulo
-  s.font = { size: 10, italic: true, color: { argb: COLOR.gris } }
-  s.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 }
+  s.font = { name: FUENTE, size: 10, color: { argb: COLOR.gris } }
+  s.alignment = { vertical: 'top', horizontal: 'left' }
   hoja.getRow(2).height = 20
+  for (let i = 1; i <= columnas; i++) hoja.getCell(3, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.indigo } }
+  hoja.getRow(3).height = 4
 }
 
-// Fila de encabezados con fondo de color, texto blanco y ajuste de línea
+// Encabezados: fondo índigo sólido y texto blanco
 export function encabezados(hoja: ExcelJS.Worksheet, fila: number, nombres: string[]) {
   const r = hoja.getRow(fila)
   nombres.forEach((n, i) => {
     const c = r.getCell(i + 1)
     c.value = n
-    c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3730A3' } }
-    c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-    c.border = BORDES
+    c.font = { name: FUENTE, bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.indigo } }
+    c.alignment = { vertical: 'middle', horizontal: i === 0 ? 'center' : 'left', wrapText: true, indent: i === 0 ? 0 : 1 }
   })
-  r.height = 32
+  r.height = 34
 }
 
-// Da formato a una fila de datos: bordes, alineación arriba, ajuste de texto y fondo alterno
-export function filaDatos(hoja: ExcelJS.Worksheet, fila: number, columnas: number, alterna: boolean, centradas: number[] = []) {
+// Fila de datos: fondo blanco, línea fina abajo, texto ajustado
+export function filaDatos(hoja: ExcelJS.Worksheet, fila: number, columnas: number, _alterna: boolean, centradas: number[] = []) {
   const r = hoja.getRow(fila)
   for (let i = 1; i <= columnas; i++) {
     const c = r.getCell(i)
     c.border = BORDES
-    c.alignment = { vertical: 'top', wrapText: true, horizontal: centradas.includes(i) ? 'center' : 'left' }
-    if (alterna) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.alterna } }
-    if (!c.font) c.font = { size: 10 }
+    const centro = centradas.includes(i)
+    c.alignment = { vertical: 'middle', wrapText: true, horizontal: centro ? 'center' : 'left', indent: centro ? 0 : 1 }
+    c.font = { name: FUENTE, size: 10, color: { argb: COLOR.tinta } }
   }
+}
+
+// Etiqueta de estado: fondo de color suave y texto del mismo tono, en negrita
+export function etiqueta(c: ExcelJS.Cell, texto: string, fondo: string) {
+  c.font = { name: FUENTE, size: 10, bold: true, color: { argb: texto } }
+  c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondo } }
+  c.alignment = { vertical: 'middle', horizontal: 'center' }
 }
 
 export async function respuestaExcel(libro: ExcelJS.Workbook, archivo: string) {
