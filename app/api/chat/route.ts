@@ -47,7 +47,16 @@ function sumaFinal(evaluaciones: EvalContexto[], acciones: Accion[]): number | n
 }
 
 function referenciaInvalida(a: Accion, total: number, previas: Accion[]): string | null {
-  if (a.tipo === 'proponer_evaluaciones') return null
+  if (a.tipo === 'proponer_evaluaciones') {
+    // Máximo 6 por sección y sin números repetidos (antes pasaban como #6, #6, #6 y los pesos sumaban más de 100)
+    const nums: number[] = (a.datos.evaluaciones || []).map((e: any) => e.numero)
+    const repetidos = nums.length !== new Set(nums).size
+    if (Math.max(0, ...nums) > 6 || repetidos) {
+      const libres = Math.max(0, 6 - total)
+      return `La sección ya tiene ${total} evaluación(es) y el máximo es 6${libres ? ` (caben ${libres} más, con los números ${Array.from({ length: libres }, (_, i) => `#${total + i + 1}`).join(', ')})` : ''}.${repetidos ? ' Además repetiste números.' : ''} NO llames la herramienta todavía: pregúntale al profesor en 1-2 líneas si quiere REEMPLAZAR evaluaciones existentes (cuáles, usando sus números) o ${libres ? `agregar solo ${libres}` : 'eliminar alguna primero'}.`
+    }
+    return null
+  }
   const nuevas = new Set<number>(previas.filter(x => x.tipo === 'proponer_evaluaciones').flatMap(x => (x.datos.evaluaciones || []).map((e: any) => e.numero)))
   const nums: number[] = [a.datos?.evaluacion, ...(a.datos?.pesos || []).map((p: any) => p.evaluacion), ...(a.tipo === 'eliminar_evaluaciones' ? a.datos.evaluaciones : [])].filter((n: any) => Number.isInteger(n))
   const malos = nums.filter(n => n > total && !nuevas.has(n))
@@ -278,7 +287,7 @@ async function atender(request: Request) {
             }
           }
           // Si un reintento no trajo herramienta, su texto sí se muestra (era una respuesta normal)
-          if (silencio && acciones.length === accionesAntes && retenido.trim() && !consultas.length) { texto += retenido; enviar({ t: 'texto', v: retenido }) }
+          if (silencio && retenido.trim() && !consultas.length && (acciones.length === accionesAntes || !texto.trim())) { texto += retenido; enviar({ t: 'texto', v: retenido }) }
           silencio = false
           if (malformada && modeloRonda && !malformaron.includes(modeloRonda)) malformaron.push(modeloRonda)
           // Anunció una acción ("Aquí tienes la propuesta:") pero la herramienta no llegó o llegó mal formada: se le pide de nuevo
@@ -292,7 +301,7 @@ async function atender(request: Request) {
             enviar({ t: 'consulta', v: ['corrigiendo el número de la evaluación'] })
             agregar('model', textoRonda || '(llamé una herramienta)')
             silencio = true
-            agregar('user', `[Sistema: ${invalidas.join(' ')} En la Sección ${seccion} existen ${evaluaciones.length ? evaluaciones.map(e => `#${e.numero} ${e.nombre}`).join(', ') : 'ninguna evaluación todavía'}. Vuelve a llamar la herramienta con el número correcto. No repitas lo que ya escribiste.]`)
+            agregar('user', `[Sistema: ${invalidas.join(' ')} En la Sección ${seccion} existen ${evaluaciones.length ? evaluaciones.map(e => `#${e.numero} ${e.nombre}`).join(', ') : 'ninguna evaluación todavía'}. ${invalidas.some(t => t.includes('NO llames')) ? 'Escríbele la pregunta al profesor.' : 'Vuelve a llamar la herramienta con el número correcto. No repitas lo que ya escribiste.'}]`)
             continue
           }
           if (!consultas.length && acciones.length === accionesAntes && acciones.length === 0 && dijoHecho && !malformada && reintentos < 2) {
@@ -334,6 +343,14 @@ async function atender(request: Request) {
           agregar('user', `[Resultado de tus consultas. Úsalo para responder al profesor; no lo copies tal cual ni menciones que consultaste]\n${resultados.map((r, i) => `## ${descripciones[i]}\n${r}`).join('\n\n').slice(0, 9000)}`)
         }
         texto = limpiarResumenes(texto)
+        // Propuesta sin ninguna línea arriba: se pone un aviso corto para que el profesor sepa que ya está lista
+        const propuestas = acciones.filter(a => a.tipo === 'proponer_evaluaciones').reduce((t, a) => t + (a.datos.evaluaciones?.length || 0), 0)
+        if (!texto.trim() && propuestas) {
+          texto = propuestas > 1
+            ? `¡Listo! Te preparé ${propuestas} evaluaciones encadenadas: cada una retoma lo que el estudiante construyó en la anterior. Revísalas abajo y guarda las que te sirvan.`
+            : '¡Listo! Te preparé la evaluación. Revísala abajo y guárdala si te sirve.'
+          enviar({ t: 'texto', v: texto })
+        }
         if (!texto.trim() && !acciones.length) {
           texto = malformaron.length
             ? 'No logré armar la propuesta esta vez (el modelo de IA la envió incompleta). ¿Me lo pides de nuevo? Si vuelve a pasar, pídemela de a 2 evaluaciones.'

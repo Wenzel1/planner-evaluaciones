@@ -305,7 +305,7 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
   switch (nombre) {
     case 'proponer_evaluaciones': {
       const lista = (Array.isArray(a.evaluaciones) ? a.evaluaciones : []).slice(0, 6).map((e: any, i: number) => ({
-        numero: ent(e?.numero, 1, 6) ?? i + 1,
+        numero: ent(e?.numero, 1, 20) ?? i + 1,
         nombre: texto(e?.nombre, 160).replace(/^Evaluaci[oó]n\s*\d+\s*:\s*/i, '') || `Evaluación ${i + 1}`,
         tipoActividad: texto(e?.tipoActividad, 80),
         enfoque: enfoqueOk(e?.enfoque),

@@ -24,8 +24,11 @@ function pedidoDeBusqueda(materia: string, pedido: string, existentes: string[])
 ${existentes.length ? `Evaluaciones que ya tiene: ${existentes.slice(0, 8).join('; ')}.\n` : ''}
 Si el pedido trata SOLO de contenidos clásicos y atemporales de ingeniería de software (UML, diagramas de flujo, diagramas entidad-relación, casos de uso, pseudocódigo, algoritmos y estructuras de datos, normalización de bases de datos, patrones de diseño, modelos de ciclo de vida), responde únicamente la palabra: CLASICO
 
-Si no, busca en Google novedades REALES y recientes (últimos 12 a 18 meses) de la industria del software que encajen con esa materia y ese pedido: tecnologías y versiones nuevas, herramientas, prácticas, estándares, incidentes de seguridad conocidos o tendencias que sirvan como tema de una evaluación universitaria.
-Responde en español con 6 a 8 viñetas cortas, cada una así: «- Tema: por qué es actual (mes y año)». Sin introducción ni cierre.`
+Si no, busca en Google novedades REALES y recientes (últimos 12 a 18 meses) que sirvan como tema de una evaluación universitaria y que encajen con esa materia y ese pedido. Dale PRIORIDAD a:
+1) Inteligencia artificial aplicada al desarrollo: agentes de IA, automatizaciones (n8n, Make, Zapier), asistentes de código (GitHub Copilot, Cursor y similares), APIs de modelos, RAG, MCP.
+2) Herramientas que hoy se usan para construir y publicar software: GitHub Actions, Docker, Vercel, Hostinger, Supabase, nube.
+Y mantén el EQUILIBRIO con novedades propias de la ingeniería de software (requisitos, diseño, arquitectura, pruebas, calidad, seguridad, metodologías ágiles).
+Responde en español con 8 viñetas cortas: 4 de IA y herramientas y 4 de ingeniería de software, cada una así: «- Tema: por qué es actual (mes y año)». Sin introducción ni cierre.`
 }
 
 function conLimite(senal?: AbortSignal): AbortSignal {
