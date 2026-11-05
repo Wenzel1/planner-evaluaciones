@@ -33,9 +33,9 @@ export function FranjaExamen({ info, token, evaluacionId, nombre, ahora, onCambi
   return (
     <>
       {est === 'bloqueado' || est === 'sin_fecha' ? (
-        <div className={`${base} border-[#2a2b3d] bg-[#191a26] text-[#8a8b9e]`}>
+        <div className={`${base} border-[color:var(--c-2a2b3d)] bg-[color:var(--c-191a26)] text-[color:var(--c-8a8b9e)]`}>
           <Lock className="w-4 h-4 shrink-0" />
-          <span className="flex-1 min-w-0">Examen en línea · {info.preguntas} preguntas · {info.duracionMin} min<span className="block text-[11px] text-[#6a6b7e]">{info.abre ? `Se abre el ${fFecha(info.abre, { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}` : 'Tu profesor todavía no le puso fecha.'}</span></span>
+          <span className="flex-1 min-w-0">Examen en línea · {info.preguntas} preguntas · {info.duracionMin} min<span className="block text-[11px] text-[color:var(--c-6a6b7e)]">{info.abre ? `Se abre el ${fFecha(info.abre, { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}` : 'Tu profesor todavía no le puso fecha.'}</span></span>
         </div>
       ) : est === 'disponible' || est === 'en_curso' ? (
         <button type="button" onClick={(e) => { e.stopPropagation(); setAbierto(true); }} className={`${base} border-emerald-400/50 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15 font-semibold`}>
@@ -44,13 +44,13 @@ export function FranjaExamen({ info, token, evaluacionId, nombre, ahora, onCambi
           <ChevronRight className="w-4 h-4" />
         </button>
       ) : est === 'entregado' ? (
-        <div className={`${base} border-[#818cf8]/30 bg-[#818cf8]/10 text-[#c7d2fe]`}><CheckCircle2 className="w-4 h-4 shrink-0" /><span>Examen entregado. Tu nota aparecerá cuando tu profesor la publique.</span></div>
+        <div className={`${base} border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-c7d2fe)]`}><CheckCircle2 className="w-4 h-4 shrink-0" /><span>Examen entregado. Tu nota aparecerá cuando tu profesor la publique.</span></div>
       ) : est === 'calificado' ? (
-        <button type="button" onClick={(e) => { e.stopPropagation(); setResultado(true); }} className={`${base} border-[#2a2b3d] bg-[#1c1d2a] text-[#d0d0da] hover:border-[#818cf8]/50`}>
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-300" /><span className="flex-1">Examen calificado{info.nota != null ? `: ${fNota(info.nota)}/20` : ''}</span><span className="text-[11px] text-[#a5b4fc]">Ver resultado</span>
+        <button type="button" onClick={(e) => { e.stopPropagation(); setResultado(true); }} className={`${base} border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] text-[color:var(--c-d0d0da)] hover:border-[color:var(--c-818cf8)]/50`}>
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-300" /><span className="flex-1">Examen calificado{info.nota != null ? `: ${fNota(info.nota)}/20` : ''}</span><span className="text-[11px] text-[color:var(--c-a5b4fc)]">Ver resultado</span>
         </button>
       ) : (
-        <div className={`${base} border-[#2a2b3d] bg-[#191a26] text-[#8a8b9e]`}><Lock className="w-4 h-4 shrink-0" /><span>El tiempo para presentar el examen ya pasó. Si no lo presentaste, habla con tu profesor.</span></div>
+        <div className={`${base} border-[color:var(--c-2a2b3d)] bg-[color:var(--c-191a26)] text-[color:var(--c-8a8b9e)]`}><Lock className="w-4 h-4 shrink-0" /><span>El tiempo para presentar el examen ya pasó. Si no lo presentaste, habla con tu profesor.</span></div>
       )}
       {abierto && <VentanaExamen token={token} evaluacionId={evaluacionId} nombre={nombre} info={info} onCerrar={(cambio) => { setAbierto(false); if (cambio) onCambio(cambio); }} />}
       {resultado && <VentanaResultado token={token} evaluacionId={evaluacionId} nombre={nombre} onCerrar={() => setResultado(false)} />}
@@ -59,7 +59,7 @@ export function FranjaExamen({ info, token, evaluacionId, nombre, ahora, onCambi
 }
 
 function Capa({ children }: { children: React.ReactNode }) {
-  return createPortal(<div className="fixed inset-0 z-[90] bg-[#12131c] overflow-y-auto">{children}</div>, document.body);
+  return createPortal(<div className="fixed inset-0 z-[90] bg-[color:var(--c-12131c)] overflow-y-auto">{children}</div>, document.body);
 }
 
 // ---------- Ventana del examen ----------
@@ -157,19 +157,19 @@ function VentanaExamen({ token, evaluacionId, nombre, info, onCerrar }: { token:
   if (fase === 'confirmar') return (
     <Capa>
       <div className="min-h-full flex items-center justify-center p-5">
-        <div className="max-w-md w-full rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-6 space-y-4">
-          <FileCheck className="w-10 h-10 text-[#a5b4fc]" />
-          <h2 className="text-lg font-bold text-white">{nombre}</h2>
-          <ul className="text-sm text-[#c0c0d0] space-y-1.5">
+        <div className="max-w-md w-full rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-6 space-y-4">
+          <FileCheck className="w-10 h-10 text-[color:var(--c-a5b4fc)]" />
+          <h2 className="text-lg font-bold text-[color:var(--c-blanco)]">{nombre}</h2>
+          <ul className="text-sm text-[color:var(--c-c0c0d0)] space-y-1.5">
             <li>• {info.preguntas} preguntas ({TIPO[info.tipo] || info.tipo})</li>
-            <li>• Tienes <b className="text-white">{info.duracionMin} minutos</b> desde que empieces. El tiempo corre aunque cierres la página.</li>
+            <li>• Tienes <b className="text-[color:var(--c-blanco)]">{info.duracionMin} minutos</b> desde que empieces. El tiempo corre aunque cierres la página.</li>
             <li>• Tus respuestas se guardan solas. Al acabarse el tiempo se entrega automáticamente.</li>
             <li>• Solo puedes presentarlo una vez.</li>
             <li>• Las preguntas y opciones aparecen en un orden distinto para cada estudiante.</li>
             <li>• Si sales de esta página (otra pestaña u otra aplicación), <b className="text-amber-300">tu profesor lo verá</b>.</li>
           </ul>
           <div className="flex gap-2 pt-2">
-            <button type="button" onClick={() => onCerrar()} className="flex-1 h-11 rounded-xl border border-[#313248] text-[#c0c0d0] hover:text-white">Ahora no</button>
+            <button type="button" onClick={() => onCerrar()} className="flex-1 h-11 rounded-xl border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:text-[color:var(--c-blanco)]">Ahora no</button>
             <button type="button" onClick={iniciar} className="flex-1 h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold">Empezar</button>
           </div>
         </div>
@@ -177,45 +177,45 @@ function VentanaExamen({ token, evaluacionId, nombre, info, onCerrar }: { token:
     </Capa>
   );
   if (fase === 'cargando' || fase === 'entregando') return (
-    <Capa><div className="min-h-full flex flex-col items-center justify-center gap-3 text-[#c0c0d0]"><Loader2 className="w-8 h-8 animate-spin text-[#a5b4fc]" />{fase === 'entregando' ? 'Entregando tu examen…' : 'Abriendo el examen…'}</div></Capa>
+    <Capa><div className="min-h-full flex flex-col items-center justify-center gap-3 text-[color:var(--c-c0c0d0)]"><Loader2 className="w-8 h-8 animate-spin text-[color:var(--c-a5b4fc)]" />{fase === 'entregando' ? 'Entregando tu examen…' : 'Abriendo el examen…'}</div></Capa>
   );
   if (fase === 'error') return (
-    <Capa><div className="min-h-full flex items-center justify-center p-5"><div className="max-w-md w-full rounded-2xl border border-red-500/30 bg-[#1c1d2a] p-6 space-y-4 text-center">
-      <AlertCircle className="w-10 h-10 text-red-300 mx-auto" /><p className="text-sm text-[#d0d0da]">{mensaje}</p>
-      <div className="flex gap-2"><button type="button" onClick={() => onCerrar()} className="flex-1 h-11 rounded-xl border border-[#313248] text-[#c0c0d0]">Cerrar</button><button type="button" onClick={iniciar} className="flex-1 h-11 rounded-xl bg-[#818cf8] text-white font-semibold">Reintentar</button></div>
+    <Capa><div className="min-h-full flex items-center justify-center p-5"><div className="max-w-md w-full rounded-2xl border border-red-500/30 bg-[color:var(--c-1c1d2a)] p-6 space-y-4 text-center">
+      <AlertCircle className="w-10 h-10 text-red-300 mx-auto" /><p className="text-sm text-[color:var(--c-d0d0da)]">{mensaje}</p>
+      <div className="flex gap-2"><button type="button" onClick={() => onCerrar()} className="flex-1 h-11 rounded-xl border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)]">Cerrar</button><button type="button" onClick={iniciar} className="flex-1 h-11 rounded-xl bg-[color:var(--c-818cf8)] text-white font-semibold">Reintentar</button></div>
     </div></div></Capa>
   );
   if (fase === 'listo') return (
-    <Capa><div className="min-h-full flex items-center justify-center p-5"><div className="max-w-md w-full rounded-2xl border border-emerald-500/30 bg-[#1c1d2a] p-6 space-y-4 text-center">
+    <Capa><div className="min-h-full flex items-center justify-center p-5"><div className="max-w-md w-full rounded-2xl border border-emerald-500/30 bg-[color:var(--c-1c1d2a)] p-6 space-y-4 text-center">
       <CheckCircle2 className="w-12 h-12 text-emerald-300 mx-auto" />
-      <h2 className="text-lg font-bold text-white">¡Examen entregado!</h2>
+      <h2 className="text-lg font-bold text-[color:var(--c-blanco)]">¡Examen entregado!</h2>
       {final?.tarde && <p className="text-xs text-amber-300">Se acabó el tiempo: se entregó con lo que habías respondido.</p>}
-      {final?.publicada && final.nota != null ? <p className="text-3xl font-bold text-white">{fNota(final.nota)}<span className="text-base text-[#8a8b9e]">/20</span></p> : <p className="text-sm text-[#c0c0d0]">Tu profesor revisará tus respuestas. La nota aparecerá en esta página.</p>}
-      <button type="button" onClick={() => onCerrar(final?.publicada ? { estado: 'calificado', nota: final.nota } : { estado: 'entregado' })} className="w-full h-11 rounded-xl bg-[#818cf8] text-white font-semibold">Volver a mi página</button>
+      {final?.publicada && final.nota != null ? <p className="text-3xl font-bold text-[color:var(--c-blanco)]">{fNota(final.nota)}<span className="text-base text-[color:var(--c-8a8b9e)]">/20</span></p> : <p className="text-sm text-[color:var(--c-c0c0d0)]">Tu profesor revisará tus respuestas. La nota aparecerá en esta página.</p>}
+      <button type="button" onClick={() => onCerrar(final?.publicada ? { estado: 'calificado', nota: final.nota } : { estado: 'entregado' })} className="w-full h-11 rounded-xl bg-[color:var(--c-818cf8)] text-white font-semibold">Volver a mi página</button>
     </div></div></Capa>
   );
 
   return (
     <Capa>
-      <div className="sticky top-0 z-10 bg-[#12131c]/95 backdrop-blur border-b border-[#24253a]">
+      <div className="sticky top-0 z-10 bg-[color:var(--c-12131c)]/95 backdrop-blur border-b border-[color:var(--c-24253a)]">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white truncate">{nombre}</p>
-            <p className="text-[11px] text-[#8a8b9e]">{respondidas} de {examen?.preguntas.length} respondidas · {guardado === 'ok' ? 'Guardado ✓' : guardado === 'guardando' ? 'Guardando…' : guardado === 'sin-conexion' ? <span className="text-amber-300">Sin conexión: se guardará al volver</span> : 'Cambios sin guardar'}</p>
+            <p className="text-sm font-semibold text-[color:var(--c-blanco)] truncate">{nombre}</p>
+            <p className="text-[11px] text-[color:var(--c-8a8b9e)]">{respondidas} de {examen?.preguntas.length} respondidas · {guardado === 'ok' ? 'Guardado ✓' : guardado === 'guardando' ? 'Guardando…' : guardado === 'sin-conexion' ? <span className="text-amber-300">Sin conexión: se guardará al volver</span> : 'Cambios sin guardar'}</p>
           </div>
-          <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-sm font-bold ${restante < 60000 ? 'bg-red-500/20 text-red-300 animate-pulse' : restante < 300000 ? 'bg-amber-500/15 text-amber-300' : 'bg-[#1c1d2a] text-white'}`}><Clock className="w-4 h-4" />{reloj(restante)}</span>
+          <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-sm font-bold ${restante < 60000 ? 'bg-red-500/20 text-red-300 animate-pulse' : restante < 300000 ? 'bg-amber-500/15 text-amber-300' : 'bg-[color:var(--c-1c1d2a)] text-[color:var(--c-blanco)]'}`}><Clock className="w-4 h-4" />{reloj(restante)}</span>
         </div>
-        <div className="h-1 bg-[#1c1d2a]"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${examen ? (respondidas / examen.preguntas.length) * 100 : 0}%` }} /></div>
+        <div className="h-1 bg-[color:var(--c-1c1d2a)]"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${examen ? (respondidas / examen.preguntas.length) * 100 : 0}%` }} /></div>
       </div>
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
         {salidas > 0 && <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">⚠️ Saliste de la página del examen {salidas} {salidas === 1 ? 'vez' : 'veces'}. Tu profesor puede verlo.</p>}
-        {examen?.instrucciones && <p className="text-sm text-[#a8a9bc] italic">{examen.instrucciones}</p>}
+        {examen?.instrucciones && <p className="text-sm text-[color:var(--c-a8a9bc)] italic">{examen.instrucciones}</p>}
         {examen?.preguntas.map((p, i) => (
-          <div key={p.id} className="rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-4 sm:p-5 space-y-3">
+          <div key={p.id} className="rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-4 sm:p-5 space-y-3">
             <div className="flex items-start gap-3">
-              <span className="w-7 h-7 shrink-0 rounded-lg bg-[#818cf8]/15 text-[#a5b4fc] text-xs font-bold flex items-center justify-center">{i + 1}</span>
-              <p className="flex-1 text-[15px] text-white leading-relaxed whitespace-pre-wrap">{p.enunciado}</p>
-              <span className="text-[11px] text-[#8a8b9e] whitespace-nowrap">{fNota(p.puntos)} pts</span>
+              <span className="w-7 h-7 shrink-0 rounded-lg bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-a5b4fc)] text-xs font-bold flex items-center justify-center">{i + 1}</span>
+              <p className="flex-1 text-[15px] text-[color:var(--c-blanco)] leading-relaxed whitespace-pre-wrap">{p.enunciado}</p>
+              <span className="text-[11px] text-[color:var(--c-8a8b9e)] whitespace-nowrap">{fNota(p.puntos)} pts</span>
             </div>
             {(p.tipo === 'seleccion' || p.tipo === 'vf') ? (
               <div className="space-y-2 sm:pl-10">
@@ -223,23 +223,23 @@ function VentanaExamen({ token, evaluacionId, nombre, info, onCerrar }: { token:
                   const valor = p.tipo === 'vf' ? (k === 0 ? 1 : 0) : k;
                   const marcada = resp[p.id] === valor;
                   return (
-                    <button key={k} type="button" onClick={() => responder(p.id, valor)} className={`w-full text-left flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm transition-colors ${marcada ? 'border-[#818cf8] bg-[#818cf8]/15 text-white' : 'border-[#2a2b3d] bg-[#191a26] text-[#c0c0d0] hover:border-[#3a3b52]'}`}>
-                      <span className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center ${marcada ? 'border-[#818cf8]' : 'border-[#4a4b62]'}`}>{marcada && <span className="w-2.5 h-2.5 rounded-full bg-[#818cf8]" />}</span>
-                      {p.tipo === 'seleccion' && <span className="text-[#6a6b7e]">{'abcdef'[k]})</span>}{o}
+                    <button key={k} type="button" onClick={() => responder(p.id, valor)} className={`w-full text-left flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm transition-colors ${marcada ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-blanco)]' : 'border-[color:var(--c-2a2b3d)] bg-[color:var(--c-191a26)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-3a3b52)]'}`}>
+                      <span className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center ${marcada ? 'border-[color:var(--c-818cf8)]' : 'border-[color:var(--c-4a4b62)]'}`}>{marcada && <span className="w-2.5 h-2.5 rounded-full bg-[color:var(--c-818cf8)]" />}</span>
+                      {p.tipo === 'seleccion' && <span className="text-[color:var(--c-6a6b7e)]">{'abcdef'[k]})</span>}{o}
                     </button>
                   );
                 })}
               </div>
             ) : (
               <div className="sm:pl-10">
-                <textarea value={resp[p.id] || ''} onChange={(e) => responder(p.id, e.target.value)} rows={p.tipo === 'informe' ? 12 : 6} placeholder={p.tipo === 'informe' ? 'Escribe tu informe aquí…' : 'Escribe tu respuesta…'} className="w-full rounded-xl border border-[#2a2b3d] bg-[#191a26] px-3.5 py-3 text-sm text-white leading-relaxed outline-none focus:border-[#818cf8]/60 resize-y" />
-                <p className="text-right text-[11px] text-[#6a6b7e] mt-1">{String(resp[p.id] || '').trim().split(/\s+/).filter(Boolean).length} palabras</p>
+                <textarea value={resp[p.id] || ''} onChange={(e) => responder(p.id, e.target.value)} rows={p.tipo === 'informe' ? 12 : 6} placeholder={p.tipo === 'informe' ? 'Escribe tu informe aquí…' : 'Escribe tu respuesta…'} className="w-full rounded-xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-191a26)] px-3.5 py-3 text-sm text-[color:var(--c-blanco)] leading-relaxed outline-none focus:border-[color:var(--c-818cf8)]/60 resize-y" />
+                <p className="text-right text-[11px] text-[color:var(--c-6a6b7e)] mt-1">{String(resp[p.id] || '').trim().split(/\s+/).filter(Boolean).length} palabras</p>
               </div>
             )}
           </div>
         ))}
         <button type="button" onClick={() => entregar(false)} className="w-full h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold flex items-center justify-center gap-2"><Send className="w-4 h-4" />Entregar examen</button>
-        <p className="text-center text-[11px] text-[#6a6b7e] pb-6">Si se va el internet, no cierres esta página: tus respuestas se guardan y se envían al volver.</p>
+        <p className="text-center text-[11px] text-[color:var(--c-6a6b7e)] pb-6">Si se va el internet, no cierres esta página: tus respuestas se guardan y se envían al volver.</p>
       </div>
     </Capa>
   );
@@ -257,20 +257,20 @@ function VentanaResultado({ token, evaluacionId, nombre, onCerrar }: { token: st
     <Capa>
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         <div className="flex items-center gap-3">
-          <h2 className="flex-1 text-lg font-bold text-white">{nombre}</h2>
-          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="p-2 rounded-lg text-[#8a8b9e] hover:text-white hover:bg-[#1c1d2a]"><X className="w-5 h-5" /></button>
+          <h2 className="flex-1 text-lg font-bold text-[color:var(--c-blanco)]">{nombre}</h2>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="p-2 rounded-lg text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] hover:bg-[color:var(--c-1c1d2a)]"><X className="w-5 h-5" /></button>
         </div>
-        {error ? <p className="text-sm text-red-300">{error}</p> : !d ? <Loader2 className="w-6 h-6 animate-spin text-[#a5b4fc]" /> : !res ? <p className="text-sm text-[#c0c0d0]">Tu nota todavía no está publicada.</p> : (
+        {error ? <p className="text-sm text-red-300">{error}</p> : !d ? <Loader2 className="w-6 h-6 animate-spin text-[color:var(--c-a5b4fc)]" /> : !res ? <p className="text-sm text-[color:var(--c-c0c0d0)]">Tu nota todavía no está publicada.</p> : (
           <>
-            <div className="rounded-2xl border border-[#2a2b3d] bg-[#1c1d2a] p-5 text-center">
-              <p className={`text-4xl font-bold ${res.nota >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(res.nota)}<span className="text-lg text-[#8a8b9e]">/20</span></p>
-              {res.comentario && <p className="mt-2 text-sm text-[#c0c0d0]">💬 {res.comentario}</p>}
+            <div className="rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-5 text-center">
+              <p className={`text-4xl font-bold ${res.nota >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(res.nota)}<span className="text-lg text-[color:var(--c-8a8b9e)]">/20</span></p>
+              {res.comentario && <p className="mt-2 text-sm text-[color:var(--c-c0c0d0)]">💬 {res.comentario}</p>}
             </div>
             <ol className="space-y-2">
               {res.preguntas.map((p: any, i: number) => (
-                <li key={p.id} className="rounded-xl border border-[#2a2b3d] bg-[#1c1d2a] px-4 py-3 flex items-start gap-3 text-sm">
-                  <span className="text-[#6a6b7e]">{i + 1}.</span>
-                  <span className="flex-1 text-[#c0c0d0]">{p.comentario || (p.obtenidos === p.puntos ? 'Correcta' : p.obtenidos === 0 ? 'Incorrecta' : 'Parcial')}</span>
+                <li key={p.id} className="rounded-xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] px-4 py-3 flex items-start gap-3 text-sm">
+                  <span className="text-[color:var(--c-6a6b7e)]">{i + 1}.</span>
+                  <span className="flex-1 text-[color:var(--c-c0c0d0)]">{p.comentario || (p.obtenidos === p.puntos ? 'Correcta' : p.obtenidos === 0 ? 'Incorrecta' : 'Parcial')}</span>
                   <span className={`font-semibold ${p.obtenidos === p.puntos ? 'text-emerald-300' : p.obtenidos ? 'text-amber-300' : 'text-red-300'}`}>{p.obtenidos == null ? '—' : fNota(p.obtenidos)}/{fNota(p.puntos)}</span>
                 </li>
               ))}

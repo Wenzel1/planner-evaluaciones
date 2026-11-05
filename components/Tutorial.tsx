@@ -39,7 +39,7 @@ export function pasosTutorial(nombre: string, esMovil: boolean): PasoTutorial[] 
     { objetivo: 'acta', titulo: 'Acta de notas', texto: 'Descarga en un clic el acta de la sección para Excel: cada estudiante con sus notas, su promedio y si aprueba o no.', opcional: true },
     { objetivo: 'pestanas', titulo: 'Más pantallas', texto: '📊 Dashboard: promedios, avance y estudiantes en riesgo. 📅 Calendario: ve y arrastra las fechas, con feriados. 👥 Estudiantes: agrégalos uno a uno o desde Excel y abre su página personal. 🗑️ Papelera: recupera lo que borraste.' },
     { objetivo: 'notificaciones', titulo: 'Notificaciones', texto: 'Te avisa cuando un estudiante opina sobre el plan, marca «Ya me preparé» o entrega un examen, y de las evaluaciones que se acercan. Los recordatorios a los estudiantes salen solos por correo.', opcional: true },
-    { objetivo: 'configuracion', titulo: 'Configuración', texto: 'Datos del plan (institución, lapso, materia) que salen en el PDF, y las preferencias de tu cuenta.', opcional: true },
+    { objetivo: 'tema', titulo: 'Modo claro u oscuro', texto: 'El solecito aclara toda la aplicación (ideal con mucha luz o para proyectar en clase). La luna la vuelve al modo oscuro. Se recuerda en este navegador.', opcional: true },
     { objetivo: 'ayuda', titulo: '¡Listo! 🎉', texto: 'Para empezar, prueba en el chat: «Hazme un plan de 4 evaluaciones». Cuando quieras repetir este recorrido, presiona este botón.' },
   ];
 }
@@ -127,39 +127,39 @@ export default function Tutorial({ pasos, onTerminar, alCambiarPaso }: { pasos: 
     <div className="fixed inset-0 z-[10000]" role="dialog" aria-modal="true" aria-labelledby="tutorial-titulo">
       {/* Fondo oscuro con un "hueco" sobre el elemento explicado; bloquea los clics mientras dura el recorrido */}
       {hueco ? (
-        <div className="absolute rounded-xl border-2 border-[#818cf8] pointer-events-none transition-all duration-300 ease-out"
+        <div className="absolute rounded-xl border-2 border-[color:var(--c-818cf8)] pointer-events-none transition-all duration-300 ease-out"
           style={{ ...hueco, boxShadow: '0 0 0 9999px rgba(8, 9, 20, 0.72), 0 0 24px 4px rgba(129, 140, 248, 0.45)' }} />
       ) : (
-        <div className="absolute inset-0 bg-[#080914]/75 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-[color:var(--c-080914)]/75 transition-opacity duration-300" />
       )}
       <div className="absolute inset-0" onClick={(e) => e.stopPropagation()} />
 
-      <div key={i} className="absolute bg-[#1d1e2e] border border-[#3a3d5c] rounded-2xl shadow-2xl shadow-black/60 p-5 transition-all duration-300 ease-out animate-[aparecer_.25s_ease-out]"
+      <div key={i} className="absolute bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-3a3d5c)] rounded-2xl shadow-2xl shadow-black/60 p-5 transition-all duration-300 ease-out animate-[aparecer_.25s_ease-out]"
         style={{ ...tarjeta, width: ancho }}>
         <style>{`@keyframes aparecer { from { opacity: 0; transform: ${hueco ? 'translateY(6px)' : 'translate(-50%, calc(-50% + 6px))'}; } }`}</style>
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 min-w-0">
-            {i === 0 && <Sparkles className="w-5 h-5 text-[#a5b4fc] flex-shrink-0" />}
-            <h2 id="tutorial-titulo" className="text-base font-semibold text-[#e8e8f2]">{paso.titulo}</h2>
+            {i === 0 && <Sparkles className="w-5 h-5 text-[color:var(--c-a5b4fc)] flex-shrink-0" />}
+            <h2 id="tutorial-titulo" className="text-base font-semibold text-[color:var(--c-e8e8f2)]">{paso.titulo}</h2>
           </div>
           {!ultimo && (
-            <button onClick={onTerminar} className="flex items-center gap-1 text-xs text-[#9a9bb0] hover:text-white px-2 py-1 rounded-lg hover:bg-[#272839] flex-shrink-0" aria-label="Omitir el tutorial">
+            <button onClick={onTerminar} className="flex items-center gap-1 text-xs text-[color:var(--c-9a9bb0)] hover:text-[color:var(--c-blanco)] px-2 py-1 rounded-lg hover:bg-[color:var(--c-272839)] flex-shrink-0" aria-label="Omitir el tutorial">
               Omitir <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-        <p className="text-sm text-[#b8b8c8] leading-relaxed">{paso.texto}</p>
+        <p className="text-sm text-[color:var(--c-b8b8c8)] leading-relaxed">{paso.texto}</p>
         <div className="flex items-center justify-between mt-4 gap-3">
           <div className="flex items-center gap-1" aria-label={`Paso ${i + 1} de ${pasos.length}`}>
-            {pasos.map((_, k) => <span key={k} className={`h-1.5 rounded-full transition-all ${k === i ? 'w-4 bg-[#818cf8]' : k < i ? 'w-1.5 bg-[#818cf8]/50' : 'w-1.5 bg-[#3a3d5c]'}`} />)}
+            {pasos.map((_, k) => <span key={k} className={`h-1.5 rounded-full transition-all ${k === i ? 'w-4 bg-[color:var(--c-818cf8)]' : k < i ? 'w-1.5 bg-[color:var(--c-818cf8)]/50' : 'w-1.5 bg-[color:var(--c-3a3d5c)]'}`} />)}
           </div>
           <div className="flex items-center gap-2">
             {i > 0 && (
-              <button onClick={() => ir(i - 1, -1)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-[#272839] text-[#c0c0d0] hover:bg-[#2e2f42]">
+              <button onClick={() => ir(i - 1, -1)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-2e2f42)]">
                 <ChevronLeft className="w-3.5 h-3.5" />Atrás
               </button>
             )}
-            <button autoFocus onClick={() => (ultimo ? onTerminar() : ir(i + 1, 1))} className="flex items-center gap-1 px-3.5 py-1.5 text-xs rounded-lg bg-[#818cf8] hover:bg-[#6f7af0] text-white font-semibold">
+            <button autoFocus onClick={() => (ultimo ? onTerminar() : ir(i + 1, 1))} className="flex items-center gap-1 px-3.5 py-1.5 text-xs rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6f7af0)] text-white font-semibold">
               {i === 0 ? 'Empezar recorrido' : ultimo ? 'Terminar' : 'Siguiente'}{!ultimo && <ChevronRight className="w-3.5 h-3.5" />}
             </button>
           </div>

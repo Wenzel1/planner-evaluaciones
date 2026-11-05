@@ -28,6 +28,7 @@ import {
   MessageCircleQuestion, Eye as EyeIcon, Speech, Download,
   UserCog, ShieldCheck, RefreshCw, Upload, PanelLeftClose, PanelLeftOpen,
   CircleHelp,
+  Sun, Moon,
 } from 'lucide-react';
 import DescripcionOrdenada from '@/components/DescripcionOrdenada';
 import { aWav16k } from '@/lib/audioWav';
@@ -118,8 +119,8 @@ const CLAVE_MODO_AUTO = 'agenteModoAuto';
 // "Aplicar todo" aplica de una vez las tarjetas pendientes de un mensaje, menos las que envían mensajes, borran o recargan
 const FUERA_DE_APLICAR_TODO = ['mensaje_estudiantes', 'enviar_plan', 'eliminar_evaluaciones', 'cambiar_materia', 'generar_preguntas', 'navegar', 'crear_examen'];
 interface AvisoChat { tipo: string; texto: string; pedido: string; seccion?: string; urgente?: boolean }
-const VISTA_DE_AGENTE: Record<string, string> = { dashboard: 'estadisticas', planificador: 'planificacion', calendario: 'calendario', estudiantes: 'estudiantes', papelera: 'papelera', perfil: 'perfil', configuracion: 'configuracion' };
-const NOMBRE_VISTA: Record<string, string> = { dashboard: 'el Dashboard', planificador: 'el Planificador', calendario: 'el Calendario', estudiantes: 'Estudiantes', papelera: 'la Papelera', perfil: 'tu perfil', configuracion: 'la configuración del plan' };
+const VISTA_DE_AGENTE: Record<string, string> = { dashboard: 'estadisticas', planificador: 'planificacion', calendario: 'calendario', estudiantes: 'estudiantes', papelera: 'papelera', perfil: 'perfil' };
+const NOMBRE_VISTA: Record<string, string> = { dashboard: 'el Dashboard', planificador: 'el Planificador', calendario: 'el Calendario', estudiantes: 'Estudiantes', papelera: 'la Papelera', perfil: 'tu perfil' };
 // Comparar nombres sin tildes ni mayúsculas ("jose perez" = "José Pérez")
 const nombreNormal = (t: string) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim();
 // Busca a alguien por nombre: exacto, o que contenga todas las palabras dichas. 'varios' = hay más de uno posible.
@@ -158,10 +159,10 @@ interface EvaluacionFormulario {
 // ============================================
 // CONSTANTES DE ESTILOS
 // ============================================
-const inputBase = "w-full h-12 px-4 bg-[#1f2035] border border-[#313248] rounded-xl text-sm text-[#d8d8e2] placeholder-[#6a6b7e] focus:border-[#818cf8]/40 outline-none transition-all duration-200 font-['Inter']";
-const smallInput = "w-full h-12 px-2.5 bg-[#1f2035] border border-[#313248] rounded-xl text-sm text-[#d8d8e2] placeholder-[#6a6b7e] focus:border-[#818cf8]/40 outline-none transition-all duration-200 font-['Inter'] text-center";
-const textareaBase = "w-full px-4 py-3 bg-[#1f2035] border border-[#313248] rounded-xl text-sm text-[#d8d8e2] placeholder-[#6a6b7e] focus:border-[#818cf8]/40 outline-none transition-all duration-200 font-['Inter'] resize-vertical custom-scrollbar";
-const labelBase = "text-[11px] text-[#b0b0c4] block mb-1 font-medium";
+const inputBase = "w-full h-12 px-4 bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl text-sm text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] focus:border-[color:var(--c-818cf8)]/40 outline-none transition-all duration-200 font-['Inter']";
+const smallInput = "w-full h-12 px-2.5 bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl text-sm text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] focus:border-[color:var(--c-818cf8)]/40 outline-none transition-all duration-200 font-['Inter'] text-center";
+const textareaBase = "w-full px-4 py-3 bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl text-sm text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] focus:border-[color:var(--c-818cf8)]/40 outline-none transition-all duration-200 font-['Inter'] resize-vertical custom-scrollbar";
+const labelBase = "text-[11px] text-[color:var(--c-b0b0c4)] block mb-1 font-medium";
 
 // ============================================
 // VALIDACIÓN DE CONTENIDO — INGENIERÍA DE SOFTWARE
@@ -487,7 +488,7 @@ function Tooltip({ text, children, lado = 'arriba', alinear = 'centro' }: { text
   return (
     <div className="relative group inline-flex items-center">
       {children}
-      <div role="tooltip" className={`absolute ${vertical} ${horizontal} px-2 py-1 bg-[#0d0e14] text-[#d8d8e2] text-[10px] rounded-md opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-[#313248]`}>{text}</div>
+      <div role="tooltip" className={`absolute ${vertical} ${horizontal} px-2 py-1 bg-[color:var(--c-0d0e14)] text-[color:var(--c-d8d8e2)] text-[10px] rounded-md opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-[color:var(--c-313248)]`}>{text}</div>
     </div>
   );
 }
@@ -546,21 +547,21 @@ function extraerJSONDelTexto(texto: string): any {
 const formatMessage = (text: string) => {
   if (!text) return ''; const t = escaparHTML(limpiarBloqueJSON(text));
   return t
-    .replace(/^[-*] (.*)$/gm, '<div class="flex gap-2 ml-2 my-0.5"><span class="text-[#818cf8]">•</span><span>$1</span></div>')
-    .replace(/^### (.*)$/gm, '<h4 class="text-[#c0c0d0] font-semibold mt-4 mb-1">$1</h4>')
-    .replace(/^## (.*)$/gm, '<h3 class="text-[#d0d0d8] font-semibold mt-5 mb-2">$1</h3>')
-    .replace(/^# (.*)$/gm, '<h2 class="text-[#e0e0e8] font-bold mt-5 mb-3">$1</h2>')
-    .replace(/^---$/gm, '<hr class="border-[#313248] my-4"/>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#e0e0e8] font-semibold">$1</strong>')
+    .replace(/^[-*] (.*)$/gm, '<div class="flex gap-2 ml-2 my-0.5"><span class="text-[color:var(--c-818cf8)]">•</span><span>$1</span></div>')
+    .replace(/^### (.*)$/gm, '<h4 class="text-[color:var(--c-c0c0d0)] font-semibold mt-4 mb-1">$1</h4>')
+    .replace(/^## (.*)$/gm, '<h3 class="text-[color:var(--c-d0d0d8)] font-semibold mt-5 mb-2">$1</h3>')
+    .replace(/^# (.*)$/gm, '<h2 class="text-[color:var(--c-e0e0e8)] font-bold mt-5 mb-3">$1</h2>')
+    .replace(/^---$/gm, '<hr class="border-[color:var(--c-313248)] my-4"/>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-[color:var(--c-e0e0e8)] font-semibold">$1</strong>')
     .replace(/(<\/(?:div|h2|h3|h4)>|<hr[^>]*\/>)\n/g, '$1')
     .replace(/\n/g, '<br/>');
 };
 
 function DatePicker({ value, onChange, minimo }: { value: Date; onChange: (date: Date) => void; minimo?: Date }) {
-  const [isOpen, setIsOpen] = useState(false); const [viewDate, setViewDate] = useState(() => new Date(value)); const containerRef = useRef<HTMLDivElement>(null); const dropdownRef = useRef<HTMLDivElement>(null); const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 }); const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']; const daysOfWeek = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']; const year = viewDate.getFullYear(); const month = viewDate.getMonth(); const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const updatePosition = useCallback(() => { if (containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 280) }); } }, []); useEffect(() => { if (isOpen) updatePosition(); }, [isOpen, updatePosition]); useEffect(() => { if (!isOpen) return; const handle = () => updatePosition(); window.addEventListener('resize', handle); window.addEventListener('scroll', handle, true); return () => { window.removeEventListener('resize', handle); window.removeEventListener('scroll', handle, true); }; }, [isOpen, updatePosition]); useEffect(() => { const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node) && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, []); useEffect(() => { setViewDate(new Date(value)); }, [value]); const diaMin = minimo ? new Date(minimo.getFullYear(), minimo.getMonth(), minimo.getDate()).getTime() : -Infinity; const esPasado = (day: number) => new Date(year, month, day).getTime() < diaMin; const selectDate = (day: number) => { if (esPasado(day)) return; let d = new Date(year, month, day, value.getHours(), value.getMinutes()); if (minimo && d.getTime() < minimo.getTime()) { d = new Date(minimo); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0); } onChange(d); }; const formatDisplay = (d: Date) => d.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }); const selectedDate = value; const dropdownContent = isOpen && (<motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}><div className="p-4"><div className="flex items-center justify-between mb-4"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} disabled={new Date(year, month, 0).getTime() < diaMin} onClick={() => setViewDate(new Date(year, month - 1, 1))} className="disabled:opacity-25 disabled:pointer-events-none p-1.5 text-[#7a7b8e] hover:text-[#b0b0c4] hover:bg-[#272839] rounded-lg transition-colors"><ChevronLeft className="w-4 h-4" /></motion.button><span className="text-sm font-medium text-[#d0d0da]">{months[month]} {year}</span><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-1.5 text-[#7a7b8e] hover:text-[#b0b0c4] hover:bg-[#272839] rounded-lg transition-colors"><ChevronRight className="w-4 h-4" /></motion.button></div><div className="grid grid-cols-7 gap-1 mb-2">{daysOfWeek.map(d => (<div key={d} className="text-center text-xs text-[#6a6b7e] font-medium py-1">{d}</div>))}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: firstDay }).map((_, i) => (<div key={`e-${i}`} />))}{Array.from({ length: daysInMonth }).map((_, i) => { const day = i + 1; const isSelected = selectedDate && selectedDate.getDate() === day && selectedDate.getMonth() === month && selectedDate.getFullYear() === year; const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year; const pasado = esPasado(day); return (<motion.button key={day} whileHover={pasado ? undefined : { scale: 1.1 }} whileTap={pasado ? undefined : { scale: 0.9 }} disabled={pasado} title={pasado ? 'Esta fecha ya pasó' : undefined} onClick={() => selectDate(day)} className={`w-full aspect-square rounded-lg text-sm font-medium transition-all ${pasado ? 'text-[#3e3f52] line-through cursor-not-allowed' : isSelected ? 'bg-[#818cf8] text-white shadow-lg shadow-indigo-500/20' : isToday ? 'bg-[#272839] text-[#818cf8] border border-[#818cf8]/30' : 'text-[#b0b0c4] hover:bg-[#272839] hover:text-[#d0d0da]'}`}>{day}</motion.button>); })}</div></div><div className="px-4 py-2 border-t border-[#282a3f]"><button onClick={() => { const now = new Date(); onChange(now); setViewDate(now); setIsOpen(false); }} className="w-full text-center text-xs text-[#7a7b8e] hover:text-[#b0b0c4] py-1 rounded-lg hover:bg-[#272839] transition-colors">Hoy</button></div></motion.div>); return (<div ref={containerRef}><button type="button" onClick={() => setIsOpen(!isOpen)} className={`${inputBase} flex items-center justify-between text-left cursor-pointer`}><span className="text-[#d8d8e2] text-sm truncate">{formatDisplay(value)}</span><Calendar className="w-4 h-4 text-[#818cf8] flex-shrink-0 ml-2" /></button>{createPortal(dropdownContent, document.body)}</div>);
+  const [isOpen, setIsOpen] = useState(false); const [viewDate, setViewDate] = useState(() => new Date(value)); const containerRef = useRef<HTMLDivElement>(null); const dropdownRef = useRef<HTMLDivElement>(null); const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 }); const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']; const daysOfWeek = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']; const year = viewDate.getFullYear(); const month = viewDate.getMonth(); const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const updatePosition = useCallback(() => { if (containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 280) }); } }, []); useEffect(() => { if (isOpen) updatePosition(); }, [isOpen, updatePosition]); useEffect(() => { if (!isOpen) return; const handle = () => updatePosition(); window.addEventListener('resize', handle); window.addEventListener('scroll', handle, true); return () => { window.removeEventListener('resize', handle); window.removeEventListener('scroll', handle, true); }; }, [isOpen, updatePosition]); useEffect(() => { const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node) && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, []); useEffect(() => { setViewDate(new Date(value)); }, [value]); const diaMin = minimo ? new Date(minimo.getFullYear(), minimo.getMonth(), minimo.getDate()).getTime() : -Infinity; const esPasado = (day: number) => new Date(year, month, day).getTime() < diaMin; const selectDate = (day: number) => { if (esPasado(day)) return; let d = new Date(year, month, day, value.getHours(), value.getMinutes()); if (minimo && d.getTime() < minimo.getTime()) { d = new Date(minimo); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0); } onChange(d); }; const formatDisplay = (d: Date) => d.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }); const selectedDate = value; const dropdownContent = isOpen && (<motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}><div className="p-4"><div className="flex items-center justify-between mb-4"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} disabled={new Date(year, month, 0).getTime() < diaMin} onClick={() => setViewDate(new Date(year, month - 1, 1))} className="disabled:opacity-25 disabled:pointer-events-none p-1.5 text-[color:var(--c-7a7b8e)] hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-272839)] rounded-lg transition-colors"><ChevronLeft className="w-4 h-4" /></motion.button><span className="text-sm font-medium text-[color:var(--c-d0d0da)]">{months[month]} {year}</span><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-1.5 text-[color:var(--c-7a7b8e)] hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-272839)] rounded-lg transition-colors"><ChevronRight className="w-4 h-4" /></motion.button></div><div className="grid grid-cols-7 gap-1 mb-2">{daysOfWeek.map(d => (<div key={d} className="text-center text-xs text-[color:var(--c-6a6b7e)] font-medium py-1">{d}</div>))}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: firstDay }).map((_, i) => (<div key={`e-${i}`} />))}{Array.from({ length: daysInMonth }).map((_, i) => { const day = i + 1; const isSelected = selectedDate && selectedDate.getDate() === day && selectedDate.getMonth() === month && selectedDate.getFullYear() === year; const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year; const pasado = esPasado(day); return (<motion.button key={day} whileHover={pasado ? undefined : { scale: 1.1 }} whileTap={pasado ? undefined : { scale: 0.9 }} disabled={pasado} title={pasado ? 'Esta fecha ya pasó' : undefined} onClick={() => selectDate(day)} className={`w-full aspect-square rounded-lg text-sm font-medium transition-all ${pasado ? 'text-[color:var(--c-3e3f52)] line-through cursor-not-allowed' : isSelected ? 'bg-[color:var(--c-818cf8)] text-white shadow-lg shadow-indigo-500/20' : isToday ? 'bg-[color:var(--c-272839)] text-[color:var(--c-818cf8)] border border-[color:var(--c-818cf8)]/30' : 'text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-272839)] hover:text-[color:var(--c-d0d0da)]'}`}>{day}</motion.button>); })}</div></div><div className="px-4 py-2 border-t border-[color:var(--c-282a3f)]"><button onClick={() => { const now = new Date(); onChange(now); setViewDate(now); setIsOpen(false); }} className="w-full text-center text-xs text-[color:var(--c-7a7b8e)] hover:text-[color:var(--c-b0b0c4)] py-1 rounded-lg hover:bg-[color:var(--c-272839)] transition-colors">Hoy</button></div></motion.div>); return (<div ref={containerRef}><button type="button" onClick={() => setIsOpen(!isOpen)} className={`${inputBase} flex items-center justify-between text-left cursor-pointer`}><span className="text-[color:var(--c-d8d8e2)] text-sm truncate">{formatDisplay(value)}</span><Calendar className="w-4 h-4 text-[color:var(--c-818cf8)] flex-shrink-0 ml-2" /></button>{createPortal(dropdownContent, document.body)}</div>);
 }
 function TimePicker({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
-  const [isOpen, setIsOpen] = useState(false); const [selectedHour, setSelectedHour] = useState(() => { const h = value.getHours(); return h % 12 || 12; }); const [selectedAmPm, setSelectedAmPm] = useState<'am' | 'pm'>(() => value.getHours() >= 12 ? 'pm' : 'am'); const [selectedMinute, setSelectedMinute] = useState(() => value.getMinutes()); const containerRef = useRef<HTMLDivElement>(null); const dropdownRef = useRef<HTMLDivElement>(null); const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 }); const minutesOptions = Array.from({ length: 12 }, (_, i) => i * 5); const updatePosition = useCallback(() => { if (containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 260) }); } }, []); useEffect(() => { if (isOpen) updatePosition(); }, [isOpen, updatePosition]); useEffect(() => { if (!isOpen) return; const handle = () => updatePosition(); window.addEventListener('resize', handle); window.addEventListener('scroll', handle, true); return () => { window.removeEventListener('resize', handle); window.removeEventListener('scroll', handle, true); }; }, [isOpen, updatePosition]); useEffect(() => { const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node) && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, []); useEffect(() => { const hours = value.getHours(); setSelectedHour(hours % 12 || 12); setSelectedAmPm(hours >= 12 ? 'pm' : 'am'); setSelectedMinute(value.getMinutes()); }, [value]); const convertTo24h = (h: number, ampm: 'am' | 'pm') => { if (ampm === 'am') return h === 12 ? 0 : h; return h === 12 ? 12 : h + 12; }; const handleTimeChange = (h: number, m: number, ampm: 'am' | 'pm') => { setSelectedHour(h); setSelectedMinute(m); setSelectedAmPm(ampm); const hour24 = convertTo24h(h, ampm); const d = new Date(value); d.setHours(hour24); d.setMinutes(m); onChange(d); }; const formatDisplay = (d: Date) => { const hours = d.getHours(); const minutes = d.getMinutes(); const ampm = hours >= 12 ? 'pm' : 'am'; const hours12 = hours % 12 || 12; return `${hours12}:${String(minutes).padStart(2, '0')} ${ampm}`; }; const dropdownContent = isOpen && (<motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}><div className="p-5"><div className="flex items-center gap-3 mb-4"><Clock className="w-5 h-5 text-[#818cf8] flex-shrink-0" /><span className="text-sm text-[#b0b0c4] font-medium">Seleccionar hora</span></div><div className="flex items-center gap-3 justify-center"><select value={selectedHour} onChange={(e) => handleTimeChange(parseInt(e.target.value), selectedMinute, selectedAmPm)} className="bg-[#191a26] border border-[#282a3f] rounded-lg px-4 py-3 text-lg text-[#d8d8e2] outline-none focus:border-[#818cf8]/40 cursor-pointer w-24 text-center font-medium">{Array.from({ length: 12 }, (_, i) => i + 1).map(h => (<option key={h} value={h} className="bg-[#1f2035]">{h}</option>))}</select><span className="text-[#8a8b9e] font-bold text-xl">:</span><select value={selectedMinute} onChange={(e) => handleTimeChange(selectedHour, parseInt(e.target.value), selectedAmPm)} className="bg-[#191a26] border border-[#282a3f] rounded-lg px-4 py-3 text-lg text-[#d8d8e2] outline-none focus:border-[#818cf8]/40 cursor-pointer w-24 text-center font-medium">{minutesOptions.map(i => (<option key={i} value={i} className="bg-[#1f2035]">{String(i).padStart(2, '0')}</option>))}</select><select value={selectedAmPm} onChange={(e) => handleTimeChange(selectedHour, selectedMinute, e.target.value as 'am' | 'pm')} className="bg-[#191a26] border border-[#282a3f] rounded-lg px-4 py-3 text-lg text-[#818cf8] outline-none focus:border-[#818cf8]/40 cursor-pointer w-24 text-center font-bold"><option value="am" className="bg-[#1f2035]">AM</option><option value="pm" className="bg-[#1f2035]">PM</option></select></div></div><div className="px-5 py-3 border-t border-[#282a3f]"><button onClick={() => { const now = new Date(); onChange(now); const h = now.getHours(); setSelectedHour(h % 12 || 12); setSelectedAmPm(h >= 12 ? 'pm' : 'am'); setSelectedMinute(now.getMinutes()); setIsOpen(false); }} className="w-full text-center text-sm text-[#7a7b8e] hover:text-[#b0b0c4] py-1.5 rounded-lg hover:bg-[#272839] transition-colors">Ahora</button></div></motion.div>); return (<div ref={containerRef}><button type="button" onClick={() => setIsOpen(!isOpen)} className={`${inputBase} flex items-center justify-between text-left cursor-pointer`}><span className="text-[#d8d8e2] text-sm truncate">{formatDisplay(value)}</span><Clock className="w-4 h-4 text-[#818cf8]/60 flex-shrink-0 ml-2" /></button>{createPortal(dropdownContent, document.body)}</div>);
+  const [isOpen, setIsOpen] = useState(false); const [selectedHour, setSelectedHour] = useState(() => { const h = value.getHours(); return h % 12 || 12; }); const [selectedAmPm, setSelectedAmPm] = useState<'am' | 'pm'>(() => value.getHours() >= 12 ? 'pm' : 'am'); const [selectedMinute, setSelectedMinute] = useState(() => value.getMinutes()); const containerRef = useRef<HTMLDivElement>(null); const dropdownRef = useRef<HTMLDivElement>(null); const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 }); const minutesOptions = Array.from({ length: 12 }, (_, i) => i * 5); const updatePosition = useCallback(() => { if (containerRef.current) { const rect = containerRef.current.getBoundingClientRect(); setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 260) }); } }, []); useEffect(() => { if (isOpen) updatePosition(); }, [isOpen, updatePosition]); useEffect(() => { if (!isOpen) return; const handle = () => updatePosition(); window.addEventListener('resize', handle); window.addEventListener('scroll', handle, true); return () => { window.removeEventListener('resize', handle); window.removeEventListener('scroll', handle, true); }; }, [isOpen, updatePosition]); useEffect(() => { const h = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node) && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, []); useEffect(() => { const hours = value.getHours(); setSelectedHour(hours % 12 || 12); setSelectedAmPm(hours >= 12 ? 'pm' : 'am'); setSelectedMinute(value.getMinutes()); }, [value]); const convertTo24h = (h: number, ampm: 'am' | 'pm') => { if (ampm === 'am') return h === 12 ? 0 : h; return h === 12 ? 12 : h + 12; }; const handleTimeChange = (h: number, m: number, ampm: 'am' | 'pm') => { setSelectedHour(h); setSelectedMinute(m); setSelectedAmPm(ampm); const hour24 = convertTo24h(h, ampm); const d = new Date(value); d.setHours(hour24); d.setMinutes(m); onChange(d); }; const formatDisplay = (d: Date) => { const hours = d.getHours(); const minutes = d.getMinutes(); const ampm = hours >= 12 ? 'pm' : 'am'; const hours12 = hours % 12 || 12; return `${hours12}:${String(minutes).padStart(2, '0')} ${ampm}`; }; const dropdownContent = isOpen && (<motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}><div className="p-5"><div className="flex items-center gap-3 mb-4"><Clock className="w-5 h-5 text-[color:var(--c-818cf8)] flex-shrink-0" /><span className="text-sm text-[color:var(--c-b0b0c4)] font-medium">Seleccionar hora</span></div><div className="flex items-center gap-3 justify-center"><select value={selectedHour} onChange={(e) => handleTimeChange(parseInt(e.target.value), selectedMinute, selectedAmPm)} className="bg-[color:var(--c-191a26)] border border-[color:var(--c-282a3f)] rounded-lg px-4 py-3 text-lg text-[color:var(--c-d8d8e2)] outline-none focus:border-[color:var(--c-818cf8)]/40 cursor-pointer w-24 text-center font-medium">{Array.from({ length: 12 }, (_, i) => i + 1).map(h => (<option key={h} value={h} className="bg-[color:var(--c-1f2035)]">{h}</option>))}</select><span className="text-[color:var(--c-8a8b9e)] font-bold text-xl">:</span><select value={selectedMinute} onChange={(e) => handleTimeChange(selectedHour, parseInt(e.target.value), selectedAmPm)} className="bg-[color:var(--c-191a26)] border border-[color:var(--c-282a3f)] rounded-lg px-4 py-3 text-lg text-[color:var(--c-d8d8e2)] outline-none focus:border-[color:var(--c-818cf8)]/40 cursor-pointer w-24 text-center font-medium">{minutesOptions.map(i => (<option key={i} value={i} className="bg-[color:var(--c-1f2035)]">{String(i).padStart(2, '0')}</option>))}</select><select value={selectedAmPm} onChange={(e) => handleTimeChange(selectedHour, selectedMinute, e.target.value as 'am' | 'pm')} className="bg-[color:var(--c-191a26)] border border-[color:var(--c-282a3f)] rounded-lg px-4 py-3 text-lg text-[color:var(--c-818cf8)] outline-none focus:border-[color:var(--c-818cf8)]/40 cursor-pointer w-24 text-center font-bold"><option value="am" className="bg-[color:var(--c-1f2035)]">AM</option><option value="pm" className="bg-[color:var(--c-1f2035)]">PM</option></select></div></div><div className="px-5 py-3 border-t border-[color:var(--c-282a3f)]"><button onClick={() => { const now = new Date(); onChange(now); const h = now.getHours(); setSelectedHour(h % 12 || 12); setSelectedAmPm(h >= 12 ? 'pm' : 'am'); setSelectedMinute(now.getMinutes()); setIsOpen(false); }} className="w-full text-center text-sm text-[color:var(--c-7a7b8e)] hover:text-[color:var(--c-b0b0c4)] py-1.5 rounded-lg hover:bg-[color:var(--c-272839)] transition-colors">Ahora</button></div></motion.div>); return (<div ref={containerRef}><button type="button" onClick={() => setIsOpen(!isOpen)} className={`${inputBase} flex items-center justify-between text-left cursor-pointer`}><span className="text-[color:var(--c-d8d8e2)] text-sm truncate">{formatDisplay(value)}</span><Clock className="w-4 h-4 text-[color:var(--c-818cf8)]/60 flex-shrink-0 ml-2" /></button>{createPortal(dropdownContent, document.body)}</div>);
 }
 
 
@@ -624,17 +625,17 @@ function Dashboard({ planificacion }: { planificacion: PlanificacionExamen }) {
 
   return (
     <div className="@container space-y-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-bold text-[#d0d0da] flex items-center gap-3"><BarChart3 className="w-6 h-6 text-[#818cf8]" />Dashboard</h2><p className="text-sm text-[#8a8b9e] mt-1">Resumen para {planificacion.materia || 'la asignatura'}</p></div><div className="flex items-center gap-2 text-xs text-[#8a8b9e]"><Calendar className="w-4 h-4" /><span>{new Date().toLocaleDateString()}</span></div></div>
-      <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-3 @lg:gap-4">{statsCards.map((stat, index) => (<motion.div key={stat.titulo} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.08, duration: 0.3 }} className={`bg-[#1f2035] border ${stat.borde} rounded-xl p-4 shadow-lg`}><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs text-[#8a8b9e] font-medium leading-tight">{stat.titulo}</p><p className="text-xl @lg:text-2xl font-bold text-[#d0d0da] mt-1 whitespace-nowrap">{stat.valor}</p></div><div className={`${stat.bg} p-2.5 rounded-xl flex-shrink-0`}><stat.icono className={`w-5 h-5 ${stat.color}`} /></div></div></motion.div>))}</div>
+      <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-bold text-[color:var(--c-d0d0da)] flex items-center gap-3"><BarChart3 className="w-6 h-6 text-[color:var(--c-818cf8)]" />Dashboard</h2><p className="text-sm text-[color:var(--c-8a8b9e)] mt-1">Resumen para {planificacion.materia || 'la asignatura'}</p></div><div className="flex items-center gap-2 text-xs text-[color:var(--c-8a8b9e)]"><Calendar className="w-4 h-4" /><span>{new Date().toLocaleDateString()}</span></div></div>
+      <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-3 @lg:gap-4">{statsCards.map((stat, index) => (<motion.div key={stat.titulo} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.08, duration: 0.3 }} className={`bg-[color:var(--c-1f2035)] border ${stat.borde} rounded-xl p-4 shadow-lg`}><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs text-[color:var(--c-8a8b9e)] font-medium leading-tight">{stat.titulo}</p><p className="text-xl @lg:text-2xl font-bold text-[color:var(--c-d0d0da)] mt-1 whitespace-nowrap">{stat.valor}</p></div><div className={`${stat.bg} p-2.5 rounded-xl flex-shrink-0`}><stat.icono className={`w-5 h-5 ${stat.color}`} /></div></div></motion.div>))}</div>
       <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.3 }} className="bg-[#1f2035] border border-[#313248] rounded-xl p-5"><h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><PieChart className="w-4 h-4 text-[#818cf8]" />Distribución por Tipo</h3><div className="space-y-3">{porTipo.map(e=>(<div key={e.l}><div className="flex justify-between text-xs text-[#b0b0c4] mb-1"><span>{e.l}</span><span>{e.d.length} eval.</span></div><div className="w-full h-2 bg-[#313248] rounded-full overflow-hidden"><div className={`h-full ${e.c} rounded-full transition-all duration-500`} style={{ width: totalEvaluaciones > 0 ? `${(e.d.length / totalEvaluaciones) * 100}%` : '0%' }} /></div></div>))}</div></motion.div>
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4, duration: 0.3 }} className="bg-[#1f2035] border border-[#313248] rounded-xl p-5"><h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><Brain className="w-4 h-4 text-[#818cf8]" />Niveles Bloom</h3><div className="space-y-1.5">{distribucionBloom.map((item, idx) => (<div key={item.nivel}><div className="flex justify-between text-xs text-[#b0b0c4] mb-0.5"><span className="capitalize">{item.nivel}</span><span>{item.count}</span></div><div className="w-full h-1.5 bg-[#313248] rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-500 ${['bg-red-500','bg-orange-500','bg-yellow-500','bg-green-500','bg-blue-500','bg-purple-500'][idx]}`} style={{ width: totalEvaluaciones > 0 ? `${(item.count / totalEvaluaciones) * 100}%` : '0%' }} /></div></div>))}</div></motion.div>
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.3 }} className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-5"><h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2 mb-4"><PieChart className="w-4 h-4 text-[color:var(--c-818cf8)]" />Distribución por Tipo</h3><div className="space-y-3">{porTipo.map(e=>(<div key={e.l}><div className="flex justify-between text-xs text-[color:var(--c-b0b0c4)] mb-1"><span>{e.l}</span><span>{e.d.length} eval.</span></div><div className="w-full h-2 bg-[color:var(--c-313248)] rounded-full overflow-hidden"><div className={`h-full ${e.c} rounded-full transition-all duration-500`} style={{ width: totalEvaluaciones > 0 ? `${(e.d.length / totalEvaluaciones) * 100}%` : '0%' }} /></div></div>))}</div></motion.div>
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4, duration: 0.3 }} className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-5"><h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2 mb-4"><Brain className="w-4 h-4 text-[color:var(--c-818cf8)]" />Niveles Bloom</h3><div className="space-y-1.5">{distribucionBloom.map((item, idx) => (<div key={item.nivel}><div className="flex justify-between text-xs text-[color:var(--c-b0b0c4)] mb-0.5"><span className="capitalize">{item.nivel}</span><span>{item.count}</span></div><div className="w-full h-1.5 bg-[color:var(--c-313248)] rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-500 ${['bg-red-500','bg-orange-500','bg-yellow-500','bg-green-500','bg-blue-500','bg-purple-500'][idx]}`} style={{ width: totalEvaluaciones > 0 ? `${(item.count / totalEvaluaciones) * 100}%` : '0%' }} /></div></div>))}</div></motion.div>
       </div>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.3 }} className="bg-[#1f2035] border border-[#313248] rounded-xl p-5"><h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-[#818cf8]" />Detalle</h3><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-xs text-[#8a8b9e] border-b border-[#313248]"><th className="pb-2 font-medium">#</th><th className="pb-2 font-medium">Evaluación</th><th className="pb-2 font-medium">Peso</th><th className="pb-2 font-medium">Tiempo</th><th className="pb-2 font-medium">Bloom</th><th className="pb-2 font-medium">Estado</th></tr></thead><tbody className="divide-y divide-[#313248]">{planificacion.secciones.map((sec, idx) => (<tr key={sec.id} className="hover:bg-[#272839]/50 transition-colors"><td className="py-2 text-[#8a8b9e] text-xs">{idx + 1}</td><td className="py-2 text-[#d0d0da] font-medium">{limpiarTexto(sec.nombre)}</td><td className="py-2 text-[#b0b0c4]">{sec.peso || 0}%</td><td className="py-2 text-[#b0b0c4]">{sec.tiempoEstimadoMinutos || '?'} min</td><td className="py-2"><span className="capitalize text-xs text-[#b0b0c4]">{sec.nivelBloom || '-'}</span></td><td className="py-2">{sec.descripcion ? <span className="text-emerald-400 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />OK</span> : <span className="text-amber-400 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3" />Sin desc</span>}</td></tr>))}{planificacion.secciones.length === 0 && (<tr><td colSpan={6} className="py-4 text-center text-[#8a8b9e]">No hay evaluaciones</td></tr>)}</tbody></table></div></motion.div>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.3 }} className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-5"><h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-[color:var(--c-818cf8)]" />Detalle</h3><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-xs text-[color:var(--c-8a8b9e)] border-b border-[color:var(--c-313248)]"><th className="pb-2 font-medium">#</th><th className="pb-2 font-medium">Evaluación</th><th className="pb-2 font-medium">Peso</th><th className="pb-2 font-medium">Tiempo</th><th className="pb-2 font-medium">Bloom</th><th className="pb-2 font-medium">Estado</th></tr></thead><tbody className="divide-y divide-[color:var(--c-313248)]">{planificacion.secciones.map((sec, idx) => (<tr key={sec.id} className="hover:bg-[color:var(--c-272839)]/50 transition-colors"><td className="py-2 text-[color:var(--c-8a8b9e)] text-xs">{idx + 1}</td><td className="py-2 text-[color:var(--c-d0d0da)] font-medium">{limpiarTexto(sec.nombre)}</td><td className="py-2 text-[color:var(--c-b0b0c4)]">{sec.peso || 0}%</td><td className="py-2 text-[color:var(--c-b0b0c4)]">{sec.tiempoEstimadoMinutos || '?'} min</td><td className="py-2"><span className="capitalize text-xs text-[color:var(--c-b0b0c4)]">{sec.nivelBloom || '-'}</span></td><td className="py-2">{sec.descripcion ? <span className="text-emerald-400 text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" />OK</span> : <span className="text-amber-400 text-xs flex items-center gap-1"><AlertCircle className="w-3 h-3" />Sin desc</span>}</td></tr>))}{planificacion.secciones.length === 0 && (<tr><td colSpan={6} className="py-4 text-center text-[color:var(--c-8a8b9e)]">No hay evaluaciones</td></tr>)}</tbody></table></div></motion.div>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.3 }} className="grid grid-cols-1 @2xl:grid-cols-3 gap-4">
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-4 flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-lg"><BookOpen className="w-5 h-5 text-blue-400" /></div><div><p className="text-xs text-[#8a8b9e]">Asignatura</p><p className="text-sm font-semibold text-[#d0d0da]">{planificacion.materia || 'Sin asignar'}</p></div></div>
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-4 flex items-center gap-3"><div className="bg-emerald-500/10 p-2 rounded-lg"><Brain className="w-5 h-5 text-emerald-400" /></div><div><p className="text-xs text-[#8a8b9e]">Bloom Dominante</p><p className="text-sm font-semibold text-[#d0d0da] capitalize">{bloomDominante && bloomDominante.count > 0 ? bloomDominante.nivel : 'Sin datos'}</p></div></div>
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-4 flex items-center gap-3"><div className="bg-purple-500/10 p-2 rounded-lg"><Award className="w-5 h-5 text-purple-400" /></div><div><p className="text-xs text-[#8a8b9e]">Estado</p><p className="text-sm font-semibold text-[#d0d0da] capitalize">{totalEvaluaciones > 0 ? 'En progreso' : 'Sin eval.'}</p></div></div>
+        <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-4 flex items-center gap-3"><div className="bg-blue-500/10 p-2 rounded-lg"><BookOpen className="w-5 h-5 text-blue-400" /></div><div><p className="text-xs text-[color:var(--c-8a8b9e)]">Asignatura</p><p className="text-sm font-semibold text-[color:var(--c-d0d0da)]">{planificacion.materia || 'Sin asignar'}</p></div></div>
+        <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-4 flex items-center gap-3"><div className="bg-emerald-500/10 p-2 rounded-lg"><Brain className="w-5 h-5 text-emerald-400" /></div><div><p className="text-xs text-[color:var(--c-8a8b9e)]">Bloom Dominante</p><p className="text-sm font-semibold text-[color:var(--c-d0d0da)] capitalize">{bloomDominante && bloomDominante.count > 0 ? bloomDominante.nivel : 'Sin datos'}</p></div></div>
+        <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-4 flex items-center gap-3"><div className="bg-purple-500/10 p-2 rounded-lg"><Award className="w-5 h-5 text-purple-400" /></div><div><p className="text-xs text-[color:var(--c-8a8b9e)]">Estado</p><p className="text-sm font-semibold text-[color:var(--c-d0d0da)] capitalize">{totalEvaluaciones > 0 ? 'En progreso' : 'Sin eval.'}</p></div></div>
       </motion.div>
     </div>
   );
@@ -648,7 +649,7 @@ function Dashboard({ planificacion }: { planificacion: PlanificacionExamen }) {
 // ============================================
 const ESTILO_ROL: Record<string, string> = {
   SUPERADMIN: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30',
-  ADMIN: 'bg-[#818cf8]/10 text-[#a5b4fc] border-[#818cf8]/30',
+  ADMIN: 'bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-a5b4fc)] border-[color:var(--c-818cf8)]/30',
   USUARIO: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
 };
 
@@ -687,8 +688,8 @@ function CambioPasswordObligatorio({ usuario, onLogout }: { usuario: UsuarioSesi
   const [ver, setVer] = useState(false);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const campo = 'w-full bg-[#1b1c2b] border border-[#313248] rounded-xl px-3 py-3 text-sm text-[#e0e0ec] placeholder-[#5f6074] focus:outline-none focus:border-[#818cf8] focus:ring-2 focus:ring-[#818cf8]/20 transition-all';
-  const etiqueta = 'text-[11px] font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5';
+  const campo = 'w-full bg-[color:var(--c-1b1c2b)] border border-[color:var(--c-313248)] rounded-xl px-3 py-3 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)] focus:ring-2 focus:ring-[color:var(--c-818cf8)]/20 transition-all';
+  const etiqueta = 'text-[11px] font-semibold text-[color:var(--c-8a8b9e)] uppercase tracking-wider block mb-1.5';
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -707,20 +708,20 @@ function CambioPasswordObligatorio({ usuario, onLogout }: { usuario: UsuarioSesi
   };
 
   return (
-    <div className="min-h-screen bg-[#12131d] flex items-center justify-center p-5">
-      <motion.form onSubmit={guardar} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md bg-[#1d1e2e] border border-[#313248] rounded-2xl p-8 shadow-2xl space-y-5" noValidate>
+    <div className="min-h-screen bg-[color:var(--c-12131d)] flex items-center justify-center p-5">
+      <motion.form onSubmit={guardar} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-8 shadow-2xl space-y-5" noValidate>
         <div className="flex flex-col items-center text-center">
           <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3"><ShieldCheck className="w-7 h-7 text-amber-300" /></div>
-          <h1 className="text-xl font-semibold text-[#e0e0ec]">Elige tu nueva contraseña</h1>
-          <p className="text-sm text-[#8a8b9e] mt-1">Hola, {usuario.nombre}. Entraste con una contraseña temporal; por seguridad debes cambiarla para continuar.</p>
+          <h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Elige tu nueva contraseña</h1>
+          <p className="text-sm text-[color:var(--c-8a8b9e)] mt-1">Hola, {usuario.nombre}. Entraste con una contraseña temporal; por seguridad debes cambiarla para continuar.</p>
         </div>
         <div><label className={etiqueta}>Contraseña temporal</label><input type={ver ? 'text' : 'password'} value={actual} onChange={(e) => setActual(e.target.value)} className={campo} autoComplete="current-password" autoFocus /></div>
         <div><label className={etiqueta}>Nueva contraseña</label><input type={ver ? 'text' : 'password'} value={nueva} onChange={(e) => setNueva(e.target.value)} placeholder="Mínimo 8, con letras y números" className={campo} autoComplete="new-password" /></div>
         <div><label className={etiqueta}>Confirmar nueva contraseña</label><input type={ver ? 'text' : 'password'} value={confirmar} onChange={(e) => setConfirmar(e.target.value)} className={campo} autoComplete="new-password" /></div>
-        <label className="flex items-center gap-2 text-xs text-[#9a9bb0] cursor-pointer"><input type="checkbox" checked={ver} onChange={(e) => setVer(e.target.checked)} className="accent-[#818cf8]" />Mostrar contraseñas</label>
+        <label className="flex items-center gap-2 text-xs text-[color:var(--c-9a9bb0)] cursor-pointer"><input type="checkbox" checked={ver} onChange={(e) => setVer(e.target.checked)} className="accent-[color:var(--c-818cf8)]" />Mostrar contraseñas</label>
         {error && <p className="text-red-300 text-xs flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2.5" role="alert"><AlertCircle className="w-4 h-4 flex-shrink-0" /><span>{error}</span></p>}
-        <button type="submit" disabled={guardando} className="w-full py-3 bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white font-semibold text-sm rounded-xl shadow-lg disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar y entrar'}</button>
-        <button type="button" onClick={onLogout} className="w-full text-xs text-[#8a8b9e] hover:text-[#b0b0c4]">Cerrar sesión</button>
+        <button type="submit" disabled={guardando} className="w-full py-3 bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] text-white font-semibold text-sm rounded-xl shadow-lg disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar y entrar'}</button>
+        <button type="button" onClick={onLogout} className="w-full text-xs text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)]">Cerrar sesión</button>
       </motion.form>
     </div>
   );
@@ -752,7 +753,7 @@ function BandaRol({ rol }: { rol: 'SUPERADMIN' | 'ADMIN' | 'USUARIO' }) {
     <div className={`flex-shrink-0 relative flex items-center justify-center gap-2 h-6 ${tema.fondo} border-b ${tema.borde}`}>
       <div className={`absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r ${tema.barra}`} />
       <span className={`text-[10px] font-bold tracking-[0.2em] ${tema.texto}`}>{tema.etiqueta}</span>
-      <span className="text-[10px] text-[#8a8b9e] hidden sm:inline">· {tema.descripcion}</span>
+      <span className="text-[10px] text-[color:var(--c-8a8b9e)] hidden sm:inline">· {tema.descripcion}</span>
     </div>
   );
 }
@@ -769,10 +770,10 @@ function DashboardPorRol({ planificacion, usuario, onMiTrabajo }: { planificacio
   ];
   return (
     <div className="space-y-5">
-      <div className="inline-flex items-center gap-1 p-1 bg-[#161722] border border-[#282a3f] rounded-xl">
+      <div className="inline-flex items-center gap-1 p-1 bg-[color:var(--c-161722)] border border-[color:var(--c-282a3f)] rounded-xl">
         {opciones.map(o => (
-          <button key={o.id} onClick={() => { setModo(o.id); if (o.id === 'mio' && esSuper) onMiTrabajo?.(); }} className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${modo === o.id ? 'text-[#c7d2fe]' : 'text-[#8a8b9e] hover:text-[#b0b0c4]'}`}>
-            {modo === o.id && <motion.div layoutId="pill-dashboard-modo" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-lg" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />}
+          <button key={o.id} onClick={() => { setModo(o.id); if (o.id === 'mio' && esSuper) onMiTrabajo?.(); }} className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${modo === o.id ? 'text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)]'}`}>
+            {modo === o.id && <motion.div layoutId="pill-dashboard-modo" className="absolute inset-0 bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 rounded-lg" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />}
             <o.icon className="relative z-10 w-4 h-4" /><span className="relative z-10">{o.label}</span>
           </button>
         ))}
@@ -899,13 +900,13 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
   };
   const esComposer = (materiaId: string, nombre: string | null) => composer?.materiaId === materiaId && composer.evaluacionNombre === nombre;
   const formularioObservacion = (
-    <div className="mt-1.5 mb-2 bg-[#191a26] border border-yellow-500/30 rounded-lg p-3 space-y-2">
-      <textarea value={textoObs} onChange={(e) => setTextoObs(e.target.value)} maxLength={500} rows={3} placeholder="Escribe tu observación para el profesor..." className="w-full bg-[#272839] border border-[#313248] rounded-lg px-3 py-2 text-xs text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-yellow-500/50" />
+    <div className="mt-1.5 mb-2 bg-[color:var(--c-191a26)] border border-yellow-500/30 rounded-lg p-3 space-y-2">
+      <textarea value={textoObs} onChange={(e) => setTextoObs(e.target.value)} maxLength={500} rows={3} placeholder="Escribe tu observación para el profesor..." className="w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg px-3 py-2 text-xs text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-yellow-500/50" />
       {errorObs && <p className="text-red-400 text-[11px]">{errorObs}</p>}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-[#6a6b7e]">{textoObs.length}/500</span>
+        <span className="text-[10px] text-[color:var(--c-6a6b7e)]">{textoObs.length}/500</span>
         <div className="flex gap-2">
-          <button onClick={() => setComposer(null)} className="px-3 py-1.5 text-xs text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-lg">Cancelar</button>
+          <button onClick={() => setComposer(null)} className="px-3 py-1.5 text-xs text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg">Cancelar</button>
           <button onClick={enviarObservacion} disabled={enviandoObs} className="px-3 py-1.5 text-xs font-semibold text-yellow-200 bg-yellow-500/10 border border-yellow-500/30 rounded-lg hover:bg-yellow-500/20 disabled:opacity-60">{enviandoObs ? 'Enviando...' : 'Enviar observación'}</button>
         </div>
       </div>
@@ -951,32 +952,32 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-2xl font-bold text-[#d0d0da] flex items-center gap-3"><UsersIcon className="w-6 h-6 text-[#818cf8]" />{esSuper ? 'Todo el sistema' : 'Todos los profesores'}</h2>
-          <p className="text-sm text-[#8a8b9e] mt-1">{esSuper ? 'Control total: revisa, edita y elimina el trabajo y los estudiantes de cualquier profesor.' : 'Revisa el trabajo y los estudiantes de cada profesor. Puedes eliminarlos como moderación; editarlos es del superadmin.'}</p>
+          <h2 className="text-2xl font-bold text-[color:var(--c-d0d0da)] flex items-center gap-3"><UsersIcon className="w-6 h-6 text-[color:var(--c-818cf8)]" />{esSuper ? 'Todo el sistema' : 'Todos los profesores'}</h2>
+          <p className="text-sm text-[color:var(--c-8a8b9e)] mt-1">{esSuper ? 'Control total: revisa, edita y elimina el trabajo y los estudiantes de cualquier profesor.' : 'Revisa el trabajo y los estudiantes de cada profesor. Puedes eliminarlos como moderación; editarlos es del superadmin.'}</p>
         </div>
-        <button onClick={cargar} disabled={cargando} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 disabled:opacity-60">
+        <button onClick={cargar} disabled={cargando} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 disabled:opacity-60">
           <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />Actualizar
         </button>
       </div>
 
       {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
-      {cargando && !datos && <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>}
+      {cargando && !datos && <div className="p-8 text-center text-sm text-[color:var(--c-8a8b9e)]">Cargando...</div>}
 
       <AnimatePresence>
         {edicionEst && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4" onClick={() => setEdicionEst(null)}>
-            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-2xl space-y-3">
-              <h3 className="text-base font-semibold text-[#e0e0ec]">Editar estudiante</h3>
+            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-2xl space-y-3">
+              <h3 className="text-base font-semibold text-[color:var(--c-e0e0ec)]">Editar estudiante</h3>
               {([['nombre', 'Nombre completo'], ['email', 'Correo'], ['telefono', 'Teléfono']] as const).map(([k, et]) => (
-                <input key={k} value={edicionEst.campos[k]} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, [k]: e.target.value } })} placeholder={et} className="w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]" />
+                <input key={k} value={edicionEst.campos[k]} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, [k]: e.target.value } })} placeholder={et} className="w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />
               ))}
-              <select value={edicionEst.campos.grupo} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, grupo: e.target.value } })} className="w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec]">
+              <select value={edicionEst.campos.grupo} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, grupo: e.target.value } })} className="w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--c-e0e0ec)]">
                 {opcionesSeccion(edicionEst.campos.grupo).map(g => <option key={g} value={g}>Grupo {g}</option>)}
               </select>
               {edicionEst.error && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{edicionEst.error}</span></p>}
               <div className="flex gap-2 pt-1">
-                <button onClick={() => setEdicionEst(null)} className="flex-1 py-2.5 text-sm text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-xl">Cancelar</button>
-                <button onClick={guardarEstudiante} disabled={edicionEst.guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl disabled:opacity-60">{edicionEst.guardando ? 'Guardando...' : 'Guardar'}</button>
+                <button onClick={() => setEdicionEst(null)} className="flex-1 py-2.5 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl">Cancelar</button>
+                <button onClick={guardarEstudiante} disabled={edicionEst.guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl disabled:opacity-60">{edicionEst.guardando ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </motion.div>
           </motion.div>
@@ -987,160 +988,160 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {tarjetas.map((t, i) => (
-              <motion.div key={t.titulo} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.25 }} className={`bg-[#1f2035] border ${t.borde} rounded-xl p-4 shadow-lg`}>
-                <div className="flex items-center justify-between"><div><p className="text-xs text-[#8a8b9e]">{t.titulo}</p><p className="text-2xl font-bold text-[#d0d0da] mt-1">{t.valor}</p></div><div className={`${t.bg} p-2.5 rounded-lg`}><t.icono className={`w-5 h-5 ${t.color}`} /></div></div>
+              <motion.div key={t.titulo} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.25 }} className={`bg-[color:var(--c-1f2035)] border ${t.borde} rounded-xl p-4 shadow-lg`}>
+                <div className="flex items-center justify-between"><div><p className="text-xs text-[color:var(--c-8a8b9e)]">{t.titulo}</p><p className="text-2xl font-bold text-[color:var(--c-d0d0da)] mt-1">{t.valor}</p></div><div className={`${t.bg} p-2.5 rounded-lg`}><t.icono className={`w-5 h-5 ${t.color}`} /></div></div>
               </motion.div>
             ))}
           </div>
 
           {esSuper && (
-            <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2 mb-4"><ShieldCheck className="w-4 h-4 text-[#818cf8]" />Cuentas del sistema</h3>
+            <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2 mb-4"><ShieldCheck className="w-4 h-4 text-[color:var(--c-818cf8)]" />Cuentas del sistema</h3>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {([['SUPERADMIN', datos.totales.cuentas.SUPERADMIN], ['ADMIN', datos.totales.cuentas.ADMIN], ['USUARIO', datos.totales.cuentas.USUARIO]] as [string, number][]).map(([rol, n]) => (
-                  <div key={rol} className="bg-[#191a26] border border-[#282a3f] rounded-lg p-3"><span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[rol]}`}>{rol}</span><p className="text-xl font-bold text-[#d0d0da] mt-2">{n}</p></div>
+                  <div key={rol} className="bg-[color:var(--c-191a26)] border border-[color:var(--c-282a3f)] rounded-lg p-3"><span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[rol]}`}>{rol}</span><p className="text-xl font-bold text-[color:var(--c-d0d0da)] mt-2">{n}</p></div>
                 ))}
-                <div className="bg-[#191a26] border border-[#282a3f] rounded-lg p-3"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADAS</span><p className="text-xl font-bold text-[#d0d0da] mt-2">{datos.totales.cuentas.desactivadas}</p></div>
-                <div className="bg-[#191a26] border border-[#282a3f] rounded-lg p-3"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">PENDIENTES</span><p className="text-xl font-bold text-[#d0d0da] mt-2">{datos.totales.cuentas.pendientes}</p></div>
+                <div className="bg-[color:var(--c-191a26)] border border-[color:var(--c-282a3f)] rounded-lg p-3"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADAS</span><p className="text-xl font-bold text-[color:var(--c-d0d0da)] mt-2">{datos.totales.cuentas.desactivadas}</p></div>
+                <div className="bg-[color:var(--c-191a26)] border border-[color:var(--c-282a3f)] rounded-lg p-3"><span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">PENDIENTES</span><p className="text-xl font-bold text-[color:var(--c-d0d0da)] mt-2">{datos.totales.cuentas.pendientes}</p></div>
               </div>
             </div>
           )}
 
           {alertas.length > 0 && (
-            <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
-              <button onClick={() => setMostrarAlertas(v => !v)} className="w-full px-4 py-3 flex items-center gap-2 text-left hover:bg-[#232438] transition-colors">
+            <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl overflow-hidden">
+              <button onClick={() => setMostrarAlertas(v => !v)} className="w-full px-4 py-3 flex items-center gap-2 text-left hover:bg-[color:var(--c-232438)] transition-colors">
                 <AlertCircle className="w-4 h-4 text-amber-300" />
-                <span className="text-sm font-semibold text-[#d0d0da]">Atención y próximas evaluaciones</span>
-                <span className="text-xs text-[#8a8b9e]">{alertas.filter(a => a.tipo !== 'proxima').length} por revisar · {alertas.filter(a => a.tipo === 'proxima').length} próximas (14 días)</span>
-                <span className="ml-auto text-[#8a8b9e]">{mostrarAlertas ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
+                <span className="text-sm font-semibold text-[color:var(--c-d0d0da)]">Atención y próximas evaluaciones</span>
+                <span className="text-xs text-[color:var(--c-8a8b9e)]">{alertas.filter(a => a.tipo !== 'proxima').length} por revisar · {alertas.filter(a => a.tipo === 'proxima').length} próximas (14 días)</span>
+                <span className="ml-auto text-[color:var(--c-8a8b9e)]">{mostrarAlertas ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</span>
               </button>
               {mostrarAlertas && (
-                <div className="border-t border-[#313248] divide-y divide-[#313248] max-h-72 overflow-y-auto">
+                <div className="border-t border-[color:var(--c-313248)] divide-y divide-[color:var(--c-313248)] max-h-72 overflow-y-auto">
                   {alertas.slice(0, 40).map((a, i) => (
                     <div key={i} className="px-4 py-2.5 flex items-start gap-3 text-xs">
                       <span className={`mt-0.5 px-2 py-0.5 rounded-full border text-[10px] font-semibold whitespace-nowrap ${a.gravedad === 'alta' ? 'bg-red-500/10 text-red-300 border-red-500/30' : a.gravedad === 'media' ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-blue-500/10 text-blue-300 border-blue-500/30'}`}>{ETIQUETA_ALERTA[a.tipo]}</span>
-                      <span className="flex-1 text-[#c0c0cc] break-words"><strong className="text-[#d0d0da]">{a.usuario}</strong> · {limpiarTexto(a.texto)}</span>
-                      {a.fecha && <span className="text-[#8a8b9e] whitespace-nowrap">{new Date(a.fecha).toLocaleDateString()}</span>}
+                      <span className="flex-1 text-[color:var(--c-c0c0cc)] break-words"><strong className="text-[color:var(--c-d0d0da)]">{a.usuario}</strong> · {limpiarTexto(a.texto)}</span>
+                      {a.fecha && <span className="text-[color:var(--c-8a8b9e)] whitespace-nowrap">{new Date(a.fecha).toLocaleDateString()}</span>}
                     </div>
                   ))}
-                  {alertas.length > 40 && <div className="px-4 py-2 text-[11px] text-[#6a6b7e]">... y {alertas.length - 40} más.</div>}
+                  {alertas.length > 40 && <div className="px-4 py-2 text-[11px] text-[color:var(--c-6a6b7e)]">... y {alertas.length - 40} más.</div>}
                 </div>
               )}
             </div>
           )}
 
-          <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
-            <div className="p-4 border-b border-[#313248] flex items-center gap-3">
-              <Search className="w-4 h-4 text-[#6a6b7e]" />
-              <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o correo..." className="flex-1 bg-transparent text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none" />
-              <span className="text-xs text-[#8a8b9e]">{filas.length} cuenta(s)</span>
+          <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-[color:var(--c-313248)] flex items-center gap-3">
+              <Search className="w-4 h-4 text-[color:var(--c-6a6b7e)]" />
+              <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o correo..." className="flex-1 bg-transparent text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none" />
+              <span className="text-xs text-[color:var(--c-8a8b9e)]">{filas.length} cuenta(s)</span>
             </div>
             {filas.length === 0 ? (
-              <div className="p-8 text-center text-sm text-[#8a8b9e]">No hay cuentas que coincidan.</div>
+              <div className="p-8 text-center text-sm text-[color:var(--c-8a8b9e)]">No hay cuentas que coincidan.</div>
             ) : (
-              <div className="divide-y divide-[#313248]">
+              <div className="divide-y divide-[color:var(--c-313248)]">
                 {filas.map(u => {
                   const expandido = abierto === u.id;
                   return (
                     <div key={u.id}>
-                      <button onClick={() => setAbierto(expandido ? null : u.id)} className="w-full p-4 flex items-center gap-3 text-left hover:bg-[#232438] transition-colors">
-                        <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-[#818cf8]" /></div>
+                      <button onClick={() => setAbierto(expandido ? null : u.id)} className="w-full p-4 flex items-center gap-3 text-left hover:bg-[color:var(--c-232438)] transition-colors">
+                        <div className="w-9 h-9 rounded-full bg-[color:var(--c-272839)] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-[color:var(--c-818cf8)]" /></div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium text-[#d0d0da] truncate">{u.nombre}</span>
+                            <span className="text-sm font-medium text-[color:var(--c-d0d0da)] truncate">{u.nombre}</span>
                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[u.rol] || ''}`}>{u.rol}</span>
                             {u.pendiente && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">PENDIENTE</span>}
                             {!u.activo && !u.pendiente && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADA</span>}
                           </div>
-                          <div className="text-xs text-[#8a8b9e] truncate">{u.email}</div>
+                          <div className="text-xs text-[color:var(--c-8a8b9e)] truncate">{u.email}</div>
                         </div>
-                        <div className="hidden sm:flex items-center gap-5 text-xs text-[#b0b0c4]">
+                        <div className="hidden sm:flex items-center gap-5 text-xs text-[color:var(--c-b0b0c4)]">
                           <span title="Materias"><BookOpen className="w-3.5 h-3.5 inline mr-1 text-blue-400" />{u.totalMaterias}</span>
                           <span title="Evaluaciones"><FileText className="w-3.5 h-3.5 inline mr-1 text-amber-400" />{u.totalEvaluaciones}</span>
                           <span title="Estudiantes"><GraduationCap className="w-3.5 h-3.5 inline mr-1 text-purple-400" />{u.totalEstudiantes}</span>
-                          <span className="text-[#8a8b9e] w-24 text-right" title="Última actividad">{fecha(u.ultimaActividad)}</span>
+                          <span className="text-[color:var(--c-8a8b9e)] w-24 text-right" title="Última actividad">{fecha(u.ultimaActividad)}</span>
                         </div>
-                        {expandido ? <ChevronUp className="w-4 h-4 text-[#8a8b9e] flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-[#8a8b9e] flex-shrink-0" />}
+                        {expandido ? <ChevronUp className="w-4 h-4 text-[color:var(--c-8a8b9e)] flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-[color:var(--c-8a8b9e)] flex-shrink-0" />}
                       </button>
                       <AnimatePresence initial={false}>
                         {expandido && (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden bg-[#191a26]">
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden bg-[color:var(--c-191a26)]">
                             <div className="p-4 space-y-4">
-                              <p className="sm:hidden text-xs text-[#8a8b9e]">{u.totalMaterias} materia(s) · {u.totalEvaluaciones} evaluación(es) · {u.totalEstudiantes} estudiante(s)</p>
+                              <p className="sm:hidden text-xs text-[color:var(--c-8a8b9e)]">{u.totalMaterias} materia(s) · {u.totalEvaluaciones} evaluación(es) · {u.totalEstudiantes} estudiante(s)</p>
                               <div>
                                 <button onClick={() => { const est = estudiantesDe[u.id]; if (!est || est === 'error') cargarEstudiantes(u.id); else setEstudiantesDe(prev => { const copia = { ...prev }; delete copia[u.id]; return copia; }); }} className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-200"><GraduationCap className="w-4 h-4" />{estudiantesDe[u.id] && estudiantesDe[u.id] !== 'error' ? 'Ocultar estudiantes' : `Ver estudiantes (${u.totalEstudiantes})`}</button>
-                                {estudiantesDe[u.id] === 'cargando' && <p className="text-xs text-[#8a8b9e] mt-2">Cargando...</p>}
+                                {estudiantesDe[u.id] === 'cargando' && <p className="text-xs text-[color:var(--c-8a8b9e)] mt-2">Cargando...</p>}
                                 {estudiantesDe[u.id] === 'error' && <p className="text-xs text-red-400 mt-2">No se pudo cargar la lista.</p>}
                                 {Array.isArray(estudiantesDe[u.id]) && (
                                   <div className="mt-2 space-y-1.5">
-                                    {(estudiantesDe[u.id] as EstudianteSup[]).length === 0 ? <p className="text-xs text-[#6a6b7e]">No tiene estudiantes.</p> : (estudiantesDe[u.id] as EstudianteSup[]).map(est => (
-                                      <div key={est.id} className="flex items-center gap-3 bg-[#1f2035] border border-[#282a3f] rounded-lg px-3 py-2 text-xs">
-                                        <div className="flex-1 min-w-0 truncate"><span className="text-[#d0d0da]">{est.nombre}</span><span className="text-[#8a8b9e]"> · {est.email}{est.telefono ? ` · ${est.telefono}` : ''}</span></div>
-                                        <span className="text-[#a5b4fc] font-semibold whitespace-nowrap">Grupo {est.grupo}</span>
-                                        {esSuper && <button onClick={() => setEdicionEst({ id: est.id, duenoId: u.id, error: '', guardando: false, campos: { nombre: est.nombre, email: est.email, telefono: est.telefono || '', grupo: est.grupo } })} title="Editar estudiante" className="p-1.5 text-[#6a6b7e] hover:text-[#818cf8] hover:bg-[#272839] rounded-md"><Pencil className="w-3.5 h-3.5" /></button>}
-                                        <button onClick={() => eliminarEstudiante(est, u.id)} title="Eliminar estudiante (moderación)" className={`px-1.5 py-1 rounded-md transition-colors ${confirmandoEst === est.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[#6a6b7e] hover:text-red-400 hover:bg-red-500/10'}`}>{confirmandoEst === est.id ? '¿Seguro?' : <Trash2 className="w-3.5 h-3.5" />}</button>
+                                    {(estudiantesDe[u.id] as EstudianteSup[]).length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)]">No tiene estudiantes.</p> : (estudiantesDe[u.id] as EstudianteSup[]).map(est => (
+                                      <div key={est.id} className="flex items-center gap-3 bg-[color:var(--c-1f2035)] border border-[color:var(--c-282a3f)] rounded-lg px-3 py-2 text-xs">
+                                        <div className="flex-1 min-w-0 truncate"><span className="text-[color:var(--c-d0d0da)]">{est.nombre}</span><span className="text-[color:var(--c-8a8b9e)]"> · {est.email}{est.telefono ? ` · ${est.telefono}` : ''}</span></div>
+                                        <span className="text-[color:var(--c-a5b4fc)] font-semibold whitespace-nowrap">Grupo {est.grupo}</span>
+                                        {esSuper && <button onClick={() => setEdicionEst({ id: est.id, duenoId: u.id, error: '', guardando: false, campos: { nombre: est.nombre, email: est.email, telefono: est.telefono || '', grupo: est.grupo } })} title="Editar estudiante" className="p-1.5 text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-272839)] rounded-md"><Pencil className="w-3.5 h-3.5" /></button>}
+                                        <button onClick={() => eliminarEstudiante(est, u.id)} title="Eliminar estudiante (moderación)" className={`px-1.5 py-1 rounded-md transition-colors ${confirmandoEst === est.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[color:var(--c-6a6b7e)] hover:text-red-400 hover:bg-red-500/10'}`}>{confirmandoEst === est.id ? '¿Seguro?' : <Trash2 className="w-3.5 h-3.5" />}</button>
                                       </div>
                                     ))}
                                   </div>
                                 )}
                               </div>
                               {u.materias.length === 0 ? (
-                                <p className="text-xs text-[#8a8b9e]">Aún no ha creado materias.</p>
+                                <p className="text-xs text-[color:var(--c-8a8b9e)]">Aún no ha creado materias.</p>
                               ) : u.materias.map(m => (
                                 <div key={m.id}>
                                   <div className="flex items-center justify-between gap-2 mb-2">
-                                    <h4 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8]" />{m.nombre}</h4>
+                                    <h4 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><BookOpen className="w-4 h-4 text-[color:var(--c-818cf8)]" />{m.nombre}</h4>
                                     <div className="flex items-center gap-3">
                                       <button onClick={() => abrirComposer(m.id, null)} className="flex items-center gap-1 text-[11px] text-yellow-300/80 hover:text-yellow-200" title="Dejar una observación sobre esta materia"><MessageSquare className="w-3.5 h-3.5" />Observación general</button>
-                                      <span className="text-xs text-[#8a8b9e]">Examen: {fecha(m.fechaExamen)}</span>
+                                      <span className="text-xs text-[color:var(--c-8a8b9e)]">Examen: {fecha(m.fechaExamen)}</span>
                                     </div>
                                   </div>
                                   {esComposer(m.id, null) && formularioObservacion}
                                   {m.evaluaciones.length === 0 ? (
-                                    <p className="text-xs text-[#6a6b7e] pl-6">Sin evaluaciones guardadas.</p>
+                                    <p className="text-xs text-[color:var(--c-6a6b7e)] pl-6">Sin evaluaciones guardadas.</p>
                                   ) : (
                                     <div className="space-y-1.5">
                                       {m.evaluaciones.map((ev, i) => (
                                         <div key={i}>
-                                        <div className="flex items-center gap-3 bg-[#1f2035] border border-[#282a3f] rounded-lg px-3 py-2 text-xs">
-                                          <button onClick={() => setEvalAbierta(evalAbierta === ev.id ? null : ev.id)} className="flex-1 min-w-0 truncate text-left text-[#d0d0da] hover:text-white" title="Ver el contenido completo"><span className="text-[#a5b4fc] mr-1.5">[{ev.grupoSeccion || 'A'}]</span>{limpiarTexto(ev.nombre)}</button>
-                                          {ev.tipoActividad && <span className="hidden sm:inline text-[#8a8b9e] truncate max-w-[140px]">🎯 {ev.tipoActividad}</span>}
-                                          <span className="text-[#8a8b9e]">📅 {fecha(ev.fecha)}</span>
-                                          <span className="font-semibold text-[#a5b4fc] w-10 text-right">{ev.peso != null ? `${ev.peso}%` : '—'}</span>
-                                          <button onClick={() => abrirComposer(m.id, ev.nombre)} title="Dejar una observación sobre esta evaluación" className="px-1.5 py-1 rounded-md text-[#6a6b7e] hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors"><MessageSquare className="w-3.5 h-3.5" /></button>
-                                          <button onClick={() => eliminarEvaluacion(ev.id)} title="Eliminar evaluación (moderación)" className={`px-1.5 py-1 rounded-md transition-colors ${confirmandoEval === ev.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[#6a6b7e] hover:text-red-400 hover:bg-red-500/10'}`}>{confirmandoEval === ev.id ? '¿Seguro?' : <Trash2 className="w-3.5 h-3.5" />}</button>
+                                        <div className="flex items-center gap-3 bg-[color:var(--c-1f2035)] border border-[color:var(--c-282a3f)] rounded-lg px-3 py-2 text-xs">
+                                          <button onClick={() => setEvalAbierta(evalAbierta === ev.id ? null : ev.id)} className="flex-1 min-w-0 truncate text-left text-[color:var(--c-d0d0da)] hover:text-[color:var(--c-blanco)]" title="Ver el contenido completo"><span className="text-[color:var(--c-a5b4fc)] mr-1.5">[{ev.grupoSeccion || 'A'}]</span>{limpiarTexto(ev.nombre)}</button>
+                                          {ev.tipoActividad && <span className="hidden sm:inline text-[color:var(--c-8a8b9e)] truncate max-w-[140px]">🎯 {ev.tipoActividad}</span>}
+                                          <span className="text-[color:var(--c-8a8b9e)]">📅 {fecha(ev.fecha)}</span>
+                                          <span className="font-semibold text-[color:var(--c-a5b4fc)] w-10 text-right">{ev.peso != null ? `${ev.peso}%` : '—'}</span>
+                                          <button onClick={() => abrirComposer(m.id, ev.nombre)} title="Dejar una observación sobre esta evaluación" className="px-1.5 py-1 rounded-md text-[color:var(--c-6a6b7e)] hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors"><MessageSquare className="w-3.5 h-3.5" /></button>
+                                          <button onClick={() => eliminarEvaluacion(ev.id)} title="Eliminar evaluación (moderación)" className={`px-1.5 py-1 rounded-md transition-colors ${confirmandoEval === ev.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[color:var(--c-6a6b7e)] hover:text-red-400 hover:bg-red-500/10'}`}>{confirmandoEval === ev.id ? '¿Seguro?' : <Trash2 className="w-3.5 h-3.5" />}</button>
                                         </div>
                                         {esComposer(m.id, ev.nombre) && formularioObservacion}
                                         {evalAbierta === ev.id && (
-                                          <div className="mt-1.5 mb-2 bg-[#191a26] border border-[#313248] rounded-lg p-3 text-xs space-y-3">
+                                          <div className="mt-1.5 mb-2 bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-lg p-3 text-xs space-y-3">
                                             {edicion?.id === ev.id ? (
                                               <>
                                                 <p className="text-[11px] text-amber-300">Al guardar, el profesor recibirá una observación automática con lo que cambiaste.</p>
                                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                                   {([['nombre', 'Nombre', 'text', 'col-span-2'], ['peso', 'Peso (%)', 'number', ''], ['fecha', 'Fecha', 'date', ''], ['tipoActividad', 'Tipo de actividad', 'text', ''], ['enfoque', 'Enfoque', 'text', ''], ['tiempoEstimadoMinutos', 'Duración (min)', 'number', ''], ['grupoSeccion', 'Sección', 'text', ''], ['cantidadGrupos', 'Grupos', 'number', ''], ['personasPorGrupo', 'Personas/grupo', 'number', '']] as const).map(([k, et, tipo, extra]) => (
-                                                    <label key={k} className={`block ${extra}`}><span className="text-[10px] uppercase tracking-wider text-[#6a6b7e]">{et}</span><input type={tipo} value={edicion.campos[k]} onChange={(e) => cambiarCampo(k, e.target.value)} maxLength={k === 'grupoSeccion' ? 1 : undefined} className="mt-1 w-full bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] focus:outline-none focus:border-[#818cf8]" /></label>
+                                                    <label key={k} className={`block ${extra}`}><span className="text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)]">{et}</span><input type={tipo} value={edicion.campos[k]} onChange={(e) => cambiarCampo(k, e.target.value)} maxLength={k === 'grupoSeccion' ? 1 : undefined} className="mt-1 w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg px-2.5 py-1.5 text-xs text-[color:var(--c-e0e0ec)] focus:outline-none focus:border-[color:var(--c-818cf8)]" /></label>
                                                   ))}
                                                 </div>
-                                                <label className="block"><span className="text-[10px] uppercase tracking-wider text-[#6a6b7e]">Descripción</span><textarea value={edicion.campos.descripcion} onChange={(e) => cambiarCampo('descripcion', e.target.value)} rows={4} maxLength={4000} className="mt-1 w-full bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] focus:outline-none focus:border-[#818cf8]" /></label>
+                                                <label className="block"><span className="text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)]">Descripción</span><textarea value={edicion.campos.descripcion} onChange={(e) => cambiarCampo('descripcion', e.target.value)} rows={4} maxLength={4000} className="mt-1 w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg px-2.5 py-1.5 text-xs text-[color:var(--c-e0e0ec)] focus:outline-none focus:border-[color:var(--c-818cf8)]" /></label>
                                                 {edicion.error && <p className="text-red-400 text-[11px]">{edicion.error}</p>}
                                                 <div className="flex gap-2 justify-end">
-                                                  <button onClick={() => setEdicion(null)} className="px-3 py-1.5 text-xs text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-lg">Cancelar</button>
-                                                  <button onClick={guardarEdicion} disabled={edicion.guardando} className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-lg disabled:opacity-60">{edicion.guardando ? 'Guardando...' : 'Guardar cambios'}</button>
+                                                  <button onClick={() => setEdicion(null)} className="px-3 py-1.5 text-xs text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg">Cancelar</button>
+                                                  <button onClick={guardarEdicion} disabled={edicion.guardando} className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-lg disabled:opacity-60">{edicion.guardando ? 'Guardando...' : 'Guardar cambios'}</button>
                                                 </div>
                                               </>
                                             ) : (
                                               <>
-                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1.5 text-[#9a9bb0]">
-                                                  <span>Sección: <b className="text-[#d0d0da]">{ev.grupoSeccion || 'A'}</b></span>
-                                                  <span>Tipo: <b className="text-[#d0d0da]">{ev.tipoActividad || '—'}</b></span>
-                                                  <span>Duración: <b className="text-[#d0d0da]">{ev.tiempoEstimadoMinutos != null ? `${ev.tiempoEstimadoMinutos} min` : '—'}</b></span>
-                                                  <span>Nivel Bloom: <b className="text-[#d0d0da]">{ev.nivelBloom || '—'}</b></span>
-                                                  <span>Grupos: <b className="text-[#d0d0da]">{ev.cantidadGrupos ?? '—'}</b></span>
-                                                  <span>Personas/grupo: <b className="text-[#d0d0da]">{ev.personasPorGrupo ?? '—'}</b></span>
-                                                  <span className="col-span-2">Enfoque: <b className="text-[#d0d0da]">{ev.enfoque || '—'}</b></span>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1.5 text-[color:var(--c-9a9bb0)]">
+                                                  <span>Sección: <b className="text-[color:var(--c-d0d0da)]">{ev.grupoSeccion || 'A'}</b></span>
+                                                  <span>Tipo: <b className="text-[color:var(--c-d0d0da)]">{ev.tipoActividad || '—'}</b></span>
+                                                  <span>Duración: <b className="text-[color:var(--c-d0d0da)]">{ev.tiempoEstimadoMinutos != null ? `${ev.tiempoEstimadoMinutos} min` : '—'}</b></span>
+                                                  <span>Nivel Bloom: <b className="text-[color:var(--c-d0d0da)]">{ev.nivelBloom || '—'}</b></span>
+                                                  <span>Grupos: <b className="text-[color:var(--c-d0d0da)]">{ev.cantidadGrupos ?? '—'}</b></span>
+                                                  <span>Personas/grupo: <b className="text-[color:var(--c-d0d0da)]">{ev.personasPorGrupo ?? '—'}</b></span>
+                                                  <span className="col-span-2">Enfoque: <b className="text-[color:var(--c-d0d0da)]">{ev.enfoque || '—'}</b></span>
                                                 </div>
-                                                <div><p className="text-[10px] uppercase tracking-wider text-[#6a6b7e] mb-1">Descripción</p><p className="text-[#c0c0cc] whitespace-pre-wrap break-words">{ev.descripcion || 'Sin descripción.'}</p></div>
-                                                {esSuper && <button onClick={() => iniciarEdicion(ev)} className="flex items-center gap-1.5 text-[11px] text-[#a5b4fc] hover:text-[#c7d2fe]"><Pencil className="w-3.5 h-3.5" />Editar esta evaluación</button>}
+                                                <div><p className="text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)] mb-1">Descripción</p><p className="text-[color:var(--c-c0c0cc)] whitespace-pre-wrap break-words">{ev.descripcion || 'Sin descripción.'}</p></div>
+                                                {esSuper && <button onClick={() => iniciarEdicion(ev)} className="flex items-center gap-1.5 text-[11px] text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-c7d2fe)]"><Pencil className="w-3.5 h-3.5" />Editar esta evaluación</button>}
                                               </>
                                             )}
                                           </div>
@@ -1151,11 +1152,11 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
                                   )}
                                   {m.observaciones.length > 0 && (
                                     <div className="mt-2 space-y-1">
-                                      <p className="text-[10px] uppercase tracking-wider text-[#6a6b7e]">Observaciones enviadas</p>
+                                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)]">Observaciones enviadas</p>
                                       {m.observaciones.map(o => (
-                                        <div key={o.id} className="flex items-start gap-2 text-[11px] text-[#9a9bb0]">
+                                        <div key={o.id} className="flex items-start gap-2 text-[11px] text-[color:var(--c-9a9bb0)]">
                                           <MessageSquare className="w-3 h-3 flex-shrink-0 mt-0.5 text-yellow-300/70" />
-                                          <span className="flex-1 break-words"><span className="text-[#c0c0cc]">{o.autorNombre}</span>{o.evaluacionNombre ? ` · «${limpiarTexto(o.evaluacionNombre)}»` : ''}: {o.mensaje}</span>
+                                          <span className="flex-1 break-words"><span className="text-[color:var(--c-c0c0cc)]">{o.autorNombre}</span>{o.evaluacionNombre ? ` · «${limpiarTexto(o.evaluacionNombre)}»` : ''}: {o.mensaje}</span>
                                           <span className={`flex-shrink-0 ${o.leida ? 'text-emerald-400/80' : 'text-amber-300/80'}`}>{o.leida ? 'leída' : 'sin leer'}</span>
                                         </div>
                                       ))}
@@ -1175,7 +1176,7 @@ function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
           </div>
 
           {(datos.sinDueno.materias > 0 || datos.sinDueno.estudiantes > 0) && (
-            <p className="text-xs text-[#8a8b9e] flex items-start gap-2"><Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" /><span>Hay datos sin dueño ({datos.sinDueno.materias} materia(s), {datos.sinDueno.evaluaciones} evaluación(es) y {datos.sinDueno.estudiantes} estudiante(s)). Suelen venir de cuentas eliminadas o de antes de existir los usuarios.</span></p>
+            <p className="text-xs text-[color:var(--c-8a8b9e)] flex items-start gap-2"><Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" /><span>Hay datos sin dueño ({datos.sinDueno.materias} materia(s), {datos.sinDueno.evaluaciones} evaluación(es) y {datos.sinDueno.estudiantes} estudiante(s)). Suelen venir de cuentas eliminadas o de antes de existir los usuarios.</span></p>
           )}
         </>
       )}
@@ -1276,7 +1277,7 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
       permisos: ['Crear, editar y eliminar cuentas de administradores y profesores', 'Atender las solicitudes de "olvidé mi contraseña"', 'Ver, editar y eliminar el trabajo y los estudiantes de cualquier profesor', 'Configurar el chat, el modelo de lenguaje y los límites del sistema', 'Consultar el registro de actividad', 'Usar el planificador y el chat como cualquier profesor'],
     },
     ADMIN: {
-      badge: 'bg-[#818cf8]/10 text-[#a5b4fc] border-[#818cf8]/30',
+      badge: 'bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-a5b4fc)] border-[color:var(--c-818cf8)]/30',
       descripcion: 'Supervisas a los profesores y administras sus cuentas.',
       permisos: ['Crear, editar, desactivar y eliminar cuentas de profesores (rol USUARIO)', 'Ver el trabajo y los estudiantes de todos los profesores, y eliminarlos como moderación (editarlos es del superadmin)', 'No puedes modificar a otros administradores ni al superadmin', 'Gestionar tus propias materias, estudiantes y evaluaciones'],
     },
@@ -1289,8 +1290,8 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
   const rol = usuario?.rol || 'USUARIO';
   const info = INFO_ROL[rol];
 
-  const inputCls = 'w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
-  const labelCls = 'text-xs font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5';
+  const inputCls = 'w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-[color:var(--c-818cf8)] transition-colors';
+  const labelCls = 'text-xs font-semibold text-[color:var(--c-8a8b9e)] uppercase tracking-wider block mb-1.5';
 
   const guardar = async () => {
     setExito(''); setErrorGlobal('');
@@ -1332,25 +1333,25 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-[#e0e0ec]">Mi perfil</h2>
-        <p className="text-xs text-[#8a8b9e] mt-0.5">Administra tus datos de acceso.{creadoEn && ` Cuenta creada el ${creadoEn}.`}</p>
+        <h2 className="text-lg font-semibold text-[color:var(--c-e0e0ec)]">Mi perfil</h2>
+        <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">Administra tus datos de acceso.{creadoEn && ` Cuenta creada el ${creadoEn}.`}</p>
       </div>
 
-      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-5 space-y-3">
+      <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="w-11 h-11 rounded-full bg-[#272839] flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-[#818cf8]" /></div>
+          <div className="w-11 h-11 rounded-full bg-[color:var(--c-272839)] flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-[color:var(--c-818cf8)]" /></div>
           <div>
             <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${info.badge}`}>{rol}</span>
-            <p className="text-sm text-[#b0b0c4] mt-1">{info.descripcion}</p>
+            <p className="text-sm text-[color:var(--c-b0b0c4)] mt-1">{info.descripcion}</p>
           </div>
         </div>
         <ul className="space-y-1.5 pt-1">
-          {info.permisos.map(p => (<li key={p} className="text-xs text-[#9a9bb0] flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" /><span>{p}</span></li>))}
+          {info.permisos.map(p => (<li key={p} className="text-xs text-[color:var(--c-9a9bb0)] flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" /><span>{p}</span></li>))}
         </ul>
       </div>
 
-      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-[#d0d0da]">Datos personales</h3>
+      <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)]">Datos personales</h3>
         <div>
           <label className={labelCls}>Nombre completo</label>
           <input value={nombre} onChange={(e) => { setNombre(e.target.value); setExito(''); }} className={`${inputCls} ${errores.nombre ? 'border-red-500/50' : ''}`} />
@@ -1366,21 +1367,21 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
             <label className={labelCls}>Teléfono</label>
             <input type="tel" value={telefono} onChange={(e) => { setTelefono(e.target.value); setExito(''); }} placeholder="Ej: 0412 123 4567" className={`${inputCls} ${errores.telefono ? 'border-red-500/50' : ''}`} />
             {errores.telefono && <p className="text-red-400 text-[11px] mt-1">{errores.telefono}</p>}
-            <p className="text-[11px] text-[#6a6b7e] mt-1">Por este número el administrador puede contactarte (por ejemplo, para entregarte una clave temporal).</p>
+            <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">Por este número el administrador puede contactarte (por ejemplo, para entregarte una clave temporal).</p>
           </div>
           <div>
             <label className={labelCls}>Cédula</label>
             <input value={cedula} disabled={cedulaBloqueada} onChange={(e) => { setCedula(e.target.value); setExito(''); }} inputMode="numeric" placeholder="Solo números" className={`${inputCls} disabled:opacity-60 ${errores.cedula ? 'border-red-500/50' : ''}`} />
             {errores.cedula && <p className="text-red-400 text-[11px] mt-1">{errores.cedula}</p>}
-            <p className="text-[11px] text-[#6a6b7e] mt-1">{cedulaBloqueada ? 'Si necesitas corregirla, pídeselo a un administrador.' : 'Se registra una sola vez.'}</p>
+            <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">{cedulaBloqueada ? 'Si necesitas corregirla, pídeselo a un administrador.' : 'Se registra una sola vez.'}</p>
           </div>
         </div>
       </div>
 
-      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-5 space-y-4">
+      <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5 space-y-4">
         <div>
-          <h3 className="text-sm font-semibold text-[#d0d0da]">Seguridad</h3>
-          <p className="text-[11px] text-[#8a8b9e] mt-0.5">Necesitas tu contraseña actual solo si cambias tu correo o tu contraseña.</p>
+          <h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)]">Seguridad</h3>
+          <p className="text-[11px] text-[color:var(--c-8a8b9e)] mt-0.5">Necesitas tu contraseña actual solo si cambias tu correo o tu contraseña.</p>
         </div>
         <div>
           <label className={labelCls}>Contraseña actual</label>
@@ -1404,7 +1405,7 @@ function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesion | nul
       {errorGlobal && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{errorGlobal}</span></p>}
       {exito && <p className="text-emerald-400 text-xs flex items-start gap-1.5"><CheckCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{exito}</span></p>}
 
-      <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={guardar} disabled={guardando} className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl shadow-lg disabled:opacity-60">
+      <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={guardar} disabled={guardando} className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl shadow-lg disabled:opacity-60">
         {guardando ? 'Guardando...' : 'Guardar cambios'}
       </motion.button>
 
@@ -1433,15 +1434,15 @@ function DatosDemostracion() {
     } catch (e: any) { setError(e.message); setTrabajando(''); }
   };
   return (
-    <div className="mt-6 rounded-2xl border border-dashed border-[#818cf8]/40 bg-[#818cf8]/5 p-5">
+    <div className="mt-6 rounded-2xl border border-dashed border-[color:var(--c-818cf8)]/40 bg-[color:var(--c-818cf8)]/5 p-5">
       <div className="flex items-start gap-3">
-        <span className="w-9 h-9 rounded-xl bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><Sparkles className="w-5 h-5 text-[#a5b4fc]" /></span>
+        <span className="w-9 h-9 rounded-xl bg-[color:var(--c-818cf8)]/15 flex items-center justify-center flex-shrink-0"><Sparkles className="w-5 h-5 text-[color:var(--c-a5b4fc)]" /></span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">Datos de demostración</p>
-          <p className="text-xs text-[#9a9bb0] mt-0.5">Para presentar la app con todo lleno: una materia de ejemplo con estudiantes, notas con rúbrica, recursos, opiniones y «ya me preparé». Solo afecta tu cuenta y se borra con un clic.</p>
+          <p className="text-sm font-semibold text-[color:var(--c-blanco)]">Datos de demostración</p>
+          <p className="text-xs text-[color:var(--c-9a9bb0)] mt-0.5">Para presentar la app con todo lleno: una materia de ejemplo con estudiantes, notas con rúbrica, recursos, opiniones y «ya me preparé». Solo afecta tu cuenta y se borra con un clic.</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => accion('crear')} disabled={!!trabajando} className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold disabled:opacity-60">{trabajando === 'crear' ? 'Creando… (unos segundos)' : 'Crear datos de demostración'}</button>
-            <button type="button" onClick={() => accion('borrar')} disabled={!!trabajando} className="h-9 px-4 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-red-300 hover:border-red-500/40 disabled:opacity-60">{trabajando === 'borrar' ? 'Borrando…' : 'Borrar datos de demostración'}</button>
+            <button type="button" onClick={() => accion('crear')} disabled={!!trabajando} className="h-9 px-4 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold disabled:opacity-60">{trabajando === 'crear' ? 'Creando… (unos segundos)' : 'Crear datos de demostración'}</button>
+            <button type="button" onClick={() => accion('borrar')} disabled={!!trabajando} className="h-9 px-4 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] text-xs font-medium hover:text-red-300 hover:border-red-500/40 disabled:opacity-60">{trabajando === 'borrar' ? 'Borrando…' : 'Borrar datos de demostración'}</button>
           </div>
           {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
         </div>
@@ -1499,16 +1500,16 @@ function ActividadPanel() {
   useEffect(() => { cargar(1); }, [accion, buscarAplicado]);
 
   const acciones = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT', 'REGISTRO', 'APROBAR', 'RECHAZAR', 'CREAR', 'EDITAR', 'ELIMINAR', 'OBSERVAR', 'RESTAURAR', 'RECUPERAR', 'RESTABLECER', 'VERIFICAR', 'ENVIAR'];
-  const inputCls = 'bg-[#272839] border border-[#313248] rounded-xl px-3 py-2 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
+  const inputCls = 'bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-[color:var(--c-818cf8)] transition-colors';
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-[#e0e0ec] flex items-center gap-2"><Activity className="w-5 h-5 text-[#818cf8]" />Registro de actividad</h2>
-          <p className="text-xs text-[#8a8b9e] mt-0.5">Quién hizo qué y cuándo. Solo lectura. {total} registro(s).</p>
+          <h2 className="text-lg font-semibold text-[color:var(--c-e0e0ec)] flex items-center gap-2"><Activity className="w-5 h-5 text-[color:var(--c-818cf8)]" />Registro de actividad</h2>
+          <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">Quién hizo qué y cuándo. Solo lectura. {total} registro(s).</p>
         </div>
-        <button onClick={() => cargar(pagina)} disabled={cargando} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 disabled:opacity-60">
+        <button onClick={() => cargar(pagina)} disabled={cargando} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 disabled:opacity-60">
           <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />Actualizar
         </button>
       </div>
@@ -1519,32 +1520,32 @@ function ActividadPanel() {
           {acciones.map(a => <option key={a} value={a}>{a.replace('_', ' ')}</option>)}
         </select>
         <div className="flex-1 min-w-[200px] relative">
-          <Search className="w-4 h-4 text-[#6a6b7e] absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[color:var(--c-6a6b7e)] absolute left-3 top-1/2 -translate-y-1/2" />
           <input value={buscar} onChange={(e) => setBuscar(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setBuscarAplicado(buscar.trim()); }} placeholder="Buscar por persona o detalle y presiona Enter..." className={`${inputCls} w-full pl-9`} />
         </div>
       </div>
 
       {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
 
-      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+      <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl overflow-hidden">
         {cargando && items.length === 0 ? (
-          <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>
+          <div className="p-8 text-center text-sm text-[color:var(--c-8a8b9e)]">Cargando...</div>
         ) : items.length === 0 ? (
-          <div className="p-8 text-center text-sm text-[#8a8b9e]">No hay registros{accion || buscarAplicado ? ' con esos filtros' : ' todavía'}.</div>
+          <div className="p-8 text-center text-sm text-[color:var(--c-8a8b9e)]">No hay registros{accion || buscarAplicado ? ' con esos filtros' : ' todavía'}.</div>
         ) : (
-          <div className="divide-y divide-[#313248]">
+          <div className="divide-y divide-[color:var(--c-313248)]">
             {items.map(it => (
-              <div key={it.id} className="p-4 flex items-start gap-3 hover:bg-[#232438] transition-colors">
+              <div key={it.id} className="p-4 flex items-start gap-3 hover:bg-[color:var(--c-232438)] transition-colors">
                 <span className={`mt-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${ESTILO_ACCION[it.accion] || 'bg-slate-500/10 text-slate-300 border-slate-500/30'}`}>{it.accion.replace('_', ' ')}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-[#d0d0da]">{it.usuarioNombre}</span>
+                    <span className="text-sm font-medium text-[color:var(--c-d0d0da)]">{it.usuarioNombre}</span>
                     {it.usuarioRol && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[it.usuarioRol] || ''}`}>{it.usuarioRol}</span>}
-                    <span className="text-[11px] text-[#6a6b7e]">· {it.entidad}</span>
+                    <span className="text-[11px] text-[color:var(--c-6a6b7e)]">· {it.entidad}</span>
                   </div>
-                  {it.detalle && <p className="text-xs text-[#9a9bb0] mt-0.5 break-words">{it.detalle}</p>}
+                  {it.detalle && <p className="text-xs text-[color:var(--c-9a9bb0)] mt-0.5 break-words">{it.detalle}</p>}
                 </div>
-                <span className="text-[11px] text-[#8a8b9e] whitespace-nowrap">{new Date(it.createdAt).toLocaleString()}</span>
+                <span className="text-[11px] text-[color:var(--c-8a8b9e)] whitespace-nowrap">{new Date(it.createdAt).toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -1553,9 +1554,9 @@ function ActividadPanel() {
 
       {totalPaginas > 1 && (
         <div className="flex items-center justify-center gap-4">
-          <button onClick={() => cargar(pagina - 1)} disabled={pagina <= 1 || cargando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl disabled:opacity-40">Anterior</button>
-          <span className="text-xs text-[#8a8b9e]">Página {pagina} de {totalPaginas}</span>
-          <button onClick={() => cargar(pagina + 1)} disabled={pagina >= totalPaginas || cargando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl disabled:opacity-40">Siguiente</button>
+          <button onClick={() => cargar(pagina - 1)} disabled={pagina <= 1 || cargando} className="px-4 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl disabled:opacity-40">Anterior</button>
+          <span className="text-xs text-[color:var(--c-8a8b9e)]">Página {pagina} de {totalPaginas}</span>
+          <button onClick={() => cargar(pagina + 1)} disabled={pagina >= totalPaginas || cargando} className="px-4 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl disabled:opacity-40">Siguiente</button>
         </div>
       )}
     </div>
@@ -1584,58 +1585,58 @@ function OpinionesEstudiantes({ items, onVistas, onBorrar }: { items: OpinionEst
   const pct = deSeccion.length ? Math.round((deAcuerdo / deSeccion.length) * 100) : 0;
 
   return (
-    <div className={`rounded-2xl border overflow-hidden ${nuevas ? 'border-[#818cf8]/40 bg-[#818cf8]/5' : 'border-[#313248] bg-[#1f2035]'}`}>
+    <div className={`rounded-2xl border overflow-hidden ${nuevas ? 'border-[color:var(--c-818cf8)]/40 bg-[color:var(--c-818cf8)]/5' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1f2035)]'}`}>
       <button type="button" onClick={() => setAbierto(v => !v)} className="w-full px-4 py-3 flex items-center gap-3 text-left flex-wrap">
-        <Users className="w-4 h-4 text-[#a5b4fc]" />
-        <span className="text-sm font-semibold text-[#d0d0da]">Opiniones de los estudiantes</span>
+        <Users className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />
+        <span className="text-sm font-semibold text-[color:var(--c-d0d0da)]">Opiniones de los estudiantes</span>
         <span className="text-xs text-emerald-300">👍 {items.filter(o => o.deAcuerdo).length} de acuerdo</span>
         <span className="text-xs text-amber-300">💬 {items.filter(o => !o.deAcuerdo).length} sugerencia(s)</span>
-        {nuevas > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#818cf8] text-white">{nuevas} nueva{nuevas === 1 ? '' : 's'}</span>}
-        <ChevronDown className={`w-4 h-4 ml-auto text-[#8a8b9e] transition-transform ${abierto ? 'rotate-180' : ''}`} />
+        {nuevas > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[color:var(--c-818cf8)] text-white">{nuevas} nueva{nuevas === 1 ? '' : 's'}</span>}
+        <ChevronDown className={`w-4 h-4 ml-auto text-[color:var(--c-8a8b9e)] transition-transform ${abierto ? 'rotate-180' : ''}`} />
       </button>
       <AnimatePresence initial={false}>
         {abierto && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]">
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[color:var(--c-313248)]">
             <div className="p-4 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
+                <div className="flex gap-1 bg-[color:var(--c-161722)] border border-[color:var(--c-313248)] rounded-lg p-1">
                   {['todas', ...secciones].map(l => (
-                    <button key={l} type="button" onClick={() => setSeccion(l)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${seccion === l ? 'bg-[#818cf8] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{l === 'todas' ? 'Todas' : `Sec. ${l}`}</button>
+                    <button key={l} type="button" onClick={() => setSeccion(l)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${seccion === l ? 'bg-[color:var(--c-818cf8)] text-white' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]'}`}>{l === 'todas' ? 'Todas' : `Sec. ${l}`}</button>
                   ))}
                 </div>
-                <div className="flex gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
+                <div className="flex gap-1 bg-[color:var(--c-161722)] border border-[color:var(--c-313248)] rounded-lg p-1">
                   {([['sugerencias', `Sugerencias (${sugerencias})`], ['todas', `Todas (${deSeccion.length})`]] as const).map(([v, t]) => (
-                    <button key={v} type="button" onClick={() => setFiltro(v)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${filtro === v ? 'bg-[#272839] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{t}</button>
+                    <button key={v} type="button" onClick={() => setFiltro(v)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${filtro === v ? 'bg-[color:var(--c-272839)] text-[color:var(--c-blanco)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]'}`}>{t}</button>
                   ))}
                 </div>
                 <div className="ml-auto flex items-center gap-3">
-                  {nuevas > 0 && <button type="button" onClick={() => onVistas()} className="text-xs text-[#a5b4fc] hover:text-white underline">Marcar todas como vistas</button>}
+                  {nuevas > 0 && <button type="button" onClick={() => onVistas()} className="text-xs text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-blanco)] underline">Marcar todas como vistas</button>}
                   {visibles.length > 0 && (confirmar === 'todas'
-                    ? <span className="flex items-center gap-1.5 text-xs"><span className="text-red-200">¿Borrar {visibles.length}?</span><button type="button" disabled={borrando} onClick={() => borrar(visibles.map(o => o.id))} className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/40 text-red-200 font-semibold hover:bg-red-500/30 disabled:opacity-50">{borrando ? 'Borrando…' : 'Sí, borrar'}</button><button type="button" onClick={() => setConfirmar(null)} className="px-2 py-1 rounded-md text-[#8a8b9e] hover:text-white">No</button></span>
+                    ? <span className="flex items-center gap-1.5 text-xs"><span className="text-red-200">¿Borrar {visibles.length}?</span><button type="button" disabled={borrando} onClick={() => borrar(visibles.map(o => o.id))} className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/40 text-red-200 font-semibold hover:bg-red-500/30 disabled:opacity-50">{borrando ? 'Borrando…' : 'Sí, borrar'}</button><button type="button" onClick={() => setConfirmar(null)} className="px-2 py-1 rounded-md text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]">No</button></span>
                     : <button type="button" onClick={() => setConfirmar('todas')} className="flex items-center gap-1 text-xs text-red-300/80 hover:text-red-200"><Trash2 className="w-3.5 h-3.5" />Borrar {filtro === 'sugerencias' ? 'sugerencias' : 'opiniones'}{seccion !== 'todas' ? ` de Sec. ${seccion}` : ''}</button>)}
                 </div>
               </div>
               <div>
-                <div className="flex justify-between text-[11px] text-[#8a8b9e] mb-1"><span>{pct}% de acuerdo</span><span>{deSeccion.length} opinaron</span></div>
+                <div className="flex justify-between text-[11px] text-[color:var(--c-8a8b9e)] mb-1"><span>{pct}% de acuerdo</span><span>{deSeccion.length} opinaron</span></div>
                 <div className="h-2 rounded-full bg-amber-500/30 overflow-hidden"><div className="h-full bg-emerald-400" style={{ width: `${pct}%` }} /></div>
               </div>
-              <div className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[#282a3f] border border-[#282a3f] rounded-xl">
-                {visibles.length === 0 && <p className="px-3 py-6 text-center text-xs text-[#8a8b9e]">{filtro === 'sugerencias' ? 'Nadie ha dejado sugerencias en esta sección.' : 'Sin opiniones.'}</p>}
+              <div className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[color:var(--c-282a3f)] border border-[color:var(--c-282a3f)] rounded-xl">
+                {visibles.length === 0 && <p className="px-3 py-6 text-center text-xs text-[color:var(--c-8a8b9e)]">{filtro === 'sugerencias' ? 'Nadie ha dejado sugerencias en esta sección.' : 'Sin opiniones.'}</p>}
                 {visibles.map(o => (
-                  <div key={o.id} className={`px-3 py-2.5 flex items-start gap-3 ${!o.leida ? 'bg-[#818cf8]/5' : ''}`}>
+                  <div key={o.id} className={`px-3 py-2.5 flex items-start gap-3 ${!o.leida ? 'bg-[color:var(--c-818cf8)]/5' : ''}`}>
                     <span className="text-base leading-none mt-0.5">{o.deAcuerdo ? '👍' : '💬'}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap text-xs">
-                        <span className="font-semibold text-[#d0d0da]">{o.estudiante}</span>
-                        <span className="text-[#8a8b9e]">· Sec. {(o.seccion || 'A').toUpperCase()} · {o.materia} · {new Date(o.fecha).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}</span>
-                        {!o.leida && <span className="w-1.5 h-1.5 rounded-full bg-[#818cf8]" />}
+                        <span className="font-semibold text-[color:var(--c-d0d0da)]">{o.estudiante}</span>
+                        <span className="text-[color:var(--c-8a8b9e)]">· Sec. {(o.seccion || 'A').toUpperCase()} · {o.materia} · {new Date(o.fecha).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}</span>
+                        {!o.leida && <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--c-818cf8)]" />}
                       </div>
-                      {o.comentario ? <p className="text-sm text-[#c0c0cc] mt-0.5 whitespace-pre-wrap break-words">{o.comentario}</p> : <p className="text-xs text-[#6a6b7e] mt-0.5">Está de acuerdo con el plan.</p>}
+                      {o.comentario ? <p className="text-sm text-[color:var(--c-c0c0cc)] mt-0.5 whitespace-pre-wrap break-words">{o.comentario}</p> : <p className="text-xs text-[color:var(--c-6a6b7e)] mt-0.5">Está de acuerdo con el plan.</p>}
                     </div>
-                    {!o.leida && <button type="button" onClick={() => onVistas(o.id)} className="shrink-0 text-[11px] text-[#a5b4fc] hover:text-white">Visto</button>}
+                    {!o.leida && <button type="button" onClick={() => onVistas(o.id)} className="shrink-0 text-[11px] text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-blanco)]">Visto</button>}
                     {confirmar === o.id
-                      ? <span className="shrink-0 flex items-center gap-1"><button type="button" disabled={borrando} onClick={() => borrar([o.id])} className="text-[11px] px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-200 font-semibold disabled:opacity-50">¿Borrar?</button><button type="button" onClick={() => setConfirmar(null)} className="p-0.5 text-[#8a8b9e] hover:text-white" aria-label="No borrar"><X className="w-3.5 h-3.5" /></button></span>
-                      : <Tooltip text="Borrar esta opinión"><button type="button" onClick={() => setConfirmar(o.id)} aria-label="Borrar opinión" className="shrink-0 p-1 rounded-md text-[#6a6b7e] hover:text-red-300 hover:bg-red-500/10"><Trash2 className="w-3.5 h-3.5" /></button></Tooltip>}
+                      ? <span className="shrink-0 flex items-center gap-1"><button type="button" disabled={borrando} onClick={() => borrar([o.id])} className="text-[11px] px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-200 font-semibold disabled:opacity-50">¿Borrar?</button><button type="button" onClick={() => setConfirmar(null)} className="p-0.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]" aria-label="No borrar"><X className="w-3.5 h-3.5" /></button></span>
+                      : <Tooltip text="Borrar esta opinión"><button type="button" onClick={() => setConfirmar(o.id)} aria-label="Borrar opinión" className="shrink-0 p-1 rounded-md text-[color:var(--c-6a6b7e)] hover:text-red-300 hover:bg-red-500/10"><Trash2 className="w-3.5 h-3.5" /></button></Tooltip>}
                   </div>
                 ))}
               </div>
@@ -1660,15 +1661,15 @@ function ObservacionesRecibidas({ items, onLeer }: { items: ObservacionRecibida[
 
   const tarjeta = (o: ObservacionRecibida, nueva: boolean) => (
     <div key={o.id} className="p-4 flex items-start gap-3">
-      <MessageSquare className={`w-4 h-4 flex-shrink-0 mt-0.5 ${nueva ? 'text-amber-300' : 'text-[#6a6b7e]'}`} />
+      <MessageSquare className={`w-4 h-4 flex-shrink-0 mt-0.5 ${nueva ? 'text-amber-300' : 'text-[color:var(--c-6a6b7e)]'}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap text-xs">
-          <span className="font-semibold text-[#d0d0da]">{o.autorNombre}</span>
+          <span className="font-semibold text-[color:var(--c-d0d0da)]">{o.autorNombre}</span>
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${ESTILO_ROL[o.autorRol] || ''}`}>{o.autorRol}</span>
-          <span className="text-[#8a8b9e]">· {o.materia.nombre}{o.evaluacionNombre ? ` · «${limpiarTexto(o.evaluacionNombre)}»` : ''}</span>
-          <span className="text-[#6a6b7e]">· {new Date(o.createdAt).toLocaleString()}</span>
+          <span className="text-[color:var(--c-8a8b9e)]">· {o.materia.nombre}{o.evaluacionNombre ? ` · «${limpiarTexto(o.evaluacionNombre)}»` : ''}</span>
+          <span className="text-[color:var(--c-6a6b7e)]">· {new Date(o.createdAt).toLocaleString()}</span>
         </div>
-        <p className="text-sm text-[#c0c0cc] mt-1 whitespace-pre-wrap break-words">{o.mensaje}</p>
+        <p className="text-sm text-[color:var(--c-c0c0cc)] mt-1 whitespace-pre-wrap break-words">{o.mensaje}</p>
       </div>
       {nueva && <button onClick={() => onLeer(o.id)} className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg hover:bg-amber-500/20 transition-colors">Entendido</button>}
     </div>
@@ -1681,7 +1682,7 @@ function ObservacionesRecibidas({ items, onLeer }: { items: ObservacionRecibida[
           <div className="px-4 py-3 border-b border-amber-500/20 flex items-center gap-2 flex-wrap">
             <MessageSquare className="w-4 h-4 text-amber-300" />
             <h3 className="text-sm font-semibold text-amber-200">Observaciones nuevas ({sinLeer.length})</h3>
-            <span className="text-[11px] text-[#8a8b9e]">Un administrador revisó tu trabajo.</span>
+            <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Un administrador revisó tu trabajo.</span>
             {sinLeer.length > 1 && <button onClick={() => onLeer()} className="ml-auto text-xs text-amber-200/80 hover:text-amber-100 underline">Marcar todas como leídas</button>}
           </div>
           <div className="divide-y divide-amber-500/10">{sinLeer.map(o => tarjeta(o, true))}</div>
@@ -1689,10 +1690,10 @@ function ObservacionesRecibidas({ items, onLeer }: { items: ObservacionRecibida[
       )}
       {leidas.length > 0 && (
         <div>
-          <button onClick={() => setVerLeidas(v => !v)} className="text-xs text-[#8a8b9e] hover:text-[#b0b0c4] flex items-center gap-1">
+          <button onClick={() => setVerLeidas(v => !v)} className="text-xs text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)] flex items-center gap-1">
             {verLeidas ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}{verLeidas ? 'Ocultar' : 'Ver'} observaciones leídas ({leidas.length})
           </button>
-          {verLeidas && <div className="mt-2 bg-[#1d1e2e] border border-[#313248] rounded-2xl divide-y divide-[#313248] overflow-hidden">{leidas.map(o => tarjeta(o, false))}</div>}
+          {verLeidas && <div className="mt-2 bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl divide-y divide-[color:var(--c-313248)] overflow-hidden">{leidas.map(o => tarjeta(o, false))}</div>}
         </div>
       )}
     </div>
@@ -1755,36 +1756,36 @@ function PapeleraPanel({ usuario }: { usuario?: UsuarioSesion | null }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-[#e0e0ec] flex items-center gap-2"><Trash2 className="w-5 h-5 text-[#818cf8]" />Papelera</h2>
-        <p className="text-xs text-[#8a8b9e] mt-0.5">Lo que eliminas se guarda {dias} días y luego se borra definitivamente. Aquí puedes restaurarlo.</p>
+        <h2 className="text-lg font-semibold text-[color:var(--c-e0e0ec)] flex items-center gap-2"><Trash2 className="w-5 h-5 text-[color:var(--c-818cf8)]" />Papelera</h2>
+        <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">Lo que eliminas se guarda {dias} días y luego se borra definitivamente. Aquí puedes restaurarlo.</p>
       </div>
 
       {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
       {aviso && <p className="text-emerald-400 text-sm flex items-start gap-2"><CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{aviso}</span></p>}
 
-      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+      <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl overflow-hidden">
         {cargando ? (
-          <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>
+          <div className="p-8 text-center text-sm text-[color:var(--c-8a8b9e)]">Cargando...</div>
         ) : items.length === 0 ? (
-          <div className="p-10 text-center text-sm text-[#8a8b9e]"><Trash2 className="w-8 h-8 mx-auto mb-3 text-[#3a3b52]" />La papelera está vacía.</div>
+          <div className="p-10 text-center text-sm text-[color:var(--c-8a8b9e)]"><Trash2 className="w-8 h-8 mx-auto mb-3 text-[color:var(--c-3a3b52)]" />La papelera está vacía.</div>
         ) : (
-          <div className="divide-y divide-[#313248]">
+          <div className="divide-y divide-[color:var(--c-313248)]">
             {items.map(it => {
               const porOtro = !!it.eliminadoPorId && it.eliminadoPorId !== usuario?.id;
               return (
-                <div key={it.id} className="p-4 flex items-center gap-3 hover:bg-[#232438] transition-colors">
-                  <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0">{it.tipo === 'ESTUDIANTE' ? <User className="w-4 h-4 text-purple-300" /> : <FileText className="w-4 h-4 text-amber-300" />}</div>
+                <div key={it.id} className="p-4 flex items-center gap-3 hover:bg-[color:var(--c-232438)] transition-colors">
+                  <div className="w-9 h-9 rounded-full bg-[color:var(--c-272839)] flex items-center justify-center flex-shrink-0">{it.tipo === 'ESTUDIANTE' ? <User className="w-4 h-4 text-purple-300" /> : <FileText className="w-4 h-4 text-amber-300" />}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-[#d0d0da] truncate">{it.tipo === 'EVALUACION' ? limpiarTexto(it.nombre) : it.nombre}</span>
+                      <span className="text-sm font-medium text-[color:var(--c-d0d0da)] truncate">{it.tipo === 'EVALUACION' ? limpiarTexto(it.nombre) : it.nombre}</span>
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-slate-500/10 text-slate-300 border-slate-500/30">{it.tipo === 'ESTUDIANTE' ? 'ESTUDIANTE' : 'EVALUACIÓN'}</span>
                       {porOtro && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">ELIMINADA POR {it.eliminadoPorNombre.toUpperCase()}</span>}
                     </div>
-                    <div className="text-xs text-[#8a8b9e] truncate">{it.contexto ? `${it.contexto} · ` : ''}Eliminado el {new Date(it.createdAt).toLocaleDateString()} · se borra en {diasRestantes(it.createdAt)} día(s)</div>
+                    <div className="text-xs text-[color:var(--c-8a8b9e)] truncate">{it.contexto ? `${it.contexto} · ` : ''}Eliminado el {new Date(it.createdAt).toLocaleDateString()} · se borra en {diasRestantes(it.createdAt)} día(s)</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={() => restaurar(it)} disabled={procesandoId === it.id} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors disabled:opacity-60"><RotateCcw className="w-3.5 h-3.5" />{procesandoId === it.id ? 'Restaurando...' : 'Restaurar'}</button>
-                    <button onClick={() => eliminarDefinitivo(it)} className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${confirmandoId === it.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[#6a6b7e] hover:text-red-400 hover:bg-red-500/10'}`} title="Eliminar definitivamente">{confirmandoId === it.id ? '¿Seguro?' : <Trash2 className="w-4 h-4" />}</button>
+                    <button onClick={() => eliminarDefinitivo(it)} className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors ${confirmandoId === it.id ? 'text-red-300 bg-red-500/15 border border-red-500/30 font-semibold' : 'text-[color:var(--c-6a6b7e)] hover:text-red-400 hover:bg-red-500/10'}`} title="Eliminar definitivamente">{confirmandoId === it.id ? '¿Seguro?' : <Trash2 className="w-4 h-4" />}</button>
                   </div>
                 </div>
               );
@@ -1810,9 +1811,9 @@ function PanelUsoAgente() {
       .then(d => { if (vivo) setDatos(d); }).catch(e => { if (vivo) setError(e.message); });
     return () => { vivo = false; };
   }, [dias]);
-  const tarjeta = 'bg-[#1f2035] border border-[#313248] rounded-2xl p-5';
+  const tarjeta = 'bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl p-5';
   if (error) return <div className={tarjeta}><p className="text-xs text-red-300">Uso del agente: {error}</p></div>;
-  if (!datos) return <div className={tarjeta}><p className="text-xs text-[#8a8b9e]">Cargando uso del agente…</p></div>;
+  if (!datos) return <div className={tarjeta}><p className="text-xs text-[color:var(--c-8a8b9e)]">Cargando uso del agente…</p></div>;
   const serie = Object.entries(datos.porDia as Record<string, number>);
   const max = Math.max(1, ...serie.map(([, n]) => n));
   const modelos = Object.entries(datos.porModelo as Record<string, number>).sort((a, b) => b[1] - a[1]);
@@ -1820,9 +1821,9 @@ function PanelUsoAgente() {
   return (
     <div className={tarjeta}>
       <div className="flex items-center gap-2 flex-wrap mb-4">
-        <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[#a5b4fc]" />Uso del agente</h3>
-        <div className="ml-auto flex gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
-          {[7, 14, 30].map(d => <button key={d} type="button" onClick={() => setDias(d)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${dias === d ? 'bg-[#818cf8] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{d} días</button>)}
+        <h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Uso del agente</h3>
+        <div className="ml-auto flex gap-1 bg-[color:var(--c-161722)] border border-[color:var(--c-313248)] rounded-lg p-1">
+          {[7, 14, 30].map(d => <button key={d} type="button" onClick={() => setDias(d)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${dias === d ? 'bg-[color:var(--c-818cf8)] text-white' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]'}`}>{d} días</button>)}
         </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -1832,32 +1833,32 @@ function PanelUsoAgente() {
           ['Con modelo de respaldo', datos.respaldos, datos.respuestas ? `${Math.round((datos.respaldos / datos.respuestas) * 100)}%` : ''],
           ['Valoración', valoradas ? `${Math.round((datos.positivas / valoradas) * 100)}% 👍` : '—', valoradas ? `${datos.positivas} 👍 · ${datos.negativas} 👎` : 'sin votos'],
         ].map(([t, v, sub]) => (
-          <div key={String(t)} className="bg-[#191a26] border border-[#282a3f] rounded-xl p-3">
-            <p className="text-[11px] text-[#8a8b9e]">{t}</p>
-            <p className="text-xl font-bold text-[#e0e0ec] mt-1">{v}</p>
-            {sub && <p className="text-[10px] text-[#6a6b7e] mt-0.5">{sub}</p>}
+          <div key={String(t)} className="bg-[color:var(--c-191a26)] border border-[color:var(--c-282a3f)] rounded-xl p-3">
+            <p className="text-[11px] text-[color:var(--c-8a8b9e)]">{t}</p>
+            <p className="text-xl font-bold text-[color:var(--c-e0e0ec)] mt-1">{v}</p>
+            {sub && <p className="text-[10px] text-[color:var(--c-6a6b7e)] mt-0.5">{sub}</p>}
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-[#8a8b9e] mb-2">Respuestas por día</p>
+      <p className="text-[11px] text-[color:var(--c-8a8b9e)] mb-2">Respuestas por día</p>
       <div className="flex items-end gap-1 h-28">
         {serie.map(([dia, n]) => (
           <div key={dia} className="flex-1 flex flex-col items-center justify-end h-full group" title={`${dia}: ${n} respuesta(s)`}>
-            <span className="text-[9px] text-[#8a8b9e] opacity-0 group-hover:opacity-100">{n}</span>
-            <div className="w-full rounded-t bg-[#818cf8]/70 group-hover:bg-[#818cf8] transition-colors" style={{ height: `${Math.max(n ? 6 : 2, (n / max) * 100)}%` }} />
+            <span className="text-[9px] text-[color:var(--c-8a8b9e)] opacity-0 group-hover:opacity-100">{n}</span>
+            <div className="w-full rounded-t bg-[color:var(--c-818cf8)]/70 group-hover:bg-[color:var(--c-818cf8)] transition-colors" style={{ height: `${Math.max(n ? 6 : 2, (n / max) * 100)}%` }} />
           </div>
         ))}
       </div>
-      <div className="flex justify-between text-[10px] text-[#6a6b7e] mt-1"><span>{serie[0]?.[0]}</span><span>{serie[serie.length - 1]?.[0]}</span></div>
+      <div className="flex justify-between text-[10px] text-[color:var(--c-6a6b7e)] mt-1"><span>{serie[0]?.[0]}</span><span>{serie[serie.length - 1]?.[0]}</span></div>
       {modelos.length > 0 && (
         <div className="mt-5">
-          <p className="text-[11px] text-[#8a8b9e] mb-2">Qué modelo respondió</p>
+          <p className="text-[11px] text-[color:var(--c-8a8b9e)] mb-2">Qué modelo respondió</p>
           <div className="space-y-1.5">
             {modelos.map(([m, n]) => (
               <div key={m} className="flex items-center gap-3 text-xs">
-                <span className="w-44 truncate text-[#c0c0d0]">{m}</span>
-                <div className="flex-1 h-2 rounded-full bg-[#272839] overflow-hidden"><div className="h-full bg-[#818cf8]" style={{ width: `${(n / datos.respuestas) * 100}%` }} /></div>
-                <span className="w-10 text-right text-[#8a8b9e]">{n}</span>
+                <span className="w-44 truncate text-[color:var(--c-c0c0d0)]">{m}</span>
+                <div className="flex-1 h-2 rounded-full bg-[color:var(--c-272839)] overflow-hidden"><div className="h-full bg-[color:var(--c-818cf8)]" style={{ width: `${(n / datos.respuestas) * 100}%` }} /></div>
+                <span className="w-10 text-right text-[color:var(--c-8a8b9e)]">{n}</span>
               </div>
             ))}
           </div>
@@ -1909,35 +1910,35 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
     finally { setGuardando(false); }
   };
 
-  const campo = 'w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
-  const etiqueta = 'text-xs font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5';
-  const ayuda = 'text-[11px] text-[#6a6b7e] mt-1';
-  const tarjeta = 'bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 space-y-5';
+  const campo = 'w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-[color:var(--c-818cf8)] transition-colors';
+  const etiqueta = 'text-xs font-semibold text-[color:var(--c-8a8b9e)] uppercase tracking-wider block mb-1.5';
+  const ayuda = 'text-[11px] text-[color:var(--c-6a6b7e)] mt-1';
+  const tarjeta = 'bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 space-y-5';
 
   const Interruptor = ({ activo, onChange, texto, detalle }: { activo: boolean; onChange: (v: boolean) => void; texto: string; detalle?: string }) => (
     <div className="flex items-start justify-between gap-4">
-      <div><p className="text-sm text-[#d0d0da] font-medium">{texto}</p>{detalle && <p className={ayuda}>{detalle}</p>}</div>
-      <button type="button" role="switch" aria-checked={activo} onClick={() => onChange(!activo)} className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${activo ? 'bg-[#818cf8]' : 'bg-[#313248]'}`}>
+      <div><p className="text-sm text-[color:var(--c-d0d0da)] font-medium">{texto}</p>{detalle && <p className={ayuda}>{detalle}</p>}</div>
+      <button type="button" role="switch" aria-checked={activo} onClick={() => onChange(!activo)} className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${activo ? 'bg-[color:var(--c-818cf8)]' : 'bg-[color:var(--c-313248)]'}`}>
         <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${activo ? 'translate-x-5' : ''}`} />
       </button>
     </div>
   );
 
-  if (cargando && !cfg) return <div className="p-10 text-center text-sm text-[#8a8b9e]">Cargando configuración...</div>;
+  if (cargando && !cfg) return <div className="p-10 text-center text-sm text-[color:var(--c-8a8b9e)]">Cargando configuración...</div>;
   if (!cfg) return <p className="text-red-400 text-sm">{error || 'No se pudo cargar la configuración.'}</p>;
 
   return (
     <div className="space-y-5 pb-24">
       <div>
-        <h2 className="text-lg font-semibold text-[#e0e0ec] flex items-center gap-2"><Settings className="w-5 h-5 text-[#818cf8]" />Configuración del sistema</h2>
-        <p className="text-xs text-[#8a8b9e] mt-0.5">Solo el superadmin ve esta pantalla. {meta.por ? `Última modificación: ${meta.por}${meta.en ? `, ${new Date(meta.en).toLocaleString()}` : ''}.` : 'Todavía no se ha modificado: se usan los valores por defecto.'}</p>
+        <h2 className="text-lg font-semibold text-[color:var(--c-e0e0ec)] flex items-center gap-2"><Settings className="w-5 h-5 text-[color:var(--c-818cf8)]" />Configuración del sistema</h2>
+        <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">Solo el superadmin ve esta pantalla. {meta.por ? `Última modificación: ${meta.por}${meta.en ? `, ${new Date(meta.en).toLocaleString()}` : ''}.` : 'Todavía no se ha modificado: se usan los valores por defecto.'}</p>
       </div>
 
       <PanelUsoAgente />
 
       {/* ---------- CHAT ---------- */}
       <div className={tarjeta}>
-        <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#a5b4fc]" />Chat y modelo de lenguaje</h3>
+        <h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><Sparkles className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Chat y modelo de lenguaje</h3>
         <Interruptor activo={cfg.chat.activo} onChange={(v) => cambiarChat({ activo: v })} texto="Asistente activado" detalle="Si lo apagas, el chat no responde y los usuarios ven el mensaje de abajo. Los comandos de guardar y eliminar siguen funcionando." />
         {!cfg.chat.activo && (
           <div><label className={etiqueta}>Mensaje cuando está apagado</label><input value={cfg.chat.mensajeInactivo} onChange={(e) => cambiarChat({ mensajeInactivo: e.target.value })} maxLength={300} className={campo} /></div>
@@ -1957,7 +1958,7 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
         </div>
         <div>
           <label className={etiqueta}>Creatividad (temperatura): {cfg.chat.temperatura.toFixed(2)}</label>
-          <input type="range" min={0} max={1} step={0.05} value={cfg.chat.temperatura} onChange={(e) => cambiarChat({ temperatura: parseFloat(e.target.value) })} className="w-full accent-[#818cf8]" />
+          <input type="range" min={0} max={1} step={0.05} value={cfg.chat.temperatura} onChange={(e) => cambiarChat({ temperatura: parseFloat(e.target.value) })} className="w-full accent-[color:var(--c-818cf8)]" />
           <p className={ayuda}>Más bajo = respuestas más precisas y repetibles. Más alto = más variadas y creativas.</p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1971,15 +1972,15 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
           <textarea value={cfg.chat.instruccionesExtra} onChange={(e) => cambiarChat({ instruccionesExtra: e.target.value })} maxLength={1500} rows={4} placeholder="Ej: Responde siempre en tono formal y usa ejemplos de ingeniería de software." className={campo} />
           <p className={ayuda}>{cfg.chat.instruccionesExtra.length}/1500 · Se le entregan al agente junto con cada mensaje, sin tocar su prompt base.</p>
         </div>
-        <div className="flex items-start gap-2 text-xs text-[#9a9bb0] bg-[#161722] border border-[#282a3f] rounded-xl p-3">
-          <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#a5b4fc]" />
-          <span>Estos valores los usa el agente EvaPlanner en cada mensaje: el <strong className="text-[#c0c0cc]">modelo</strong> (de OpenRouter; vacío = google/gemini-2.5-flash), la <strong className="text-[#c0c0cc]">creatividad</strong>, la <strong className="text-[#c0c0cc]">memoria</strong>, el largo máximo y las <strong className="text-[#c0c0cc]">instrucciones extra</strong>. La dirección de n8n ya no la usa el chat.</span>
+        <div className="flex items-start gap-2 text-xs text-[color:var(--c-9a9bb0)] bg-[color:var(--c-161722)] border border-[color:var(--c-282a3f)] rounded-xl p-3">
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[color:var(--c-a5b4fc)]" />
+          <span>Estos valores los usa el agente EvaPlanner en cada mensaje: el <strong className="text-[color:var(--c-c0c0cc)]">modelo</strong> (de OpenRouter; vacío = google/gemini-2.5-flash), la <strong className="text-[color:var(--c-c0c0cc)]">creatividad</strong>, la <strong className="text-[color:var(--c-c0c0cc)]">memoria</strong>, el largo máximo y las <strong className="text-[color:var(--c-c0c0cc)]">instrucciones extra</strong>. La dirección de n8n ya no la usa el chat.</span>
         </div>
       </div>
 
       {/* ---------- PLANIFICADOR ---------- */}
       <div className={tarjeta}>
-        <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><ClipboardList className="w-4 h-4 text-[#a5b4fc]" />Límites del planificador</h3>
+        <h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><ClipboardList className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Límites del planificador</h3>
         <div className="grid sm:grid-cols-2 gap-4">
           <div><label className={etiqueta}>Máximo de grupos por evaluación</label><input type="number" min={1} max={100} value={cfg.planificador.maxGrupos} onChange={(e) => cambiarPlan({ maxGrupos: parseInt(e.target.value) || 1 })} className={campo} /></div>
           <div><label className={etiqueta}>Máximo de personas por grupo</label><input type="number" min={1} max={1000} value={cfg.planificador.maxPersonasPorGrupo} onChange={(e) => cambiarPlan({ maxPersonasPorGrupo: parseInt(e.target.value) || 1 })} className={campo} /></div>
@@ -1988,7 +1989,7 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
 
       {/* ---------- ACCESO ---------- */}
       <div className={tarjeta}>
-        <h3 className="text-sm font-semibold text-[#d0d0da] flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#a5b4fc]" />Acceso y datos</h3>
+        <h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Acceso y datos</h3>
         <Interruptor activo={cfg.acceso.registroAbierto} onChange={(v) => cambiarAcceso({ registroAbierto: v })} texto="Registro público abierto" detalle="Permite que los profesores soliciten su cuenta desde el login. Ciérralo cuando ya estén todos; las cuentas las seguirás creando desde Usuarios." />
         <div className="max-w-xs"><label className={etiqueta}>Días que se conserva la papelera</label><input type="number" min={7} max={90} value={cfg.acceso.diasPapelera} onChange={(e) => cambiarAcceso({ diasPapelera: parseInt(e.target.value) || 7 })} className={campo} /><p className={ayuda}>Entre 7 y 90 días.</p></div>
       </div>
@@ -1996,11 +1997,11 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
       {error && <p className="text-red-400 text-sm flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></p>}
       {exito && <p className="text-emerald-400 text-sm flex items-start gap-2"><CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{exito}</span></p>}
 
-      <div className="sticky bottom-4 flex items-center gap-3 bg-[#1d1e2e]/95 backdrop-blur border border-[#313248] rounded-2xl p-3 shadow-2xl">
-        <span className={`text-xs flex-1 ${sucia ? 'text-amber-300' : 'text-[#8a8b9e]'}`}>{sucia ? 'Hay cambios sin guardar.' : 'Todo guardado.'}</span>
-        <button onClick={() => { setCfg(JSON.parse(original)); setError(''); setExito(''); }} disabled={!sucia || guardando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-xl disabled:opacity-40">Descartar</button>
-        <button onClick={() => { setCfg(CONFIG_COMPLETA_DEFECTO); setExito(''); }} disabled={guardando} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-xl disabled:opacity-40">Valores por defecto</button>
-        <button onClick={guardar} disabled={!sucia || guardando} className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl disabled:opacity-40">{guardando ? 'Guardando...' : 'Guardar cambios'}</button>
+      <div className="sticky bottom-4 flex items-center gap-3 bg-[color:var(--c-1d1e2e)]/95 backdrop-blur border border-[color:var(--c-313248)] rounded-2xl p-3 shadow-2xl">
+        <span className={`text-xs flex-1 ${sucia ? 'text-amber-300' : 'text-[color:var(--c-8a8b9e)]'}`}>{sucia ? 'Hay cambios sin guardar.' : 'Todo guardado.'}</span>
+        <button onClick={() => { setCfg(JSON.parse(original)); setError(''); setExito(''); }} disabled={!sucia || guardando} className="px-4 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl disabled:opacity-40">Descartar</button>
+        <button onClick={() => { setCfg(CONFIG_COMPLETA_DEFECTO); setExito(''); }} disabled={guardando} className="px-4 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl disabled:opacity-40">Valores por defecto</button>
+        <button onClick={guardar} disabled={!sucia || guardando} className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl disabled:opacity-40">{guardando ? 'Guardando...' : 'Guardar cambios'}</button>
       </div>
     </div>
   );
@@ -2091,10 +2092,10 @@ function UsuariosPanel() {
 
   const badgeRol = (rol: RolU) =>
     rol === 'SUPERADMIN' ? 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30'
-    : rol === 'ADMIN' ? 'bg-[#818cf8]/10 text-[#a5b4fc] border-[#818cf8]/30'
+    : rol === 'ADMIN' ? 'bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-a5b4fc)] border-[color:var(--c-818cf8)]/30'
     : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
 
-  const inputCls = 'w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
+  const inputCls = 'w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-[color:var(--c-818cf8)] transition-colors';
   const rolesDisponibles: RolU[] = esSuper ? ['USUARIO', 'ADMIN', 'SUPERADMIN'] : ['USUARIO'];
   const editandoSelf = modal !== null && modal !== 'nuevo' && modal.id === actor?.id;
   const [buscarU, setBuscarU] = useState('');
@@ -2145,10 +2146,10 @@ function UsuariosPanel() {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[#e0e0ec]">Usuarios del sistema</h2>
-          <p className="text-xs text-[#8a8b9e] mt-0.5">{esSuper ? 'Como superadmin gestionas a todos los usuarios.' : 'Como administrador gestionas a los usuarios con rol USUARIO.'}</p>
+          <h2 className="text-lg font-semibold text-[color:var(--c-e0e0ec)]">Usuarios del sistema</h2>
+          <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">{esSuper ? 'Como superadmin gestionas a todos los usuarios.' : 'Como administrador gestionas a los usuarios con rol USUARIO.'}</p>
         </div>
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white text-sm font-semibold rounded-xl shadow-lg"><Plus className="w-4 h-4" />Nuevo usuario</motion.button>
+        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] text-white text-sm font-semibold rounded-xl shadow-lg"><Plus className="w-4 h-4" />Nuevo usuario</motion.button>
       </div>
 
       {esSuper && recuperaciones.length > 0 && (
@@ -2156,22 +2157,22 @@ function UsuariosPanel() {
           <div className="px-4 py-3 border-b border-red-500/20 flex items-center gap-2 flex-wrap">
             <AlertCircle className="w-4 h-4 text-red-300" />
             <h3 className="text-sm font-semibold text-red-200">Recuperación de contraseña ({recuperaciones.length})</h3>
-            <span className="text-[11px] text-[#8a8b9e]">Verifica la identidad por teléfono antes de entregar la clave temporal.</span>
+            <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Verifica la identidad por teléfono antes de entregar la clave temporal.</span>
           </div>
           <div className="divide-y divide-red-500/10">
             {recuperaciones.map(sol => (
               <div key={sol.id} className="p-4 flex items-center gap-3 flex-wrap">
-                <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-red-300" /></div>
+                <div className="w-9 h-9 rounded-full bg-[color:var(--c-272839)] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-red-300" /></div>
                 <div className="flex-1 min-w-[180px]">
-                  <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium text-[#d0d0da]">{sol.usuario.nombre}</span><span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeRol(sol.usuario.rol)}`}>{sol.usuario.rol}</span></div>
-                  <div className="text-xs text-[#8a8b9e]">{sol.usuario.email}{sol.usuario.cedula ? ` · CC ${sol.usuario.cedula}` : ''} · {new Date(sol.createdAt).toLocaleString()}</div>
+                  <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium text-[color:var(--c-d0d0da)]">{sol.usuario.nombre}</span><span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeRol(sol.usuario.rol)}`}>{sol.usuario.rol}</span></div>
+                  <div className="text-xs text-[color:var(--c-8a8b9e)]">{sol.usuario.email}{sol.usuario.cedula ? ` · CC ${sol.usuario.cedula}` : ''} · {new Date(sol.createdAt).toLocaleString()}</div>
                   {sol.usuario.telefono
                     ? <a href={`tel:${sol.usuario.telefono}`} className="inline-flex items-center gap-1.5 text-xs text-emerald-300 hover:text-emerald-200 mt-0.5"><Phone className="w-3 h-3" />{sol.usuario.telefono}</a>
                     : <span className="text-xs text-amber-300">Esta cuenta no tiene teléfono registrado.</span>}
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => restablecerRec(sol)} disabled={procesandoRec === sol.id} className="px-3 py-1.5 text-xs font-semibold text-red-200 bg-red-500/10 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-60">{procesandoRec === sol.id ? 'Procesando...' : 'Restablecer contraseña'}</button>
-                  <button onClick={() => descartarRec(sol)} disabled={procesandoRec === sol.id} className="px-3 py-1.5 text-xs text-[#9a9bb0] bg-[#272839] border border-[#313248] rounded-lg hover:bg-[#2c2d40] disabled:opacity-60">Descartar</button>
+                  <button onClick={() => descartarRec(sol)} disabled={procesandoRec === sol.id} className="px-3 py-1.5 text-xs text-[color:var(--c-9a9bb0)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg hover:bg-[color:var(--c-2c2d40)] disabled:opacity-60">Descartar</button>
                 </div>
               </div>
             ))}
@@ -2182,17 +2183,17 @@ function UsuariosPanel() {
       <AnimatePresence>
         {resultadoReset && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] bg-black/70 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} className="w-full max-w-md bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-2xl space-y-4">
-              <h3 className="text-base font-semibold text-[#e0e0ec]">Contraseña temporal para {resultadoReset.nombre}</h3>
-              <div className="bg-[#161722] border border-[#313248] rounded-xl p-4 text-center">
+            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-2xl space-y-4">
+              <h3 className="text-base font-semibold text-[color:var(--c-e0e0ec)]">Contraseña temporal para {resultadoReset.nombre}</h3>
+              <div className="bg-[color:var(--c-161722)] border border-[color:var(--c-313248)] rounded-xl p-4 text-center">
                 <code className="text-2xl font-mono tracking-widest text-emerald-300 select-all">{resultadoReset.passwordTemporal}</code>
               </div>
-              <button onClick={copiarClave} className="w-full py-2.5 text-sm text-[#c7d2fe] bg-[#272839] border border-[#313248] rounded-xl hover:bg-[#2c2d40]">{copiado ? '¡Copiada!' : 'Copiar contraseña'}</button>
-              <div className="text-xs text-[#9a9bb0] space-y-1.5">
+              <button onClick={copiarClave} className="w-full py-2.5 text-sm text-[color:var(--c-c7d2fe)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl hover:bg-[color:var(--c-2c2d40)]">{copiado ? '¡Copiada!' : 'Copiar contraseña'}</button>
+              <div className="text-xs text-[color:var(--c-9a9bb0)] space-y-1.5">
                 {resultadoReset.telefono ? <p>Entrégasela por teléfono: <a href={`tel:${resultadoReset.telefono}`} className="text-emerald-300 font-medium">{resultadoReset.telefono}</a>.</p> : <p className="text-amber-300">Esta cuenta no tiene teléfono registrado: contacta a la persona por otro medio.</p>}
-                <p>Se muestra <strong className="text-[#c0c0cc]">solo esta vez</strong>. Al entrar, la persona deberá elegir una contraseña nueva, y sus sesiones abiertas anteriores se cerraron.</p>
+                <p>Se muestra <strong className="text-[color:var(--c-c0c0cc)]">solo esta vez</strong>. Al entrar, la persona deberá elegir una contraseña nueva, y sus sesiones abiertas anteriores se cerraron.</p>
               </div>
-              <button onClick={() => setResultadoReset(null)} className="w-full py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl">Entendido</button>
+              <button onClick={() => setResultadoReset(null)} className="w-full py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl">Entendido</button>
             </motion.div>
           </motion.div>
         )}
@@ -2205,17 +2206,17 @@ function UsuariosPanel() {
               <div className="px-4 py-3 border-b border-amber-500/20 flex items-center gap-2 flex-wrap">
                 <AlertCircle className="w-4 h-4 text-amber-400" />
                 <h3 className="text-sm font-semibold text-amber-200">Solicitudes pendientes ({pendientes.length})</h3>
-                <span className="text-[11px] text-[#8a8b9e]">Se registraron desde el login y todavía no pueden entrar.</span>
+                <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Se registraron desde el login y todavía no pueden entrar.</span>
               </div>
               <div className="divide-y divide-amber-500/10">
                 {pendientes.map(u => (
                   <div key={u.id} className="p-4 flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-amber-300" /></div>
+                    <div className="w-9 h-9 rounded-full bg-[color:var(--c-272839)] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-amber-300" /></div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-[#d0d0da] truncate flex items-center gap-2">{u.nombre}{u.telefonoVerificado
+                      <div className="text-sm font-medium text-[color:var(--c-d0d0da)] truncate flex items-center gap-2">{u.nombre}{u.telefonoVerificado
                         ? <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-300 border-emerald-500/30">Cuenta verificada</span>
                         : <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30" title="La persona todavía no escribió el código de verificación que le llegó">Sin verificar</span>}</div>
-                      <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · C.I. ${u.cedula}` : ''}</div>
+                      <div className="text-xs text-[color:var(--c-8a8b9e)] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · C.I. ${u.cedula}` : ''}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => aprobar(u)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors"><CheckCircle className="w-3.5 h-3.5" />Aprobar</button>
@@ -2233,44 +2234,44 @@ function UsuariosPanel() {
 
       {todosAprobados.length > 3 && (
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex-1 min-w-[200px] flex items-center gap-2 px-3 h-9 rounded-xl bg-[#1d1e2e] border border-[#313248] focus-within:border-[#818cf8]/60">
-            <Search className="w-4 h-4 text-[#6a6b7e]" />
-            <input value={buscarU} onChange={(e) => setBuscarU(e.target.value)} placeholder="Buscar por nombre, correo, teléfono o cédula" className="flex-1 bg-transparent text-sm text-[#d8d8e2] placeholder-[#6a6b7e] outline-none" />
-            {buscarU && <button type="button" onClick={() => setBuscarU('')} className="text-[#6a6b7e] hover:text-white" aria-label="Limpiar búsqueda"><X className="w-3.5 h-3.5" /></button>}
+          <div className="flex-1 min-w-[200px] flex items-center gap-2 px-3 h-9 rounded-xl bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] focus-within:border-[color:var(--c-818cf8)]/60">
+            <Search className="w-4 h-4 text-[color:var(--c-6a6b7e)]" />
+            <input value={buscarU} onChange={(e) => setBuscarU(e.target.value)} placeholder="Buscar por nombre, correo, teléfono o cédula" className="flex-1 bg-transparent text-sm text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] outline-none" />
+            {buscarU && <button type="button" onClick={() => setBuscarU('')} className="text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-blanco)]" aria-label="Limpiar búsqueda"><X className="w-3.5 h-3.5" /></button>}
           </div>
-          <div className="flex gap-1 bg-[#1d1e2e] border border-[#313248] rounded-xl p-1">
+          <div className="flex gap-1 bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-xl p-1">
             {([['todos', 'Todos'], ['USUARIO', 'Usuarios'], ['ADMIN', 'Admins'], ...(esSuper ? [['SUPERADMIN', 'Superadmins']] : []), ['inactivos', 'Desactivados']] as [string, string][]).map(([v, t]) => (
-              <button key={v} type="button" onClick={() => setFiltroRol(v as any)} className={`h-7 px-2.5 rounded-lg text-xs font-semibold ${filtroRol === v ? 'bg-[#818cf8] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{t}</button>
+              <button key={v} type="button" onClick={() => setFiltroRol(v as any)} className={`h-7 px-2.5 rounded-lg text-xs font-semibold ${filtroRol === v ? 'bg-[color:var(--c-818cf8)] text-white' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]'}`}>{t}</button>
             ))}
           </div>
         </div>
       )}
 
-      <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
+      <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl overflow-hidden">
         {cargando ? (
-          <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>
+          <div className="p-8 text-center text-sm text-[color:var(--c-8a8b9e)]">Cargando...</div>
         ) : aprobados.length === 0 ? (
-          <div className="p-8 text-center text-sm text-[#8a8b9e]">{todosAprobados.length ? 'Ningún usuario coincide con la búsqueda.' : 'No hay usuarios registrados.'}</div>
+          <div className="p-8 text-center text-sm text-[color:var(--c-8a8b9e)]">{todosAprobados.length ? 'Ningún usuario coincide con la búsqueda.' : 'No hay usuarios registrados.'}</div>
         ) : (
-          <div className="divide-y divide-[#313248]">
+          <div className="divide-y divide-[color:var(--c-313248)]">
             {aprobados.map(u => (
-              <div key={u.id} className="p-4 flex items-center gap-3 hover:bg-[#232438] transition-colors">
-                <div className="w-9 h-9 rounded-full bg-[#272839] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-[#818cf8]" /></div>
+              <div key={u.id} className="p-4 flex items-center gap-3 hover:bg-[color:var(--c-232438)] transition-colors">
+                <div className="w-9 h-9 rounded-full bg-[color:var(--c-272839)] flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-[color:var(--c-818cf8)]" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-[#d0d0da] truncate">{u.nombre}</span>
-                    {u.id === actor?.id && <span className="text-[10px] text-[#8a8b9e]">(tú)</span>}
+                    <span className="text-sm font-medium text-[color:var(--c-d0d0da)] truncate">{u.nombre}</span>
+                    {u.id === actor?.id && <span className="text-[10px] text-[color:var(--c-8a8b9e)]">(tú)</span>}
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badgeRol(u.rol)}`}>{u.rol}</span>
                     {!u.activo && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADO</span>}
                     {u.debeCambiarPassword && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">CLAVE TEMPORAL</span>}
                   </div>
-                  <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · C.I. ${u.cedula}` : ''}</div>
+                  <div className="text-xs text-[color:var(--c-8a8b9e)] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · C.I. ${u.cedula}` : ''}</div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {puedeEditar(u) && <Tooltip text="Editar"><button onClick={() => abrirEditar(u)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>}
+                  {puedeEditar(u) && <Tooltip text="Editar"><button onClick={() => abrirEditar(u)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-272839)] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>}
                   {puedeEliminar(u) && (confirmandoId === u.id
                     ? <button onClick={() => eliminar(u)} className="px-2 py-1 text-xs font-semibold text-red-300 bg-red-500/15 border border-red-500/30 rounded-lg">¿Seguro?</button>
-                    : <Tooltip text="Eliminar"><button onClick={() => eliminar(u)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>)}
+                    : <Tooltip text="Eliminar"><button onClick={() => eliminar(u)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>)}
                 </div>
               </div>
             ))}
@@ -2281,10 +2282,10 @@ function UsuariosPanel() {
       <AnimatePresence>
         {modal !== null && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4" onClick={() => setModal(null)}>
-            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-2xl space-y-4">
+            <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-[#e0e0ec]">{modal === 'nuevo' ? 'Nuevo usuario' : 'Editar usuario'}</h3>
-                <button onClick={() => setModal(null)} className="p-1 text-[#8a8b9e] hover:text-[#d0d0da]"><X className="w-4 h-4" /></button>
+                <h3 className="text-base font-semibold text-[color:var(--c-e0e0ec)]">{modal === 'nuevo' ? 'Nuevo usuario' : 'Editar usuario'}</h3>
+                <button onClick={() => setModal(null)} className="p-1 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]"><X className="w-4 h-4" /></button>
               </div>
 
               <div>
@@ -2310,14 +2311,14 @@ function UsuariosPanel() {
                 {errores.password && <p className="text-red-400 text-[11px] mt-1">{errores.password}</p>}
               </div>
               <div>
-                <label className="text-xs font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5">Rol</label>
+                <label className="text-xs font-semibold text-[color:var(--c-8a8b9e)] uppercase tracking-wider block mb-1.5">Rol</label>
                 <select value={form.rol} disabled={!esSuper || editandoSelf} onChange={(e) => setForm({ ...form, rol: e.target.value as RolU })} className={`${inputCls} disabled:opacity-60`}>
                   {(esSuper ? rolesDisponibles : [form.rol]).map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               {modal !== 'nuevo' && !editandoSelf && (
-                <label className="flex items-center gap-2 text-sm text-[#b0b0c4] cursor-pointer">
-                  <input type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} className="accent-[#818cf8]" />
+                <label className="flex items-center gap-2 text-sm text-[color:var(--c-b0b0c4)] cursor-pointer">
+                  <input type="checkbox" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.target.checked })} className="accent-[color:var(--c-818cf8)]" />
                   Cuenta activa
                 </label>
               )}
@@ -2325,8 +2326,8 @@ function UsuariosPanel() {
               {errorGlobal && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{errorGlobal}</span></p>}
 
               <div className="flex gap-2 pt-1">
-                <button onClick={() => setModal(null)} className="flex-1 py-2.5 text-sm font-medium text-[#b0b0c4] bg-[#272839] border border-[#313248] rounded-xl hover:bg-[#2c2d40]">Cancelar</button>
-                <button onClick={guardar} disabled={guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#818cf8] to-[#6366f1] rounded-xl disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar'}</button>
+                <button onClick={() => setModal(null)} className="flex-1 py-2.5 text-sm font-medium text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl hover:bg-[color:var(--c-2c2d40)]">Cancelar</button>
+                <button onClick={guardar} disabled={guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </motion.div>
           </motion.div>
@@ -2535,20 +2536,20 @@ function EstudiantesPanel() {
     }
   };
 
-  if (cargando) return <div className="text-center text-[#8a8b9e] py-10">Cargando estudiantes...</div>;
+  if (cargando) return <div className="text-center text-[color:var(--c-8a8b9e)] py-10">Cargando estudiantes...</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-[#d0d0da] flex items-center gap-3"><Users className="w-6 h-6 text-[#818cf8]" />Gestión de Estudiantes</h2>
-          <p className="text-sm text-[#8a8b9e] mt-1">{totalEstudiantes} estudiantes en {grupos.length} grupos{totalEstudiantes > 0 && <> · <span className="text-[#a5b4fc]">{estudiantes.filter(e => e.portalUltimaVisita).length} de {totalEstudiantes} abrieron su página</span></>}</p>
+          <h2 className="text-xl font-bold text-[color:var(--c-d0d0da)] flex items-center gap-3"><Users className="w-6 h-6 text-[color:var(--c-818cf8)]" />Gestión de Estudiantes</h2>
+          <p className="text-sm text-[color:var(--c-8a8b9e)] mt-1">{totalEstudiantes} estudiantes en {grupos.length} grupos{totalEstudiantes > 0 && <> · <span className="text-[color:var(--c-a5b4fc)]">{estudiantes.filter(e => e.portalUltimaVisita).length} de {totalEstudiantes} abrieron su página</span></>}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <input ref={inputArchivoRef} type="file" accept=".csv,.txt" className="hidden" onChange={(e) => importarArchivo(e.target.files?.[0])} />
-          <button onClick={descargarPlantilla} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 transition-colors"><Download className="w-4 h-4" />Plantilla</button>
-          <button onClick={() => inputArchivoRef.current?.click()} disabled={importando} className="flex items-center gap-2 px-3 py-2 text-sm text-[#b0b0c4] bg-[#1f2035] border border-[#313248] rounded-xl hover:border-[#818cf8]/40 transition-colors disabled:opacity-60"><Upload className="w-4 h-4" />{importando ? 'Importando...' : 'Importar CSV'}</button>
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#818cf8] hover:bg-[#6366f1] text-white text-sm font-medium rounded-xl transition-all shadow-md"><Plus className="w-4 h-4" /> Agregar estudiante</motion.button>
+          <button onClick={descargarPlantilla} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 transition-colors"><Download className="w-4 h-4" />Plantilla</button>
+          <button onClick={() => inputArchivoRef.current?.click()} disabled={importando} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 transition-colors disabled:opacity-60"><Upload className="w-4 h-4" />{importando ? 'Importando...' : 'Importar CSV'}</button>
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-medium rounded-xl transition-all shadow-md"><Plus className="w-4 h-4" /> Agregar estudiante</motion.button>
         </div>
       </div>
 
@@ -2574,43 +2575,43 @@ function EstudiantesPanel() {
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 bg-[#1f2035] border border-[#313248] rounded-xl p-3"><div className="flex items-center gap-3"><Search className="w-4 h-4 text-[#8a8b9e]" /><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 bg-transparent text-[#d8d8e2] placeholder-[#6a6b7e] outline-none text-sm" /></div></div>
-        <div className="flex items-center gap-2 bg-[#1f2035] border border-[#313248] rounded-xl px-3 py-2"><Filter className="w-4 h-4 text-[#8a8b9e]" /><select value={filter} onChange={(e) => setFilter(e.target.value)} className="bg-transparent text-[#d8d8e2] text-sm outline-none"><option value="todos">Todos</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select></div>
+        <div className="flex-1 bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-3"><div className="flex items-center gap-3"><Search className="w-4 h-4 text-[color:var(--c-8a8b9e)]" /><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 bg-transparent text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] outline-none text-sm" /></div></div>
+        <div className="flex items-center gap-2 bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2"><Filter className="w-4 h-4 text-[color:var(--c-8a8b9e)]" /><select value={filter} onChange={(e) => setFilter(e.target.value)} className="bg-transparent text-[color:var(--c-d8d8e2)] text-sm outline-none"><option value="todos">Todos</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select></div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Total</p><p className="text-lg font-bold text-[#d0d0da]">{totalEstudiantes}</p></div>
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Activos</p><p className="text-lg font-bold text-emerald-400">{totalActivos}</p></div>
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Promedio</p><p className="text-lg font-bold text-[#818cf8]">{promedioGeneral == null ? '—' : `${promedioGeneral.toFixed(1).replace('.', ',')}/20`}</p></div>
-        <div className="bg-[#1f2035] border border-[#313248] rounded-xl p-3 text-center"><p className="text-xs text-[#8a8b9e]">Aprobados</p><p className="text-lg font-bold text-blue-400">{calificados.length === 0 ? '—' : `${aprobados} de ${calificados.length}`}</p></div>
+        <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-3 text-center"><p className="text-xs text-[color:var(--c-8a8b9e)]">Total</p><p className="text-lg font-bold text-[color:var(--c-d0d0da)]">{totalEstudiantes}</p></div>
+        <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-3 text-center"><p className="text-xs text-[color:var(--c-8a8b9e)]">Activos</p><p className="text-lg font-bold text-emerald-400">{totalActivos}</p></div>
+        <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-3 text-center"><p className="text-xs text-[color:var(--c-8a8b9e)]">Promedio</p><p className="text-lg font-bold text-[color:var(--c-818cf8)]">{promedioGeneral == null ? '—' : `${promedioGeneral.toFixed(1).replace('.', ',')}/20`}</p></div>
+        <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-3 text-center"><p className="text-xs text-[color:var(--c-8a8b9e)]">Aprobados</p><p className="text-lg font-bold text-blue-400">{calificados.length === 0 ? '—' : `${aprobados} de ${calificados.length}`}</p></div>
       </div>
 
-      <div className="bg-[#1f2035] border border-[#313248] rounded-xl overflow-hidden">
+      <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-[#8a8b9e] border-b border-[#313248] bg-[#191a26]"><th className="py-3 px-4 font-medium">Nombre</th><th className="py-3 px-4 font-medium">Correo</th><th className="py-3 px-4 font-medium">Teléfono</th><th className="py-3 px-4 font-medium">Grupo</th><th className="py-3 px-4 font-medium text-center">Promedio</th><th className="py-3 px-4 font-medium">Su página</th><th className="py-3 px-4 font-medium">Estado</th><th className="py-3 px-4 font-medium text-center">Acciones</th></tr></thead>
-            <tbody className="divide-y divide-[#313248]">
+            <thead><tr className="text-left text-xs text-[color:var(--c-8a8b9e)] border-b border-[color:var(--c-313248)] bg-[color:var(--c-191a26)]"><th className="py-3 px-4 font-medium">Nombre</th><th className="py-3 px-4 font-medium">Correo</th><th className="py-3 px-4 font-medium">Teléfono</th><th className="py-3 px-4 font-medium">Grupo</th><th className="py-3 px-4 font-medium text-center">Promedio</th><th className="py-3 px-4 font-medium">Su página</th><th className="py-3 px-4 font-medium">Estado</th><th className="py-3 px-4 font-medium text-center">Acciones</th></tr></thead>
+            <tbody className="divide-y divide-[color:var(--c-313248)]">
               {filteredEstudiantes.map(est => (
-                <tr key={est.id} className="hover:bg-[#272839]/50 transition-colors">
-                  <td className="py-3 px-4 text-[#d0d0da] font-medium">{est.nombre}</td>
-                  <td className="py-3 px-4 text-[#b0b0c4]">{est.email}</td>
-                  <td className="py-3 px-4 text-[#b0b0c4]">{est.telefono}</td>
-                  <td className="py-3 px-4"><span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[#818cf8]/10 text-[#818cf8] border border-[#818cf8]/20">{est.grupo}</span></td>
-                  <td className="py-3 px-4 text-center">{(est.notasCargadas ?? 0) > 0 ? (<span title={`Promedio ponderado de ${est.notasCargadas} evaluación(es)`} className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${est.promedio >= 10 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25' : 'bg-red-500/10 text-red-300 border-red-500/25'}`}>{est.promedio.toFixed(1).replace('.', ',')}</span>) : <span className="text-[#6a6b7e]">—</span>}</td>
-                  <td className="py-3 px-4 whitespace-nowrap">{est.portalUltimaVisita ? (<span title={`${est.portalVisitas || 1} visita(s)${est.portalPrimeraVisita ? ` · la abrió por primera vez el ${new Date(est.portalPrimeraVisita).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}` : ''}`} className="inline-flex items-center gap-1.5 text-xs text-emerald-300"><Eye className="w-3.5 h-3.5" />{haceCuanto(est.portalUltimaVisita, Date.now())}{(est.portalVisitas || 0) > 1 && <span className="text-[#6a6b7e]">· {est.portalVisitas}×</span>}</span>) : <span className="text-xs text-[#6a6b7e]" title="Todavía no abre el enlace de su página">Sin abrir</span>}</td>
+                <tr key={est.id} className="hover:bg-[color:var(--c-272839)]/50 transition-colors">
+                  <td className="py-3 px-4 text-[color:var(--c-d0d0da)] font-medium">{est.nombre}</td>
+                  <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{est.email}</td>
+                  <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{est.telefono}</td>
+                  <td className="py-3 px-4"><span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-818cf8)] border border-[color:var(--c-818cf8)]/20">{est.grupo}</span></td>
+                  <td className="py-3 px-4 text-center">{(est.notasCargadas ?? 0) > 0 ? (<span title={`Promedio ponderado de ${est.notasCargadas} evaluación(es)`} className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${est.promedio >= 10 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25' : 'bg-red-500/10 text-red-300 border-red-500/25'}`}>{est.promedio.toFixed(1).replace('.', ',')}</span>) : <span className="text-[color:var(--c-6a6b7e)]">—</span>}</td>
+                  <td className="py-3 px-4 whitespace-nowrap">{est.portalUltimaVisita ? (<span title={`${est.portalVisitas || 1} visita(s)${est.portalPrimeraVisita ? ` · la abrió por primera vez el ${new Date(est.portalPrimeraVisita).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}` : ''}`} className="inline-flex items-center gap-1.5 text-xs text-emerald-300"><Eye className="w-3.5 h-3.5" />{haceCuanto(est.portalUltimaVisita, Date.now())}{(est.portalVisitas || 0) > 1 && <span className="text-[color:var(--c-6a6b7e)]">· {est.portalVisitas}×</span>}</span>) : <span className="text-xs text-[color:var(--c-6a6b7e)]" title="Todavía no abre el enlace de su página">Sin abrir</span>}</td>
                   <td className="py-3 px-4"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${est.estado === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}><span className={`w-1.5 h-1.5 rounded-full ${est.estado === 'activo' ? 'bg-emerald-400' : 'bg-red-400'}`}></span>{est.estado === 'activo' ? 'Activo' : 'Inactivo'}</span></td>
                   <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-1">
-                      <Tooltip text="Ver su página personal"><button onClick={() => abrirPagina(est)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#818cf8]/10 rounded-lg transition-all"><ExternalLink className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text={enlaceCopiado === est.id ? '¡Copiado!' : 'Copiar su enlace'}><button onClick={() => copiarEnlace(est)} className={`p-1.5 rounded-lg transition-all ${enlaceCopiado === est.id ? 'text-emerald-400 bg-emerald-500/10' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#818cf8]/10'}`}>{enlaceCopiado === est.id ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button></Tooltip>
-                      <Tooltip text="Cambiar su enlace (el anterior deja de funcionar)"><button onClick={() => copiarEnlace(est, true)} className="p-1.5 text-[#8a8b9e] hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-all"><RefreshCw className="w-4 h-4" /></button></Tooltip>
-                      <Tooltip text="Editar"><button onClick={() => { setEditando({...est}); setErroresEdit({}); }} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#818cf8]/10 rounded-lg transition-all"><Pencil className="w-4 h-4" /></button></Tooltip>
-                      {confirmandoBorrar === est.id ? (<button onClick={() => eliminarEstudiante(est.id)} className="px-2 py-1 text-xs font-semibold text-red-300 bg-red-500/15 border border-red-500/30 rounded-lg">¿Seguro?</button>) : (<Tooltip text="Eliminar"><button onClick={() => eliminarEstudiante(est.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button></Tooltip>)}
+                      <Tooltip text="Ver su página personal"><button onClick={() => abrirPagina(est)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-818cf8)]/10 rounded-lg transition-all"><ExternalLink className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={enlaceCopiado === est.id ? '¡Copiado!' : 'Copiar su enlace'}><button onClick={() => copiarEnlace(est)} className={`p-1.5 rounded-lg transition-all ${enlaceCopiado === est.id ? 'text-emerald-400 bg-emerald-500/10' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-818cf8)]/10'}`}>{enlaceCopiado === est.id ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button></Tooltip>
+                      <Tooltip text="Cambiar su enlace (el anterior deja de funcionar)"><button onClick={() => copiarEnlace(est, true)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-all"><RefreshCw className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text="Editar"><button onClick={() => { setEditando({...est}); setErroresEdit({}); }} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-818cf8)]/10 rounded-lg transition-all"><Pencil className="w-4 h-4" /></button></Tooltip>
+                      {confirmandoBorrar === est.id ? (<button onClick={() => eliminarEstudiante(est.id)} className="px-2 py-1 text-xs font-semibold text-red-300 bg-red-500/15 border border-red-500/30 rounded-lg">¿Seguro?</button>) : (<Tooltip text="Eliminar"><button onClick={() => eliminarEstudiante(est.id)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button></Tooltip>)}
                     </div>
                   </td>
                 </tr>
               ))}
-              {filteredEstudiantes.length === 0 && (<tr><td colSpan={8} className="py-8 text-center text-[#8a8b9e]">No hay estudiantes registrados</td></tr>)}
+              {filteredEstudiantes.length === 0 && (<tr><td colSpan={8} className="py-8 text-center text-[color:var(--c-8a8b9e)]">No hay estudiantes registrados</td></tr>)}
             </tbody>
           </table>
         </div>
@@ -2619,9 +2620,9 @@ function EstudiantesPanel() {
       {/* MODAL AGREGAR CON VALIDACIONES */}
       <AnimatePresence>
         {showAddModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.1 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0b0b12]/75 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
-            <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 6, opacity: 0 }} transition={{ duration: 0.14, ease: 'easeOut' }} className="bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl w-full max-w-md p-6">
-              <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-semibold text-[#d0d0da] flex items-center gap-2"><User className="w-5 h-5 text-[#818cf8]" />Nuevo estudiante</h3><button onClick={() => setShowAddModal(false)} className="p-1.5 text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#272839] rounded-lg transition-colors"><X className="w-5 h-5" /></button></div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.1 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-[color:var(--c-0b0b12)]/75 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
+            <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 6, opacity: 0 }} transition={{ duration: 0.14, ease: 'easeOut' }} className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><User className="w-5 h-5 text-[color:var(--c-818cf8)]" />Nuevo estudiante</h3><button onClick={() => setShowAddModal(false)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)] rounded-lg transition-colors"><X className="w-5 h-5" /></button></div>
               <div className="space-y-4">
                 <div><label className={labelBase}>Nombre completo</label><input type="text" value={nuevoNombre} onChange={(e) => { setNuevoNombre(e.target.value); setErroresNuevo(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.nombre ? 'border-red-500/50' : ''}`} placeholder="Ej: Juan Pérez" autoFocus onKeyDown={(e) => { if (e.key === 'Escape') setShowAddModal(false); }} />{erroresNuevo.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.nombre}</p>}</div>
                 <div><label className={labelBase}>Correo electrónico</label><input type="email" value={nuevoEmail} onChange={(e) => { setNuevoEmail(e.target.value); setErroresNuevo(p => ({...p, email: validarCampo('email', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.email ? 'border-red-500/50' : ''}`} placeholder="juan@email.com" />{erroresNuevo.email && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.email}</p>}</div>
@@ -2629,8 +2630,8 @@ function EstudiantesPanel() {
                 <div><label className={labelBase}>Grupo</label><select value={nuevoGrupo} onChange={(e) => setNuevoGrupo(e.target.value)} className={inputBase}>{opcionesSeccion(nuevoGrupo, grupos as string[]).map(g => <option key={g} value={g}>Grupo {g}</option>)}</select></div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
-                <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#272839] hover:bg-[#313248] rounded-xl transition-colors">Cancelar</button>
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={agregarEstudiante} className="px-5 py-2 bg-[#818cf8] hover:bg-[#6366f1] text-white text-sm font-medium rounded-xl transition-all shadow-md flex items-center gap-2"><Plus className="w-4 h-4" /> Agregar</motion.button>
+                <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] hover:bg-[color:var(--c-313248)] rounded-xl transition-colors">Cancelar</button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={agregarEstudiante} className="px-5 py-2 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-medium rounded-xl transition-all shadow-md flex items-center gap-2"><Plus className="w-4 h-4" /> Agregar</motion.button>
               </div>
             </motion.div>
           </motion.div>
@@ -2640,9 +2641,9 @@ function EstudiantesPanel() {
       {/* MODAL EDITAR CON VALIDACIONES */}
       <AnimatePresence>
         {editando && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.1 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0b0b12]/75 p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditando(null); }}>
-            <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 6, opacity: 0 }} transition={{ duration: 0.14, ease: 'easeOut' }} className="bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl w-full max-w-md p-6">
-              <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-semibold text-[#d0d0da] flex items-center gap-2"><Pencil className="w-5 h-5 text-[#818cf8]" />Editar estudiante</h3><button onClick={() => setEditando(null)} className="p-1.5 text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#272839] rounded-lg transition-colors"><X className="w-5 h-5" /></button></div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.1 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-[color:var(--c-0b0b12)]/75 p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditando(null); }}>
+            <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 6, opacity: 0 }} transition={{ duration: 0.14, ease: 'easeOut' }} className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><Pencil className="w-5 h-5 text-[color:var(--c-818cf8)]" />Editar estudiante</h3><button onClick={() => setEditando(null)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)] rounded-lg transition-colors"><X className="w-5 h-5" /></button></div>
               <div className="space-y-4">
                 <div><label className={labelBase}>Nombre completo</label><input type="text" value={editando.nombre} onChange={(e) => { setEditando({...editando, nombre: e.target.value}); setErroresEdit(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresEdit.nombre ? 'border-red-500/50' : ''}`} />{erroresEdit.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.nombre}</p>}</div>
                 <div><label className={labelBase}>Correo electrónico</label><input type="email" value={editando.email} onChange={(e) => { setEditando({...editando, email: e.target.value}); setErroresEdit(p => ({...p, email: validarCampo('email', e.target.value)})); }} className={`${inputBase} ${erroresEdit.email ? 'border-red-500/50' : ''}`} />{erroresEdit.email && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.email}</p>}</div>
@@ -2651,8 +2652,8 @@ function EstudiantesPanel() {
                 <div><label className={labelBase}>Estado</label><select value={editando.estado} onChange={(e) => setEditando({...editando, estado: e.target.value as any})} className={inputBase}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
               </div>
               <div className="flex justify-end gap-3 mt-6">
-                <button onClick={() => setEditando(null)} className="px-4 py-2 text-sm text-[#b0b0c4] bg-[#272839] hover:bg-[#313248] rounded-xl transition-colors">Cancelar</button>
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={actualizarEstudiante} className="px-5 py-2 bg-[#818cf8] hover:bg-[#6366f1] text-white text-sm font-medium rounded-xl transition-all shadow-md flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Actualizar</motion.button>
+                <button onClick={() => setEditando(null)} className="px-4 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] hover:bg-[color:var(--c-313248)] rounded-xl transition-colors">Cancelar</button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={actualizarEstudiante} className="px-5 py-2 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-medium rounded-xl transition-all shadow-md flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Actualizar</motion.button>
               </div>
             </motion.div>
           </motion.div>
@@ -2676,7 +2677,7 @@ const ESTILO_NOTIF: Record<TipoNotif, { chip: string; barra: string; borde: stri
   envio:   { chip: 'bg-sky-500/15 text-sky-300', barra: 'bg-sky-400', borde: 'border-sky-500/30', etiqueta: 'Envío' },
   borrado: { chip: 'bg-rose-500/15 text-rose-300', barra: 'bg-rose-400', borde: 'border-rose-500/30', etiqueta: 'Eliminado' },
   mensaje: { chip: 'bg-violet-500/15 text-violet-300', barra: 'bg-violet-400', borde: 'border-violet-500/30', etiqueta: 'Mensaje' },
-  info:    { chip: 'bg-[#818cf8]/15 text-[#a5b4fc]', barra: 'bg-[#818cf8]', borde: 'border-[#818cf8]/30', etiqueta: 'Aviso' },
+  info:    { chip: 'bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-a5b4fc)]', barra: 'bg-[color:var(--c-818cf8)]', borde: 'border-[color:var(--c-818cf8)]/30', etiqueta: 'Aviso' },
 };
 function analizarNotificacion(mensaje: string): { emoji: string; texto: string; tipo: TipoNotif } {
   const m = String(mensaje || '').match(/^((?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:️|‍(?:\p{Extended_Pictographic})️?)*)\s*/u);
@@ -2742,14 +2743,14 @@ function AvisoEmergente({ mensaje, onCerrar, onLeer }: { id: string; mensaje: st
   return (
     <motion.div layout initial={{ opacity: 0, x: 40, scale: 0.96 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 40, scale: 0.96, transition: { duration: 0.18 } }} transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       onMouseEnter={() => setPausado(true)} onMouseLeave={() => setPausado(false)}
-      className={`pointer-events-auto relative overflow-hidden rounded-xl border ${est.borde} bg-[#1c1d2a]/95 backdrop-blur-md shadow-2xl shadow-black/50`}>
+      className={`pointer-events-auto relative overflow-hidden rounded-xl border ${est.borde} bg-[color:var(--c-1c1d2a)]/95 backdrop-blur-md shadow-2xl shadow-black/50`}>
       <div className="flex items-start gap-3 p-3 pr-2">
         <span className={`w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${est.chip}`}>{emoji}</span>
         <button type="button" onClick={onLeer} className="flex-1 min-w-0 text-left">
-          <p className="text-[10px] uppercase tracking-wider font-semibold text-[#8a8b9e]">{est.etiqueta}</p>
-          <p className="text-sm text-[#e0e0ec] leading-snug break-words">{texto}</p>
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-[color:var(--c-8a8b9e)]">{est.etiqueta}</p>
+          <p className="text-sm text-[color:var(--c-e0e0ec)] leading-snug break-words">{texto}</p>
         </button>
-        <button type="button" onClick={onCerrar} className="p-1 text-[#6a6b7e] hover:text-white rounded-md flex-shrink-0" aria-label="Cerrar aviso"><X className="w-4 h-4" /></button>
+        <button type="button" onClick={onCerrar} className="p-1 text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-blanco)] rounded-md flex-shrink-0" aria-label="Cerrar aviso"><X className="w-4 h-4" /></button>
       </div>
       <motion.div className={`absolute bottom-0 left-0 h-[3px] ${est.barra} opacity-70`} initial={{ width: '100%' }} animate={{ width: pausado ? undefined : '0%' }} transition={{ duration: DURACION / 1000, ease: 'linear' }} />
     </motion.div>
@@ -2777,16 +2778,16 @@ function CampanitaNotificacionesFlotante({ notificaciones, setNotificaciones, ca
     return (
       <motion.div layout key={notif.id} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 20 }}
         onClick={() => setNotificaciones((prev: any) => prev.map((n: any) => (n.id === notif.id ? { ...n, leido: true } : n)))}
-        className={`group relative flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-colors ${notif.leido ? 'hover:bg-[#232438]' : 'bg-[#272839]/70 hover:bg-[#2e2f42]'}`}>
+        className={`group relative flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-colors ${notif.leido ? 'hover:bg-[color:var(--c-232438)]' : 'bg-[color:var(--c-272839)]/70 hover:bg-[color:var(--c-2e2f42)]'}`}>
         <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${est.chip} ${notif.leido ? 'opacity-60' : ''}`}>{emoji}</span>
         <div className="flex-1 min-w-0 pr-5">
-          <p className={`text-[13px] leading-snug break-words ${notif.leido ? 'text-[#8a8b9e]' : 'text-[#e0e0ec]'}`}>{texto}</p>
-          <p className="text-[10px] text-[#6a6b7e] mt-1 flex items-center gap-1.5">
+          <p className={`text-[13px] leading-snug break-words ${notif.leido ? 'text-[color:var(--c-8a8b9e)]' : 'text-[color:var(--c-e0e0ec)]'}`}>{texto}</p>
+          <p className="text-[10px] text-[color:var(--c-6a6b7e)] mt-1 flex items-center gap-1.5">
             {!notif.leido && <span className={`w-1.5 h-1.5 rounded-full ${est.barra}`} />}
             {est.etiqueta} · {haceCuanto(notif.timestamp, ahora)}
           </p>
         </div>
-        <button type="button" onClick={(e) => { e.stopPropagation(); quitar(notif.id); }} className="absolute top-2 right-2 p-1 rounded-md text-[#6a6b7e] hover:text-white hover:bg-[#313248] opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Quitar"><X className="w-3.5 h-3.5" /></button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); quitar(notif.id); }} className="absolute top-2 right-2 p-1 rounded-md text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-blanco)] hover:bg-[color:var(--c-313248)] opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Quitar"><X className="w-3.5 h-3.5" /></button>
       </motion.div>
     );
   };
@@ -2794,12 +2795,12 @@ function CampanitaNotificacionesFlotante({ notificaciones, setNotificaciones, ca
   return (
     <div className="relative" ref={panelRef} data-tutorial="notificaciones">
       <AvisosEmergentes notificaciones={notificaciones} setNotificaciones={setNotificaciones} />
-      <button onClick={toggleNotificaciones} className={`p-2 rounded-lg transition-colors relative ${mostrarPanel ? 'text-[#818cf8] bg-[#272839]' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'}`} aria-label="Notificaciones">
+      <button onClick={toggleNotificaciones} className={`p-2 rounded-lg transition-colors relative ${mostrarPanel ? 'text-[color:var(--c-818cf8)] bg-[color:var(--c-272839)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-272839)]'}`} aria-label="Notificaciones">
         <motion.span key={timbre} className="block" animate={timbre ? { rotate: [0, -18, 15, -10, 6, 0] } : {}} transition={{ duration: 0.6 }} style={{ transformOrigin: '50% 10%' }}>
           <Bell className="w-5 h-5" />
         </motion.span>
         {noLeidas.length > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold ring-2 ring-[#161722]">
+          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold ring-2 ring-[color:var(--c-161722)]">
             {noLeidas.length > 9 ? '9+' : noLeidas.length}
           </span>
         )}
@@ -2807,28 +2808,28 @@ function CampanitaNotificacionesFlotante({ notificaciones, setNotificaciones, ca
       <AnimatePresence>
         {mostrarPanel && (
           <motion.div initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.98 }} transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-[420px] max-h-[540px] flex flex-col overflow-hidden bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 z-50">
-            <div className="px-4 py-3 border-b border-[#282a3f] flex items-center gap-2">
-              <Bell className="w-4 h-4 text-[#818cf8]" />
-              <h3 className="text-sm font-semibold text-[#e0e0ec]">Notificaciones</h3>
-              {noLeidas.length > 0 && <span className="bg-[#818cf8]/15 text-[#c7d2fe] text-[10px] font-semibold px-2 py-0.5 rounded-full">{noLeidas.length} nueva{noLeidas.length === 1 ? '' : 's'}</span>}
+            className="absolute right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-[420px] max-h-[540px] flex flex-col overflow-hidden bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl shadow-black/60 z-50">
+            <div className="px-4 py-3 border-b border-[color:var(--c-282a3f)] flex items-center gap-2">
+              <Bell className="w-4 h-4 text-[color:var(--c-818cf8)]" />
+              <h3 className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Notificaciones</h3>
+              {noLeidas.length > 0 && <span className="bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)] text-[10px] font-semibold px-2 py-0.5 rounded-full">{noLeidas.length} nueva{noLeidas.length === 1 ? '' : 's'}</span>}
               <div className="ml-auto flex items-center gap-1">
-                {noLeidas.length > 0 && <button onClick={marcarTodas} className="text-[11px] text-[#a5b4fc] hover:text-white px-2 py-1 rounded-lg hover:bg-[#272839] transition-colors">Marcar leídas</button>}
-                {notificaciones.length > 0 && <button onClick={() => setNotificaciones([])} className="text-[11px] text-[#8a8b9e] hover:text-red-300 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors">Limpiar</button>}
+                {noLeidas.length > 0 && <button onClick={marcarTodas} className="text-[11px] text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-blanco)] px-2 py-1 rounded-lg hover:bg-[color:var(--c-272839)] transition-colors">Marcar leídas</button>}
+                {notificaciones.length > 0 && <button onClick={() => setNotificaciones([])} className="text-[11px] text-[color:var(--c-8a8b9e)] hover:text-red-300 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors">Limpiar</button>}
               </div>
             </div>
             <div className="p-2 overflow-y-auto custom-scrollbar">
               {notificaciones.length === 0 ? (
                 <div className="py-12 flex flex-col items-center gap-2 text-center">
-                  <span className="w-12 h-12 rounded-2xl bg-[#272839] flex items-center justify-center"><Bell className="w-5 h-5 text-[#6a6b7e]" /></span>
-                  <p className="text-sm text-[#b0b0c4]">Todo al día</p>
-                  <p className="text-xs text-[#6a6b7e]">Aquí verás lo que pase en la app: guardados, envíos, opiniones…</p>
+                  <span className="w-12 h-12 rounded-2xl bg-[color:var(--c-272839)] flex items-center justify-center"><Bell className="w-5 h-5 text-[color:var(--c-6a6b7e)]" /></span>
+                  <p className="text-sm text-[color:var(--c-b0b0c4)]">Todo al día</p>
+                  <p className="text-xs text-[color:var(--c-6a6b7e)]">Aquí verás lo que pase en la app: guardados, envíos, opiniones…</p>
                 </div>
               ) : (
                 <AnimatePresence initial={false}>
-                  {noLeidas.length > 0 && <p key="t-nuevas" className="px-2 pt-1 pb-1.5 text-[10px] uppercase tracking-wider font-semibold text-[#8a8b9e]">Nuevas</p>}
+                  {noLeidas.length > 0 && <p key="t-nuevas" className="px-2 pt-1 pb-1.5 text-[10px] uppercase tracking-wider font-semibold text-[color:var(--c-8a8b9e)]">Nuevas</p>}
                   {noLeidas.map(fila)}
-                  {leidas.length > 0 && <p key="t-anteriores" className="px-2 pt-3 pb-1.5 text-[10px] uppercase tracking-wider font-semibold text-[#6a6b7e]">Anteriores</p>}
+                  {leidas.length > 0 && <p key="t-anteriores" className="px-2 pt-3 pb-1.5 text-[10px] uppercase tracking-wider font-semibold text-[color:var(--c-6a6b7e)]">Anteriores</p>}
                   {leidas.map(fila)}
                 </AnimatePresence>
               )}
@@ -2854,7 +2855,7 @@ function estadoVisibleEvaluacion(s: SeccionExamen): { texto: string; clase: stri
   if (estado === 'CANCELADA') return { texto: '⛔ Cancelada', clase: 'bg-red-500/10 text-red-300 border-red-500/30', porConfirmar: false };
   if (paso) return { texto: '⚠ Por confirmar', clase: 'bg-amber-500/10 text-amber-300 border-amber-500/30', porConfirmar: true };
   if (estado === 'REPROGRAMADA') return { texto: '🔁 Reprogramada', clase: 'bg-sky-500/10 text-sky-300 border-sky-500/30', porConfirmar: false };
-  return { texto: '🗓 Programada', clase: 'bg-[#272839] text-[#b0b0c4] border-[#313248]', porConfirmar: false };
+  return { texto: '🗓 Programada', clase: 'bg-[color:var(--c-272839)] text-[color:var(--c-b0b0c4)] border-[color:var(--c-313248)]', porConfirmar: false };
 }
 
 // Fecha → valor para <input type="datetime-local"> en la hora local del navegador
@@ -2884,7 +2885,7 @@ function SelectorEstadoEvaluacion({ seccion, onCambiar, alinear = 'izquierda', g
     setGuardando(false);
     if (ok) { setAbierto(false); setReprogramando(false); }
   };
-  const opcion = 'w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-[#272839] text-[#d0d0da] disabled:opacity-50';
+  const opcion = 'w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-[color:var(--c-272839)] text-[color:var(--c-d0d0da)] disabled:opacity-50';
   return (
     <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
       <button type="button" disabled={!onCambiar} onClick={() => setAbierto(a => !a)} title="Cambiar el estado de la evaluación"
@@ -2892,7 +2893,7 @@ function SelectorEstadoEvaluacion({ seccion, onCambiar, alinear = 'izquierda', g
         {guardando ? '...' : v.texto}
       </button>
       {abierto && (
-        <div className={`absolute z-50 ${alinear === 'derecha' ? 'right-0' : 'left-0'} top-full mt-1 w-60 p-1.5 bg-[#1b1c2b] border border-[#313248] rounded-xl shadow-2xl`}>
+        <div className={`absolute z-50 ${alinear === 'derecha' ? 'right-0' : 'left-0'} top-full mt-1 w-60 p-1.5 bg-[color:var(--c-1b1c2b)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl`}>
           {!reprogramando ? (
             <>
               <button disabled={guardando} className={opcion} onClick={() => elegir('REALIZADA')}>✅ Marcar como realizada</button>
@@ -2904,13 +2905,13 @@ function SelectorEstadoEvaluacion({ seccion, onCambiar, alinear = 'izquierda', g
             </>
           ) : (
             <div className="p-2 space-y-2">
-              <label className="text-[11px] text-[#8a8b9e] block">Nueva fecha y hora</label>
+              <label className="text-[11px] text-[color:var(--c-8a8b9e)] block">Nueva fecha y hora</label>
               <input type="datetime-local" value={nuevaFecha} min={aInputFechaHora(new Date())} onChange={(e) => setNuevaFecha(e.target.value)}
-                className="w-full bg-[#272839] border border-[#313248] rounded-lg px-2 py-1.5 text-xs text-[#e0e0ec] [color-scheme:dark]" />
-              {errorFecha ? <p className="text-[10px] text-red-300">{errorFecha}</p> : <p className="text-[10px] text-[#6a6b7e]">Los recordatorios se enviarán de nuevo para la nueva fecha.</p>}
+                className="w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg px-2 py-1.5 text-xs text-[color:var(--c-e0e0ec)] [color-scheme:dark]" />
+              {errorFecha ? <p className="text-[10px] text-red-300">{errorFecha}</p> : <p className="text-[10px] text-[color:var(--c-6a6b7e)]">Los recordatorios se enviarán de nuevo para la nueva fecha.</p>}
               <div className="flex gap-2">
-                <button className="flex-1 px-2 py-1.5 text-xs rounded-lg bg-[#272839] text-[#b0b0c4]" onClick={() => setReprogramando(false)}>Volver</button>
-                <button disabled={guardando || !nuevaFecha} className="flex-1 px-2 py-1.5 text-xs rounded-lg bg-[#818cf8] text-white font-semibold disabled:opacity-50"
+                <button className="flex-1 px-2 py-1.5 text-xs rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-b0b0c4)]" onClick={() => setReprogramando(false)}>Volver</button>
+                <button disabled={guardando || !nuevaFecha} className="flex-1 px-2 py-1.5 text-xs rounded-lg bg-[color:var(--c-818cf8)] text-white font-semibold disabled:opacity-50"
                   onClick={() => { const d = new Date(nuevaFecha); if (isNaN(d.getTime()) || d.getTime() < Date.now()) { setErrorFecha('Elige una fecha y hora que no hayan pasado.'); return; } setErrorFecha(''); elegir('REPROGRAMADA', d); }}>Guardar</button>
               </div>
             </div>
@@ -3042,25 +3043,25 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
   const pendientes = envios.filter(e => e.estado === 'PENDIENTE').length;
 
   return (
-    <div className="w-full rounded-2xl border border-[#313248] bg-[#1c1d2a] text-[#d0d0da] overflow-hidden">
-      <div className="px-5 py-4 border-b border-[#313248] flex items-center gap-3">
+    <div className="w-full rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1c1d2a)] text-[color:var(--c-d0d0da)] overflow-hidden">
+      <div className="px-5 py-4 border-b border-[color:var(--c-313248)] flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><Send className="w-5 h-5 text-emerald-300" /></div>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-white">Enviar plan por {medioEnvio()} · Sección {seccion}</h3>
-          <p className="text-xs text-[#8a8b9e]">Cada estudiante activo del grupo {seccion} recibe el enlace a su página personal</p>
+          <h3 className="text-sm font-semibold text-[color:var(--c-blanco)]">Enviar plan por {medioEnvio()} · Sección {seccion}</h3>
+          <p className="text-xs text-[color:var(--c-8a8b9e)]">Cada estudiante activo del grupo {seccion} recibe el enlace a su página personal</p>
         </div>
-        <button onClick={onCerrar} className="ml-auto p-1.5 text-[#8a8b9e] hover:text-white hover:bg-[#272839] rounded-lg" aria-label="Cerrar"><X className="w-4 h-4" /></button>
+        <button onClick={onCerrar} className="ml-auto p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] hover:bg-[color:var(--c-272839)] rounded-lg" aria-label="Cerrar"><X className="w-4 h-4" /></button>
       </div>
 
       {loteId ? (
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3"><p className="text-xl font-bold text-emerald-300">{enviados}</p><p className="text-[11px] text-[#8a8b9e]">Enviados</p></div>
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3"><p className="text-xl font-bold text-amber-300">{pendientes}</p><p className="text-[11px] text-[#8a8b9e]">En cola</p></div>
-            <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3"><p className="text-xl font-bold text-red-300">{fallidos}</p><p className="text-[11px] text-[#8a8b9e]">Fallidos</p></div>
+            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3"><p className="text-xl font-bold text-emerald-300">{enviados}</p><p className="text-[11px] text-[color:var(--c-8a8b9e)]">Enviados</p></div>
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3"><p className="text-xl font-bold text-amber-300">{pendientes}</p><p className="text-[11px] text-[color:var(--c-8a8b9e)]">En cola</p></div>
+            <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3"><p className="text-xl font-bold text-red-300">{fallidos}</p><p className="text-[11px] text-[color:var(--c-8a8b9e)]">Fallidos</p></div>
           </div>
-          {pendientes > 0 && <p className="text-xs text-[#8a8b9e]">{porCorreo() ? 'Se están enviando los correos. Puedes cerrar esta ventana: el envío continúa.' : 'Se envían de a uno, con unos segundos entre cada mensaje para que WhatsApp no lo tome como spam. Puedes cerrar esta ventana: el envío continúa.'}</p>}
-          <div className="max-h-64 overflow-y-auto custom-scrollbar divide-y divide-[#282a3f] border border-[#282a3f] rounded-xl">
+          {pendientes > 0 && <p className="text-xs text-[color:var(--c-8a8b9e)]">{porCorreo() ? 'Se están enviando los correos. Puedes cerrar esta ventana: el envío continúa.' : 'Se envían de a uno, con unos segundos entre cada mensaje para que WhatsApp no lo tome como spam. Puedes cerrar esta ventana: el envío continúa.'}</p>}
+          <div className="max-h-64 overflow-y-auto custom-scrollbar divide-y divide-[color:var(--c-282a3f)] border border-[color:var(--c-282a3f)] rounded-xl">
             {envios.map(e => (
               <div key={e.id} className="px-3 py-2 flex items-center gap-3 text-sm">
                 <span className="w-5 text-center">{e.estado === 'ENVIADO' ? '✅' : e.estado === 'FALLIDO' ? '❌' : '⏳'}</span>
@@ -3068,62 +3069,62 @@ function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCerrar, ag
                 {e.error && <span className="text-[11px] text-red-300 truncate max-w-[50%]" title={e.error}>{e.error}</span>}
               </div>
             ))}
-            {envios.length === 0 && <div className="px-3 py-6 text-center text-xs text-[#8a8b9e]">Preparando el envío...</div>}
+            {envios.length === 0 && <div className="px-3 py-6 text-center text-xs text-[color:var(--c-8a8b9e)]">Preparando el envío...</div>}
           </div>
-          <div className="flex justify-end"><button onClick={onCerrar} className="px-4 py-2 text-sm rounded-xl bg-[#272839] hover:bg-[#2e2f42] text-[#d0d0da]">Cerrar</button></div>
+          <div className="flex justify-end"><button onClick={onCerrar} className="px-4 py-2 text-sm rounded-xl bg-[color:var(--c-272839)] hover:bg-[color:var(--c-2e2f42)] text-[color:var(--c-d0d0da)]">Cerrar</button></div>
         </div>
       ) : (
         <div className="p-5 space-y-4">
           {errorCarga && <p className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">{errorCarga}</p>}
-          {!estudiantes && !errorCarga && <div className="py-8 text-center text-sm text-[#8a8b9e]">Cargando estudiantes de la sección {seccion}...</div>}
+          {!estudiantes && !errorCarga && <div className="py-8 text-center text-sm text-[color:var(--c-8a8b9e)]">Cargando estudiantes de la sección {seccion}...</div>}
           {estudiantes && estudiantes.length === 0 && (
-            <div className="py-8 text-center text-sm text-[#8a8b9e]">No hay estudiantes activos en el grupo {seccion}. Agrégalos en la pestaña Estudiantes.</div>
+            <div className="py-8 text-center text-sm text-[color:var(--c-8a8b9e)]">No hay estudiantes activos en el grupo {seccion}. Agrégalos en la pestaña Estudiantes.</div>
           )}
           {estudiantes && estudiantes.length > 0 && (
             <>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                  <input type="checkbox" checked={todosMarcados} onChange={() => setMarcados(todosMarcados ? [] : elegibles.map(e => e.id))} className="w-4 h-4 accent-[#818cf8]" />
+                  <input type="checkbox" checked={todosMarcados} onChange={() => setMarcados(todosMarcados ? [] : elegibles.map(e => e.id))} className="w-4 h-4 accent-[color:var(--c-818cf8)]" />
                   Todos ({elegibles.length})
                 </label>
                 {elegibles.some(e => !e.portalUltimaVisita) && elegibles.some(e => e.portalUltimaVisita) && (
-                  <button type="button" onClick={() => setMarcados(elegibles.filter(e => !e.portalUltimaVisita).map(e => e.id))} className="text-xs text-[#a5b4fc] hover:text-white underline" title="Para reenviarles el enlace solo a quienes no lo han visto">
+                  <button type="button" onClick={() => setMarcados(elegibles.filter(e => !e.portalUltimaVisita).map(e => e.id))} className="text-xs text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-blanco)] underline" title="Para reenviarles el enlace solo a quienes no lo han visto">
                     Solo los que no la han abierto ({elegibles.filter(e => !e.portalUltimaVisita).length})
                   </button>
                 )}
                 <div className="relative flex-1 min-w-[160px]">
-                  <Search className="w-3.5 h-3.5 text-[#6a6b7e] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar estudiante..." className="w-full bg-[#191a26] border border-[#313248] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[#e0e0ec] outline-none focus:border-[#818cf8]/50" />
+                  <Search className="w-3.5 h-3.5 text-[color:var(--c-6a6b7e)] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar estudiante..." className="w-full bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[color:var(--c-e0e0ec)] outline-none focus:border-[color:var(--c-818cf8)]/50" />
                 </div>
               </div>
-              <div className="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-[#282a3f] border border-[#282a3f] rounded-xl">
+              <div className="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-[color:var(--c-282a3f)] border border-[color:var(--c-282a3f)] rounded-xl">
                 {visibles.map(e => {
                   const ok = tieneTelefono(e);
                   return (
-                    <label key={e.id} className={`px-3 py-2 flex items-center gap-3 text-sm ${ok ? 'cursor-pointer hover:bg-[#232438]' : 'opacity-50 cursor-not-allowed'}`}>
-                      <input type="checkbox" disabled={!ok} checked={ok && marcados.includes(e.id)} onChange={() => alternar(e.id)} className="w-4 h-4 accent-[#818cf8]" />
+                    <label key={e.id} className={`px-3 py-2 flex items-center gap-3 text-sm ${ok ? 'cursor-pointer hover:bg-[color:var(--c-232438)]' : 'opacity-50 cursor-not-allowed'}`}>
+                      <input type="checkbox" disabled={!ok} checked={ok && marcados.includes(e.id)} onChange={() => alternar(e.id)} className="w-4 h-4 accent-[color:var(--c-818cf8)]" />
                       <span className="flex-1 truncate">{e.nombre}</span>
-                      {e.portalUltimaVisita ? <span className="text-[10px] text-emerald-300 flex items-center gap-1 whitespace-nowrap" title="Ya abrió su página"><Eye className="w-3 h-3" />{haceCuanto(e.portalUltimaVisita, Date.now())}</span> : <span className="text-[10px] text-[#6a6b7e] whitespace-nowrap">sin abrir</span>}
+                      {e.portalUltimaVisita ? <span className="text-[10px] text-emerald-300 flex items-center gap-1 whitespace-nowrap" title="Ya abrió su página"><Eye className="w-3 h-3" />{haceCuanto(e.portalUltimaVisita, Date.now())}</span> : <span className="text-[10px] text-[color:var(--c-6a6b7e)] whitespace-nowrap">sin abrir</span>}
                       {telefonoWa(e.telefono) && (
                         <button type="button" title={`Abrir WhatsApp con el mensaje para ${e.nombre} (gratis: lo envías tú desde tu WhatsApp)`} aria-label={`WhatsApp a ${e.nombre}`}
                           onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); abrirWhatsApp(e); }}
                           className="px-2 py-0.5 rounded-md text-[10px] font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 hover:bg-emerald-500/20 whitespace-nowrap">WhatsApp</button>
                       )}
-                      <span className="text-[11px] text-[#8a8b9e]">{ok ? (porCorreo() ? `✉️ ${e.email}` : `📞 …${(e.telefono || '').replace(/\D/g, '').slice(-4)}`) : (porCorreo() ? 'Sin correo' : 'Sin teléfono')}</span>
+                      <span className="text-[11px] text-[color:var(--c-8a8b9e)]">{ok ? (porCorreo() ? `✉️ ${e.email}` : `📞 …${(e.telefono || '').replace(/\D/g, '').slice(-4)}`) : (porCorreo() ? 'Sin correo' : 'Sin teléfono')}</span>
                     </label>
                   );
                 })}
               </div>
               {sinTelefono > 0 && <p className="text-[11px] text-amber-300">{sinTelefono} estudiante(s) sin {porCorreo() ? 'correo válido' : 'teléfono'} no recibirán el enlace (puedes copiárselo desde la pestaña Estudiantes).</p>}
               <div>
-                <label className="text-[11px] font-semibold text-[#8a8b9e] uppercase tracking-wider block mb-1.5">Mensaje</label>
+                <label className="text-[11px] font-semibold text-[color:var(--c-8a8b9e)] uppercase tracking-wider block mb-1.5">Mensaje</label>
                 <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={3} maxLength={900}
-                  className="w-full bg-[#191a26] border border-[#313248] rounded-xl px-3 py-2 text-sm text-[#e0e0ec] outline-none focus:border-[#818cf8]/50 resize-none custom-scrollbar" />
-                <p className="text-[10px] text-[#6a6b7e] mt-1">{'{nombre}'} se cambia por el nombre de cada estudiante y {'{enlace}'} por SU enlace personal; {'{materia}'} y {'{seccion}'} también se reemplazan. Si quitas {'{enlace}'}, se agrega al final.</p>
+                  className="w-full bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2 text-sm text-[color:var(--c-e0e0ec)] outline-none focus:border-[color:var(--c-818cf8)]/50 resize-none custom-scrollbar" />
+                <p className="text-[10px] text-[color:var(--c-6a6b7e)] mt-1">{'{nombre}'} se cambia por el nombre de cada estudiante y {'{enlace}'} por SU enlace personal; {'{materia}'} y {'{seccion}'} también se reemplazan. Si quitas {'{enlace}'}, se agrega al final.</p>
               </div>
               {error && <p className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">{error}</p>}
               <div className="flex items-center justify-end gap-2">
-                <button onClick={onCerrar} className="px-4 py-2 text-sm rounded-xl bg-[#272839] hover:bg-[#2e2f42] text-[#b0b0c4]">Cancelar</button>
+                <button onClick={onCerrar} className="px-4 py-2 text-sm rounded-xl bg-[color:var(--c-272839)] hover:bg-[color:var(--c-2e2f42)] text-[color:var(--c-b0b0c4)]">Cancelar</button>
                 <button onClick={enviar} disabled={marcados.length === 0 || enviando}
                   className="px-4 py-2 text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                   {enviando ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Preparando enlaces...</>) : (<><Send className="w-4 h-4" />Enviar a {marcados.length} estudiante{marcados.length === 1 ? '' : 's'}</>)}
@@ -3356,34 +3357,34 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
       {/* Encabezado */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <CalendarDays className="w-6 h-6 text-[#818cf8] flex-shrink-0" />
+          <CalendarDays className="w-6 h-6 text-[color:var(--c-818cf8)] flex-shrink-0" />
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold text-[#e0e0ec]">Calendario de evaluaciones</h2>
-            <p className="text-xs text-[#8a8b9e] truncate">{materia} · Arrastra una evaluación a otro día para cambiar su fecha</p>
+            <h2 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Calendario de evaluaciones</h2>
+            <p className="text-xs text-[color:var(--c-8a8b9e)] truncate">{materia} · Arrastra una evaluación a otro día para cambiar su fecha</p>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={exportarIcs} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[#1f2035] border border-[#313248] text-[#c7d2fe] hover:border-[#818cf8]/50 hover:bg-[#818cf8]/10 transition-colors" title="Descarga un archivo .ics para Google Calendar o el calendario del celular">
+          <button onClick={exportarIcs} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] text-[color:var(--c-c7d2fe)] hover:border-[color:var(--c-818cf8)]/50 hover:bg-[color:var(--c-818cf8)]/10 transition-colors" title="Descarga un archivo .ics para Google Calendar o el calendario del celular">
             <Download className="w-4 h-4" />Exportar calendario
           </button>
         </div>
       </div>
 
       {/* Navegación + filtros */}
-      <div className="flex flex-wrap items-center gap-2 bg-[#1d1e2e] border border-[#313248] rounded-2xl p-2">
-        <button onClick={() => cambiarMes(-1)} className="p-2 rounded-lg text-[#b0b0c4] hover:bg-[#272839]" aria-label="Mes anterior"><ChevronLeft className="w-4 h-4" /></button>
-        <span className="relative min-w-[150px] h-5 overflow-hidden text-center text-sm font-semibold text-[#e0e0ec]"><AnimatePresence mode="popLayout" initial={false} custom={direccionMes}><motion.span key={`${mesVista.anio}-${mesVista.mes}`} custom={direccionMes} initial={{ y: direccionMes * 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: direccionMes * -14, opacity: 0 }} transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }} className="block">{MESES[mesVista.mes]} {mesVista.anio}</motion.span></AnimatePresence></span>
-        <button onClick={() => cambiarMes(1)} className="p-2 rounded-lg text-[#b0b0c4] hover:bg-[#272839]" aria-label="Mes siguiente"><ChevronRight className="w-4 h-4" /></button>
-        <button onClick={irHoy} className="px-3 py-1.5 text-xs rounded-lg bg-[#272839] text-[#d0d0da] hover:bg-[#2e2f42]">Hoy</button>
+      <div className="flex flex-wrap items-center gap-2 bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-2">
+        <button onClick={() => cambiarMes(-1)} className="p-2 rounded-lg text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-272839)]" aria-label="Mes anterior"><ChevronLeft className="w-4 h-4" /></button>
+        <span className="relative min-w-[150px] h-5 overflow-hidden text-center text-sm font-semibold text-[color:var(--c-e0e0ec)]"><AnimatePresence mode="popLayout" initial={false} custom={direccionMes}><motion.span key={`${mesVista.anio}-${mesVista.mes}`} custom={direccionMes} initial={{ y: direccionMes * 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: direccionMes * -14, opacity: 0 }} transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }} className="block">{MESES[mesVista.mes]} {mesVista.anio}</motion.span></AnimatePresence></span>
+        <button onClick={() => cambiarMes(1)} className="p-2 rounded-lg text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-272839)]" aria-label="Mes siguiente"><ChevronRight className="w-4 h-4" /></button>
+        <button onClick={irHoy} className="px-3 py-1.5 text-xs rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-2e2f42)]">Hoy</button>
         <div className="flex flex-wrap items-center gap-1.5 ml-auto">
-          {letras.length === 0 && <span className="text-xs text-[#6a6b7e] px-2">Sin evaluaciones todavía</span>}
+          {letras.length === 0 && <span className="text-xs text-[color:var(--c-6a6b7e)] px-2">Sin evaluaciones todavía</span>}
           {letras.map(l => {
             const c = colorSeccion(l); const oculta = ocultas.includes(l);
             return (
               <button key={l} onClick={() => setOcultas(p => p.includes(l) ? p.filter(x => x !== l) : [...p, l])}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${oculta ? 'border-[#313248] text-[#6a6b7e] line-through' : `${c.borde} ${c.texto} bg-white/5`}`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${oculta ? 'border-[color:var(--c-313248)] text-[color:var(--c-6a6b7e)] line-through' : `${c.borde} ${c.texto} bg-white/5`}`}
                 title={oculta ? `Mostrar sección ${l}` : `Ocultar sección ${l}`}>
-                <span className={`w-2 h-2 rounded-full ${oculta ? 'bg-[#4a4b5e]' : c.punto}`} />Sección {l}
+                <span className={`w-2 h-2 rounded-full ${oculta ? 'bg-[color:var(--c-4a4b5e)]' : c.punto}`} />Sección {l}
               </button>
             );
           })}
@@ -3418,7 +3419,7 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
       {/* Evaluaciones sin fecha: se pueden arrastrar al calendario */}
       {sinFecha.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-[#8a8b9e]">Sin fecha (arrástralas a un día):</span>
+          <span className="text-[color:var(--c-8a8b9e)]">Sin fecha (arrástralas a un día):</span>
           {sinFecha.map(s => <div key={s.id} className="max-w-[220px]">{renderChip(s, true)}</div>)}
         </div>
       )}
@@ -3426,9 +3427,9 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
       <div className="@container">
       <div className="grid @4xl:grid-cols-[1fr_300px] gap-4">
         {/* Cuadrícula del mes */}
-        <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
-          <div className="grid grid-cols-7 border-b border-[#313248]">
-            {DIAS_SEMANA.map(d => <div key={d} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-[#8a8b9e]">{d}</div>)}
+        <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-[color:var(--c-313248)]">
+            {DIAS_SEMANA.map(d => <div key={d} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)]">{d}</div>)}
           </div>
           <div className="relative overflow-hidden"
             onTouchStart={(e) => { toqueX.current = e.touches[0].clientX; }}
@@ -3453,20 +3454,20 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
                   onDragOver={(e) => { if (!pasado) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (destino !== k) setDestino(k); } }}
                   onDragLeave={() => { if (destino === k) setDestino(null); }}
                   onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); setDestino(null); setArrastrando(null); if (id) moverADia(id, dia); }}
-                  className={`relative min-h-[64px] sm:min-h-[96px] p-1 sm:p-1.5 border-b border-r border-[#282a3f] cursor-pointer transition-colors
+                  className={`relative min-h-[64px] sm:min-h-[96px] p-1 sm:p-1.5 border-b border-r border-[color:var(--c-282a3f)] cursor-pointer transition-colors
                     ${(i + 1) % 7 === 0 ? 'border-r-0' : ''} ${delMes ? '' : 'bg-black/20'} ${pasado ? 'opacity-60' : ''}
-                    ${diaSel === k ? 'bg-[#818cf8]/10' : 'hover:bg-[#232438]'} ${esDestino ? 'bg-[#818cf8]/20 ring-2 ring-inset ring-[#818cf8]' : ''}
+                    ${diaSel === k ? 'bg-[color:var(--c-818cf8)]/10' : 'hover:bg-[color:var(--c-232438)]'} ${esDestino ? 'bg-[color:var(--c-818cf8)]/20 ring-2 ring-inset ring-[color:var(--c-818cf8)]' : ''}
                     ${choque ? 'ring-1 ring-inset ring-red-500/60' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className={`text-[11px] w-6 h-6 flex items-center justify-center rounded-full ${k === hoyClave ? 'bg-[#818cf8] text-white font-bold' : delMes ? 'text-[#c0c0cc]' : 'text-[#5a5b6e]'}`}>{dia.getDate()}</span>
+                    <span className={`text-[11px] w-6 h-6 flex items-center justify-center rounded-full ${k === hoyClave ? 'bg-[color:var(--c-818cf8)] text-white font-bold' : delMes ? 'text-[color:var(--c-c0c0cc)]' : 'text-[color:var(--c-5a5b6e)]'}`}>{dia.getDate()}</span>
                     {choque && <span className="text-[10px] text-red-300" title="Choque: 2 evaluaciones de la misma sección este día">⚠</span>}
                     {semanaCargada && !choque && <span className="text-[10px] text-amber-300" title="Semana con más de 2 evaluaciones en una sección">●</span>}
                   </div>
                   {/* En pantallas grandes: etiquetas; en el celular: puntos de color */}
                   <div className="hidden sm:flex flex-col gap-0.5">
                     {evs.slice(0, 3).map(s => renderChip(s))}
-                    {evs.length > 3 && <span className="text-[10px] text-[#8a8b9e] pl-1">+{evs.length - 3} más</span>}
+                    {evs.length > 3 && <span className="text-[10px] text-[color:var(--c-8a8b9e)] pl-1">+{evs.length - 3} más</span>}
                   </div>
                   <div className="flex sm:hidden flex-wrap gap-0.5">
                     {evs.map(s => <span key={s.id} className={`w-1.5 h-1.5 rounded-full ${colorSeccion(s.grupoSeccion).punto}`} />)}
@@ -3486,61 +3487,61 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
             const f = sel.fecha ? new Date(sel.fecha) : null;
             const google = enlaceGoogleCalendar(sel, materia);
             return (
-              <div className={`bg-[#1d1e2e] border ${c.borde} rounded-2xl p-4 space-y-3`}>
+              <div className={`bg-[color:var(--c-1d1e2e)] border ${c.borde} rounded-2xl p-4 space-y-3`}>
                 <div className="flex items-start gap-2">
                   <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${c.punto}`} />
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-[#e0e0ec]">{limpiarTexto(sel.nombre)}</h3>
-                    <p className="text-xs text-[#8a8b9e]">Sección {(sel.grupoSeccion || 'A').toUpperCase()}</p>
+                    <h3 className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">{limpiarTexto(sel.nombre)}</h3>
+                    <p className="text-xs text-[color:var(--c-8a8b9e)]">Sección {(sel.grupoSeccion || 'A').toUpperCase()}</p>
                   </div>
-                  <button onClick={() => setSelId(null)} className="p-1 text-[#8a8b9e] hover:text-white rounded" aria-label="Cerrar"><X className="w-4 h-4" /></button>
+                  <button onClick={() => setSelId(null)} className="p-1 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] rounded" aria-label="Cerrar"><X className="w-4 h-4" /></button>
                 </div>
-                <div className="text-xs text-[#c0c0cc] space-y-1">
+                <div className="text-xs text-[color:var(--c-c0c0cc)] space-y-1">
                   <p>🗓️ {f ? f.toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }) : 'Sin fecha'}</p>
                   {sel.tipoActividad && <p>🎯 {sel.tipoActividad}</p>}
                   {sel.peso != null && <p>⚖️ Peso: {sel.peso}%</p>}
                   {sel.tiempoEstimadoMinutos ? <p>⏱️ {sel.tiempoEstimadoMinutos} min</p> : null}
                 </div>
-                <div className="flex items-center gap-2"><span className="text-xs text-[#8a8b9e]">Estado:</span><SelectorEstadoEvaluacion seccion={sel} onCambiar={onCambiarEstado} /></div>
+                <div className="flex items-center gap-2"><span className="text-xs text-[color:var(--c-8a8b9e)]">Estado:</span><SelectorEstadoEvaluacion seccion={sel} onCambiar={onCambiarEstado} /></div>
                 {esMovible(sel) && (
                   <div className="space-y-1.5">
-                    <label className="text-[11px] text-[#8a8b9e] block">Cambiar fecha y hora</label>
+                    <label className="text-[11px] text-[color:var(--c-8a8b9e)] block">Cambiar fecha y hora</label>
                     <div className="flex gap-2">
                       <input type="datetime-local" min={aInputFechaHora(new Date())} value={nuevaFecha || (f ? aInputFechaHora(f) : '')} onChange={(e) => setNuevaFecha(e.target.value)}
-                        className="flex-1 min-w-0 bg-[#272839] border border-[#313248] rounded-lg px-2 py-1.5 text-xs text-[#e0e0ec] [color-scheme:dark]" />
+                        className="flex-1 min-w-0 bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg px-2 py-1.5 text-xs text-[color:var(--c-e0e0ec)] [color-scheme:dark]" />
                       <button disabled={!nuevaFecha} onClick={() => {
                         const d = new Date(nuevaFecha);
                         if (isNaN(d.getTime())) return;
                         if (d.getTime() < Date.now()) { agregarNotificacion('⚠️ La nueva fecha debe ser futura.'); return; }
                         onCambiarFecha(sel, d); setNuevaFecha(''); setDiaSel(claveDia(d)); setMesVista({ anio: d.getFullYear(), mes: d.getMonth() });
-                      }} className="px-3 py-1.5 text-xs rounded-lg bg-[#818cf8] text-white font-semibold disabled:opacity-40">Guardar</button>
+                      }} className="px-3 py-1.5 text-xs rounded-lg bg-[color:var(--c-818cf8)] text-white font-semibold disabled:opacity-40">Guardar</button>
                     </div>
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {google && <a href={google} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[#272839] text-[#c7d2fe] hover:bg-[#2e2f42]"><CalendarIcon className="w-3.5 h-3.5" />Google Calendar</a>}
-                  <button onClick={() => onIrAPlanificador(sel)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[#272839] text-[#c7d2fe] hover:bg-[#2e2f42]"><ClipboardList className="w-3.5 h-3.5" />Ver en el planificador</button>
+                  {google && <a href={google} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-2e2f42)]"><CalendarIcon className="w-3.5 h-3.5" />Google Calendar</a>}
+                  <button onClick={() => onIrAPlanificador(sel)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-2e2f42)]"><ClipboardList className="w-3.5 h-3.5" />Ver en el planificador</button>
                 </div>
               </div>
             );
           })() : null}
 
-          <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#8a8b9e] mb-3">
+          <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)] mb-3">
               {diaSel ? (() => { const [a, m, d] = diaSel.split('-').map(Number); return new Date(a, m - 1, d).toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' }); })() : 'Próximas evaluaciones'}
             </h3>
             {listaLateral.length === 0 ? (
-              <p className="text-xs text-[#6a6b7e]">{diaSel ? 'No hay evaluaciones este día.' : 'No hay evaluaciones próximas.'}</p>
+              <p className="text-xs text-[color:var(--c-6a6b7e)]">{diaSel ? 'No hay evaluaciones este día.' : 'No hay evaluaciones próximas.'}</p>
             ) : (
               <div className="space-y-2">
                 {listaLateral.map(s => {
                   const c = colorSeccion(s.grupoSeccion); const f = new Date(s.fecha as Date);
                   return (
-                    <button key={s.id} onClick={() => { setSelId(s.id); setDiaSel(claveDia(f)); setNuevaFecha(''); }} className={`w-full text-left flex items-start gap-2 p-2 rounded-xl hover:bg-[#232438] ${selId === s.id ? 'bg-[#232438]' : ''}`}>
+                    <button key={s.id} onClick={() => { setSelId(s.id); setDiaSel(claveDia(f)); setNuevaFecha(''); }} className={`w-full text-left flex items-start gap-2 p-2 rounded-xl hover:bg-[color:var(--c-232438)] ${selId === s.id ? 'bg-[color:var(--c-232438)]' : ''}`}>
                       <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${c.punto}`} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-[#e0e0ec] truncate">{limpiarTexto(s.nombre)}</p>
-                        <p className="text-[11px] text-[#8a8b9e]">{diaSel ? horaTexto(f) : f.toLocaleDateString('es-VE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + horaTexto(f)} · Sec. {(s.grupoSeccion || 'A').toUpperCase()}</p>
+                        <p className="text-xs font-medium text-[color:var(--c-e0e0ec)] truncate">{limpiarTexto(s.nombre)}</p>
+                        <p className="text-[11px] text-[color:var(--c-8a8b9e)]">{diaSel ? horaTexto(f) : f.toLocaleDateString('es-VE', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + horaTexto(f)} · Sec. {(s.grupoSeccion || 'A').toUpperCase()}</p>
                       </div>
                       <span className="text-[10px] flex-shrink-0">{estadoVisibleEvaluacion(s).texto.split(' ')[0]}</span>
                     </button>
@@ -3548,10 +3549,10 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
                 })}
               </div>
             )}
-            {diaSel && <button onClick={() => setDiaSel(null)} className="mt-3 text-[11px] text-[#a5b4fc] hover:text-[#c7d2fe]">Ver próximas evaluaciones</button>}
+            {diaSel && <button onClick={() => setDiaSel(null)} className="mt-3 text-[11px] text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-c7d2fe)]">Ver próximas evaluaciones</button>}
           </div>
 
-          <p className="text-[11px] text-[#6a6b7e] px-1">💡 Al cambiar la fecha de una evaluación, los recordatorios ({medioEnvio()}) se ajustan solos a la nueva fecha.</p>
+          <p className="text-[11px] text-[color:var(--c-6a6b7e)] px-1">💡 Al cambiar la fecha de una evaluación, los recordatorios ({medioEnvio()}) se ajustan solos a la nueva fecha.</p>
         </div>
       </div>
       </div>
@@ -3648,19 +3649,19 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
   return (
     <div className="space-y-2">
       {pdfUrl && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="border border-[#818cf8]/20 rounded-xl bg-[#1f2035] overflow-hidden">
-          <div onClick={() => setPdfAbierto(!pdfAbierto)} className="flex items-center justify-between p-4 bg-[#272839]/80 border-b border-[#818cf8]/10 cursor-pointer hover:bg-[#2e2f42]/60 transition-colors select-none">
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="border border-[color:var(--c-818cf8)]/20 rounded-xl bg-[color:var(--c-1f2035)] overflow-hidden">
+          <div onClick={() => setPdfAbierto(!pdfAbierto)} className="flex items-center justify-between p-4 bg-[color:var(--c-272839)]/80 border-b border-[color:var(--c-818cf8)]/10 cursor-pointer hover:bg-[color:var(--c-2e2f42)]/60 transition-colors select-none">
             <div className="flex items-center gap-3">
-              <div className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#818cf8] opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-[#818cf8]"></span></div>
-              <FileText className="w-5 h-5 text-[#818cf8]" />
-              <div><div className="flex items-center gap-2"><h4 className="font-bold text-[#d0d0da] text-sm">Plan de Acción Oficial</h4><span className="bg-[#818cf8]/10 text-[#818cf8] text-[10px] px-2 py-0.5 rounded-full font-medium border border-[#818cf8]/20">Generado</span></div><p className="text-xs text-[#8a8b9e]">Clic para {pdfAbierto ? 'contraer' : 'ver'}</p></div>
+              <div className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[color:var(--c-818cf8)] opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-[color:var(--c-818cf8)]"></span></div>
+              <FileText className="w-5 h-5 text-[color:var(--c-818cf8)]" />
+              <div><div className="flex items-center gap-2"><h4 className="font-bold text-[color:var(--c-d0d0da)] text-sm">Plan de Acción Oficial</h4><span className="bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-818cf8)] text-[10px] px-2 py-0.5 rounded-full font-medium border border-[color:var(--c-818cf8)]/20">Generado</span></div><p className="text-xs text-[color:var(--c-8a8b9e)]">Clic para {pdfAbierto ? 'contraer' : 'ver'}</p></div>
             </div>
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               {/* DESCARGAR */}
               <a
                 href={pdfUrl}
                 download={`plan_evaluacion_${planificacion.materia || 'examen'}.pdf`}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#818cf8] hover:bg-[#6366f1] text-white font-medium text-xs rounded-lg transition-all shadow-md"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white font-medium text-xs rounded-lg transition-all shadow-md"
               >
                 📥 Descargar
               </a>
@@ -3675,7 +3676,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
                   className={`p-1.5 rounded-lg border transition-all duration-200 active:scale-95 ${
                     mostrarMenuEnvio
                       ? 'bg-sky-500/20 text-sky-400 border-sky-500/40'
-                      : 'text-[#8a8b9e] hover:text-sky-400 hover:bg-sky-500/10 border-transparent'
+                      : 'text-[color:var(--c-8a8b9e)] hover:text-sky-400 hover:bg-sky-500/10 border-transparent'
                   }`}
                 >
                   <Send className="w-4 h-4" />
@@ -3686,22 +3687,22 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               <Tooltip text="Eliminar PDF">
                 <button
                   onClick={handleClosePdf}
-                  className="p-1.5 hover:bg-rose-500/10 text-[#8a8b9e] hover:text-rose-400 rounded-lg transition-all border border-transparent hover:border-rose-500/20"
+                  className="p-1.5 hover:bg-rose-500/10 text-[color:var(--c-8a8b9e)] hover:text-rose-400 rounded-lg transition-all border border-transparent hover:border-rose-500/20"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </Tooltip>
             </div>
           </div>
-          <motion.div initial={false} animate={{ height: pdfAbierto ? "auto" : "0px", opacity: pdfAbierto ? 1 : 0 }} transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.6 }} className="overflow-hidden bg-[#191a26]">
+          <motion.div initial={false} animate={{ height: pdfAbierto ? "auto" : "0px", opacity: pdfAbierto ? 1 : 0 }} transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.6 }} className="overflow-hidden bg-[color:var(--c-191a26)]">
             <div className="p-4">
               <AnimatePresence mode="wait">
                 {(
                   <motion.div key="pdf" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="w-full h-[600px] overflow-y-auto border border-slate-200 rounded-xl bg-white text-slate-800 font-sans shadow-lg custom-scrollbar">
                     <div className="p-10 relative">
-                      <div className="absolute top-10 right-10 text-[10px] uppercase tracking-widest font-bold text-[#818cf8] bg-[#818cf8]/10 border border-[#818cf8]/20 px-3 py-1 rounded-md">Plan v1.0</div>
-                      <div className="mb-8 border-b-2 border-[#1e3a8a] pb-6"><span className="text-[11px] font-bold text-[#60a5fa] uppercase tracking-widest">Plan de Acción</span><h2 className="text-3xl font-black text-[#1e3a8a] mt-1">{planificacion.materia || 'Asignatura'}</h2><div className="flex gap-6 mt-3 text-xs text-slate-500"><p>👤 {profesor ? `Prof. ${profesor}` : 'Docente'}</p><p>📅 {planificacion.fechaExamen ? new Date(planificacion.fechaExamen).toLocaleDateString() : 'Por definir'}</p></div></div>
-                      <div className="overflow-x-auto mb-8 rounded-xl border border-slate-200"><table className="w-full border-collapse text-left bg-white"><thead><tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500"><th className="p-4">Contenido</th><th className="p-4">Estrategia</th><th className="p-4 text-center">Peso</th><th className="p-4 text-center">Fecha</th></tr></thead><tbody className="divide-y divide-slate-100">{listaPlan.map((sec: SeccionExamen, idx: number) => (<tr key={sec.id||idx}><td className="p-4 font-medium text-slate-700">{sec.nombre?.replace(/^(Evaluación [1-4]:|Evaluacion [1-4]:)\s*/i,'')||'Sin Nombre'}</td><td className="p-4 text-slate-600">{sec.tipoActividad||'Desarrollo'}</td><td className="p-4 text-center font-bold text-[#1e3a8a]">{sec.peso||0}%</td><td className="p-4 text-center text-slate-600">{sec.fecha ? new Date(sec.fecha).toLocaleDateString() : (planificacion.fechaExamen ? new Date(planificacion.fechaExamen).toLocaleDateString() : '—')}</td></tr>))}</tbody></table></div>
+                      <div className="absolute top-10 right-10 text-[10px] uppercase tracking-widest font-bold text-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 px-3 py-1 rounded-md">Plan v1.0</div>
+                      <div className="mb-8 border-b-2 border-[color:var(--c-1e3a8a)] pb-6"><span className="text-[11px] font-bold text-[color:var(--c-60a5fa)] uppercase tracking-widest">Plan de Acción</span><h2 className="text-3xl font-black text-[color:var(--c-1e3a8a)] mt-1">{planificacion.materia || 'Asignatura'}</h2><div className="flex gap-6 mt-3 text-xs text-slate-500"><p>👤 {profesor ? `Prof. ${profesor}` : 'Docente'}</p><p>📅 {planificacion.fechaExamen ? new Date(planificacion.fechaExamen).toLocaleDateString() : 'Por definir'}</p></div></div>
+                      <div className="overflow-x-auto mb-8 rounded-xl border border-slate-200"><table className="w-full border-collapse text-left bg-white"><thead><tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500"><th className="p-4">Contenido</th><th className="p-4">Estrategia</th><th className="p-4 text-center">Peso</th><th className="p-4 text-center">Fecha</th></tr></thead><tbody className="divide-y divide-slate-100">{listaPlan.map((sec: SeccionExamen, idx: number) => (<tr key={sec.id||idx}><td className="p-4 font-medium text-slate-700">{sec.nombre?.replace(/^(Evaluación [1-4]:|Evaluacion [1-4]:)\s*/i,'')||'Sin Nombre'}</td><td className="p-4 text-slate-600">{sec.tipoActividad||'Desarrollo'}</td><td className="p-4 text-center font-bold text-[color:var(--c-1e3a8a)]">{sec.peso||0}%</td><td className="p-4 text-center text-slate-600">{sec.fecha ? new Date(sec.fecha).toLocaleDateString() : (planificacion.fechaExamen ? new Date(planificacion.fechaExamen).toLocaleDateString() : '—')}</td></tr>))}</tbody></table></div>
                       {listaPlan.some((s: SeccionExamen)=>s.descripcion)&&(<div className="mt-6 border-t-2 border-slate-200 pt-6"><h3 className="text-sm font-bold text-slate-700 uppercase mb-3">📋 Especificaciones</h3><div className="grid gap-4">{listaPlan.map((sec: SeccionExamen, i: number)=>{const n=sec.nombre?.replace(/^(Evaluación [1-4]:|Evaluacion [1-4]:)\s*/i,'')||'Sin Nombre';return sec.descripcion?(<div key={sec.id||i} className="bg-slate-50 p-4 rounded-lg border border-slate-200"><div className="flex items-center gap-2 mb-2"><span className="text-xs font-bold text-slate-400">#{i+1}</span><span className="font-semibold text-slate-700">{n}</span></div><p className="text-sm text-slate-600 whitespace-pre-wrap">{sec.descripcion}</p></div>):null})}</div></div>)}
                       <div className="mt-8 pt-4 border-t border-slate-300 grid grid-cols-2 gap-8"><div><p className="text-xs text-slate-400 uppercase mb-1">{profesor ? `Prof. ${profesor}` : 'Docente'}</p><div className="border-b border-slate-400 w-3/4"></div><p className="text-[10px] text-slate-400 mt-1">Firma</p></div><div><p className="text-xs text-slate-400 uppercase mb-1">Coordinación Académica</p><div className="border-b border-slate-400 w-3/4"></div><p className="text-[10px] text-slate-400 mt-1">Sello</p></div></div>
                     </div>
@@ -3765,7 +3766,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
         )}
       </AnimatePresence>
       <div className="space-y-2">
-        {secciones.length === 0 && (<div className="text-center py-8 text-[#8a8b9e] border border-dashed border-[#313248] rounded-xl"><p className="text-sm">No hay evaluaciones</p></div>)}
+        {secciones.length === 0 && (<div className="text-center py-8 text-[color:var(--c-8a8b9e)] border border-dashed border-[color:var(--c-313248)] rounded-xl"><p className="text-sm">No hay evaluaciones</p></div>)}
       </div>
       
       <div className="flex justify-end gap-2 mt-4">
@@ -3811,7 +3812,7 @@ function VentanaFlotante({ children, onCerrar, ancho = 'max-w-2xl' }: { children
     return () => { window.removeEventListener('keydown', tecla); document.body.style.overflow = overflow; };
   }, []);
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[#0b0b12]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[color:var(--c-0b0b12)]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16, ease: 'easeOut' }}
         className={`w-full ${ancho} max-h-[92vh] overflow-y-auto custom-scrollbar rounded-2xl shadow-2xl`}>
         {children}
@@ -3864,41 +3865,41 @@ function EditorRubrica({ seccion, onGuardar, onCerrar }: { seccion: SeccionExame
     if (!r) { alert('Agrega al menos un criterio con nombre.'); return; }
     onGuardar(r);
   };
-  const campo = 'w-full bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]';
+  const campo = 'w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg px-2.5 py-1.5 text-xs text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-[color:var(--c-818cf8)]';
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[#0b0b12]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[color:var(--c-0b0b12)]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16, ease: 'easeOut' }}
-        className="w-full max-w-3xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><ClipboardCheck className="w-5 h-5 text-[#a5b4fc]" /></div>
+        className="w-full max-w-3xl max-h-[92vh] flex flex-col bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[color:var(--c-313248)] flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[color:var(--c-818cf8)]/15 flex items-center justify-center flex-shrink-0"><ClipboardCheck className="w-5 h-5 text-[color:var(--c-a5b4fc)]" /></div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-semibold text-white">Rúbrica de evaluación</p>
-            <p className="text-xs text-[#8a8b9e] truncate">{limpiarTexto(seccion.nombre)}{seccion.tipoActividad ? ` · ${seccion.tipoActividad}` : ''}</p>
+            <p className="text-base font-semibold text-[color:var(--c-blanco)]">Rúbrica de evaluación</p>
+            <p className="text-xs text-[color:var(--c-8a8b9e)] truncate">{limpiarTexto(seccion.nombre)}{seccion.tipoActividad ? ` · ${seccion.tipoActividad}` : ''}</p>
           </div>
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${total === 20 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`} title="La escala usual es de 20 puntos">{textoPuntos(total)} / 20 pts</span>
-          <button type="button" onClick={onCerrar} className="p-1 text-[#6a6b7e] hover:text-white"><X className="w-5 h-5" /></button>
+          <button type="button" onClick={onCerrar} className="p-1 text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-blanco)]"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="px-5 py-2.5 border-b border-[#313248] flex flex-wrap items-center gap-2 bg-[#181926]">
-          <button type="button" onClick={sugerir} className="h-8 px-3 rounded-lg bg-[#818cf8]/15 border border-[#818cf8]/40 text-[#c7d2fe] text-xs font-medium flex items-center gap-1.5 hover:bg-[#818cf8]/25"><Sparkles className="w-3.5 h-3.5" />{existente || editado ? 'Sugerir otra vez' : 'Sugerida según la actividad'}</button>
-          <button type="button" onClick={agregar} disabled={criterios.length >= 8} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#a0a0b8] text-xs font-medium flex items-center gap-1.5 hover:text-white disabled:opacity-40"><Plus className="w-3.5 h-3.5" />Agregar criterio</button>
+        <div className="px-5 py-2.5 border-b border-[color:var(--c-313248)] flex flex-wrap items-center gap-2 bg-[color:var(--c-181926)]">
+          <button type="button" onClick={sugerir} className="h-8 px-3 rounded-lg bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/40 text-[color:var(--c-c7d2fe)] text-xs font-medium flex items-center gap-1.5 hover:bg-[color:var(--c-818cf8)]/25"><Sparkles className="w-3.5 h-3.5" />{existente || editado ? 'Sugerir otra vez' : 'Sugerida según la actividad'}</button>
+          <button type="button" onClick={agregar} disabled={criterios.length >= 8} className="h-8 px-3 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] text-xs font-medium flex items-center gap-1.5 hover:text-[color:var(--c-blanco)] disabled:opacity-40"><Plus className="w-3.5 h-3.5" />Agregar criterio</button>
           {total !== 20 && total > 0 && <button type="button" onClick={ajustarA20} className="h-8 px-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium hover:bg-amber-500/20">Ajustar a 20 pts</button>}
-          <span className="text-[11px] text-[#6a6b7e] ml-auto hidden sm:inline">Niveles: Excelente 100% · Bueno 75% · Regular 50% · Deficiente 25%</span>
+          <span className="text-[11px] text-[color:var(--c-6a6b7e)] ml-auto hidden sm:inline">Niveles: Excelente 100% · Bueno 75% · Regular 50% · Deficiente 25%</span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2.5">
-          {criterios.length === 0 && <p className="text-sm text-[#8a8b9e] text-center py-8">Sin criterios. Usa “Sugerida” o “Agregar criterio”.</p>}
+          {criterios.length === 0 && <p className="text-sm text-[color:var(--c-8a8b9e)] text-center py-8">Sin criterios. Usa “Sugerida” o “Agregar criterio”.</p>}
           {criterios.map((c, i) => (
-            <div key={i} className={`rounded-xl border transition-colors ${abierto === i ? 'border-[#818cf8]/50 bg-[#20213a]' : 'border-[#313248] bg-[#1f2035]'}`}>
+            <div key={i} className={`rounded-xl border transition-colors ${abierto === i ? 'border-[color:var(--c-818cf8)]/50 bg-[color:var(--c-20213a)]' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1f2035)]'}`}>
               <div className="flex items-center gap-2 p-2.5">
-                <span className="w-6 h-6 rounded-full bg-[#272839] text-[#a5b4fc] text-[11px] font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                <span className="w-6 h-6 rounded-full bg-[color:var(--c-272839)] text-[color:var(--c-a5b4fc)] text-[11px] font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</span>
                 <input value={c.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} maxLength={120} placeholder="Nombre del criterio" className={`${campo} flex-1 min-w-0 font-medium`} />
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <input type="number" min={0} max={100} step={0.5} value={c.puntos} onChange={(e) => cambiar(i, { puntos: e.target.value })} className={`${campo} w-16 text-center`} />
-                  <span className="text-[11px] text-[#8a8b9e]">pts</span>
+                  <span className="text-[11px] text-[color:var(--c-8a8b9e)]">pts</span>
                 </div>
-                <button type="button" onClick={() => setAbierto(abierto === i ? null : i)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] rounded-lg" title="Ver niveles">{abierto === i ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
-                <button type="button" onClick={() => quitar(i)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 rounded-lg" title="Quitar criterio"><Trash2 className="w-4 h-4" /></button>
+                <button type="button" onClick={() => setAbierto(abierto === i ? null : i)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] rounded-lg" title="Ver niveles">{abierto === i ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
+                <button type="button" onClick={() => quitar(i)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-red-400 rounded-lg" title="Quitar criterio"><Trash2 className="w-4 h-4" /></button>
               </div>
               <AnimatePresence initial={false}>
                 {abierto === i && (
@@ -3906,7 +3907,7 @@ function EditorRubrica({ seccion, onGuardar, onCerrar }: { seccion: SeccionExame
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 px-2.5 pb-3">
                       {NIVELES_RUBRICA.map((nivel, k) => (
                         <label key={nivel} className="block">
-                          <span className={`text-[11px] font-semibold ${COLOR_NIVEL[k]}`}>{nivel} <span className="text-[#6a6b7e] font-normal">· {textoPuntos(puntosNivel(Number(c.puntos) || 0, k))} pts</span></span>
+                          <span className={`text-[11px] font-semibold ${COLOR_NIVEL[k]}`}>{nivel} <span className="text-[color:var(--c-6a6b7e)] font-normal">· {textoPuntos(puntosNivel(Number(c.puntos) || 0, k))} pts</span></span>
                           <textarea value={c.descripciones[k]} onChange={(e) => cambiar(i, { descripciones: c.descripciones.map((d, j) => (j === k ? e.target.value : d)) })} rows={2} maxLength={400} placeholder={`Qué hace el estudiante en nivel ${nivel.toLowerCase()}`} className={`${campo} mt-1 resize-none`} />
                         </label>
                       ))}
@@ -3918,12 +3919,12 @@ function EditorRubrica({ seccion, onGuardar, onCerrar }: { seccion: SeccionExame
           ))}
         </div>
 
-        <div className="px-5 py-3 border-t border-[#313248] flex flex-wrap items-center gap-2">
+        <div className="px-5 py-3 border-t border-[color:var(--c-313248)] flex flex-wrap items-center gap-2">
           {existente && <button type="button" onClick={() => { if (window.confirm('¿Quitar la rúbrica de esta evaluación?')) onGuardar(null); }} className="h-9 px-3 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/10">Quitar rúbrica</button>}
-          <span className="text-[11px] text-[#6a6b7e] hidden sm:inline">Sale en el PDF del plan de acción.</span>
+          <span className="text-[11px] text-[color:var(--c-6a6b7e)] hidden sm:inline">Sale en el PDF del plan de acción.</span>
           <div className="ml-auto flex gap-2">
-            <button type="button" onClick={onCerrar} className="h-9 px-4 rounded-lg bg-[#232430] border border-[#313248] text-[#a0a0b8] text-xs font-medium hover:text-white">Cancelar</button>
-            <button type="button" onClick={guardar} className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5"><Save className="w-3.5 h-3.5" />Guardar rúbrica</button>
+            <button type="button" onClick={onCerrar} className="h-9 px-4 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] text-xs font-medium hover:text-[color:var(--c-blanco)]">Cancelar</button>
+            <button type="button" onClick={guardar} className="h-9 px-4 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5"><Save className="w-3.5 h-3.5" />Guardar rúbrica</button>
           </div>
         </div>
       </motion.div>
@@ -4047,29 +4048,29 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
   };
 
   const cerrar = () => { if (cambiadas.length > 0 && !window.confirm('Hay notas sin guardar. ¿Cerrar de todas formas?')) return; onCerrar(); };
-  const campo = 'bg-[#272839] border rounded-lg px-2.5 py-1.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none';
+  const campo = 'bg-[color:var(--c-272839)] border rounded-lg px-2.5 py-1.5 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none';
 
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[#0b0b12]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrar(); }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[color:var(--c-0b0b12)]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) cerrar(); }}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16, ease: 'easeOut' }}
-        className="w-full max-w-2xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
+        className="w-full max-w-2xl max-h-[92vh] flex flex-col bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[color:var(--c-313248)] flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0"><GraduationCap className="w-5 h-5 text-emerald-300" /></div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-semibold text-white">Notas</p>
-            <p className="text-xs text-[#8a8b9e] truncate">{nombre} · Sección {(seccion.grupoSeccion || 'A').toUpperCase()}{seccion.peso != null ? ` · ${seccion.peso}%` : ''}</p>
+            <p className="text-base font-semibold text-[color:var(--c-blanco)]">Notas</p>
+            <p className="text-xs text-[color:var(--c-8a8b9e)] truncate">{nombre} · Sección {(seccion.grupoSeccion || 'A').toUpperCase()}{seccion.peso != null ? ` · ${seccion.peso}%` : ''}</p>
           </div>
-          <button type="button" onClick={cerrar} className="p-1 text-[#6a6b7e] hover:text-white"><X className="w-5 h-5" /></button>
+          <button type="button" onClick={cerrar} className="p-1 text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-blanco)]"><X className="w-5 h-5" /></button>
         </div>
 
         {!cargando && !error && filas.length > 0 && (
-          <div className="px-5 py-2.5 border-b border-[#313248] bg-[#181926] flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-            <span className="text-[#8a8b9e]">Calificados <b className="text-[#d0d0da]">{notas.length}/{filas.length}</b></span>
-            <span className="text-[#8a8b9e]">Promedio <b className="text-[#a5b4fc]">{promedio == null ? '—' : textoNota(Math.round(promedio * 100) / 100)}</b></span>
-            <span className="text-[#8a8b9e]">Aprobados <b className="text-emerald-300">{aprobados}</b></span>
-            {notas.length > 0 && <span className="text-[#8a8b9e]">Rango <b className="text-[#d0d0da]">{textoNota(Math.min(...notas))}–{textoNota(Math.max(...notas))}</b></span>}
+          <div className="px-5 py-2.5 border-b border-[color:var(--c-313248)] bg-[color:var(--c-181926)] flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+            <span className="text-[color:var(--c-8a8b9e)]">Calificados <b className="text-[color:var(--c-d0d0da)]">{notas.length}/{filas.length}</b></span>
+            <span className="text-[color:var(--c-8a8b9e)]">Promedio <b className="text-[color:var(--c-a5b4fc)]">{promedio == null ? '—' : textoNota(Math.round(promedio * 100) / 100)}</b></span>
+            <span className="text-[color:var(--c-8a8b9e)]">Aprobados <b className="text-emerald-300">{aprobados}</b></span>
+            {notas.length > 0 && <span className="text-[color:var(--c-8a8b9e)]">Rango <b className="text-[color:var(--c-d0d0da)]">{textoNota(Math.min(...notas))}–{textoNota(Math.max(...notas))}</b></span>}
             {rubrica && (
-              <button type="button" onClick={() => setConRubrica(v => !v)} className={`ml-auto h-7 px-2.5 rounded-lg border font-medium flex items-center gap-1.5 transition-colors ${conRubrica ? 'bg-[#818cf8]/15 border-[#818cf8]/50 text-[#c7d2fe]' : 'bg-[#232430] border-[#313248] text-[#a0a0b8] hover:text-white'}`}>
+              <button type="button" onClick={() => setConRubrica(v => !v)} className={`ml-auto h-7 px-2.5 rounded-lg border font-medium flex items-center gap-1.5 transition-colors ${conRubrica ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/50 text-[color:var(--c-c7d2fe)]' : 'bg-[color:var(--c-232430)] border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)]'}`}>
                 <ClipboardCheck className="w-3.5 h-3.5" />{conRubrica ? 'Con rúbrica' : 'Nota directa'}
               </button>
             )}
@@ -4077,10 +4078,10 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
         )}
 
         <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-          {cargando && <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#8a8b9e]"><div className="w-4 h-4 border-2 border-[#818cf8] border-t-transparent rounded-full animate-spin" />Cargando estudiantes…</div>}
+          {cargando && <div className="flex items-center justify-center gap-2 py-12 text-sm text-[color:var(--c-8a8b9e)]"><div className="w-4 h-4 border-2 border-[color:var(--c-818cf8)] border-t-transparent rounded-full animate-spin" />Cargando estudiantes…</div>}
           {error && <div className="m-2 flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />{error}</div>}
           {!cargando && !error && filas.length === 0 && (
-            <div className="text-center py-12 text-sm text-[#8a8b9e]">No hay estudiantes activos en la Sección {(seccion.grupoSeccion || 'A').toUpperCase()}.<br />Agrégalos en la pestaña <b className="text-[#d0d0da]">Estudiantes</b> con el grupo {(seccion.grupoSeccion || 'A').toUpperCase()}.</div>
+            <div className="text-center py-12 text-sm text-[color:var(--c-8a8b9e)]">No hay estudiantes activos en la Sección {(seccion.grupoSeccion || 'A').toUpperCase()}.<br />Agrégalos en la pestaña <b className="text-[color:var(--c-d0d0da)]">Estudiantes</b> con el grupo {(seccion.grupoSeccion || 'A').toUpperCase()}.</div>
           )}
           <div className="space-y-1.5">
             {filas.map((f, idx) => {
@@ -4089,25 +4090,25 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
               const usarRubrica = conRubrica && !!rubrica;
               const expandida = usarRubrica && abierta === f.id;
               return (
-                <div key={f.id} className={`rounded-xl border transition-colors ${expandida ? 'border-[#818cf8]/50 bg-[#20213a]' : 'border-[#2a2b3d] bg-[#1f2035]'}`}>
+                <div key={f.id} className={`rounded-xl border transition-colors ${expandida ? 'border-[color:var(--c-818cf8)]/50 bg-[color:var(--c-20213a)]' : 'border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1f2035)]'}`}>
                   <div className="flex items-center gap-2 px-3 py-2">
-                    <span className="w-6 text-[11px] text-[#6a6b7e] text-right flex-shrink-0">{idx + 1}</span>
-                    <button type="button" onClick={() => usarRubrica && setAbierta(expandida ? null : f.id)} className={`flex-1 min-w-0 text-left text-sm truncate ${usarRubrica ? 'hover:text-white cursor-pointer' : 'cursor-default'} ${f.activo ? 'text-[#d0d0da]' : 'text-[#6a6b7e] line-through'}`} title={f.nombre}>
+                    <span className="w-6 text-[11px] text-[color:var(--c-6a6b7e)] text-right flex-shrink-0">{idx + 1}</span>
+                    <button type="button" onClick={() => usarRubrica && setAbierta(expandida ? null : f.id)} className={`flex-1 min-w-0 text-left text-sm truncate ${usarRubrica ? 'hover:text-[color:var(--c-blanco)] cursor-pointer' : 'cursor-default'} ${f.activo ? 'text-[color:var(--c-d0d0da)]' : 'text-[color:var(--c-6a6b7e)] line-through'}`} title={f.nombre}>
                       {f.nombre}
-                      {usarRubrica && <span className="ml-2 text-[11px] text-[#6a6b7e]">{f.detalle.filter(x => x != null).length}/{rubrica!.criterios.length} criterios</span>}
+                      {usarRubrica && <span className="ml-2 text-[11px] text-[color:var(--c-6a6b7e)]">{f.detalle.filter(x => x != null).length}/{rubrica!.criterios.length} criterios</span>}
                     </button>
                     {firma(f) !== f.guardado && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Sin guardar" />}
-                    <button type="button" onClick={() => actualizar(f.id, { verObs: !f.verObs })} className={`p-1.5 rounded-lg ${f.observaciones ? 'text-[#a5b4fc]' : 'text-[#6a6b7e] hover:text-[#a5b4fc]'}`} title="Observación"><MessageSquare className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => actualizar(f.id, { verObs: !f.verObs })} className={`p-1.5 rounded-lg ${f.observaciones ? 'text-[color:var(--c-a5b4fc)]' : 'text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-a5b4fc)]'}`} title="Observación"><MessageSquare className="w-4 h-4" /></button>
                     <input ref={(el) => { refs.current[f.id] = el; }} inputMode="decimal" value={f.puntaje} readOnly={usarRubrica}
                       onChange={(e) => actualizar(f.id, { puntaje: e.target.value.replace(/[^\d.,]/g, '').slice(0, 5) })}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); siguiente(f.id); } }}
                       onClick={() => usarRubrica && setAbierta(f.id)}
-                      placeholder="—" className={`${campo} w-16 text-center font-semibold ${mal ? 'border-red-500 text-red-300' : n == null ? 'border-[#313248]' : n >= 10 ? 'border-emerald-500/40 text-emerald-200' : 'border-red-500/40 text-red-200'} ${usarRubrica ? 'cursor-pointer' : ''}`} />
-                    <span className="text-[11px] text-[#6a6b7e] w-6">/20</span>
+                      placeholder="—" className={`${campo} w-16 text-center font-semibold ${mal ? 'border-red-500 text-red-300' : n == null ? 'border-[color:var(--c-313248)]' : n >= 10 ? 'border-emerald-500/40 text-emerald-200' : 'border-red-500/40 text-red-200'} ${usarRubrica ? 'cursor-pointer' : ''}`} />
+                    <span className="text-[11px] text-[color:var(--c-6a6b7e)] w-6">/20</span>
                   </div>
                   {f.verObs && (
                     <div className="px-3 pb-2 pl-11">
-                      <input value={f.observaciones} onChange={(e) => actualizar(f.id, { observaciones: e.target.value.slice(0, 500) })} placeholder="Observación (opcional, le llega con la nota)" className={`${campo} w-full text-xs border-[#313248] focus:border-[#818cf8]`} />
+                      <input value={f.observaciones} onChange={(e) => actualizar(f.id, { observaciones: e.target.value.slice(0, 500) })} placeholder="Observación (opcional, le llega con la nota)" className={`${campo} w-full text-xs border-[color:var(--c-313248)] focus:border-[color:var(--c-818cf8)]`} />
                     </div>
                   )}
                   <AnimatePresence initial={false}>
@@ -4116,11 +4117,11 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
                         <div className="px-3 pb-3 pl-11 space-y-2">
                           {rubrica.criterios.map((c, ci) => (
                             <div key={ci} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-                              <span className="text-xs text-[#b0b0c4] sm:w-44 truncate" title={c.nombre}>{c.nombre} <span className="text-[#6a6b7e]">({textoPuntos(c.puntos)})</span></span>
+                              <span className="text-xs text-[color:var(--c-b0b0c4)] sm:w-44 truncate" title={c.nombre}>{c.nombre} <span className="text-[color:var(--c-6a6b7e)]">({textoPuntos(c.puntos)})</span></span>
                               <div className="flex gap-1 flex-1">
                                 {NIVELES_RUBRICA.map((nv, k) => (
                                   <button key={nv} type="button" onClick={() => elegirNivel(f, ci, k)} title={c.descripciones[k] || nv}
-                                    className={`flex-1 h-7 rounded-md border text-[11px] font-medium transition-colors ${f.detalle[ci] === k ? COLOR_BOTON_NIVEL[k] : 'bg-[#232430] border-[#313248] text-[#8a8b9e] hover:text-white'}`}>
+                                    className={`flex-1 h-7 rounded-md border text-[11px] font-medium transition-colors ${f.detalle[ci] === k ? COLOR_BOTON_NIVEL[k] : 'bg-[color:var(--c-232430)] border-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]'}`}>
                                     {NIVEL_CORTO[k]} {textoPuntos(puntosNivel(c.puntos, k))}
                                   </button>
                                 ))}
@@ -4138,11 +4139,11 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
         </div>
 
         {!cargando && !error && filas.length > 0 && (
-          <div className="px-5 py-3 border-t border-[#313248] flex flex-wrap items-center gap-2">
+          <div className="px-5 py-3 border-t border-[color:var(--c-313248)] flex flex-wrap items-center gap-2">
             {envio ? (
-              <span className="text-xs text-[#8a8b9e]">📲 Enviadas <b className="text-emerald-300">{envio.enviados}</b>/{envio.total}{envio.fallidos ? <> · <b className="text-red-300">{envio.fallidos}</b> fallidas</> : null}</span>
+              <span className="text-xs text-[color:var(--c-8a8b9e)]">📲 Enviadas <b className="text-emerald-300">{envio.enviados}</b>/{envio.total}{envio.fallidos ? <> · <b className="text-red-300">{envio.fallidos}</b> fallidas</> : null}</span>
             ) : (
-              <span className="text-[11px] text-[#6a6b7e] hidden sm:inline">{conRubrica && rubrica ? 'Toca un estudiante y elige el nivel de cada criterio.' : 'Enter pasa al siguiente. Deja vacío para quitar la nota.'}</span>
+              <span className="text-[11px] text-[color:var(--c-6a6b7e)] hidden sm:inline">{conRubrica && rubrica ? 'Toca un estudiante y elige el nivel de cada criterio.' : 'Enter pasa al siguiente. Deja vacío para quitar la nota.'}</span>
             )}
             <div className="ml-auto flex gap-2">
               <button type="button" onClick={enviar} disabled={enviando || guardando || destinatarios.length === 0} title={destinatarios.length === 0 ? 'Guarda notas de estudiantes con teléfono' : `Enviar a ${destinatarios.length}`}
@@ -4150,7 +4151,7 @@ function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCambiado }
                 {enviando ? <div className="w-3.5 h-3.5 border-2 border-emerald-300 border-t-transparent rounded-full animate-spin" /> : <Send className="w-3.5 h-3.5" />}Enviar por {medioEnvio()}
               </button>
               <button type="button" onClick={guardar} disabled={guardando || hayErrores || cambiadas.length === 0}
-                className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
+                className="h-9 px-4 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
                 {guardando ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 {hayErrores ? 'Hay notas fuera de 0–20' : cambiadas.length ? `Guardar (${cambiadas.length})` : 'Guardado'}
               </button>
@@ -4236,28 +4237,28 @@ function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: Se
     const lista = filas.map(f => ({ titulo: f.titulo.trim().slice(0, 120), url: f.url.trim() })).filter(f => f.url).map(f => ({ ...f, url: /^https?:\/\//i.test(f.url) ? f.url : `https://${f.url}` })).slice(0, 10);
     onGuardar(lista.length ? lista : null, abrirYa);
   };
-  const campo = 'w-full bg-[#272839] border rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8]';
+  const campo = 'w-full bg-[color:var(--c-272839)] border rounded-lg px-2.5 py-1.5 text-xs text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-[color:var(--c-818cf8)]';
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[#0b0b12]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="fixed inset-0 z-[200] bg-[color:var(--c-0b0b12)]/75 flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16, ease: 'easeOut' }}
-        className="w-full max-w-xl max-h-[92vh] flex flex-col bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#313248] flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><Paperclip className="w-5 h-5 text-[#a5b4fc]" /></div>
+        className="w-full max-w-xl max-h-[92vh] flex flex-col bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[color:var(--c-313248)] flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[color:var(--c-818cf8)]/15 flex items-center justify-center flex-shrink-0"><Paperclip className="w-5 h-5 text-[color:var(--c-a5b4fc)]" /></div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-semibold text-white">Recursos para los estudiantes</p>
-            <p className="text-xs text-[#8a8b9e] truncate">{limpiarTexto(seccion.nombre)} · Sección {(seccion.grupoSeccion || 'A').toUpperCase()}</p>
+            <p className="text-base font-semibold text-[color:var(--c-blanco)]">Recursos para los estudiantes</p>
+            <p className="text-xs text-[color:var(--c-8a8b9e)] truncate">{limpiarTexto(seccion.nombre)} · Sección {(seccion.grupoSeccion || 'A').toUpperCase()}</p>
           </div>
-          <button type="button" onClick={onCerrar} className="p-1 text-[#6a6b7e] hover:text-white"><X className="w-5 h-5" /></button>
+          <button type="button" onClick={onCerrar} className="p-1 text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-blanco)]"><X className="w-5 h-5" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          <p className="text-xs text-[#9a9bb0]">Salen en la página personal de cada estudiante. Los videos de YouTube se ven ahí mismo; los demás enlaces se abren aparte.</p>
-          <div className="rounded-xl border border-[#818cf8]/30 bg-[#818cf8]/5 p-3 space-y-3">
+          <p className="text-xs text-[color:var(--c-9a9bb0)]">Salen en la página personal de cada estudiante. Los videos de YouTube se ven ahí mismo; los demás enlaces se abren aparte.</p>
+          <div className="rounded-xl border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/5 p-3 space-y-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <button type="button" onClick={buscar} disabled={buscando} className="h-9 px-3 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-60">
+              <button type="button" onClick={buscar} disabled={buscando} className="h-9 px-3 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-60">
                 {buscando ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                 {buscando ? 'Buscando videos y páginas…' : sugerencias ? 'Buscar otra vez' : 'Buscar recursos automáticamente'}
               </button>
-              <span className="text-[11px] text-[#8a8b9e]">Videos reales de YouTube y páginas comprobadas para «{limpiarTexto(seccion.nombre)}».</span>
+              <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Videos reales de YouTube y páginas comprobadas para «{limpiarTexto(seccion.nombre)}».</span>
             </div>
             {errorBusqueda && <p className="text-xs text-red-300">{errorBusqueda}</p>}
             {sugerencias && (
@@ -4265,39 +4266,39 @@ function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: Se
                 {sugerencias.avisos.map((a, i) => <p key={i} className="text-[11px] text-amber-300">⚠ {a}</p>)}
                 {sugerencias.videos.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] uppercase tracking-wider text-[#8a8b9e] font-semibold">Videos</p>
+                    <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold">Videos</p>
                     {sugerencias.videos.map(v => (
-                      <label key={v.url} className={`flex items-center gap-2.5 p-1.5 rounded-lg border cursor-pointer transition-colors ${elegidas.includes(v.url) ? 'border-[#818cf8]/60 bg-[#818cf8]/10' : 'border-[#313248] hover:border-[#414258]'}`}>
-                        <input type="checkbox" checked={elegidas.includes(v.url)} onChange={() => alternarElegida(v.url)} className="w-4 h-4 accent-[#818cf8] flex-shrink-0" />
+                      <label key={v.url} className={`flex items-center gap-2.5 p-1.5 rounded-lg border cursor-pointer transition-colors ${elegidas.includes(v.url) ? 'border-[color:var(--c-818cf8)]/60 bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-313248)] hover:border-[color:var(--c-414258)]'}`}>
+                        <input type="checkbox" checked={elegidas.includes(v.url)} onChange={() => alternarElegida(v.url)} className="w-4 h-4 accent-[color:var(--c-818cf8)] flex-shrink-0" />
                         <img src={v.miniatura} alt="" className="w-20 h-[45px] rounded object-cover flex-shrink-0 bg-black" loading="lazy" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-xs text-[#e0e0ec] line-clamp-2">{v.titulo}</span>
-                          <span className="block text-[10px] text-[#8a8b9e] truncate">{v.canal} · {Math.floor(v.duracionSeg / 60)}:{String(v.duracionSeg % 60).padStart(2, '0')} min{v.vistas ? ` · ${v.vistas >= 1000000 ? `${(v.vistas / 1000000).toFixed(1)} M` : v.vistas >= 1000 ? `${Math.round(v.vistas / 1000)} mil` : v.vistas} vistas` : ''}</span>
+                          <span className="block text-xs text-[color:var(--c-e0e0ec)] line-clamp-2">{v.titulo}</span>
+                          <span className="block text-[10px] text-[color:var(--c-8a8b9e)] truncate">{v.canal} · {Math.floor(v.duracionSeg / 60)}:{String(v.duracionSeg % 60).padStart(2, '0')} min{v.vistas ? ` · ${v.vistas >= 1000000 ? `${(v.vistas / 1000000).toFixed(1)} M` : v.vistas >= 1000 ? `${Math.round(v.vistas / 1000)} mil` : v.vistas} vistas` : ''}</span>
                         </span>
-                        <a href={v.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="p-1 text-[#8a8b9e] hover:text-white flex-shrink-0" title="Ver en YouTube"><ExternalLink className="w-3.5 h-3.5" /></a>
+                        <a href={v.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="p-1 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] flex-shrink-0" title="Ver en YouTube"><ExternalLink className="w-3.5 h-3.5" /></a>
                       </label>
                     ))}
                   </div>
                 )}
                 {sugerencias.paginas.length > 0 && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] uppercase tracking-wider text-[#8a8b9e] font-semibold">Páginas y herramientas (comprobadas)</p>
+                    <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold">Páginas y herramientas (comprobadas)</p>
                     {sugerencias.paginas.map(pg => (
-                      <label key={pg.url} className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${elegidas.includes(pg.url) ? 'border-[#818cf8]/60 bg-[#818cf8]/10' : 'border-[#313248] hover:border-[#414258]'}`}>
-                        <input type="checkbox" checked={elegidas.includes(pg.url)} onChange={() => alternarElegida(pg.url)} className="w-4 h-4 accent-[#818cf8] flex-shrink-0" />
+                      <label key={pg.url} className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${elegidas.includes(pg.url) ? 'border-[color:var(--c-818cf8)]/60 bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-313248)] hover:border-[color:var(--c-414258)]'}`}>
+                        <input type="checkbox" checked={elegidas.includes(pg.url)} onChange={() => alternarElegida(pg.url)} className="w-4 h-4 accent-[color:var(--c-818cf8)] flex-shrink-0" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-xs text-[#e0e0ec] truncate">{pg.titulo}</span>
-                          <span className="block text-[10px] text-[#8a8b9e] truncate">{(() => { try { return new URL(pg.url).hostname.replace(/^www\./, ''); } catch { return pg.url; } })()}{pg.descripcion ? ` · ${pg.descripcion}` : ''}</span>
+                          <span className="block text-xs text-[color:var(--c-e0e0ec)] truncate">{pg.titulo}</span>
+                          <span className="block text-[10px] text-[color:var(--c-8a8b9e)] truncate">{(() => { try { return new URL(pg.url).hostname.replace(/^www\./, ''); } catch { return pg.url; } })()}{pg.descripcion ? ` · ${pg.descripcion}` : ''}</span>
                         </span>
-                        <a href={pg.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="p-1 text-[#8a8b9e] hover:text-white flex-shrink-0" title="Abrir"><ExternalLink className="w-3.5 h-3.5" /></a>
+                        <a href={pg.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="p-1 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] flex-shrink-0" title="Abrir"><ExternalLink className="w-3.5 h-3.5" /></a>
                       </label>
                     ))}
                   </div>
                 )}
-                {sugerencias.videos.length === 0 && sugerencias.paginas.length === 0 && <p className="text-xs text-[#8a8b9e]">No se encontró nada útil. Prueba con un nombre de evaluación más claro (ej. «Diagramas UML de clases»).</p>}
+                {sugerencias.videos.length === 0 && sugerencias.paginas.length === 0 && <p className="text-xs text-[color:var(--c-8a8b9e)]">No se encontró nada útil. Prueba con un nombre de evaluación más claro (ej. «Diagramas UML de clases»).</p>}
                 {(sugerencias.videos.length > 0 || sugerencias.paginas.length > 0) && (
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => { setSugerencias(null); setElegidas([]); }} className="h-8 px-3 rounded-lg text-xs text-[#a0a0b8] hover:text-white">Descartar</button>
+                    <button type="button" onClick={() => { setSugerencias(null); setElegidas([]); }} className="h-8 px-3 rounded-lg text-xs text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)]">Descartar</button>
                     <button type="button" onClick={agregarElegidas} disabled={elegidas.length === 0} className="h-8 px-3 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-xs font-semibold disabled:opacity-40">Agregar seleccionados ({elegidas.length})</button>
                   </div>
                 )}
@@ -4306,35 +4307,35 @@ function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: Se
           </div>
           <div className="space-y-2.5">
             {filas.map((f, i) => (
-              <div key={i} className="rounded-xl border border-[#313248] bg-[#1f2035] p-2.5 space-y-2">
+              <div key={i} className="rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1f2035)] p-2.5 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] w-14 flex-shrink-0 text-center text-[#a0a0b8] leading-tight">{f.url && esVideo(f.url) ? '▶️ Video' : '🔗 Enlace'}</span>
-                  <input value={f.titulo} onChange={(e) => setFilas(prev => prev.map((x, k) => (k === i ? { ...x, titulo: e.target.value } : x)))} maxLength={120} placeholder="Título (ej. Video: qué son los microservicios)" className={`${campo} border-[#313248]`} />
-                  <button type="button" onClick={() => setFilas(prev => prev.length === 1 ? [{ titulo: '', url: '' }] : prev.filter((_, k) => k !== i))} className="p-1.5 text-[#8a8b9e] hover:text-red-400 rounded-lg flex-shrink-0" title="Quitar"><Trash2 className="w-4 h-4" /></button>
+                  <span className="text-[11px] w-14 flex-shrink-0 text-center text-[color:var(--c-a0a0b8)] leading-tight">{f.url && esVideo(f.url) ? '▶️ Video' : '🔗 Enlace'}</span>
+                  <input value={f.titulo} onChange={(e) => setFilas(prev => prev.map((x, k) => (k === i ? { ...x, titulo: e.target.value } : x)))} maxLength={120} placeholder="Título (ej. Video: qué son los microservicios)" className={`${campo} border-[color:var(--c-313248)]`} />
+                  <button type="button" onClick={() => setFilas(prev => prev.length === 1 ? [{ titulo: '', url: '' }] : prev.filter((_, k) => k !== i))} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-red-400 rounded-lg flex-shrink-0" title="Quitar"><Trash2 className="w-4 h-4" /></button>
                 </div>
-                <input value={f.url} onChange={(e) => setFilas(prev => prev.map((x, k) => (k === i ? { ...x, url: e.target.value } : x)))} maxLength={600} inputMode="url" placeholder="https://..." className={`${campo} ${urlValida(f.url) ? 'border-[#313248]' : 'border-red-500 text-red-300'}`} />
+                <input value={f.url} onChange={(e) => setFilas(prev => prev.map((x, k) => (k === i ? { ...x, url: e.target.value } : x)))} maxLength={600} inputMode="url" placeholder="https://..." className={`${campo} ${urlValida(f.url) ? 'border-[color:var(--c-313248)]' : 'border-red-500 text-red-300'}`} />
               </div>
             ))}
           </div>
-          <button type="button" onClick={() => setFilas(prev => [...prev, { titulo: '', url: '' }])} disabled={filas.length >= 10} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#a0a0b8] text-xs font-medium flex items-center gap-1.5 hover:text-white disabled:opacity-40"><Plus className="w-3.5 h-3.5" />Agregar recurso</button>
+          <button type="button" onClick={() => setFilas(prev => [...prev, { titulo: '', url: '' }])} disabled={filas.length >= 10} className="h-8 px-3 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] text-xs font-medium flex items-center gap-1.5 hover:text-[color:var(--c-blanco)] disabled:opacity-40"><Plus className="w-3.5 h-3.5" />Agregar recurso</button>
 
-          <div className="rounded-xl border border-[#313248] bg-[#181926] p-3">
+          <div className="rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-181926)] p-3">
             {yaAbierta ? (
               <p className="text-xs text-emerald-300 flex items-center gap-2"><LockOpen className="w-4 h-4" />Los estudiantes ya pueden ver esta evaluación completa.</p>
             ) : (
               <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input type="checkbox" checked={abrirYa} onChange={(e) => setAbrirYa(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#818cf8]" />
+                <input type="checkbox" checked={abrirYa} onChange={(e) => setAbrirYa(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[color:var(--c-818cf8)]" />
                 <span>
-                  <span className="text-sm text-[#d0d0da] font-medium flex items-center gap-1.5">{abrirYa ? <LockOpen className="w-4 h-4 text-emerald-300" /> : <Lock className="w-4 h-4 text-[#8a8b9e]" />}Abrirla ya para los estudiantes</span>
-                  <span className="block text-[11px] text-[#8a8b9e] mt-0.5">Si no, se abre sola {DIAS_APERTURA_PORTAL} días antes: el {abreEl!.toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}. Mientras tanto ven solo el nombre, la fecha y el peso.</span>
+                  <span className="text-sm text-[color:var(--c-d0d0da)] font-medium flex items-center gap-1.5">{abrirYa ? <LockOpen className="w-4 h-4 text-emerald-300" /> : <Lock className="w-4 h-4 text-[color:var(--c-8a8b9e)]" />}Abrirla ya para los estudiantes</span>
+                  <span className="block text-[11px] text-[color:var(--c-8a8b9e)] mt-0.5">Si no, se abre sola {DIAS_APERTURA_PORTAL} días antes: el {abreEl!.toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}. Mientras tanto ven solo el nombre, la fecha y el peso.</span>
                 </span>
               </label>
             )}
           </div>
         </div>
-        <div className="px-5 py-3 border-t border-[#313248] flex items-center justify-end gap-2">
-          <button type="button" onClick={onCerrar} className="h-9 px-4 rounded-lg bg-[#232430] border border-[#313248] text-[#a0a0b8] text-xs font-medium hover:text-white">Cancelar</button>
-          <button type="button" onClick={guardar} disabled={hayErrores} className="h-9 px-4 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"><Save className="w-3.5 h-3.5" />{hayErrores ? 'Revisa los enlaces' : 'Guardar'}</button>
+        <div className="px-5 py-3 border-t border-[color:var(--c-313248)] flex items-center justify-end gap-2">
+          <button type="button" onClick={onCerrar} className="h-9 px-4 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] text-xs font-medium hover:text-[color:var(--c-blanco)]">Cancelar</button>
+          <button type="button" onClick={guardar} disabled={hayErrores} className="h-9 px-4 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"><Save className="w-3.5 h-3.5" />{hayErrores ? 'Revisa los enlaces' : 'Guardar'}</button>
         </div>
       </motion.div>
     </motion.div>,
@@ -4384,12 +4385,12 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
       whileDrag={{ scale: 1.03, boxShadow: '0 18px 40px rgba(0,0,0,0.45)', zIndex: 50, cursor: 'grabbing' }}
       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
       data-eval={seccion.id}
-      className={`bg-[#1f2035] rounded-xl border border-[#313248] hover:border-[#414258] select-none relative ${menu ? 'z-30' : ''}`}
+      className={`bg-[color:var(--c-1f2035)] rounded-xl border border-[color:var(--c-313248)] hover:border-[color:var(--c-414258)] select-none relative ${menu ? 'z-30' : ''}`}
     >
       <div className="p-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
         <div
           onPointerDown={(e) => dragControls.start(e)}
-          className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[#272839] transition-colors text-[#6a6b7e] touch-none"
+          className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[color:var(--c-272839)] transition-colors text-[color:var(--c-6a6b7e)] touch-none"
           title="Arrastra para reordenar"
         >
           <GripVertical className="w-4 h-4" />
@@ -4398,21 +4399,21 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); if (onToggleSelect) onToggleSelect(seccion.id); }}
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 border transition-all duration-150 ${isSelected ? 'bg-[#a855f7] border-[#a855f7] text-white shadow-[0_0_10px_rgba(168,85,247,0.6)] scale-110' : 'bg-[#272839] border-transparent text-[#8a8b9e] hover:border-[#a855f7]/50 hover:text-[#c084fc]'}`}
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 border transition-all duration-150 ${isSelected ? 'bg-[color:var(--c-a855f7)] border-[color:var(--c-a855f7)] text-white shadow-[0_0_10px_rgba(168,85,247,0.6)] scale-110' : 'bg-[color:var(--c-272839)] border-transparent text-[color:var(--c-8a8b9e)] hover:border-[color:var(--c-a855f7)]/50 hover:text-[color:var(--c-c084fc)]'}`}
           >
             {index + 1}
           </button>
         </Tooltip>
         <div className="flex-1 min-w-[140px] cursor-pointer" onClick={onToggleExpand} title={expanded ? 'Ocultar detalle' : 'Ver detalle'}>
-          <div className="flex items-center gap-2 min-w-0"><h4 className="text-sm text-[#e0e0ec] font-medium truncate">{nombreLimpio}</h4></div>
+          <div className="flex items-center gap-2 min-w-0"><h4 className="text-sm text-[color:var(--c-e0e0ec)] font-medium truncate">{nombreLimpio}</h4></div>
           {/* Lo esencial a la vista: peso, fecha y estrategia. Lo demás, al expandir. */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-[#a0a1b5]">
-            {seccion.peso != null && <span className="font-semibold text-[#c7d2fe]">{seccion.peso}%</span>}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-[color:var(--c-a0a1b5)]">
+            {seccion.peso != null && <span className="font-semibold text-[color:var(--c-c7d2fe)]">{seccion.peso}%</span>}
             {seccion.fecha && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" />{new Date(seccion.fecha).toLocaleDateString('es-VE', { weekday: 'short', day: 'numeric', month: 'short' })}</span>}
             {seccion.tipoActividad && <span className="truncate max-w-[180px]">{seccion.tipoActividad}</span>}
             {/* Indicadores de lo que ya está listo */}
             {(tieneRubrica || seccion.examen) && (
-              <span className="flex items-center gap-1.5 text-[#818cf8]">
+              <span className="flex items-center gap-1.5 text-[color:var(--c-818cf8)]">
                 {tieneRubrica && <span title="Tiene rúbrica"><ClipboardCheck className="w-3.5 h-3.5" /></span>}
                 {seccion.examen && <span title="Tiene examen en línea"><FileCheck className="w-3.5 h-3.5" /></span>}
               </span>
@@ -4428,23 +4429,23 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
               <GraduationCap className="w-3.5 h-3.5" />Notas
             </button>
           )}
-          {onRecursos && <Tooltip text={nRecursos ? `Recursos de estudio (${nRecursos})` : 'Recursos de estudio'}><button onClick={() => onRecursos(seccion)} aria-label="Recursos de estudio" className={`relative p-1.5 hover:bg-[#272839] rounded-lg ${nRecursos ? 'text-[#a5b4fc] hover:text-[#c7d2fe]' : 'text-[#8a8b9e] hover:text-[#818cf8]'}`}><Paperclip className="w-4 h-4" />{nRecursos > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#818cf8] text-[9px] font-bold text-white flex items-center justify-center">{nRecursos}</span>}</button></Tooltip>}
+          {onRecursos && <Tooltip text={nRecursos ? `Recursos de estudio (${nRecursos})` : 'Recursos de estudio'}><button onClick={() => onRecursos(seccion)} aria-label="Recursos de estudio" className={`relative p-1.5 hover:bg-[color:var(--c-272839)] rounded-lg ${nRecursos ? 'text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)]'}`}><Paperclip className="w-4 h-4" />{nRecursos > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[color:var(--c-818cf8)] text-[9px] font-bold text-white flex items-center justify-center">{nRecursos}</span>}</button></Tooltip>}
           <div className="relative" ref={menuRef}>
             <button onClick={() => setMenu(v => !v)} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
-              className={`p-1.5 rounded-lg transition-colors ${menu ? 'text-[#e0e0ec] bg-[#2c2d42]' : 'text-[#8a8b9e] hover:text-[#e0e0ec] hover:bg-[#272839]'}`}>
+              className={`p-1.5 rounded-lg transition-colors ${menu ? 'text-[color:var(--c-e0e0ec)] bg-[color:var(--c-2c2d42)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]'}`}>
               <MoreVertical className="w-4 h-4" />
             </button>
             <AnimatePresence>
               {menu && (
                 <motion.div initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }} transition={{ duration: 0.12 }}
-                  className="absolute right-0 top-full mt-1.5 w-64 z-40 rounded-xl border border-[#313248] bg-[#1b1c2b] shadow-2xl shadow-black/50 p-1.5" role="menu">
+                  className="absolute right-0 top-full mt-1.5 w-64 z-40 rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)] shadow-2xl shadow-black/50 p-1.5" role="menu">
                   {opciones.map(o => (
-                    <button key={o.titulo} role="menuitem" onClick={() => { setMenu(false); o.hacer(); }} className="w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left hover:bg-[#272839] transition-colors">
-                      <o.icono className="w-4 h-4 mt-0.5 text-[#a5b4fc] flex-shrink-0" />
-                      <span className="min-w-0"><span className="block text-[13px] text-[#e0e0ec]">{o.titulo}</span><span className="block text-[11px] text-[#8a8b9e] truncate">{o.detalle}</span></span>
+                    <button key={o.titulo} role="menuitem" onClick={() => { setMenu(false); o.hacer(); }} className="w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left hover:bg-[color:var(--c-272839)] transition-colors">
+                      <o.icono className="w-4 h-4 mt-0.5 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
+                      <span className="min-w-0"><span className="block text-[13px] text-[color:var(--c-e0e0ec)]">{o.titulo}</span><span className="block text-[11px] text-[color:var(--c-8a8b9e)] truncate">{o.detalle}</span></span>
                     </button>
                   ))}
-                  <div className="my-1 border-t border-[#2a2b3d]" />
+                  <div className="my-1 border-t border-[color:var(--c-2a2b3d)]" />
                   <button role="menuitem" onClick={() => { setMenu(false); onDelete(seccion.id); }} className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left text-[13px] text-red-300 hover:bg-red-500/10 transition-colors">
                     <Trash2 className="w-4 h-4" />Eliminar evaluación
                   </button>
@@ -4455,17 +4456,17 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
         </div>
       </div>
       <AnimatePresence>{expanded && (
-        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]">
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[color:var(--c-313248)]">
           <div className="p-3 sm:pl-14 space-y-3">
             {/* Detalle que no hace falta ver siempre */}
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#a0a1b5]">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[color:var(--c-a0a1b5)]">
               {seccion.enfoque && <span>📌 {seccion.enfoque}</span>}
               {seccion.tiempoEstimadoMinutos && <span>⏱️ {seccion.tiempoEstimadoMinutos} min</span>}
               {seccion.cantidadGrupos && <span>👥 {seccion.cantidadGrupos} grupos{seccion.personasPorGrupo ? ` de ${seccion.personasPorGrupo}` : ''}</span>}
               {seccion.fecha && <span>🕗 {new Date(seccion.fecha).toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}</span>}
-              {tieneRubrica && <span className="text-[#a5b4fc]">📋 Rúbrica de {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
+              {tieneRubrica && <span className="text-[color:var(--c-a5b4fc)]">📋 Rúbrica de {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
             </div>
-            {seccion.descripcion ? <DescripcionOrdenada texto={seccion.descripcion} /> : <p className="text-xs text-[#6a6b7e]">Sin descripción. Puedes agregarla con «Editar evaluación» en el menú ⋯.</p>}
+            {seccion.descripcion ? <DescripcionOrdenada texto={seccion.descripcion} /> : <p className="text-xs text-[color:var(--c-6a6b7e)]">Sin descripción. Puedes agregarla con «Editar evaluación» en el menú ⋯.</p>}
           </div>
         </motion.div>
       )}</AnimatePresence>
@@ -4496,17 +4497,17 @@ function EnfoqueCombobox({ value, onChange }: { value: string; onChange: (v: str
   const handleSelect = (op: string) => { onChange(op); setSearchTerm(''); setIsOpen(false); };
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => { onChange(e.target.value); setSearchTerm(e.target.value); if (!isOpen) setIsOpen(true); };
   const dropdownContent = isOpen && (
-    <motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}>
-      <div className="p-3 border-b border-[#313248]"><div className="flex items-center gap-2 px-3 py-2 bg-[#191a26] rounded-lg border border-[#282a3f]"><Search className="w-4 h-4 text-[#6a6b7e] flex-shrink-0" /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar enfoque..." className="flex-1 bg-transparent text-sm text-[#d8d8e2] placeholder-[#4a4b5e] outline-none" autoFocus />{searchTerm && <button onClick={() => { setSearchTerm(''); onChange(''); }} className="text-[#6a6b7e] hover:text-[#9a9bae]"><X className="w-3.5 h-3.5" /></button>}</div></div>
+    <motion.div ref={dropdownRef} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }} className="fixed z-[9999] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden" style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}>
+      <div className="p-3 border-b border-[color:var(--c-313248)]"><div className="flex items-center gap-2 px-3 py-2 bg-[color:var(--c-191a26)] rounded-lg border border-[color:var(--c-282a3f)]"><Search className="w-4 h-4 text-[color:var(--c-6a6b7e)] flex-shrink-0" /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar enfoque..." className="flex-1 bg-transparent text-sm text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-4a4b5e)] outline-none" autoFocus />{searchTerm && <button onClick={() => { setSearchTerm(''); onChange(''); }} className="text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-9a9bae)]"><X className="w-3.5 h-3.5" /></button>}</div></div>
       <div className="max-h-[320px] overflow-y-auto custom-scrollbar p-2">
-        {filteredCategorias.map((cat, catIdx) => (<div key={cat.nombre} className={catIdx > 0 ? 'mt-2' : ''}><div className="flex items-center gap-2 px-3 py-2"><cat.icon className={`w-4 h-4 ${cat.color}`} /><span className={`text-xs font-semibold uppercase tracking-wider ${cat.color}`}>{cat.nombre}</span><div className="flex-1 h-px bg-[#282a3f]" /></div>
+        {filteredCategorias.map((cat, catIdx) => (<div key={cat.nombre} className={catIdx > 0 ? 'mt-2' : ''}><div className="flex items-center gap-2 px-3 py-2"><cat.icon className={`w-4 h-4 ${cat.color}`} /><span className={`text-xs font-semibold uppercase tracking-wider ${cat.color}`}>{cat.nombre}</span><div className="flex-1 h-px bg-[color:var(--c-282a3f)]" /></div>
         <div className="flex flex-wrap gap-1.5 px-2 pb-2">
-          {cat.opciones.map(op => (<motion.button key={op} type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => handleSelect(op)} className={`px-3.5 py-2 text-sm rounded-lg border transition-all cursor-pointer ${value === op ? 'bg-[#818cf8]/15 border-[#818cf8]/30 text-[#818cf8] font-medium' : 'bg-[#191a26] border-[#282a3f] text-[#9a9bae] hover:border-[#414258] hover:text-[#d0d0da] hover:bg-[#232430]'}`}>{op}</motion.button>))}
+          {cat.opciones.map(op => (<motion.button key={op} type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => handleSelect(op)} className={`px-3.5 py-2 text-sm rounded-lg border transition-all cursor-pointer ${value === op ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/30 text-[color:var(--c-818cf8)] font-medium' : 'bg-[color:var(--c-191a26)] border-[color:var(--c-282a3f)] text-[color:var(--c-9a9bae)] hover:border-[color:var(--c-414258)] hover:text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-232430)]'}`}>{op}</motion.button>))}
         </div></div>))}
       </div>
     </motion.div>
   );
-  return (<div ref={containerRef}><div className="relative"><input ref={inputRef} type="text" value={value} onChange={handleInputChange} onFocus={() => { setIsOpen(true); setSearchTerm(''); }} placeholder="Escribe o selecciona..." className={`${inputBase} pr-8`} /><button type="button" onClick={() => { setIsOpen(!isOpen); if (!isOpen) inputRef.current?.focus(); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#6a6b7e] hover:text-[#818cf8] transition-colors"><ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} /></button></div>{createPortal(dropdownContent, document.body)}</div>);
+  return (<div ref={containerRef}><div className="relative"><input ref={inputRef} type="text" value={value} onChange={handleInputChange} onFocus={() => { setIsOpen(true); setSearchTerm(''); }} placeholder="Escribe o selecciona..." className={`${inputBase} pr-8`} /><button type="button" onClick={() => { setIsOpen(!isOpen); if (!isOpen) inputRef.current?.focus(); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-818cf8)] transition-colors"><ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} /></button></div>{createPortal(dropdownContent, document.body)}</div>);
 }
 
 // ============================================
@@ -4555,18 +4556,18 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
       }}
       exit={{ opacity: 0, height: 0, y: -10 }}
       transition={{ duration: 0.35, ease: "easeInOut" }}
-      className="bg-[#1d1e2e] border rounded-2xl shadow-xl overflow-hidden p-5 space-y-2.5"
+      className="bg-[color:var(--c-1d1e2e)] border rounded-2xl shadow-xl overflow-hidden p-5 space-y-2.5"
     >
-      <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[#313248]">
-        <FileSpreadsheet className="w-4 h-4 text-[#818cf8]" />
-        <h3 className="text-sm font-semibold text-[#d0d0da]">{titulo}</h3>
+      <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[color:var(--c-313248)]">
+        <FileSpreadsheet className="w-4 h-4 text-[color:var(--c-818cf8)]" />
+        <h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)]">{titulo}</h3>
         {tieneErrores && (
           <span className="ml-2 flex items-center gap-1 text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
             <AlertCircle className="w-3 h-3" /> Corrige los errores
           </span>
         )}
         {index > 1 && (
-          <button onClick={() => { limpiar(); setNumEvaluaciones((prev: number) => prev - 1); }} className="ml-auto p-1 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
+          <button onClick={() => { limpiar(); setNumEvaluaciones((prev: number) => prev - 1); }} className="ml-auto p-1 text-[color:var(--c-8a8b9e)] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
             <X className="w-4 h-4" />
           </button>
         )}
@@ -4646,14 +4647,14 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
         <div className="w-[120px] flex-shrink-0">
           <label className={`${labelBase} text-center`}>Duración</label>
           <div className="flex">
-            <input type="number" value={ev.duracionMinutos ?? ''} onChange={(e) => setEv({...ev, duracionMinutos: e.target.value ? parseInt(e.target.value) : null})} className="flex-1 min-w-0 h-12 px-2.5 bg-[#1f2035] border border-r-0 border-[#313248] rounded-l-xl text-sm text-[#d8d8e2] placeholder-[#6a6b7e] focus:border-[#818cf8]/40 outline-none transition-all duration-200 font-['Inter'] text-center" placeholder="0" />
-            <select value={ev.duracionUnidad || 'min'} onChange={(e) => setEv({...ev, duracionUnidad: e.target.value as 'min' | 'hrs'})} className="w-[48px] h-12 bg-[#1f2035] border border-[#313248] rounded-r-xl text-[11px] font-bold text-[#818cf8] text-center outline-none cursor-pointer appearance-none">
-              <option value="min" className="bg-[#1f2035]">min</option>
-              <option value="hrs" className="bg-[#1f2035]">hrs</option>
+            <input type="number" value={ev.duracionMinutos ?? ''} onChange={(e) => setEv({...ev, duracionMinutos: e.target.value ? parseInt(e.target.value) : null})} className="flex-1 min-w-0 h-12 px-2.5 bg-[color:var(--c-1f2035)] border border-r-0 border-[color:var(--c-313248)] rounded-l-xl text-sm text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] focus:border-[color:var(--c-818cf8)]/40 outline-none transition-all duration-200 font-['Inter'] text-center" placeholder="0" />
+            <select value={ev.duracionUnidad || 'min'} onChange={(e) => setEv({...ev, duracionUnidad: e.target.value as 'min' | 'hrs'})} className="w-[48px] h-12 bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-r-xl text-[11px] font-bold text-[color:var(--c-818cf8)] text-center outline-none cursor-pointer appearance-none">
+              <option value="min" className="bg-[color:var(--c-1f2035)]">min</option>
+              <option value="hrs" className="bg-[color:var(--c-1f2035)]">hrs</option>
             </select>
           </div>
         </div>
-        <div className="w-[88px] flex-shrink-0"><label className={`${labelBase} text-center`}>Pond.</label><div className="relative"><input type="number" min={0} max={100} value={ev.peso ?? ''} onChange={(e) => { const v = e.target.value ? Math.min(100, Math.max(0, parseInt(e.target.value))) : null; setEv({...ev, peso: v}); }} className={`${smallInput} pr-9`} placeholder="0" /><span className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none"><span className="text-[11px] font-bold text-[#818cf8] bg-[#818cf8]/10 px-1.5 py-0.5 rounded-md">%</span></span></div></div>
+        <div className="w-[88px] flex-shrink-0"><label className={`${labelBase} text-center`}>Pond.</label><div className="relative"><input type="number" min={0} max={100} value={ev.peso ?? ''} onChange={(e) => { const v = e.target.value ? Math.min(100, Math.max(0, parseInt(e.target.value))) : null; setEv({...ev, peso: v}); }} className={`${smallInput} pr-9`} placeholder="0" /><span className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none"><span className="text-[11px] font-bold text-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 px-1.5 py-0.5 rounded-md">%</span></span></div></div>
                 <div className="w-[72px] flex-shrink-0">
           <label className={`${labelBase} text-center`}>Grupos</label>
           <input
@@ -4687,11 +4688,11 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
           />
         </div>
         <div className="flex-shrink-0 flex items-end">
-          <div className="px-2 py-2.5 bg-[#818cf8]/8 border border-[#818cf8]/15 rounded-lg text-[10px] text-[#818cf8] font-medium leading-tight whitespace-nowrap">
+          <div className="px-2 py-2.5 bg-[color:var(--c-818cf8)]/8 border border-[color:var(--c-818cf8)]/15 rounded-lg text-[10px] text-[color:var(--c-818cf8)] font-medium leading-tight whitespace-nowrap">
             <Users className="w-3 h-3 mx-auto mb-0.5" />
             {totalEstudiantes} est.
             {ev.cantidadGrupos && ev.personasPorGrupo && ev.cantidadGrupos > 0 && (
-              <span className="block text-[#b0b0c4] mt-0.5">
+              <span className="block text-[color:var(--c-b0b0c4)] mt-0.5">
                 {ev.cantidadGrupos}×{ev.personasPorGrupo}
                 {(() => {
                   const cubiertos = ev.cantidadGrupos * ev.personasPorGrupo;
@@ -4719,7 +4720,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
         <button
           type="button"
           onClick={() => setEv({...ev, mostrarDescripcion: !ev.mostrarDescripcion})}
-          className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all border ${ev.mostrarDescripcion ? 'bg-[#818cf8]/10 text-[#818cf8] border-[#818cf8]/30' : 'bg-[#272839] text-[#b0b0c4] border-[#313248] hover:bg-[#313248]'}`}
+          className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all border ${ev.mostrarDescripcion ? 'bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-818cf8)] border-[color:var(--c-818cf8)]/30' : 'bg-[color:var(--c-272839)] text-[color:var(--c-b0b0c4)] border-[color:var(--c-313248)] hover:bg-[color:var(--c-313248)]'}`}
         >
           {ev.mostrarDescripcion ? <><ChevronUp className="w-3.5 h-3.5" /> Ocultar Descripción</> : <><ChevronDown className="w-3.5 h-3.5" /> Mostrar Descripción</>}
         </button>
@@ -4760,7 +4761,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
       {/* ---- BOTONES ---- */}
       <div className="flex justify-end gap-2 pt-1">
         <Tooltip text="Limpiar formulario">
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={limpiar} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#272839] hover:bg-[#313248] rounded-lg text-xs text-[#b0b0c4] transition-all font-medium"><Trash2 className="w-3.5 h-3.5" />Limpiar</motion.button>
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={limpiar} className="flex items-center gap-1.5 px-3 py-1.5 bg-[color:var(--c-272839)] hover:bg-[color:var(--c-313248)] rounded-lg text-xs text-[color:var(--c-b0b0c4)] transition-all font-medium"><Trash2 className="w-3.5 h-3.5" />Limpiar</motion.button>
         </Tooltip>
         <Tooltip text={tieneErrores ? 'Corrige los errores primero' : 'Guardar (Ctrl+S)'}>
           <motion.button
@@ -4770,8 +4771,8 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
             disabled={tieneErrores}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all shadow-md ${
               tieneErrores
-                ? 'bg-[#313248] text-[#5a5b6e] cursor-not-allowed shadow-none'
-                : 'bg-[#818cf8] hover:bg-[#6366f1] text-white shadow-md'
+                ? 'bg-[color:var(--c-313248)] text-[color:var(--c-5a5b6e)] cursor-not-allowed shadow-none'
+                : 'bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white shadow-md'
             }`}
           >
             <Save className="w-3.5 h-3.5" />Guardar
@@ -4796,7 +4797,7 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
           whileHover={{ scale: 1.01 }} 
           whileTap={{ scale: 0.99 }} 
           onClick={() => setNumEvaluaciones((prev: number) => prev + 1)}
-          className="w-full py-4 border border-dashed border-[#313248] rounded-2xl text-sm text-[#8a8b9e] hover:bg-[#1f2035] hover:text-[#818cf8] hover:border-[#818cf8]/50 transition-all flex items-center justify-center gap-2 font-medium"
+          className="w-full py-4 border border-dashed border-[color:var(--c-313248)] rounded-2xl text-sm text-[color:var(--c-8a8b9e)] hover:bg-[color:var(--c-1f2035)] hover:text-[color:var(--c-818cf8)] hover:border-[color:var(--c-818cf8)]/50 transition-all flex items-center justify-center gap-2 font-medium"
         >
           <Plus className="w-4 h-4" /> Agregar Evaluación {numEvaluaciones + 1}
         </motion.button>
@@ -5739,23 +5740,23 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     const hecha = estado === 'hecha'; const descartada = estado === 'descartada'; const trabajando = estado === 'trabajando';
     const evs = evaluacionesActivas();
     const nombreEv = (n: number) => (evs[n - 1] ? `«${limpiarTexto(evs[n - 1].nombre)}»` : `#${n}`);
-    const marco = `mt-3 rounded-2xl border overflow-hidden transition-colors ${hecha ? 'border-emerald-500/30 bg-emerald-500/[0.05]' : descartada || estado === 'deshecha' ? 'border-[#2a2b3d] bg-[#191a26] opacity-60' : 'border-[#818cf8]/30 bg-[#1d1e33]'}`;
+    const marco = `mt-3 rounded-2xl border overflow-hidden transition-colors ${hecha ? 'border-emerald-500/30 bg-emerald-500/[0.05]' : descartada || estado === 'deshecha' ? 'border-[color:var(--c-2a2b3d)] bg-[color:var(--c-191a26)] opacity-60' : 'border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-1d1e33)]'}`;
     const botones = (principal: string, extra?: React.ReactNode) => !hecha && !descartada && estado !== 'deshecha' && (
-      <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 border-t border-[#2a2b3d] bg-[#191a26]/60">
-        <button type="button" disabled={trabajando} onClick={() => ejecutarAccion(msg.id, a)} className="h-8 px-3.5 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-60">
+      <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 border-t border-[color:var(--c-2a2b3d)] bg-[color:var(--c-191a26)]/60">
+        <button type="button" disabled={trabajando} onClick={() => ejecutarAccion(msg.id, a)} className="h-8 px-3.5 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-60">
           {trabajando ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}{trabajando ? 'Aplicando…' : principal}
         </button>
         {extra}
-        <button type="button" disabled={trabajando} onClick={() => descartarAccion(msg.id, a)} className="h-8 px-3 rounded-lg text-xs text-[#8a8b9e] hover:text-red-300 hover:bg-red-500/10 disabled:opacity-50">Descartar</button>
+        <button type="button" disabled={trabajando} onClick={() => descartarAccion(msg.id, a)} className="h-8 px-3 rounded-lg text-xs text-[color:var(--c-8a8b9e)] hover:text-red-300 hover:bg-red-500/10 disabled:opacity-50">Descartar</button>
         {a.resultado && <span className="w-full text-[11px] text-amber-300">{a.resultado}</span>}
       </div>
     );
     const deshecha = estado === 'deshecha';
     const puedeDeshacer = hecha && !!deshacerRef.current[a.id];
     const pie = (hecha || descartada || deshecha) && (
-      <div className={`px-3.5 py-2 text-[11px] border-t border-[#2a2b3d] flex items-center gap-1.5 ${hecha ? 'text-emerald-300' : 'text-[#7a7b90]'}`}>
+      <div className={`px-3.5 py-2 text-[11px] border-t border-[color:var(--c-2a2b3d)] flex items-center gap-1.5 ${hecha ? 'text-emerald-300' : 'text-[color:var(--c-7a7b90)]'}`}>
         {hecha ? <>{a.automatica ? <Sparkles className="w-3.5 h-3.5 text-amber-300" /> : <CheckCircle className="w-3.5 h-3.5" />}<span className="flex-1">{a.automatica ? 'Aplicado solo · ' : ''}{a.resultado || 'Aplicado'}</span></> : deshecha ? <><RotateCcw className="w-3.5 h-3.5" />{a.resultado || 'Deshecho'}</> : 'Descartada'}
-        {puedeDeshacer && <button type="button" onClick={() => deshacerAccion(msg.id, a)} className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-[#c0c0d0] hover:text-white hover:bg-[#272839]"><RotateCcw className="w-3 h-3" />Deshacer</button>}
+        {puedeDeshacer && <button type="button" onClick={() => deshacerAccion(msg.id, a)} className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-[color:var(--c-c0c0d0)] hover:text-[color:var(--c-blanco)] hover:bg-[color:var(--c-272839)]"><RotateCcw className="w-3 h-3" />Deshacer</button>}
       </div>
     );
     if (a.tipo === 'proponer_evaluaciones') {
@@ -5769,42 +5770,42 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       return (
         <div key={a.id} className={marco}>
           <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
-            <ClipboardList className="w-4 h-4 text-[#a5b4fc]" />
-            <span className="text-sm font-semibold text-[#e0e0ec]">Propuesta · {lista.length} evaluación{lista.length === 1 ? '' : 'es'}</span>
-            <span className="text-[11px] text-[#8a8b9e]">Sección {seccionActiva}</span>
+            <ClipboardList className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />
+            <span className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Propuesta · {lista.length} evaluación{lista.length === 1 ? '' : 'es'}</span>
+            <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Sección {seccionActiva}</span>
             <span className={`ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full border ${suma + otras === 100 ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : 'text-amber-300 border-amber-500/30 bg-amber-500/10'}`} title="Suma de pesos de la sección con esta propuesta">{suma + otras}%</span>
           </div>
-          <div className="divide-y divide-[#2a2b3d] border-t border-[#2a2b3d]">
+          <div className="divide-y divide-[color:var(--c-2a2b3d)] border-t border-[color:var(--c-2a2b3d)]">
             {lista.map((e, i) => (
               <details key={i} className={`group transition-opacity ${pendiente && excluidas.includes(i) ? 'opacity-45' : ''}`}>
-                <summary className="list-none cursor-pointer px-3.5 py-2.5 flex items-start gap-3 hover:bg-[#232438]/60">
+                <summary className="list-none cursor-pointer px-3.5 py-2.5 flex items-start gap-3 hover:bg-[color:var(--c-232438)]/60">
                   {pendiente && lista.length > 1 ? (
                     <input type="checkbox" checked={!excluidas.includes(i)} onClick={(ev) => ev.stopPropagation()} onChange={() => alternar(i)}
                       title={excluidas.includes(i) ? 'No se guardará: márcala para incluirla' : 'Se guardará: desmárcala para dejarla fuera'}
-                      aria-label={`Guardar «${e.nombre}»`} className="mt-1 w-4 h-4 accent-[#818cf8] cursor-pointer flex-shrink-0" />
+                      aria-label={`Guardar «${e.nombre}»`} className="mt-1 w-4 h-4 accent-[color:var(--c-818cf8)] cursor-pointer flex-shrink-0" />
                   ) : null}
-                  <span className="w-6 h-6 rounded-lg bg-[#818cf8]/15 text-[#a5b4fc] text-[11px] font-bold flex items-center justify-center flex-shrink-0">{e.numero}</span>
+                  <span className="w-6 h-6 rounded-lg bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-a5b4fc)] text-[11px] font-bold flex items-center justify-center flex-shrink-0">{e.numero}</span>
                   <span className="flex-1 min-w-0">
-                    <span className="block text-[13px] text-[#e0e0ec] font-medium leading-snug">{e.nombre}</span>
+                    <span className="block text-[13px] text-[color:var(--c-e0e0ec)] font-medium leading-snug">{e.nombre}</span>
                     <span className="flex flex-wrap gap-1 mt-1">
-                      {e.tipoActividad && <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-[#818cf8]/10 text-[#c7d2fe] border border-[#818cf8]/20">{e.tipoActividad}</span>}
-                      {e.enfoque && <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-[#272839] text-[#b0b0c4] border border-[#313248]">{e.enfoque}</span>}
+                      {e.tipoActividad && <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-c7d2fe)] border border-[color:var(--c-818cf8)]/20">{e.tipoActividad}</span>}
+                      {e.enfoque && <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-[color:var(--c-272839)] text-[color:var(--c-b0b0c4)] border border-[color:var(--c-313248)]">{e.enfoque}</span>}
                       {e.examenEnLinea && <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">Examen en línea</span>}
                     </span>
-                    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[#8a8b9e] mt-1">
+                    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[color:var(--c-8a8b9e)] mt-1">
                       <span>📅 {e.fecha ? new Date(`${e.fecha}T${e.hora || '08:00'}:00`).toLocaleString('es-VE', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'sin fecha'}</span>
                       {e.duracionMinutos ? <span>⏱️ {e.duracionMinutos} min</span> : null}
                       <span>👥 {(e.personasPorGrupo ?? 1) > 1 ? `${e.cantidadGrupos ? `${e.cantidadGrupos} grupos de ` : 'grupos de '}${e.personasPorGrupo}` : 'Individual'}</span>
                     </span>
                   </span>
-                  <span className="text-sm font-bold text-[#a5b4fc]">{e.peso ?? '–'}%</span>
-                  <ChevronDown className="w-4 h-4 text-[#6a6b7e] group-open:rotate-180 transition-transform mt-0.5" />
+                  <span className="text-sm font-bold text-[color:var(--c-a5b4fc)]">{e.peso ?? '–'}%</span>
+                  <ChevronDown className="w-4 h-4 text-[color:var(--c-6a6b7e)] group-open:rotate-180 transition-transform mt-0.5" />
                 </summary>
                 {e.descripcion && <div className="px-3.5 pb-3 sm:pl-[50px]"><DescripcionOrdenada texto={e.descripcion} compacta /></div>}
               </details>
             ))}
           </div>
-          {botones(lista.length > 1 && excluidas.length ? (elegidas.length ? `Guardar ${elegidas.length} de ${lista.length}` : 'Marca al menos una') : 'Guardar en el planificador', <button type="button" disabled={trabajando || !elegidas.length} onClick={() => ejecutarAccion(msg.id, a, 'ajustar')} title="La propuesta está en los formularios del planificador: ahí puedes cambiar lo que quieras y guardar" className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white disabled:opacity-50">Ver y ajustar en formularios</button>)}
+          {botones(lista.length > 1 && excluidas.length ? (elegidas.length ? `Guardar ${elegidas.length} de ${lista.length}` : 'Marca al menos una') : 'Guardar en el planificador', <button type="button" disabled={trabajando || !elegidas.length} onClick={() => ejecutarAccion(msg.id, a, 'ajustar')} title="La propuesta está en los formularios del planificador: ahí puedes cambiar lo que quieras y guardar" className="h-8 px-3 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] text-xs font-medium hover:text-[color:var(--c-blanco)] disabled:opacity-50">Ver y ajustar en formularios</button>)}
           {pie}
         </div>
       );
@@ -5814,26 +5815,26 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       const ver = !!a.datos?.verRespuestas;
       const total = preguntas.reduce((t, q) => t + (Number(q.puntos) || 0), 0);
       return (
-        <div key={a.id} className="mt-3 rounded-2xl border border-[#818cf8]/30 bg-[#1d1e33] overflow-hidden">
+        <div key={a.id} className="mt-3 rounded-2xl border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-1d1e33)] overflow-hidden">
           <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
-            <FileText className="w-4 h-4 text-[#a5b4fc]" />
-            <span className="text-sm font-semibold text-[#e0e0ec]">{preguntas.length} preguntas · {a.datos?.tema}</span>
-            {total > 0 && <span className="text-[11px] text-[#8a8b9e]">{textoPuntos(total)} pts</span>}
-            <button type="button" onClick={() => marcarAccion(msg.id, a.id, { datos: { ...a.datos, verRespuestas: !ver } })} className="ml-auto text-[11px] text-[#a5b4fc] hover:text-white">{ver ? 'Ocultar respuestas' : 'Ver respuestas'}</button>
+            <FileText className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />
+            <span className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">{preguntas.length} preguntas · {a.datos?.tema}</span>
+            {total > 0 && <span className="text-[11px] text-[color:var(--c-8a8b9e)]">{textoPuntos(total)} pts</span>}
+            <button type="button" onClick={() => marcarAccion(msg.id, a.id, { datos: { ...a.datos, verRespuestas: !ver } })} className="ml-auto text-[11px] text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-blanco)]">{ver ? 'Ocultar respuestas' : 'Ver respuestas'}</button>
           </div>
-          <ol className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[#2a2b3d] border-t border-[#2a2b3d]">
+          <ol className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[color:var(--c-2a2b3d)] border-t border-[color:var(--c-2a2b3d)]">
             {preguntas.map((q, i) => (
-              <li key={i} className="px-3.5 py-2.5 text-[13px] text-[#d0d0da]">
-                <div className="flex gap-2"><span className="text-[#6a6b7e] w-5 flex-shrink-0">{i + 1}.</span><span className="flex-1">{q.enunciado}</span><span className="text-[10px] text-[#8a8b9e] whitespace-nowrap">{TIPO_PREGUNTA[q.tipo] || q.tipo}{q.puntos ? ` · ${textoPuntos(q.puntos)}` : ''}</span></div>
-                {q.opciones?.length > 0 && <ul className="mt-1 ml-7 space-y-0.5 text-[12px] text-[#a8a9bc]">{q.opciones.map((o: string, k: number) => <li key={k}>{'abcdef'[k]}) {o}</li>)}</ul>}
+              <li key={i} className="px-3.5 py-2.5 text-[13px] text-[color:var(--c-d0d0da)]">
+                <div className="flex gap-2"><span className="text-[color:var(--c-6a6b7e)] w-5 flex-shrink-0">{i + 1}.</span><span className="flex-1">{q.enunciado}</span><span className="text-[10px] text-[color:var(--c-8a8b9e)] whitespace-nowrap">{TIPO_PREGUNTA[q.tipo] || q.tipo}{q.puntos ? ` · ${textoPuntos(q.puntos)}` : ''}</span></div>
+                {q.opciones?.length > 0 && <ul className="mt-1 ml-7 space-y-0.5 text-[12px] text-[color:var(--c-a8a9bc)]">{q.opciones.map((o: string, k: number) => <li key={k}>{'abcdef'[k]}) {o}</li>)}</ul>}
                 {ver && <p className="mt-1 ml-7 text-[12px] text-emerald-300">✔ {q.respuesta}</p>}
               </li>
             ))}
           </ol>
-          <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 border-t border-[#2a2b3d] bg-[#191a26]/60">
-            <button type="button" onClick={() => imprimirPreguntas(a)} className="h-8 px-3.5 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" />Imprimir o guardar PDF</button>
-            <button type="button" onClick={() => copiar(textoPreguntas(a, true), a.id)} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white flex items-center gap-1.5">{copiadoId === a.id ? <CheckCircle className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}Copiar</button>
-            <button type="button" onClick={() => descargarPreguntas(a)} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />.txt</button>
+          <div className="flex flex-wrap items-center gap-2 px-3.5 py-3 border-t border-[color:var(--c-2a2b3d)] bg-[color:var(--c-191a26)]/60">
+            <button type="button" onClick={() => imprimirPreguntas(a)} className="h-8 px-3.5 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" />Imprimir o guardar PDF</button>
+            <button type="button" onClick={() => copiar(textoPreguntas(a, true), a.id)} className="h-8 px-3 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] text-xs font-medium hover:text-[color:var(--c-blanco)] flex items-center gap-1.5">{copiadoId === a.id ? <CheckCircle className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}Copiar</button>
+            <button type="button" onClick={() => descargarPreguntas(a)} className="h-8 px-3 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] text-xs font-medium hover:text-[color:var(--c-blanco)] flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />.txt</button>
           </div>
         </div>
       );
@@ -5844,13 +5845,13 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
         <div key={a.id} className={marco}>
           <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
             <MessageCircle className="w-4 h-4 text-emerald-300" />
-            <span className="text-sm font-semibold text-[#e0e0ec]">{porCorreo() ? 'Mensaje para estudiantes' : 'WhatsApp para estudiantes'}</span>
-            <span className="text-[11px] text-[#8a8b9e] truncate">Para: {dest}</span>
+            <span className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">{porCorreo() ? 'Mensaje para estudiantes' : 'WhatsApp para estudiantes'}</span>
+            <span className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">Para: {dest}</span>
           </div>
           <div className="px-3.5 pb-3 space-y-2">
-            <textarea value={a.datos?.texto || ''} disabled={hecha || descartada || trabajando} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, texto: e.target.value.slice(0, 1200) } })} rows={4} className="w-full bg-[#191a26] border border-[#313248] rounded-xl px-3 py-2 text-[13px] text-[#e0e0ec] outline-none focus:border-[#818cf8]/60 resize-y disabled:opacity-70" />
-            <div className="flex items-center justify-between gap-2 text-[11px] text-[#8a8b9e]">
-              <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={a.datos?.incluirEnlace !== false} disabled={hecha || descartada} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, incluirEnlace: e.target.checked } })} className="w-3.5 h-3.5 accent-[#818cf8]" />Agregar el enlace a su página</label>
+            <textarea value={a.datos?.texto || ''} disabled={hecha || descartada || trabajando} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, texto: e.target.value.slice(0, 1200) } })} rows={4} className="w-full bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2 text-[13px] text-[color:var(--c-e0e0ec)] outline-none focus:border-[color:var(--c-818cf8)]/60 resize-y disabled:opacity-70" />
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[color:var(--c-8a8b9e)]">
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={a.datos?.incluirEnlace !== false} disabled={hecha || descartada} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, incluirEnlace: e.target.checked } })} className="w-3.5 h-3.5 accent-[color:var(--c-818cf8)]" />Agregar el enlace a su página</label>
               <span>{'{nombre}'} se cambia por el de cada uno</span>
             </div>
           </div>
@@ -5864,13 +5865,13 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       const editable = !hecha && !descartada && !trabajando;
       const cambiarFila = (i: number, campo: string, valor: string) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, estudiantes: filas.map((f, k) => (k === i ? { ...f, [campo]: valor } : f)) } });
       const quitarFila = (i: number) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, estudiantes: filas.filter((_, k) => k !== i) } });
-      const celda = 'w-full min-w-0 bg-[#191a26] border border-[#313248] rounded-lg px-2 py-1.5 text-[12px] text-[#e0e0ec] outline-none focus:border-[#818cf8]/60 disabled:opacity-70';
+      const celda = 'w-full min-w-0 bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-lg px-2 py-1.5 text-[12px] text-[color:var(--c-e0e0ec)] outline-none focus:border-[color:var(--c-818cf8)]/60 disabled:opacity-70';
       return (
         <div key={a.id} className={marco}>
           <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
-            <Users className="w-4 h-4 text-[#a5b4fc]" />
-            <span className="text-sm font-semibold text-[#e0e0ec]">Agregar {filas.length} estudiante{filas.length === 1 ? '' : 's'}</span>
-            <span className="text-[11px] text-[#8a8b9e]">Sección {a.datos?.seccion || seccionActiva}</span>
+            <Users className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />
+            <span className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Agregar {filas.length} estudiante{filas.length === 1 ? '' : 's'}</span>
+            <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Sección {a.datos?.seccion || seccionActiva}</span>
           </div>
           <div className="px-3.5 pb-3 space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar">
             {filas.map((f, i) => (
@@ -5878,7 +5879,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
                 <input value={f.nombre || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'nombre', e.target.value)} placeholder="Nombre" className={celda} />
                 <input value={f.email || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'email', e.target.value)} placeholder="correo@…" className={`${celda} ${!f.email ? 'border-amber-500/40' : ''}`} />
                 <input value={f.telefono || ''} disabled={!editable} onChange={(e) => cambiarFila(i, 'telefono', e.target.value)} placeholder="0412… (opcional)" className={`${celda} ${!f.telefono && !porCorreo() ? 'border-amber-500/40' : ''}`} />
-                {editable ? <button type="button" onClick={() => quitarFila(i)} aria-label="Quitar" className="p-1 text-[#6a6b7e] hover:text-red-300"><X className="w-3.5 h-3.5" /></button> : <span />}
+                {editable ? <button type="button" onClick={() => quitarFila(i)} aria-label="Quitar" className="p-1 text-[color:var(--c-6a6b7e)] hover:text-red-300"><X className="w-3.5 h-3.5" /></button> : <span />}
               </div>
             ))}
             {editable && filas.some(f => !f.email || (!f.telefono && !porCorreo())) && <p className="text-[11px] text-amber-300 pt-1">{porCorreo() ? 'Completa el correo que falta (marcado en amarillo).' : 'Completa el correo y el teléfono que faltan (marcados en amarillo).'}</p>}
@@ -5896,20 +5897,20 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       return (
         <div key={a.id} className={marco}>
           <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
-            <GraduationCap className="w-4 h-4 text-[#a5b4fc]" />
-            <span className="text-sm font-semibold text-[#e0e0ec]">Notas de {nombreEv(a.datos?.evaluacion)}</span>
-            <span className="text-[11px] text-[#8a8b9e]">{notas.length} · promedio {prom.toFixed(1)} · {notas.filter(n => Number(n.nota) >= 10).length} aprobados</span>
+            <GraduationCap className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />
+            <span className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Notas de {nombreEv(a.datos?.evaluacion)}</span>
+            <span className="text-[11px] text-[color:var(--c-8a8b9e)]">{notas.length} · promedio {prom.toFixed(1)} · {notas.filter(n => Number(n.nota) >= 10).length} aprobados</span>
           </div>
           <div className="px-3.5 pb-3 space-y-0.5 max-h-72 overflow-y-auto custom-scrollbar">
             {notas.map((n, i) => (
               <div key={i} className="flex items-center gap-2 text-[12px] py-0.5">
-                <span className="flex-1 truncate text-[#d0d0da]" title={n.observacion || undefined}>{n.nombre}{n.observacion ? ' 💬' : ''}</span>
-                <input value={n.nota} disabled={!editable} onChange={(e) => cambiarNota(i, e.target.value)} inputMode="decimal" className={`w-14 text-right bg-[#191a26] border border-[#313248] rounded-md px-1.5 py-1 font-semibold outline-none focus:border-[#818cf8]/60 disabled:opacity-80 ${Number(n.nota) >= 10 ? 'text-emerald-300' : 'text-red-300'}`} />
+                <span className="flex-1 truncate text-[color:var(--c-d0d0da)]" title={n.observacion || undefined}>{n.nombre}{n.observacion ? ' 💬' : ''}</span>
+                <input value={n.nota} disabled={!editable} onChange={(e) => cambiarNota(i, e.target.value)} inputMode="decimal" className={`w-14 text-right bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-md px-1.5 py-1 font-semibold outline-none focus:border-[color:var(--c-818cf8)]/60 disabled:opacity-80 ${Number(n.nota) >= 10 ? 'text-emerald-300' : 'text-red-300'}`} />
               </div>
             ))}
           </div>
-          <label className="px-3.5 pb-2 flex items-center gap-1.5 text-[11px] text-[#8a8b9e] cursor-pointer">
-            <input type="checkbox" checked={!!a.datos?.enviar} disabled={!editable} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, enviar: e.target.checked } })} className="w-3.5 h-3.5 accent-[#818cf8]" />Enviar a cada estudiante su nota por {medioEnvio()}
+          <label className="px-3.5 pb-2 flex items-center gap-1.5 text-[11px] text-[color:var(--c-8a8b9e)] cursor-pointer">
+            <input type="checkbox" checked={!!a.datos?.enviar} disabled={!editable} onChange={(e) => marcarAccion(msg.id, a.id, { datos: { ...a.datos, enviar: e.target.checked } })} className="w-3.5 h-3.5 accent-[color:var(--c-818cf8)]" />Enviar a cada estudiante su nota por {medioEnvio()}
           </label>
           {botones('Guardar notas')}
           {pie}
@@ -5923,31 +5924,31 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       return (
         <div key={a.id} className={marco}>
           <div className="px-3.5 py-2.5 flex items-center gap-2 flex-wrap">
-            <FileCheck className="w-4 h-4 text-[#a5b4fc]" />
-            <span className="text-sm font-semibold text-[#e0e0ec]">Examen en línea · {nombreEv(a.datos?.evaluacion)}</span>
-            <span className="text-[11px] text-[#8a8b9e]">{ex.preguntas.length} preguntas · {ex.duracionMin} min · {ex.modoCorreccion === 'automatica' ? 'corrección automática' : ex.modoCorreccion === 'profesor' ? 'corriges tú' : 'la IA sugiere, tú publicas'}</span>
-            <button type="button" onClick={() => marcarAccion(msg.id, a.id, { datos: { ...a.datos, verRespuestas: !ver } })} className="ml-auto text-[11px] text-[#a5b4fc] hover:text-white">{ver ? 'Ocultar respuestas' : 'Ver respuestas'}</button>
+            <FileCheck className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />
+            <span className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Examen en línea · {nombreEv(a.datos?.evaluacion)}</span>
+            <span className="text-[11px] text-[color:var(--c-8a8b9e)]">{ex.preguntas.length} preguntas · {ex.duracionMin} min · {ex.modoCorreccion === 'automatica' ? 'corrección automática' : ex.modoCorreccion === 'profesor' ? 'corriges tú' : 'la IA sugiere, tú publicas'}</span>
+            <button type="button" onClick={() => marcarAccion(msg.id, a.id, { datos: { ...a.datos, verRespuestas: !ver } })} className="ml-auto text-[11px] text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-blanco)]">{ver ? 'Ocultar respuestas' : 'Ver respuestas'}</button>
           </div>
-          {ex.instrucciones && <p className="px-3.5 pb-2 text-[12px] text-[#a8a9bc] italic">{ex.instrucciones}</p>}
-          <ol className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[#2a2b3d] border-t border-[#2a2b3d]">
+          {ex.instrucciones && <p className="px-3.5 pb-2 text-[12px] text-[color:var(--c-a8a9bc)] italic">{ex.instrucciones}</p>}
+          <ol className="max-h-80 overflow-y-auto custom-scrollbar divide-y divide-[color:var(--c-2a2b3d)] border-t border-[color:var(--c-2a2b3d)]">
             {ex.preguntas.map((q, i) => (
-              <li key={q.id} className="px-3.5 py-2.5 text-[13px] text-[#d0d0da]">
-                <div className="flex gap-2"><span className="text-[#6a6b7e] w-5 flex-shrink-0">{i + 1}.</span><span className="flex-1">{q.enunciado}</span><span className="text-[10px] text-[#8a8b9e] whitespace-nowrap">{TIPOS_PREGUNTA[q.tipo]} · {textoPuntos(q.puntos)} pts</span></div>
-                {q.tipo === 'seleccion' && <ul className="mt-1 ml-7 space-y-0.5 text-[12px]">{(q.opciones || []).map((o, k) => <li key={k} className={ver && k === q.correcta ? 'text-emerald-300 font-medium' : 'text-[#a8a9bc]'}>{'abcdef'[k]}) {o}{ver && k === q.correcta ? ' ✔' : ''}</li>)}</ul>}
+              <li key={q.id} className="px-3.5 py-2.5 text-[13px] text-[color:var(--c-d0d0da)]">
+                <div className="flex gap-2"><span className="text-[color:var(--c-6a6b7e)] w-5 flex-shrink-0">{i + 1}.</span><span className="flex-1">{q.enunciado}</span><span className="text-[10px] text-[color:var(--c-8a8b9e)] whitespace-nowrap">{TIPOS_PREGUNTA[q.tipo]} · {textoPuntos(q.puntos)} pts</span></div>
+                {q.tipo === 'seleccion' && <ul className="mt-1 ml-7 space-y-0.5 text-[12px]">{(q.opciones || []).map((o, k) => <li key={k} className={ver && k === q.correcta ? 'text-emerald-300 font-medium' : 'text-[color:var(--c-a8a9bc)]'}>{'abcdef'[k]}) {o}{ver && k === q.correcta ? ' ✔' : ''}</li>)}</ul>}
                 {q.tipo === 'vf' && ver && <p className="mt-1 ml-7 text-[12px] text-emerald-300">✔ {q.correcta === 1 ? 'Verdadero' : 'Falso'}</p>}
                 {(q.tipo === 'desarrollo' || q.tipo === 'informe') && ver && q.esperado && <p className="mt-1 ml-7 text-[12px] text-emerald-300">Se espera: {q.esperado}</p>}
               </li>
             ))}
           </ol>
-          {botones('Adjuntar a la evaluación', <button type="button" disabled={trabajando} onClick={() => { const s = evs[(a.datos?.evaluacion || 1) - 1]; if (!s) { marcarAccion(msg.id, a.id, { resultado: `⚠ No existe la evaluación #${a.datos?.evaluacion} en la Sección ${seccionActiva}.` }); return; } setExamenEditando({ msgId: msg.id, accion: a, seccion: s }); }} className="h-8 px-3 rounded-lg bg-[#232430] border border-[#313248] text-[#c0c0d0] text-xs font-medium hover:text-white disabled:opacity-50">Editar antes de adjuntar</button>)}
+          {botones('Adjuntar a la evaluación', <button type="button" disabled={trabajando} onClick={() => { const s = evs[(a.datos?.evaluacion || 1) - 1]; if (!s) { marcarAccion(msg.id, a.id, { resultado: `⚠ No existe la evaluación #${a.datos?.evaluacion} en la Sección ${seccionActiva}.` }); return; } setExamenEditando({ msgId: msg.id, accion: a, seccion: s }); }} className="h-8 px-3 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] text-xs font-medium hover:text-[color:var(--c-blanco)] disabled:opacity-50">Editar antes de adjuntar</button>)}
           {pie}
         </div>
       );
     }
     if (a.tipo === 'navegar') {
       return (
-        <div key={a.id} className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border border-[#818cf8]/25 bg-[#818cf8]/10 text-[#c7d2fe]">
-          <ExternalLink className="w-3 h-3" />{hecha ? (a.resultado || 'Listo') : <button type="button" onClick={() => ejecutarAccion(msg.id, a)} className="hover:text-white">Ir a {NOMBRE_VISTA[a.datos?.vista] || a.datos?.vista}{a.datos?.seccion ? ` · Sección ${a.datos.seccion}` : ''}</button>}
+        <div key={a.id} className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full border border-[color:var(--c-818cf8)]/25 bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-c7d2fe)]">
+          <ExternalLink className="w-3 h-3" />{hecha ? (a.resultado || 'Listo') : <button type="button" onClick={() => ejecutarAccion(msg.id, a)} className="hover:text-[color:var(--c-blanco)]">Ir a {NOMBRE_VISTA[a.datos?.vista] || a.datos?.vista}{a.datos?.seccion ? ` · Sección ${a.datos.seccion}` : ''}</button>}
         </div>
       );
     }
@@ -5972,8 +5973,8 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     return (
       <div key={a.id} className={marco}>
         <div className="px-3.5 py-3 flex items-start gap-3">
-          <span className="w-8 h-8 rounded-lg bg-[#818cf8]/15 flex items-center justify-center flex-shrink-0"><Icono className="w-4 h-4 text-[#a5b4fc]" /></span>
-          <span className="min-w-0"><span className="block text-sm font-semibold text-[#e0e0ec]">{d.titulo}</span><span className="block text-[12px] text-[#a8a9bc] mt-0.5 leading-snug">{d.detalle}</span></span>
+          <span className="w-8 h-8 rounded-lg bg-[color:var(--c-818cf8)]/15 flex items-center justify-center flex-shrink-0"><Icono className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></span>
+          <span className="min-w-0"><span className="block text-sm font-semibold text-[color:var(--c-e0e0ec)]">{d.titulo}</span><span className="block text-[12px] text-[color:var(--c-a8a9bc)] mt-0.5 leading-snug">{d.detalle}</span></span>
         </div>
         {botones(d.boton)}
         {pie}
@@ -5984,7 +5985,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   const ultimoAgenteId = [...historial].reverse().find(m => m.rol === 'agent')?.id;
 
   return (
-    <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} data-tutorial="agente" transition={{ duration: arrastrando ? 0 : 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[#282a3f] flex flex-col bg-[#191a26] overflow-hidden' : 'relative border-r border-[#282a3f] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[#191a26] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
+    <motion.div animate={esMovil ? { x: expandido ? 0 : '-100%' } : { width: expandido ? anchoChat : 0, opacity: expandido ? 1 : 0 }} data-tutorial="agente" transition={{ duration: arrastrando ? 0 : 0.4, ease: [0.25, 0.1, 0.25, 1] }} className={esMovil ? 'fixed inset-0 z-50 border-r border-[color:var(--c-282a3f)] flex flex-col bg-[color:var(--c-191a26)] overflow-hidden' : 'relative border-r border-[color:var(--c-282a3f)] flex flex-col self-stretch min-h-0 max-h-full flex-shrink-0 bg-[color:var(--c-191a26)] overflow-hidden'} style={esMovil ? { height: '100dvh', pointerEvents: expandido ? 'auto' : 'none' } : { minWidth: expandido ? anchoChat : 0 }} aria-hidden={!expandido}>
       {examenEditando && (
         <ModalExamen key={examenEditando.accion.id} evaluacion={examenEditando.seccion} inicial={examenEditando.accion.datos?.examen} notificar={agregarNotificacion}
           onCerrar={() => setExamenEditando(null)}
@@ -5997,47 +5998,47 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           }} />
       )}
       {/* Encabezado */}
-      <div className="flex-shrink-0 px-3 sm:px-5 py-3.5 border-b border-[#282a3f] flex items-center gap-3 bg-gradient-to-r from-[#191a26] to-[#1f2035] relative">
-        <div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center shadow-lg shadow-[#818cf8]/30"><Bot className="w-5 h-5 text-white" /></div><div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-[#191a26] flex items-center justify-center ${chatInactivo ? 'bg-[#6a6b7e]' : ocupado ? 'bg-amber-400' : 'bg-emerald-400'}`}><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div>
+      <div className="flex-shrink-0 px-3 sm:px-5 py-3.5 border-b border-[color:var(--c-282a3f)] flex items-center gap-3 bg-gradient-to-r from-[color:var(--c-191a26)] to-[color:var(--c-1f2035)] relative">
+        <div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] flex items-center justify-center shadow-lg shadow-[color:var(--c-818cf8)]/30"><Bot className="w-5 h-5 text-[color:var(--c-blanco)]" /></div><div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-[color:var(--c-191a26)] flex items-center justify-center ${chatInactivo ? 'bg-[color:var(--c-6a6b7e)]' : ocupado ? 'bg-amber-400' : 'bg-emerald-400'}`}><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div>
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-[#d0d0da] font-['Inter'] flex items-center gap-2 flex-wrap">EvaPlanner<span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">IA</span></h2>
-          <p className="text-xs text-[#8a8b9e] flex items-center gap-1.5 truncate"><span className={`w-1.5 h-1.5 rounded-full inline-block ${chatInactivo ? 'bg-[#6a6b7e]' : ocupado ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>{estadoTexto}<span className="text-[#5f6074]">· Sección {seccionActiva}</span></p>
+          <h2 className="text-sm font-semibold text-[color:var(--c-d0d0da)] font-['Inter'] flex items-center gap-2 flex-wrap">EvaPlanner<span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">IA</span></h2>
+          <p className="text-xs text-[color:var(--c-8a8b9e)] flex items-center gap-1.5 truncate"><span className={`w-1.5 h-1.5 rounded-full inline-block ${chatInactivo ? 'bg-[color:var(--c-6a6b7e)]' : ocupado ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>{estadoTexto}<span className="text-[color:var(--c-5f6074)]">· Sección {seccionActiva}</span></p>
         </div>
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-          <div data-tutorial="chat-herramientas" className="flex items-center gap-0.5 p-1 bg-[#161722]/80 border border-[#282a3f] rounded-xl">
-            <Tooltip text={modoAuto ? 'Modo automático: activado (las acciones seguras se aplican solas)' : 'Modo automático: desactivado (todo pide confirmación)'} lado="abajo"><button onClick={alternarModoAuto} aria-label="Modo automático" aria-pressed={modoAuto} className={`p-2 rounded-lg transition-colors ${modoAuto ? 'text-amber-300 bg-amber-400/15' : 'text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15'}`}><Sparkles className="w-4 h-4" /></button></Tooltip>
-            <Tooltip text="Revisar mi plan (nota y mejoras)" lado="abajo"><button onClick={revisarPlan} disabled={ocupado || chatInactivo || evaluacionesActivas().length === 0} aria-label="Revisar mi plan" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-transparent"><ClipboardCheck className="w-4 h-4" /></button></Tooltip>
-            <Tooltip text="Nueva conversación" lado="abajo"><button onClick={nuevaConversacion} aria-label="Nueva conversación" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button></Tooltip>
-            <Tooltip text="Conversaciones anteriores" lado="abajo"><button onClick={() => { const abrir = !verHistorial; setVerHistorial(abrir); if (abrir) cargarConversaciones(); }} aria-label="Conversaciones anteriores" className={`p-2 rounded-lg transition-colors ${verHistorial ? 'text-[#c7d2fe] bg-[#818cf8]/15' : 'text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15'}`}><History className="w-4 h-4" /></button></Tooltip>
-            {esSuperadmin && (<Tooltip text="Configuración del agente" lado="abajo"><button onClick={() => irAPanel('sistema')} aria-label="Configuración del agente" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Settings className="w-4 h-4" /></button></Tooltip>)}
-            <Tooltip text="Planificador de evaluaciones" lado="abajo"><button onClick={() => irAPanel('planificacion')} aria-label="Planificador de evaluaciones" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><ClipboardList className="w-4 h-4" /></button></Tooltip>
+          <div data-tutorial="chat-herramientas" className="flex items-center gap-0.5 p-1 bg-[color:var(--c-161722)]/80 border border-[color:var(--c-282a3f)] rounded-xl">
+            <Tooltip text={modoAuto ? 'Modo automático: activado (las acciones seguras se aplican solas)' : 'Modo automático: desactivado (todo pide confirmación)'} lado="abajo"><button onClick={alternarModoAuto} aria-label="Modo automático" aria-pressed={modoAuto} className={`p-2 rounded-lg transition-colors ${modoAuto ? 'text-amber-300 bg-amber-400/15' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15'}`}><Sparkles className="w-4 h-4" /></button></Tooltip>
+            <Tooltip text="Revisar mi plan (nota y mejoras)" lado="abajo"><button onClick={revisarPlan} disabled={ocupado || chatInactivo || evaluacionesActivas().length === 0} aria-label="Revisar mi plan" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-transparent"><ClipboardCheck className="w-4 h-4" /></button></Tooltip>
+            <Tooltip text="Nueva conversación" lado="abajo"><button onClick={nuevaConversacion} aria-label="Nueva conversación" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button></Tooltip>
+            <Tooltip text="Conversaciones anteriores" lado="abajo"><button onClick={() => { const abrir = !verHistorial; setVerHistorial(abrir); if (abrir) cargarConversaciones(); }} aria-label="Conversaciones anteriores" className={`p-2 rounded-lg transition-colors ${verHistorial ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/15' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15'}`}><History className="w-4 h-4" /></button></Tooltip>
+            {esSuperadmin && (<Tooltip text="Configuración del agente" lado="abajo"><button onClick={() => irAPanel('sistema')} aria-label="Configuración del agente" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><Settings className="w-4 h-4" /></button></Tooltip>)}
+            <Tooltip text="Planificador de evaluaciones" lado="abajo"><button onClick={() => irAPanel('planificacion')} aria-label="Planificador de evaluaciones" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><ClipboardList className="w-4 h-4" /></button></Tooltip>
           </div>
-          <Tooltip text={esMovil ? 'Ocultar chat' : 'Ocultar chat (Ctrl+B)'} lado="abajo" alinear="derecha"><motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={() => setExpandido(false)} aria-label="Ocultar el chat" className="group/ocultar w-9 h-9 flex items-center justify-center rounded-xl border border-[#818cf8]/25 bg-gradient-to-br from-[#818cf8]/15 to-[#6366f1]/5 text-[#a5b4fc] hover:text-white hover:border-[#818cf8]/60 hover:from-[#818cf8]/40 hover:to-[#6366f1]/25 hover:shadow-lg hover:shadow-[#818cf8]/25 transition-all"><PanelLeftClose className="w-[18px] h-[18px] transition-transform duration-200 group-hover/ocultar:-translate-x-0.5" /></motion.button></Tooltip>
+          <Tooltip text={esMovil ? 'Ocultar chat' : 'Ocultar chat (Ctrl+B)'} lado="abajo" alinear="derecha"><motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={() => setExpandido(false)} aria-label="Ocultar el chat" className="group/ocultar w-9 h-9 flex items-center justify-center rounded-xl border border-[color:var(--c-818cf8)]/25 bg-gradient-to-br from-[color:var(--c-818cf8)]/15 to-[color:var(--c-6366f1)]/5 text-[color:var(--c-a5b4fc)] hover:text-white hover:border-[color:var(--c-818cf8)]/60 hover:from-[color:var(--c-818cf8)]/40 hover:to-[color:var(--c-6366f1)]/25 hover:shadow-lg hover:shadow-[color:var(--c-818cf8)]/25 transition-all"><PanelLeftClose className="w-[18px] h-[18px] transition-transform duration-200 group-hover/ocultar:-translate-x-0.5" /></motion.button></Tooltip>
         </div>
         {/* Historial de conversaciones */}
         <AnimatePresence>
           {verHistorial && (
-            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="absolute right-3 top-full mt-2 z-30 w-[320px] max-w-[calc(100%-24px)] max-h-[60vh] overflow-y-auto custom-scrollbar bg-[#1c1d2a] border border-[#313248] rounded-2xl shadow-2xl p-2">
-              <button type="button" onClick={nuevaConversacion} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-[#c7d2fe] hover:bg-[#818cf8]/10"><Plus className="w-4 h-4" />Nueva conversación</button>
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="absolute right-3 top-full mt-2 z-30 w-[320px] max-w-[calc(100%-24px)] max-h-[60vh] overflow-y-auto custom-scrollbar bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl p-2">
+              <button type="button" onClick={nuevaConversacion} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10"><Plus className="w-4 h-4" />Nueva conversación</button>
               {memorias && memorias.length > 0 && (
                 <div className="mb-1">
-                  <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[#6a6b7e] font-semibold flex items-center gap-1.5"><Brain className="w-3 h-3" />Lo que recuerdo de ti</p>
+                  <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)] font-semibold flex items-center gap-1.5"><Brain className="w-3 h-3" />Lo que recuerdo de ti</p>
                   {memorias.map(m => (
-                    <div key={m.id} className="group flex items-start gap-2 px-3 py-1.5 rounded-lg hover:bg-[#232438]">
-                      <span className="flex-1 text-[12px] text-[#b0b0c4]">{m.texto}</span>
-                      <button type="button" onClick={() => olvidarMemoria(m.id)} className="p-0.5 text-[#6a6b7e] hover:text-red-300 opacity-0 group-hover:opacity-100" aria-label="Olvidar"><X className="w-3 h-3" /></button>
+                    <div key={m.id} className="group flex items-start gap-2 px-3 py-1.5 rounded-lg hover:bg-[color:var(--c-232438)]">
+                      <span className="flex-1 text-[12px] text-[color:var(--c-b0b0c4)]">{m.texto}</span>
+                      <button type="button" onClick={() => olvidarMemoria(m.id)} className="p-0.5 text-[color:var(--c-6a6b7e)] hover:text-red-300 opacity-0 group-hover:opacity-100" aria-label="Olvidar"><X className="w-3 h-3" /></button>
                     </div>
                   ))}
                 </div>
               )}
-              <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[#6a6b7e] font-semibold">Anteriores</p>
-              {conversaciones === null && <p className="px-3 py-4 text-xs text-[#8a8b9e]">Cargando…</p>}
-              {conversaciones?.length === 0 && <p className="px-3 py-4 text-xs text-[#8a8b9e]">Todavía no hay conversaciones guardadas.</p>}
+              <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)] font-semibold">Anteriores</p>
+              {conversaciones === null && <p className="px-3 py-4 text-xs text-[color:var(--c-8a8b9e)]">Cargando…</p>}
+              {conversaciones?.length === 0 && <p className="px-3 py-4 text-xs text-[color:var(--c-8a8b9e)]">Todavía no hay conversaciones guardadas.</p>}
               {conversaciones?.map(c => (
-                <div key={c.id} className={`group flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer ${c.id === conversacionId ? 'bg-[#818cf8]/10' : 'hover:bg-[#232438]'}`} onClick={() => abrirConversacion(c.id)}>
-                  <MessageSquare className="w-3.5 h-3.5 text-[#6a6b7e] flex-shrink-0" />
-                  <span className="flex-1 min-w-0"><span className="block text-[13px] text-[#d0d0da] truncate">{c.titulo}</span><span className="block text-[10px] text-[#6a6b7e]">{haceCuanto(c.fecha, Date.now())} · {c.mensajes} mensajes</span></span>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); borrarConversacion(c.id); }} className="p-1 rounded-md text-[#6a6b7e] hover:text-red-300 opacity-0 group-hover:opacity-100" aria-label="Borrar conversación"><Trash2 className="w-3.5 h-3.5" /></button>
+                <div key={c.id} className={`group flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer ${c.id === conversacionId ? 'bg-[color:var(--c-818cf8)]/10' : 'hover:bg-[color:var(--c-232438)]'}`} onClick={() => abrirConversacion(c.id)}>
+                  <MessageSquare className="w-3.5 h-3.5 text-[color:var(--c-6a6b7e)] flex-shrink-0" />
+                  <span className="flex-1 min-w-0"><span className="block text-[13px] text-[color:var(--c-d0d0da)] truncate">{c.titulo}</span><span className="block text-[10px] text-[color:var(--c-6a6b7e)]">{haceCuanto(c.fecha, Date.now())} · {c.mensajes} mensajes</span></span>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); borrarConversacion(c.id); }} className="p-1 rounded-md text-[color:var(--c-6a6b7e)] hover:text-red-300 opacity-0 group-hover:opacity-100" aria-label="Borrar conversación"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               ))}
             </motion.div>
@@ -6049,26 +6050,26 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       {!isChatStarted ? (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-5 py-6 custom-scrollbar">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="flex flex-col items-center text-center w-full max-w-md">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#818cf8]/20 to-[#6366f1]/20 flex items-center justify-center border-2 border-[#818cf8]/30 mb-5 shadow-2xl shadow-[#818cf8]/20"><Sparkle className="w-9 h-9 text-[#818cf8]" /></div>
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[color:var(--c-818cf8)]/20 to-[color:var(--c-6366f1)]/20 flex items-center justify-center border-2 border-[color:var(--c-818cf8)]/30 mb-5 shadow-2xl shadow-[color:var(--c-818cf8)]/20"><Sparkle className="w-9 h-9 text-[color:var(--c-818cf8)]" /></div>
             {avisos && avisos.length > 0 && (
               <div className="w-full mb-6 text-left">
-                <p className="text-[11px] uppercase tracking-wider text-[#8a8b9e] font-semibold mb-2 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" />Pendientes de hoy</p>
+                <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold mb-2 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" />Pendientes de hoy</p>
                 <div className="space-y-1.5">
                   {avisos.map((av, i) => (
-                    <button key={i} type="button" disabled={chatInactivo} onClick={() => { if (av.seccion && av.seccion !== seccionActiva) onCambiarSeccion?.(av.seccion); handleSend(av.pedido); }} className={`w-full flex items-start gap-2.5 text-left px-3 py-2.5 rounded-xl border text-[13px] transition-colors disabled:opacity-50 ${av.urgente ? 'bg-amber-500/[0.07] border-amber-500/30 hover:border-amber-400/60' : 'bg-[#1f2035] border-[#313248] hover:border-[#818cf8]/50'}`}>
-                      <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${av.urgente ? 'bg-amber-400' : 'bg-[#818cf8]'}`} />
-                      <span className="flex-1 min-w-0"><span className="block text-[#d0d0da]">{av.texto}</span><span className="block text-[11px] text-[#a5b4fc] mt-0.5">{av.pedido} →</span></span>
+                    <button key={i} type="button" disabled={chatInactivo} onClick={() => { if (av.seccion && av.seccion !== seccionActiva) onCambiarSeccion?.(av.seccion); handleSend(av.pedido); }} className={`w-full flex items-start gap-2.5 text-left px-3 py-2.5 rounded-xl border text-[13px] transition-colors disabled:opacity-50 ${av.urgente ? 'bg-amber-500/[0.07] border-amber-500/30 hover:border-amber-400/60' : 'bg-[color:var(--c-1f2035)] border-[color:var(--c-313248)] hover:border-[color:var(--c-818cf8)]/50'}`}>
+                      <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${av.urgente ? 'bg-amber-400' : 'bg-[color:var(--c-818cf8)]'}`} />
+                      <span className="flex-1 min-w-0"><span className="block text-[color:var(--c-d0d0da)]">{av.texto}</span><span className="block text-[11px] text-[color:var(--c-a5b4fc)] mt-0.5">{av.pedido} →</span></span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
-            <h1 className="text-xl font-bold text-[#d0d0da] font-['Inter'] mb-1.5">¿Qué evaluamos hoy?</h1>
-            <p className="text-sm text-[#8a8b9e] font-['Inter'] mb-5">Veo tu plan de la Sección {seccionActiva}: puedo crear evaluaciones, rúbricas, buscar recursos, mover fechas o revisar cómo va el grupo.</p>
+            <h1 className="text-xl font-bold text-[color:var(--c-d0d0da)] font-['Inter'] mb-1.5">¿Qué evaluamos hoy?</h1>
+            <p className="text-sm text-[color:var(--c-8a8b9e)] font-['Inter'] mb-5">Veo tu plan de la Sección {seccionActiva}: puedo crear evaluaciones, rúbricas, buscar recursos, mover fechas o revisar cómo va el grupo.</p>
             <div className="grid gap-2 w-full">
               {sugerencias.map((s, i) => { const I = s.icono; return (
-                <button key={i} type="button" disabled={chatInactivo} onClick={() => (s.accion ? s.accion() : handleSend(s.texto))} className="flex items-center gap-3 text-left px-4 py-3 rounded-xl bg-[#1f2035] border border-[#313248] hover:border-[#818cf8]/50 hover:bg-[#232438] text-sm text-[#d0d0da] transition-colors disabled:opacity-50">
-                  <I className="w-4 h-4 text-[#a5b4fc] flex-shrink-0" />{s.texto}
+                <button key={i} type="button" disabled={chatInactivo} onClick={() => (s.accion ? s.accion() : handleSend(s.texto))} className="flex items-center gap-3 text-left px-4 py-3 rounded-xl bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] hover:border-[color:var(--c-818cf8)]/50 hover:bg-[color:var(--c-232438)] text-sm text-[color:var(--c-d0d0da)] transition-colors disabled:opacity-50">
+                  <I className="w-4 h-4 text-[color:var(--c-a5b4fc)] flex-shrink-0" />{s.texto}
                 </button>
               ); })}
             </div>
@@ -6080,26 +6081,26 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
             <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.rol === 'agent' ? (
                 <div className="group/msg flex items-start gap-3 w-full max-w-[94%]">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.streaming ? 'eva-anillo' : ''} ${msg.error ? 'bg-amber-500/20' : 'bg-gradient-to-br from-[#818cf8] to-[#6366f1] shadow-[#818cf8]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-white'}`} /></div>
-                  <div className="flex-1 min-w-0 text-[15px] text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.streaming ? 'eva-anillo' : ''} ${msg.error ? 'bg-amber-500/20' : 'bg-gradient-to-br from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] shadow-[color:var(--c-818cf8)]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-[color:var(--c-blanco)]'}`} /></div>
+                  <div className="flex-1 min-w-0 text-[15px] text-[color:var(--c-c0c0cc)] leading-relaxed pt-0.5 font-['Inter']">
                     {msg.contenido && textoVisible(msg) && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(textoVisible(msg)) }} />{msg.streaming && <span className="eva-escribe" aria-label="Escribiendo"><i /><i /><i /></span>}</div>}
                     {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="eva-brillo text-sm">Pensando…</span>}
                     {msg.consultas?.length ? (
                       <div className="mb-1.5 flex flex-wrap gap-1.5">
-                        {msg.consultas.map((c, i) => <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#232438] border border-[#313248] text-[#8a8b9e]"><Search className="w-3 h-3" />{/^(preparando|corrigiendo|aplicando|cuadrando|buscando)/.test(c) ? c.charAt(0).toUpperCase() + c.slice(1) : `Revisé ${c}`}</span>)}
+                        {msg.consultas.map((c, i) => <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[color:var(--c-232438)] border border-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)]"><Search className="w-3 h-3" />{/^(preparando|corrigiendo|aplicando|cuadrando|buscando)/.test(c) ? c.charAt(0).toUpperCase() + c.slice(1) : `Revisé ${c}`}</span>)}
                       </div>
                     ) : null}
                     {msg.fuentes?.length ? (
                       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] text-[#8a8b9e]">Temas actuales según:</span>
-                        {msg.fuentes.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#1e2a3a] border border-[#2c4a66] text-[#93c5fd] hover:text-white hover:border-[#60a5fa] max-w-[200px]"><ExternalLink className="w-3 h-3 flex-shrink-0" /><span className="truncate">{f.titulo}</span></a>)}
+                        <span className="text-[10px] text-[color:var(--c-8a8b9e)]">Temas actuales según:</span>
+                        {msg.fuentes.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[color:var(--c-1e2a3a)] border border-[color:var(--c-2c4a66)] text-[color:var(--c-93c5fd)] hover:text-[color:var(--c-blanco)] hover:border-[color:var(--c-60a5fa)] max-w-[200px]"><ExternalLink className="w-3 h-3 flex-shrink-0" /><span className="truncate">{f.titulo}</span></a>)}
                       </div>
                     ) : null}
                     {msg.acciones?.map(a => renderAccion(msg, a))}
                     {(() => {
                       const pendientes = (msg.acciones || []).filter(a => (a.estado || 'pendiente') === 'pendiente' && !FUERA_DE_APLICAR_TODO.includes(a.tipo));
                       return pendientes.length >= 2 && !msg.streaming ? (
-                        <button type="button" onClick={() => aplicarTodo(msg)} className="mt-3 w-full h-10 rounded-xl bg-gradient-to-r from-[#818cf8] to-[#6366f1] hover:from-[#6366f1] hover:to-[#4f46e5] text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-[#818cf8]/20">
+                        <button type="button" onClick={() => aplicarTodo(msg)} className="mt-3 w-full h-10 rounded-xl bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] hover:from-[color:var(--c-6366f1)] hover:to-[color:var(--c-4f46e5)] text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-[color:var(--c-818cf8)]/20">
                           <CheckCircle className="w-4 h-4" />Aplicar todo ({pendientes.length})
                         </button>
                       ) : null;
@@ -6107,26 +6108,26 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
                     {msg.aviso && <p className="mt-2 text-[11px] text-amber-300">{msg.aviso}</p>}
                     {msg.completo && !msg.error && (
                       <div className={`mt-1.5 flex items-center gap-1 transition-opacity ${msg.id === ultimoAgenteId || msg.valoracion || leyendoId === msg.id ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}>
-                        {msg.contenido && <Tooltip text={copiadoId === msg.id ? '¡Copiado!' : 'Copiar'}><button type="button" onClick={() => copiar(msg.contenido, msg.id)} className="p-1.5 rounded-md text-[#6a6b7e] hover:text-[#c7d2fe] hover:bg-[#232438]">{copiadoId === msg.id ? <CheckCircle className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}</button></Tooltip>}
-                        {msg.id === ultimoAgenteId && <Tooltip text="Responder de nuevo"><button type="button" onClick={regenerar} disabled={ocupado} className="p-1.5 rounded-md text-[#6a6b7e] hover:text-[#c7d2fe] hover:bg-[#232438] disabled:opacity-40"><RotateCcw className="w-3.5 h-3.5" /></button></Tooltip>}
-                        {msg.contenido && <Tooltip text={leyendoId === msg.id ? 'Detener lectura' : 'Leer en voz alta'}><button type="button" onClick={() => leerEnVoz(msg)} className={`p-1.5 rounded-md hover:bg-[#232438] ${leyendoId === msg.id ? 'text-[#a5b4fc]' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}>{leyendoId === msg.id ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}</button></Tooltip>}
-                        <Tooltip text="Buena respuesta (EvaPlanner repetirá este estilo)"><button type="button" onClick={() => valorar(msg, 1)} className={`p-1.5 rounded-md hover:bg-[#232438] ${msg.valoracion === 1 ? 'text-emerald-300' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}><ThumbsUp className="w-3.5 h-3.5" /></button></Tooltip>
-                        <Tooltip text="Mala respuesta (EvaPlanner evitará este estilo)"><button type="button" onClick={() => valorar(msg, -1)} className={`p-1.5 rounded-md hover:bg-[#232438] ${msg.valoracion === -1 ? 'text-red-300' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}><ThumbsDown className="w-3.5 h-3.5" /></button></Tooltip>
+                        {msg.contenido && <Tooltip text={copiadoId === msg.id ? '¡Copiado!' : 'Copiar'}><button type="button" onClick={() => copiar(msg.contenido, msg.id)} className="p-1.5 rounded-md text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-232438)]">{copiadoId === msg.id ? <CheckCircle className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}</button></Tooltip>}
+                        {msg.id === ultimoAgenteId && <Tooltip text="Responder de nuevo"><button type="button" onClick={regenerar} disabled={ocupado} className="p-1.5 rounded-md text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-232438)] disabled:opacity-40"><RotateCcw className="w-3.5 h-3.5" /></button></Tooltip>}
+                        {msg.contenido && <Tooltip text={leyendoId === msg.id ? 'Detener lectura' : 'Leer en voz alta'}><button type="button" onClick={() => leerEnVoz(msg)} className={`p-1.5 rounded-md hover:bg-[color:var(--c-232438)] ${leyendoId === msg.id ? 'text-[color:var(--c-a5b4fc)]' : 'text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-c7d2fe)]'}`}>{leyendoId === msg.id ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}</button></Tooltip>}
+                        <Tooltip text="Buena respuesta (EvaPlanner repetirá este estilo)"><button type="button" onClick={() => valorar(msg, 1)} className={`p-1.5 rounded-md hover:bg-[color:var(--c-232438)] ${msg.valoracion === 1 ? 'text-emerald-300' : 'text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-c7d2fe)]'}`}><ThumbsUp className="w-3.5 h-3.5" /></button></Tooltip>
+                        <Tooltip text="Mala respuesta (EvaPlanner evitará este estilo)"><button type="button" onClick={() => valorar(msg, -1)} className={`p-1.5 rounded-md hover:bg-[color:var(--c-232438)] ${msg.valoracion === -1 ? 'text-red-300' : 'text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-c7d2fe)]'}`}><ThumbsDown className="w-3.5 h-3.5" /></button></Tooltip>
                         {agradecidoId === msg.id ? <span className="text-[10px] text-emerald-300 ml-1">¡Gracias! Lo tendré en cuenta en mis próximas respuestas</span>
-                          : msg.modelo && <span className="text-[10px] text-[#5f6074] ml-1">{msg.respaldo ? 'respaldo · ' : ''}{msg.modelo}</span>}
+                          : msg.modelo && <span className="text-[10px] text-[color:var(--c-5f6074)] ml-1">{msg.respaldo ? 'respaldo · ' : ''}{msg.modelo}</span>}
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
-                <div className="max-w-[85%] px-4 py-2.5 bg-[#818cf8]/10 text-[#d8d8e2] rounded-2xl rounded-br-md text-[15px] leading-relaxed font-['Inter'] border border-[#818cf8]/20">{msg.adjunto && <span className="flex items-center gap-1.5 mb-1.5 text-[12px] text-[#c7d2fe] bg-[#818cf8]/15 rounded-lg px-2 py-1 w-fit"><Paperclip className="w-3.5 h-3.5" />{msg.adjunto}</span>}<span className="whitespace-pre-wrap break-words">{msg.contenido}</span></div>
+                <div className="max-w-[85%] px-4 py-2.5 bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-d8d8e2)] rounded-2xl rounded-br-md text-[15px] leading-relaxed font-['Inter'] border border-[color:var(--c-818cf8)]/20">{msg.adjunto && <span className="flex items-center gap-1.5 mb-1.5 text-[12px] text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/15 rounded-lg px-2 py-1 w-fit"><Paperclip className="w-3.5 h-3.5" />{msg.adjunto}</span>}<span className="whitespace-pre-wrap break-words">{msg.contenido}</span></div>
               )}
             </motion.div>
           ))}
           {pensando && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3 justify-start">
-              <div className="eva-anillo w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div>
-              <div className="px-4 py-2.5 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-2.5 mt-0.5"><span className="eva-escribe !ml-0" aria-hidden="true"><i /><i /><i /></span><FrasePensando /></div>
+              <div className="eva-anillo w-8 h-8 rounded-lg bg-gradient-to-br from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] flex items-center justify-center flex-shrink-0 shadow-md shadow-[color:var(--c-818cf8)]/20"><Bot className="w-4 h-4 text-[color:var(--c-blanco)]" /></div>
+              <div className="px-4 py-2.5 bg-[color:var(--c-1f2035)] rounded-2xl rounded-tl-md border border-[color:var(--c-313248)] flex items-center gap-2.5 mt-0.5"><span className="eva-escribe !ml-0" aria-hidden="true"><i /><i /><i /></span><FrasePensando /></div>
             </motion.div>
           )}
           <div ref={chatEndRef} />
@@ -6134,44 +6135,44 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       )}
 
       {/* Entrada */}
-      <div className="flex-shrink-0 px-3 sm:px-5 pt-2 pb-3 sm:pb-4 border-t border-[#282a3f] bg-gradient-to-t from-[#161722] to-transparent">
+      <div className="flex-shrink-0 px-3 sm:px-5 pt-2 pb-3 sm:pb-4 border-t border-[color:var(--c-282a3f)] bg-gradient-to-t from-[color:var(--c-161722)] to-transparent">
         {isChatStarted && !ocupado && !chatInactivo && sugerencias.length > 0 && (
           <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1 custom-scrollbar">
             {sugerencias.map((s, i) => { const I = s.icono; return (
-              <button key={i} type="button" onClick={() => (s.accion ? s.accion() : handleSend(s.texto))} className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-full bg-[#1f2035] border border-[#313248] text-xs text-[#b0b0c4] hover:text-white hover:border-[#818cf8]/50 transition-colors"><I className="w-3.5 h-3.5 text-[#a5b4fc]" />{s.texto}</button>
+              <button key={i} type="button" onClick={() => (s.accion ? s.accion() : handleSend(s.texto))} className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-full bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] text-xs text-[color:var(--c-b0b0c4)] hover:text-[color:var(--c-blanco)] hover:border-[color:var(--c-818cf8)]/50 transition-colors"><I className="w-3.5 h-3.5 text-[color:var(--c-a5b4fc)]" />{s.texto}</button>
             ); })}
           </div>
         )}
         {(adjunto || subiendoAdjunto) && (
-          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[#818cf8]/10 border border-[#818cf8]/30 text-xs text-[#c7d2fe]">
-            {subiendoAdjunto ? <span className="w-3.5 h-3.5 border-2 border-[#a5b4fc]/40 border-t-[#a5b4fc] rounded-full animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 text-xs text-[color:var(--c-c7d2fe)]">
+            {subiendoAdjunto ? <span className="w-3.5 h-3.5 border-2 border-[color:var(--c-a5b4fc)]/40 border-t-[color:var(--c-a5b4fc)] rounded-full animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
             <span className="truncate flex-1">{subiendoAdjunto ? 'Leyendo el documento…' : `${adjunto!.nombre} · ${adjunto!.texto.length.toLocaleString('es-VE')} caracteres${adjunto!.recortado ? ' (recortado)' : ''}`}</span>
-            {adjunto && <button type="button" onClick={() => setAdjunto(null)} className="p-0.5 text-[#8a8b9e] hover:text-white" aria-label="Quitar documento"><X className="w-3.5 h-3.5" /></button>}
+            {adjunto && <button type="button" onClick={() => setAdjunto(null)} className="p-0.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]" aria-label="Quitar documento"><X className="w-3.5 h-3.5" /></button>}
           </div>
         )}
         <div className="relative" data-tutorial="chat-entrada">
-          <div className={`@container relative flex items-end gap-1.5 bg-[#1f2035] border rounded-2xl px-2 py-1.5 transition-colors shadow-lg shadow-black/20 ${isRecording ? 'border-[#8b5cf6]/60 shadow-[#8b5cf6]/10' : 'border-[#313248] focus-within:border-[#818cf8]/60'}`}>
-            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar documento" title="Adjuntar documento: programa de la materia, guía… (PDF, Word, .txt)" className="w-10 h-10 flex items-center justify-center text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
+          <div className={`@container relative flex items-end gap-1.5 bg-[color:var(--c-1f2035)] border rounded-2xl px-2 py-1.5 transition-colors shadow-lg shadow-black/20 ${isRecording ? 'border-[color:var(--c-8b5cf6)]/60 shadow-[color:var(--c-8b5cf6)]/10' : 'border-[color:var(--c-313248)] focus-within:border-[color:var(--c-818cf8)]/60'}`}>
+            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar documento" title="Adjuntar documento: programa de la materia, guía… (PDF, Word, .txt)" className="w-10 h-10 flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-272839)] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
             <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.docx,.txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} />
-            <Tooltip text={isRecording ? 'Terminar y transcribir' : 'Hablar (se detiene solo tras 5 s de silencio)'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo || chatInactivo} aria-label={isRecording ? 'Terminar grabación' : 'Hablar'} className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-[#ddd6fe] bg-[#8b5cf6]/20 ring-1 ring-[#8b5cf6]/50 hover:bg-[#8b5cf6]/30' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-[#818cf8]/30 border-t-[#a5b4fc] rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3.5 h-3.5 bg-[#a78bfa] rounded-[3px]"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
-            <div className="flex-1 min-w-0 relative self-stretch flex items-end"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo tu audio…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="block w-full bg-transparent text-[15px] leading-[22px] text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-[9px] font-['Inter'] min-h-[40px] max-h-[128px] overflow-y-auto custom-scrollbar [overflow-wrap:anywhere] disabled:opacity-60" />
+            <Tooltip text={isRecording ? 'Terminar y transcribir' : 'Hablar (se detiene solo tras 5 s de silencio)'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo || chatInactivo} aria-label={isRecording ? 'Terminar grabación' : 'Hablar'} className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-[color:var(--c-ddd6fe)] bg-[color:var(--c-8b5cf6)]/20 ring-1 ring-[color:var(--c-8b5cf6)]/50 hover:bg-[color:var(--c-8b5cf6)]/30' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-272839)]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-[color:var(--c-818cf8)]/30 border-t-[color:var(--c-a5b4fc)] rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3.5 h-3.5 bg-[color:var(--c-a78bfa)] rounded-[3px]"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
+            <div className="flex-1 min-w-0 relative self-stretch flex items-end"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo tu audio…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="block w-full bg-transparent text-[15px] leading-[22px] text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] outline-none resize-none py-[9px] font-['Inter'] min-h-[40px] max-h-[128px] overflow-y-auto custom-scrollbar [overflow-wrap:anywhere] disabled:opacity-60" />
               {isRecording && (
-                <div className="absolute inset-0 flex items-center gap-2.5 bg-[#1f2035] rounded-lg" role="status" aria-live="polite">
-                  <span className="w-2 h-2 rounded-full bg-[#a78bfa] animate-pulse flex-shrink-0" />
-                  <span className="text-xs tabular-nums text-[#c4b5fd] w-8 flex-shrink-0">{Math.floor(segGrabando / 60)}:{String(segGrabando % 60).padStart(2, '0')}</span>
+                <div className="absolute inset-0 flex items-center gap-2.5 bg-[color:var(--c-1f2035)] rounded-lg" role="status" aria-live="polite">
+                  <span className="w-2 h-2 rounded-full bg-[color:var(--c-a78bfa)] animate-pulse flex-shrink-0" />
+                  <span className="text-xs tabular-nums text-[color:var(--c-c4b5fd)] w-8 flex-shrink-0">{Math.floor(segGrabando / 60)}:{String(segGrabando % 60).padStart(2, '0')}</span>
                   <div className="flex-1 min-w-0 h-8 flex items-center gap-[3px] overflow-hidden" aria-hidden="true">
-                    {[...Array(Math.max(0, 28 - nivelesMic.length)).fill(0), ...nivelesMic].map((v, k) => <span key={k} className="w-[3px] flex-shrink-0 rounded-full bg-gradient-to-t from-[#7c3aed] to-[#c4b5fd] transition-[height] duration-75" style={{ height: `${Math.max(3, Math.round(v * 28))}px`, opacity: 0.35 + v * 0.65 }} />)}
+                    {[...Array(Math.max(0, 28 - nivelesMic.length)).fill(0), ...nivelesMic].map((v, k) => <span key={k} className="w-[3px] flex-shrink-0 rounded-full bg-gradient-to-t from-[color:var(--c-7c3aed)] to-[color:var(--c-c4b5fd)] transition-[height] duration-75" style={{ height: `${Math.max(3, Math.round(v * 28))}px`, opacity: 0.35 + v * 0.65 }} />)}
                   </div>
-                  <span className="hidden @md:inline text-[11px] text-[#8a8b9e] whitespace-nowrap">{silencioMic >= 2 ? `Se detiene en ${Math.max(1, 5 - silencioMic)} s…` : segGrabando < 2 ? 'Habla, te escucho…' : 'Te escucho…'}</span>
-                  <Tooltip text={autoEnviarVoz ? 'Al terminar se envía solo (clic para solo escribirlo)' : 'Al terminar solo se escribe (clic para enviarlo solo)'}><button type="button" onClick={() => { const v = !autoEnviarVoz; setAutoEnviarVoz(v); try { localStorage.setItem('voz_autoenviar', v ? '1' : '0'); } catch {} }} className={`flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors ${autoEnviarVoz ? 'text-[#c7d2fe] border-[#818cf8]/50 bg-[#818cf8]/15' : 'text-[#8a8b9e] border-[#313248] hover:text-[#c7d2fe]'}`}>{autoEnviarVoz ? 'Enviar solo ✓' : 'Enviar solo'}</button></Tooltip>
-                  <Tooltip text="Cancelar sin transcribir (Esc)"><button type="button" onClick={() => detenerMic(true)} aria-label="Cancelar grabación" className="flex-shrink-0 p-1 rounded-md text-[#8a8b9e] hover:text-white hover:bg-[#272839]"><X className="w-4 h-4" /></button></Tooltip>
+                  <span className="hidden @md:inline text-[11px] text-[color:var(--c-8a8b9e)] whitespace-nowrap">{silencioMic >= 2 ? `Se detiene en ${Math.max(1, 5 - silencioMic)} s…` : segGrabando < 2 ? 'Habla, te escucho…' : 'Te escucho…'}</span>
+                  <Tooltip text={autoEnviarVoz ? 'Al terminar se envía solo (clic para solo escribirlo)' : 'Al terminar solo se escribe (clic para enviarlo solo)'}><button type="button" onClick={() => { const v = !autoEnviarVoz; setAutoEnviarVoz(v); try { localStorage.setItem('voz_autoenviar', v ? '1' : '0'); } catch {} }} className={`flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors ${autoEnviarVoz ? 'text-[color:var(--c-c7d2fe)] border-[color:var(--c-818cf8)]/50 bg-[color:var(--c-818cf8)]/15' : 'text-[color:var(--c-8a8b9e)] border-[color:var(--c-313248)] hover:text-[color:var(--c-c7d2fe)]'}`}>{autoEnviarVoz ? 'Enviar solo ✓' : 'Enviar solo'}</button></Tooltip>
+                  <Tooltip text="Cancelar sin transcribir (Esc)"><button type="button" onClick={() => detenerMic(true)} aria-label="Cancelar grabación" className="flex-shrink-0 p-1 rounded-md text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] hover:bg-[color:var(--c-272839)]"><X className="w-4 h-4" /></button></Tooltip>
                 </div>
               )}
             </div>
             {pensando || escribiendo ? (
-              <Tooltip text="Detener"><button type="button" onClick={detener} aria-label="Detener respuesta" className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#272839] text-[#c7d2fe] hover:bg-red-500/20 hover:text-red-300 transition-colors flex-shrink-0 self-end"><Square className="w-4 h-4 fill-current" /></button></Tooltip>
+              <Tooltip text="Detener"><button type="button" onClick={detener} aria-label="Detener respuesta" className="w-10 h-10 flex items-center justify-center rounded-xl bg-[color:var(--c-272839)] text-[color:var(--c-c7d2fe)] hover:bg-red-500/20 hover:text-red-300 transition-colors flex-shrink-0 self-end"><Square className="w-4 h-4 fill-current" /></button></Tooltip>
             ) : (
-              <button type="button" onClick={() => handleSend()} disabled={(!mensaje.trim() && !adjunto) || chatInactivo || subiendoAdjunto} aria-label="Enviar" className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all flex-shrink-0 self-end ${(mensaje.trim() || adjunto) && !subiendoAdjunto ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
+              <button type="button" onClick={() => handleSend()} disabled={(!mensaje.trim() && !adjunto) || chatInactivo || subiendoAdjunto} aria-label="Enviar" className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all flex-shrink-0 self-end ${(mensaje.trim() || adjunto) && !subiendoAdjunto ? 'bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] text-white hover:shadow-lg hover:shadow-[color:var(--c-818cf8)]/30 shadow-md' : 'bg-[color:var(--c-272839)] text-[color:var(--c-5a5b6e)] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
             )}
           </div>
         </div>
@@ -6188,7 +6189,34 @@ type MateriaCorta = { id: string; nombre: string };
 const CLAVE_MATERIA = 'materiaActiva'; // última materia abierta en este navegador
 
 // Selector de materia (cada materia tiene su propio plan). Cambiar de materia guarda lo pendiente y recarga.
-function SelectorMateria({ materias, actualId, actualNombre, onAbrir, onNueva }: { materias: MateriaCorta[]; actualId: string | null; actualNombre: string; onAbrir: (id: string) => Promise<void>; onNueva: (nombre: string) => Promise<void> }) {
+// Modo claro / oscuro: se guarda en este navegador y se aplica a toda la app (y a la página del estudiante)
+function BotonTema() {
+  const [claro, setClaro] = useState(false);
+  useEffect(() => { setClaro(document.documentElement.classList.contains('claro')); }, []);
+  const cambiar = () => {
+    const html = document.documentElement;
+    const nuevo = !html.classList.contains('claro');
+    html.classList.add('cambiando-tema');
+    html.classList.toggle('claro', nuevo);
+    try { localStorage.setItem('tema', nuevo ? 'claro' : 'oscuro'); } catch { /* sin almacenamiento */ }
+    setClaro(nuevo);
+    setTimeout(() => html.classList.remove('cambiando-tema'), 400);
+  };
+  return (
+    <Tooltip text={claro ? 'Modo oscuro' : 'Modo claro'} lado="abajo">
+      <motion.button onClick={cambiar} data-tutorial="tema" aria-label={claro ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'} whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }}
+        className="relative flex items-center justify-center w-9 h-9 rounded-xl overflow-hidden text-[color:var(--c-8a8b9e)] hover:text-amber-300 hover:bg-[color:var(--c-1d1e2e)] transition-colors">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span key={claro ? 'luna' : 'sol'} initial={{ y: 14, rotate: -90, opacity: 0 }} animate={{ y: 0, rotate: 0, opacity: 1 }} exit={{ y: -14, rotate: 90, opacity: 0 }} transition={{ duration: 0.25 }} className="flex">
+            {claro ? <Moon className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}
+          </motion.span>
+        </AnimatePresence>
+      </motion.button>
+    </Tooltip>
+  );
+}
+
+function SelectorMateria({ materias, actualId, actualNombre, onAbrir, onNueva, onRenombrar }: { materias: MateriaCorta[]; actualId: string | null; actualNombre: string; onAbrir: (id: string) => Promise<void>; onNueva: (nombre: string) => Promise<void>; onRenombrar?: (nombre: string) => void }) {
   const [abierto, setAbierto] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -6201,25 +6229,26 @@ function SelectorMateria({ materias, actualId, actualNombre, onAbrir, onNueva }:
   return (
     <div ref={ref} className="relative">
       <Tooltip text={actualNombre ? `Materia: ${actualNombre}` : 'Materia'} lado="abajo">
-        <button type="button" disabled={ocupado} onClick={() => setAbierto(v => !v)} className="h-9 px-2 sm:px-3 flex items-center gap-1.5 rounded-xl border border-[#313248] bg-[#1d1e2e] text-[#c0c0d0] hover:text-white hover:border-[#818cf8]/40 text-xs font-medium max-w-[200px] disabled:opacity-60">
-          {ocupado ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <BookOpen className="w-4 h-4 text-[#a5b4fc] flex-shrink-0" />}
+        <button type="button" disabled={ocupado} onClick={() => setAbierto(v => !v)} className="h-9 px-2 sm:px-3 flex items-center gap-1.5 rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] text-[color:var(--c-c0c0d0)] hover:text-[color:var(--c-blanco)] hover:border-[color:var(--c-818cf8)]/40 text-xs font-medium max-w-[200px] disabled:opacity-60">
+          {ocupado ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <BookOpen className="w-4 h-4 text-[color:var(--c-a5b4fc)] flex-shrink-0" />}
           <span className="hidden @6xl:inline truncate">{actualNombre || 'Materia'}</span>
           <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
         </button>
       </Tooltip>
       {abierto && (
-        <div className="fixed left-4 right-4 top-[4.5rem] sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-64 z-50 bg-[#1f2035] border border-[#313248] rounded-xl shadow-2xl p-1.5">
-          <p className="px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-[#6a6b7e] font-semibold">Mis materias</p>
+        <div className="fixed left-4 right-4 top-[4.5rem] sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-64 z-50 bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-1.5">
+          <p className="px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)] font-semibold">Mis materias</p>
           <div className="max-h-64 overflow-y-auto custom-scrollbar">
-            {materias.length === 0 && <p className="px-2.5 py-2 text-xs text-[#8a8b9e]">Todavía no hay materias guardadas.</p>}
+            {materias.length === 0 && <p className="px-2.5 py-2 text-xs text-[color:var(--c-8a8b9e)]">Todavía no hay materias guardadas.</p>}
             {materias.map(m => (
-              <button key={m.id} type="button" onClick={() => { setAbierto(false); if (m.id !== actualId) correr(() => onAbrir(m.id)); }} className={`w-full text-left px-2.5 py-2 rounded-lg text-[13px] flex items-center gap-2 ${m.id === actualId ? 'bg-[#818cf8]/15 text-white' : 'text-[#c0c0d0] hover:bg-[#272839]'}`}>
-                <span className="flex-1 truncate">{m.nombre}</span>{m.id === actualId && <CheckCircle className="w-3.5 h-3.5 text-[#a5b4fc]" />}
+              <button key={m.id} type="button" onClick={() => { setAbierto(false); if (m.id !== actualId) correr(() => onAbrir(m.id)); }} className={`w-full text-left px-2.5 py-2 rounded-lg text-[13px] flex items-center gap-2 ${m.id === actualId ? 'bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-blanco)]' : 'text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-272839)]'}`}>
+                <span className="flex-1 truncate">{m.id === actualId && actualNombre ? actualNombre : m.nombre}</span>{m.id === actualId && <CheckCircle className="w-3.5 h-3.5 text-[color:var(--c-a5b4fc)]" />}
               </button>
             ))}
           </div>
-          <div className="border-t border-[#313248] mt-1 pt-1">
-            <button type="button" onClick={() => { const n = window.prompt('Nombre de la nueva materia:')?.trim(); setAbierto(false); if (n) correr(() => onNueva(n)); }} className="w-full text-left px-2.5 py-2 rounded-lg text-[13px] text-[#a5b4fc] hover:bg-[#272839] flex items-center gap-2"><Plus className="w-3.5 h-3.5" />Nueva materia</button>
+          <div className="border-t border-[color:var(--c-313248)] mt-1 pt-1">
+            {onRenombrar && actualId && <button type="button" onClick={() => { const n = window.prompt('Nuevo nombre de esta materia:', actualNombre)?.trim().slice(0, 120); setAbierto(false); if (n && n !== actualNombre) onRenombrar(n); }} className="w-full text-left px-2.5 py-2 rounded-lg text-[13px] text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-272839)] flex items-center gap-2"><Pencil className="w-3.5 h-3.5" />Cambiar nombre de esta materia</button>}
+            <button type="button" onClick={() => { const n = window.prompt('Nombre de la nueva materia:')?.trim(); setAbierto(false); if (n) correr(() => onNueva(n)); }} className="w-full text-left px-2.5 py-2 rounded-lg text-[13px] text-[color:var(--c-a5b4fc)] hover:bg-[color:var(--c-272839)] flex items-center gap-2"><Plus className="w-3.5 h-3.5" />Nueva materia</button>
           </div>
         </div>
       )}
@@ -7041,68 +7070,55 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
       <style>{` input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } input[type="number"] { -moz-appearance: textfield; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } .sin-barra { scrollbar-width: none; } .sin-barra::-webkit-scrollbar { display: none; } `}</style>
-      <div className="@container px-2 sm:px-4 py-2 sm:py-3 border-b border-[#282a3f] flex flex-wrap @4xl:flex-nowrap items-center gap-x-2 gap-y-2 bg-[#161722] flex-shrink-0">
+      <div className="@container px-2 sm:px-4 py-2 sm:py-3 border-b border-[color:var(--c-282a3f)] flex flex-wrap @4xl:flex-nowrap items-center gap-x-2 gap-y-2 bg-[color:var(--c-161722)] flex-shrink-0">
         <AnimatePresence initial={false}>
           {!chatAbierto && onAbrirChat && (
             <motion.div key="abrir-chat" initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.2 }} className="flex-shrink-0 flex items-center gap-2 overflow-hidden">
               <Tooltip text="Mostrar chat (Ctrl+B)" lado="abajo">
-                <motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={onAbrirChat} aria-label="Mostrar el chat" className="group/abrir w-9 h-9 flex items-center justify-center rounded-xl border border-[#818cf8]/25 bg-gradient-to-br from-[#818cf8]/15 to-[#6366f1]/5 text-[#a5b4fc] hover:text-white hover:border-[#818cf8]/60 hover:from-[#818cf8]/40 hover:to-[#6366f1]/25 hover:shadow-lg hover:shadow-[#818cf8]/25 transition-all">
+                <motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={onAbrirChat} aria-label="Mostrar el chat" className="group/abrir w-9 h-9 flex items-center justify-center rounded-xl border border-[color:var(--c-818cf8)]/25 bg-gradient-to-br from-[color:var(--c-818cf8)]/15 to-[color:var(--c-6366f1)]/5 text-[color:var(--c-a5b4fc)] hover:text-white hover:border-[color:var(--c-818cf8)]/60 hover:from-[color:var(--c-818cf8)]/40 hover:to-[color:var(--c-6366f1)]/25 hover:shadow-lg hover:shadow-[color:var(--c-818cf8)]/25 transition-all">
                   <PanelLeftOpen className="w-[18px] h-[18px] transition-transform duration-200 group-hover/abrir:translate-x-0.5" />
                 </motion.button>
               </Tooltip>
-              <span className="w-px h-6 bg-[#313248]" aria-hidden="true" />
+              <span className="w-px h-6 bg-[color:var(--c-313248)]" aria-hidden="true" />
             </motion.div>
           )}
         </AnimatePresence>
         <div data-tutorial="pestanas" className="order-last basis-full @4xl:order-none @4xl:basis-auto flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra -mx-1 px-1 @4xl:mx-0 @4xl:px-0">
-        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[#313248] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 px-2.5 @5xl:px-3.5 py-2 rounded-xl text-[13px] @5xl:text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className="relative z-10">{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
+        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[color:var(--c-313248)] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 px-2.5 @5xl:px-3.5 py-2 rounded-xl text-[13px] @5xl:text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-1d1e2e)]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[color:var(--c-818cf8)]' : ''}`} /><span className="relative z-10">{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
         </div>
         {/* Botón de configuración junto a la campanita */}
         <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2 ml-auto">
           {onAbrirMateria && onNuevaMateria && (
-            <div data-tutorial="materia" className="flex items-center"><SelectorMateria materias={materias} actualId={materiaActivaId} actualNombre={planificacion.materia} onAbrir={onAbrirMateria} onNueva={onNuevaMateria} /></div>
+            <div data-tutorial="materia" className="flex items-center"><SelectorMateria materias={materias} actualId={materiaActivaId} actualNombre={planificacion.materia} onAbrir={onAbrirMateria} onNueva={onNuevaMateria} onRenombrar={(nombre) => { setPlanificacion(prev => ({ ...prev, materia: nombre })); agregarNotificacion(`✏️ La materia ahora se llama «${nombre}».`); }} /></div>
           )}
           {onTutorial && (
             <Tooltip text="Ver el tutorial" lado="abajo">
-              <button data-tutorial="ayuda" onClick={onTutorial} aria-label="Ver el tutorial" className="flex items-center justify-center w-9 h-9 rounded-xl text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#1d1e2e] transition-colors">
+              <button data-tutorial="ayuda" onClick={onTutorial} aria-label="Ver el tutorial" className="flex items-center justify-center w-9 h-9 rounded-xl text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-1d1e2e)] transition-colors">
                 <CircleHelp className="w-[18px] h-[18px]" />
               </button>
             </Tooltip>
           )}
-          <motion.button
-            onClick={() => setVista('configuracion')}
-            data-tutorial="configuracion"
-            title="Configuración del plan"
-            aria-label="Configuración del plan"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className={`relative flex items-center justify-center w-9 h-9 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === 'configuracion' ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}
-          >
-            {vista === 'configuracion' && (
-              <motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />
-            )}
-            <Settings className={`w-[18px] h-[18px] relative z-10 transition-transform duration-500 ${vista === 'configuracion' ? 'rotate-90' : ''}`} />
-          </motion.button>
+          <BotonTema />
           <CampanitaNotificacionesFlotante notificaciones={notificaciones} setNotificaciones={setNotificaciones} campanaActiva={campanaActiva} setCampanaActiva={setCampanaActiva} />
           {usuario && (
-            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[#282a3f]">
+            <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[color:var(--c-282a3f)]">
               <Tooltip text="Mi perfil">
-                <button onClick={() => setVista('perfil')} className={`flex items-center gap-2 px-2 py-1 rounded-xl transition-colors ${vista === 'perfil' ? 'bg-[#818cf8]/10 border border-[#818cf8]/20' : 'hover:bg-[#1d1e2e] border border-transparent'}`}>
-                  <User className="w-4 h-4 text-[#8a8b9e] md:hidden" />
+                <button onClick={() => setVista('perfil')} className={`flex items-center gap-2 px-2 py-1 rounded-xl transition-colors ${vista === 'perfil' ? 'bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20' : 'hover:bg-[color:var(--c-1d1e2e)] border border-transparent'}`}>
+                  <User className="w-4 h-4 text-[color:var(--c-8a8b9e)] md:hidden" />
                   <div className="hidden md:flex flex-col items-end leading-tight">
-                    <span className="text-xs font-medium text-[#d0d0da] max-w-[140px] truncate">{usuario.nombre}</span>
-                    <span className={`text-[10px] uppercase tracking-wider ${COLOR_TEXTO_ROL[usuario.rol] || 'text-[#818cf8]'}`}>{usuario.rol}</span>
+                    <span className="text-xs font-medium text-[color:var(--c-d0d0da)] max-w-[140px] truncate">{usuario.nombre}</span>
+                    <span className={`text-[10px] uppercase tracking-wider ${COLOR_TEXTO_ROL[usuario.rol] || 'text-[color:var(--c-818cf8)]'}`}>{usuario.rol}</span>
                   </div>
                 </button>
               </Tooltip>
               <Tooltip text="Cerrar sesión">
-                <button onClick={() => onLogout && onLogout()} className="p-2 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"><LogOut className="w-4 h-4" /></button>
+                <button onClick={() => onLogout && onLogout()} className="p-2 text-[color:var(--c-8a8b9e)] hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"><LogOut className="w-4 h-4" /></button>
               </Tooltip>
             </div>
           )}
         </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 custom-scrollbar bg-[#161722]">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 custom-scrollbar bg-[color:var(--c-161722)]">
         <AnimatePresence mode="wait">
           {vista === 'calendario' && (
             <motion.div key="calendario" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto">
@@ -7123,22 +7139,22 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                 <OpinionesEstudiantes items={opiniones} onVistas={marcarOpinionesVistas} onBorrar={borrarOpiniones} />
                 {/* Guía de primeros pasos: solo mientras falten estudiantes o evaluaciones en la sección */}
                 {datosCargados && estudiantesSeccion !== null && (estudiantesSeccion === 0 || seccionesFiltradas.length === 0) && !guiasCerradas.includes(seccionActiva) && (
-                  <div className="rounded-2xl border border-[#818cf8]/25 bg-gradient-to-br from-[#22234a]/70 to-[#1d1e2e] p-5">
-                    <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#a5b4fc]" /><h3 className="text-sm font-semibold text-white flex-1">Primeros pasos · Sección {seccionActiva}</h3><button type="button" onClick={cerrarGuia} aria-label="Cerrar la guía" title="Cerrar la guía" className="p-1 -mr-1 rounded-lg text-[#8a8b9e] hover:text-white hover:bg-white/10 transition-colors"><X className="w-4 h-4" /></button></div>
-                    <p className="text-xs text-[#9a9bb0] mt-1">Tres pasos y tus estudiantes tendrán su plan de evaluación.</p>
+                  <div className="rounded-2xl border border-[color:var(--c-818cf8)]/25 bg-gradient-to-br from-[color:var(--c-22234a)]/70 to-[color:var(--c-1d1e2e)] p-5">
+                    <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /><h3 className="text-sm font-semibold text-[color:var(--c-blanco)] flex-1">Primeros pasos · Sección {seccionActiva}</h3><button type="button" onClick={cerrarGuia} aria-label="Cerrar la guía" title="Cerrar la guía" className="p-1 -mr-1 rounded-lg text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] hover:bg-white/10 transition-colors"><X className="w-4 h-4" /></button></div>
+                    <p className="text-xs text-[color:var(--c-9a9bb0)] mt-1">Tres pasos y tus estudiantes tendrán su plan de evaluación.</p>
                     <ol className="mt-4 grid gap-2 sm:grid-cols-3">
                       {[
                         { hecho: (estudiantesSeccion ?? 0) > 0, titulo: 'Agrega tus estudiantes', texto: (estudiantesSeccion ?? 0) > 0 ? `${estudiantesSeccion} en la sección` : 'Uno por uno o desde Excel', boton: 'Ir a Estudiantes', hacer: () => setVista('estudiantes') },
                         { hecho: seccionesFiltradas.length > 0, titulo: 'Crea tu plan', texto: seccionesFiltradas.length > 0 ? `${seccionesFiltradas.length} evaluación(es)` : 'Pídeselo a EvaPlanner: «Hazme un plan de 4 evaluaciones»', boton: 'Abrir el chat', hacer: () => onAbrirChat?.() },
                         { hecho: false, titulo: 'Envíales el plan', texto: 'Genera el Plan de Acción y pulsa enviar: cada estudiante recibe el enlace a su página personal.', boton: '', hacer: () => {} },
                       ].map((paso, i) => (
-                        <li key={paso.titulo} className={`rounded-xl border p-3 flex flex-col gap-2 ${paso.hecho ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-[#313248] bg-[#1b1c2b]'}`}>
+                        <li key={paso.titulo} className={`rounded-xl border p-3 flex flex-col gap-2 ${paso.hecho ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)]'}`}>
                           <div className="flex items-center gap-2">
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${paso.hecho ? 'bg-emerald-500 text-white' : 'bg-[#2c2d42] text-[#a5b4fc]'}`}>{paso.hecho ? '✓' : i + 1}</span>
-                            <span className={`text-[13px] font-medium ${paso.hecho ? 'text-emerald-200' : 'text-[#e0e0ec]'}`}>{paso.titulo}</span>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${paso.hecho ? 'bg-emerald-500 text-white' : 'bg-[color:var(--c-2c2d42)] text-[color:var(--c-a5b4fc)]'}`}>{paso.hecho ? '✓' : i + 1}</span>
+                            <span className={`text-[13px] font-medium ${paso.hecho ? 'text-emerald-200' : 'text-[color:var(--c-e0e0ec)]'}`}>{paso.titulo}</span>
                           </div>
-                          <p className="text-[11px] text-[#8a8b9e] leading-snug flex-1">{paso.texto}</p>
-                          {!paso.hecho && paso.boton && <button type="button" onClick={paso.hacer} className="self-start text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#818cf8]/15 text-[#c7d2fe] border border-[#818cf8]/30 hover:bg-[#818cf8]/25 disabled:opacity-40 disabled:cursor-not-allowed">{paso.boton}</button>}
+                          <p className="text-[11px] text-[color:var(--c-8a8b9e)] leading-snug flex-1">{paso.texto}</p>
+                          {!paso.hecho && paso.boton && <button type="button" onClick={paso.hacer} className="self-start text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)] border border-[color:var(--c-818cf8)]/30 hover:bg-[color:var(--c-818cf8)]/25 disabled:opacity-40 disabled:cursor-not-allowed">{paso.boton}</button>}
                         </li>
                       ))}
                     </ol>
@@ -7146,14 +7162,14 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                 )}
                 <div ref={tarjetaRef} data-tutorial="formularios">
                 {!mostrarFormularios ? (
-                  <button type="button" onClick={() => setVerFormularios(true)} className="w-full flex items-center gap-3 rounded-2xl border border-dashed border-[#3a3b52] bg-[#1b1c2b]/60 px-5 py-4 text-left hover:border-[#818cf8]/50 hover:bg-[#1f2035] transition-colors">
-                    <span className="w-9 h-9 rounded-xl bg-[#818cf8]/10 border border-[#818cf8]/25 flex items-center justify-center"><Pencil className="w-4 h-4 text-[#a5b4fc]" /></span>
-                    <span className="flex-1 min-w-0"><span className="block text-sm font-medium text-[#e0e0ec]">Crear o editar evaluaciones a mano</span><span className="block text-xs text-[#8a8b9e]">O pídeselo a EvaPlanner en el chat: las propuestas aparecen aquí solas.</span></span>
-                    <ChevronDown className="w-4 h-4 text-[#8a8b9e]" />
+                  <button type="button" onClick={() => setVerFormularios(true)} className="w-full flex items-center gap-3 rounded-2xl border border-dashed border-[color:var(--c-3a3b52)] bg-[color:var(--c-1b1c2b)]/60 px-5 py-4 text-left hover:border-[color:var(--c-818cf8)]/50 hover:bg-[color:var(--c-1f2035)] transition-colors">
+                    <span className="w-9 h-9 rounded-xl bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/25 flex items-center justify-center"><Pencil className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></span>
+                    <span className="flex-1 min-w-0"><span className="block text-sm font-medium text-[color:var(--c-e0e0ec)]">Crear o editar evaluaciones a mano</span><span className="block text-xs text-[color:var(--c-8a8b9e)]">O pídeselo a EvaPlanner en el chat: las propuestas aparecen aquí solas.</span></span>
+                    <ChevronDown className="w-4 h-4 text-[color:var(--c-8a8b9e)]" />
                   </button>
                 ) : (<>
                 {seccionesFiltradas.length > 0 && !formulariosConContenido && (
-                  <div className="flex justify-end mb-1"><button type="button" onClick={() => setVerFormularios(false)} className="text-xs text-[#8a8b9e] hover:text-[#c7d2fe] flex items-center gap-1"><ChevronUp className="w-3.5 h-3.5" />Ocultar formularios</button></div>
+                  <div className="flex justify-end mb-1"><button type="button" onClick={() => setVerFormularios(false)} className="text-xs text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] flex items-center gap-1"><ChevronUp className="w-3.5 h-3.5" />Ocultar formularios</button></div>
                 )}
                 <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
@@ -7166,10 +7182,10 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
               />
                 </>)}
                 </div>
-              <div ref={seccionesGuardadasRef} data-tutorial="guardadas" className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl">
+              <div ref={seccionesGuardadasRef} data-tutorial="guardadas" className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider font-['Inter']">
+                    <h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider font-['Inter']">
                       Evaluaciones guardadas (
                       <AnimatePresence mode="wait">
                         <motion.span
@@ -7186,18 +7202,18 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                       )
                     </h2>
                     {/* Pestañas de Sección/Paralelo (grupos de estudiantes que ven la materia en común) */}
-                    <div data-tutorial="secciones" className="flex items-center gap-1 bg-[#161722] border border-[#313248] rounded-lg p-1">
+                    <div data-tutorial="secciones" className="flex items-center gap-1 bg-[color:var(--c-161722)] border border-[color:var(--c-313248)] rounded-lg p-1">
                       {seccionesDisponibles.map((letra) => (
                         <Tooltip key={letra} text={`Sección ${letra}`}>
                           <button
                             type="button"
                             onClick={() => cambiarSeccionActiva(letra)}
-                            className={`relative w-7 h-7 rounded-md text-xs font-semibold transition-colors duration-200 ${seccionActiva === letra ? 'text-white' : 'text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#232430]'}`}
+                            className={`relative w-7 h-7 rounded-md text-xs font-semibold transition-colors duration-200 ${seccionActiva === letra ? 'text-[color:var(--c-blanco)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-232430)]'}`}
                           >
                             {seccionActiva === letra && (
                               <motion.span
                                 layoutId="pill-seccion-activa"
-                                className="absolute inset-0 bg-[#818cf8] rounded-md shadow-md z-0"
+                                className="absolute inset-0 bg-[color:var(--c-818cf8)] rounded-md shadow-md z-0"
                                 transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                               />
                             )}
@@ -7209,7 +7225,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                         <button
                           type="button"
                           onClick={agregarNuevaSeccion}
-                          className="w-7 h-7 rounded-md text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#232430] transition-all flex items-center justify-center"
+                          className="w-7 h-7 rounded-md text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)] hover:bg-[color:var(--c-232430)] transition-all flex items-center justify-center"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -7219,7 +7235,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                           type="button"
                           onClick={eliminarSeccionActiva}
                           disabled={seccionesDisponibles.length <= 1}
-                          className="w-7 h-7 rounded-md text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#8a8b9e]"
+                          className="w-7 h-7 rounded-md text-[color:var(--c-8a8b9e)] hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[color:var(--c-8a8b9e)]"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -7228,8 +7244,8 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                     {seccionesFiltradas.length > 0 && (
                       <Tooltip text={`Buscar videos y páginas para las evaluaciones de la Sección ${seccionActiva} que aún no tienen recursos`}>
                         <button type="button" onClick={recursosParaTodas} disabled={!!llenandoRecursos}
-                          className="h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors bg-[#161722] border-[#313248] text-[#a0a0b8] hover:text-white hover:border-[#818cf8]/50 disabled:opacity-80">
-                          {llenandoRecursos ? <span className="w-3.5 h-3.5 border-2 border-[#818cf8]/40 border-t-[#818cf8] rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-[#a5b4fc]" />}
+                          className="h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors bg-[color:var(--c-161722)] border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)] hover:border-[color:var(--c-818cf8)]/50 disabled:opacity-80">
+                          {llenandoRecursos ? <span className="w-3.5 h-3.5 border-2 border-[color:var(--c-818cf8)]/40 border-t-[color:var(--c-818cf8)] rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-[color:var(--c-a5b4fc)]" />}
                           {llenandoRecursos ? `Buscando ${llenandoRecursos.hechas}/${llenandoRecursos.total}…` : 'Recursos para todas'}
                         </button>
                       </Tooltip>
@@ -7238,30 +7254,30 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                       <div className="relative">
                         <Tooltip text={`Copiar el plan de la Sección ${seccionActiva} a otra sección`}>
                           <button type="button" onClick={() => (copiaAbierta ? setCopiaAbierta(false) : abrirCopia())}
-                            className={`h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${copiaAbierta ? 'bg-[#818cf8]/15 border-[#818cf8]/50 text-[#c7d2fe]' : 'bg-[#161722] border-[#313248] text-[#a0a0b8] hover:text-white hover:border-[#818cf8]/50'}`}>
+                            className={`h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${copiaAbierta ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/50 text-[color:var(--c-c7d2fe)]' : 'bg-[color:var(--c-161722)] border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)] hover:border-[color:var(--c-818cf8)]/50'}`}>
                             <Copy className="w-3.5 h-3.5" />Copiar a…
                           </button>
                         </Tooltip>
                         <AnimatePresence>
                           {copiaAbierta && (
                             <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }}
-                              className="absolute left-0 top-11 z-40 w-[290px] max-w-[calc(100vw-32px)] bg-[#1c1d2a] border border-[#313248] rounded-xl shadow-2xl p-4 space-y-3">
+                              className="absolute left-0 top-11 z-40 w-[290px] max-w-[calc(100vw-32px)] bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-4 space-y-3">
                               <div className="flex items-start justify-between gap-2">
                                 <div>
-                                  <p className="text-sm font-semibold text-white">Copiar plan de la Sección {seccionActiva}</p>
-                                  <p className="text-[11px] text-[#8a8b9e] mt-0.5">{seccionesParaPlan.length} evaluación(es) marcadas con el círculo morado</p>
+                                  <p className="text-sm font-semibold text-[color:var(--c-blanco)]">Copiar plan de la Sección {seccionActiva}</p>
+                                  <p className="text-[11px] text-[color:var(--c-8a8b9e)] mt-0.5">{seccionesParaPlan.length} evaluación(es) marcadas con el círculo morado</p>
                                 </div>
-                                <button type="button" onClick={() => setCopiaAbierta(false)} className="text-[#6a6b7e] hover:text-white"><X className="w-4 h-4" /></button>
+                                <button type="button" onClick={() => setCopiaAbierta(false)} className="text-[color:var(--c-6a6b7e)] hover:text-[color:var(--c-blanco)]"><X className="w-4 h-4" /></button>
                               </div>
                               <div>
-                                <p className="text-[10px] uppercase tracking-wider text-[#6a6b7e] mb-1.5">Copiar a</p>
+                                <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)] mb-1.5">Copiar a</p>
                                 <div className="flex flex-wrap gap-1.5">
                                   {[...seccionesDisponibles.filter(l => l !== seccionActiva), ...(siguienteLetraLibre ? [siguienteLetraLibre] : [])].map(l => {
                                     const nueva = !seccionesDisponibles.includes(l);
                                     const cuantas = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === l).length;
                                     return (
                                       <button key={l} type="button" onClick={() => setCopiaDestino(l)} title={nueva ? 'Crea esta sección nueva' : `${cuantas} evaluación(es) ahora`}
-                                        className={`h-8 px-2.5 rounded-md border text-xs font-semibold transition-colors ${copiaDestino === l ? 'bg-[#818cf8] border-[#818cf8] text-white' : 'bg-[#232430] border-[#313248] text-[#a0a0b8] hover:text-white'}`}>
+                                        className={`h-8 px-2.5 rounded-md border text-xs font-semibold transition-colors ${copiaDestino === l ? 'bg-[color:var(--c-818cf8)] border-[color:var(--c-818cf8)] text-white' : 'bg-[color:var(--c-232430)] border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)]'}`}>
                                         {nueva ? `+ ${l} (nueva)` : `${l}${cuantas ? ` · ${cuantas}` : ''}`}
                                       </button>
                                     );
@@ -7270,25 +7286,25 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                               </div>
                               {copiaDestino && planificacion.secciones.some((s: SeccionExamen) => (s.grupoSeccion || 'A') === copiaDestino) && (
                                 <div>
-                                  <p className="text-[10px] uppercase tracking-wider text-[#6a6b7e] mb-1.5">La Sección {copiaDestino} ya tiene evaluaciones</p>
+                                  <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)] mb-1.5">La Sección {copiaDestino} ya tiene evaluaciones</p>
                                   <div className="grid grid-cols-2 gap-1.5">
                                     {([['agregar', 'Agregar'], ['reemplazar', 'Reemplazar']] as const).map(([v, t]) => (
                                       <button key={v} type="button" onClick={() => setCopiaModo(v)}
-                                        className={`h-8 rounded-md border text-xs font-medium transition-colors ${copiaModo === v ? (v === 'reemplazar' ? 'bg-red-500/15 border-red-500/40 text-red-300' : 'bg-[#818cf8]/15 border-[#818cf8]/50 text-[#c7d2fe]') : 'bg-[#232430] border-[#313248] text-[#a0a0b8] hover:text-white'}`}>{t}</button>
+                                        className={`h-8 rounded-md border text-xs font-medium transition-colors ${copiaModo === v ? (v === 'reemplazar' ? 'bg-red-500/15 border-red-500/40 text-red-300' : 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/50 text-[color:var(--c-c7d2fe)]') : 'bg-[color:var(--c-232430)] border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)]'}`}>{t}</button>
                                     ))}
                                   </div>
                                 </div>
                               )}
                               <label className="block">
-                                <span className="text-[10px] uppercase tracking-wider text-[#6a6b7e]">Correr las fechas (días)</span>
+                                <span className="text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)]">Correr las fechas (días)</span>
                                 <div className="mt-1.5 flex items-center gap-2">
                                   <input type="number" min={-365} max={365} value={copiaDias} onChange={(e) => setCopiaDias(e.target.value)}
-                                    className="w-20 bg-[#272839] border border-[#313248] rounded-lg px-2.5 py-1.5 text-xs text-[#e0e0ec] focus:outline-none focus:border-[#818cf8]" />
-                                  <span className="text-[11px] text-[#8a8b9e]">0 = mismas fechas · 1 = un día después</span>
+                                    className="w-20 bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg px-2.5 py-1.5 text-xs text-[color:var(--c-e0e0ec)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />
+                                  <span className="text-[11px] text-[color:var(--c-8a8b9e)]">0 = mismas fechas · 1 = un día después</span>
                                 </div>
                               </label>
                               <button type="button" onClick={copiarPlanASeccion} disabled={!copiaDestino}
-                                className="w-full h-9 rounded-lg bg-[#818cf8] hover:bg-[#6366f1] text-white text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40 transition-colors">
+                                className="w-full h-9 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40 transition-colors">
                                 <Copy className="w-3.5 h-3.5" />Copiar a la Sección {copiaDestino || '…'}
                               </button>
                             </motion.div>
@@ -7297,7 +7313,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                       </div>
                     )}
                     {seccionesFiltradas.length > 0 && (
-                      <span className={`text-[11px] px-2 py-1 rounded-full border font-medium ${seccionesParaPlan.length === seccionesFiltradas.length ? 'bg-[#a855f7]/10 text-[#c084fc] border-[#a855f7]/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`} title="Las tarjetas con el círculo morado entran en el Plan de Acción">
+                      <span className={`text-[11px] px-2 py-1 rounded-full border font-medium ${seccionesParaPlan.length === seccionesFiltradas.length ? 'bg-[color:var(--c-a855f7)]/10 text-[color:var(--c-c084fc)] border-[color:var(--c-a855f7)]/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`} title="Las tarjetas con el círculo morado entran en el Plan de Acción">
                         {seccionesParaPlan.length} de {seccionesFiltradas.length} en el plan
                       </span>
                     )}
@@ -7315,8 +7331,8 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                         disabled={seccionesParaPlan.length === 0 || cargandoPdf} 
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           seccionesParaPlan.length === 0 || cargandoPdf 
-                            ? 'bg-[#313248] text-[#8a8b9e] cursor-not-allowed' 
-                            : 'bg-[#818cf8] hover:bg-[#6366f1] text-white shadow-md'
+                            ? 'bg-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)] cursor-not-allowed' 
+                            : 'bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white shadow-md'
                         }`}
                       >
                         {cargandoPdf ? (
@@ -7362,7 +7378,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                   </motion.div>
                 </AnimatePresence>
               </div>
-              {planificacion.comentariosAgente.length > 0 && (<div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[#9090a8] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[#818cf8]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[#9090a4] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
+              {planificacion.comentariosAgente.length > 0 && (<div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[color:var(--c-818cf8)]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[color:var(--c-9090a4)] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
             </motion.div>
           )}
           {vista === 'estudiantes' && (<motion.div key="estudiantes" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><EstudiantesPanel /></motion.div>)}
@@ -7373,12 +7389,12 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           {vista === 'usuarios' && puedeAdministrar && (<motion.div key="usuarios" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><UsuariosPanel /></motion.div>)}
           {vista === 'configuracion' && (
             <motion.div key="configuracion" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-3xl mx-auto">
-              <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl p-8 shadow-xl space-y-6">
+              <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-8 shadow-xl space-y-6">
                 <div>
-                  <h2 className="text-xl font-bold text-[#d0d0da] flex items-center gap-3 mb-1">
-                    <Settings className="w-6 h-6 text-[#818cf8]" /> Configuración del plan
+                  <h2 className="text-xl font-bold text-[color:var(--c-d0d0da)] flex items-center gap-3 mb-1">
+                    <Settings className="w-6 h-6 text-[color:var(--c-818cf8)]" /> Configuración del plan
                   </h2>
-                  <p className="text-sm text-[#8a8b9e]">Ajusta los parámetros generales de la planificación. Los cambios se guardan solos.</p>
+                  <p className="text-sm text-[color:var(--c-8a8b9e)]">Ajusta los parámetros generales de la planificación. Los cambios se guardan solos.</p>
                   <p className={`text-xs mt-2 flex items-center gap-1.5 ${estadoGuardado === 'error' ? 'text-red-300' : estadoGuardado === 'guardando' ? 'text-amber-300' : 'text-emerald-300'}`}>
                     {estadoGuardado === 'guardando' ? 'Guardando...' : estadoGuardado === 'error' ? (<>No se pudo guardar. <button type="button" onClick={() => sincronizarConBD(planificacion)} className="underline">Reintentar</button></>) : estadoGuardado === 'guardado' ? (<><CheckCircle className="w-3.5 h-3.5" />Guardado</>) : ''}
                   </p>
@@ -7427,7 +7443,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                     />
                   </div>
                 </div>
-                <div className="pt-4 border-t border-[#313248]">
+                <div className="pt-4 border-t border-[color:var(--c-313248)]">
                   <button
                     onClick={() => {
                       if (confirm('¿Estás seguro de que deseas restablecer toda la planificación? Esta acción no se puede deshacer.')) {
@@ -7688,10 +7704,10 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
   // Hasta saber quién entró no se dibuja la interfaz (evita que las pestañas "salten" al cargar)
   if (!usuario) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#161722]">
+      <div className="flex h-screen items-center justify-center bg-[color:var(--c-161722)]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[#313248] border-t-[#818cf8] rounded-full animate-spin" />
-          <p className="text-xs text-[#8a8b9e]">Cargando tu espacio de trabajo...</p>
+          <div className="w-8 h-8 border-2 border-[color:var(--c-313248)] border-t-[color:var(--c-818cf8)] rounded-full animate-spin" />
+          <p className="text-xs text-[color:var(--c-8a8b9e)]">Cargando tu espacio de trabajo...</p>
         </div>
       </div>
     );
@@ -7699,15 +7715,15 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
 
   // Entró con una clave temporal: no puede usar el sistema hasta elegir una nueva
   if (usuario.debeCambiarPassword) return <CambioPasswordObligatorio usuario={usuario} onLogout={cerrarSesion} />;
-  if (!configSistema) return (<div className="flex h-screen items-center justify-center bg-[#161722]"><div className="w-8 h-8 border-2 border-[#313248] border-t-[#818cf8] rounded-full animate-spin" /></div>);
+  if (!configSistema) return (<div className="flex h-screen items-center justify-center bg-[color:var(--c-161722)]"><div className="w-8 h-8 border-2 border-[color:var(--c-313248)] border-t-[color:var(--c-818cf8)] rounded-full animate-spin" /></div>);
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#161722] text-[#b0b0c0] overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-[color:var(--c-161722)] text-[color:var(--c-b0b0c0)] overflow-hidden">
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
       {tutorialAbierto && (
         <Tutorial pasos={pasosTutorial(usuario.nombre, esMovil)} onTerminar={cerrarTutorial}
-          alCambiarPaso={(p) => { const delChat = ['agente', 'divisor', 'chat-herramientas', 'chat-entrada'].includes(p.objetivo || ''); if (p.objetivo && !delChat && !['notificaciones', 'configuracion', 'pestanas', 'ayuda'].includes(p.objetivo)) setVistaActual('planificacion'); if (delChat && !esMovil) setAgenteExpandido(true); }} />
+          alCambiarPaso={(p) => { const delChat = ['agente', 'divisor', 'chat-herramientas', 'chat-entrada'].includes(p.objetivo || ''); if (p.objetivo && !delChat && !['notificaciones', 'tema', 'pestanas', 'ayuda'].includes(p.objetivo)) setVistaActual('planificacion'); if (delChat && !esMovil) setAgenteExpandido(true); }} />
       )}
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
                 <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} formulariosLibres={() => panelDerechoRef.current?.formulariosLibres() ?? true} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} arrastrando={arrastrando} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
@@ -7716,7 +7732,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
             onPointerDown={empezarArrastre}
             onDoubleClick={() => { setAnchoElegido(null); try { localStorage.removeItem('anchoChat'); } catch {} }}
             className={`group relative w-1.5 -mx-[3px] z-20 flex-shrink-0 cursor-col-resize self-stretch ${arrastrando ? 'bg-indigo-500/60' : 'hover:bg-indigo-500/40'} transition-colors`}>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-10 w-1 rounded-full bg-[#3a3d5c] group-hover:bg-indigo-400" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-10 w-1 rounded-full bg-[color:var(--c-3a3d5c)] group-hover:bg-indigo-400" />
           </div>
         )}
         <PanelDerecho 

@@ -15,7 +15,7 @@ const lineas = (x: string) => x.split(/\n+|\s*;\s*|\s+-\s+(?=[A-ZÁÉÍÓÚÑ0-9
 // ---------- Vista del profesor (compacta, en tarjetas) ----------
 export default function DescripcionOrdenada({ texto, compacta = false }: { texto: string; compacta?: boolean }) {
   const partes = partesDescripcion(texto);
-  if (partes.length === 1 && !partes[0].titulo) return <p className={`${compacta ? 'text-[12px]' : 'text-sm'} text-[#b8b9cc] whitespace-pre-wrap leading-relaxed`}>{partes[0].cuerpo}</p>;
+  if (partes.length === 1 && !partes[0].titulo) return <p className={`${compacta ? 'text-[12px]' : 'text-sm'} text-[color:var(--c-b8b9cc)] whitespace-pre-wrap leading-relaxed`}>{partes[0].cuerpo}</p>;
   return (
     <div className={`grid gap-2 ${compacta ? '' : 'sm:grid-cols-2'}`}>
       {partes.map((p, k) => {
@@ -23,11 +23,11 @@ export default function DescripcionOrdenada({ texto, compacta = false }: { texto
         const ancho = !compacta && (p.titulo.startsWith('CRITERIOS') || p.titulo === 'ACTIVIDAD' || p.titulo.includes('POR GRUPO') || p.titulo.includes('ESTUDIANTE') || !p.titulo);
         const items = p.cuerpo.split(/\n+|\s*;\s*|\s+-\s+(?=[A-ZÁÉÍÓÚÑ0-9])/).map(x => x.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
         return (
-          <div key={k} className={`rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-3 py-2 ${ancho ? 'sm:col-span-2' : ''}`}>
-            {p.titulo && <p className="text-[10px] font-semibold uppercase tracking-wider text-[#a5b4fc] mb-1">{ICONO[clave] || '•'} {p.titulo.charAt(0) + p.titulo.slice(1).toLowerCase()}</p>}
+          <div key={k} className={`rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-3 py-2 ${ancho ? 'sm:col-span-2' : ''}`}>
+            {p.titulo && <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--c-a5b4fc)] mb-1">{ICONO[clave] || '•'} {p.titulo.charAt(0) + p.titulo.slice(1).toLowerCase()}</p>}
             {items.length > 1
-              ? <ul className={`${compacta ? 'text-[12px]' : 'text-[13px]'} text-[#c0c0cc] space-y-0.5 list-disc pl-4 marker:text-[#5f6080]`}>{items.map((x, j) => <li key={j}>{x}</li>)}</ul>
-              : <p className={`${compacta ? 'text-[12px]' : 'text-[13px]'} text-[#c0c0cc] leading-relaxed whitespace-pre-wrap`}>{p.cuerpo}</p>}
+              ? <ul className={`${compacta ? 'text-[12px]' : 'text-[13px]'} text-[color:var(--c-c0c0cc)] space-y-0.5 list-disc pl-4 marker:text-[color:var(--c-5f6080)]`}>{items.map((x, j) => <li key={j}>{x}</li>)}</ul>
+              : <p className={`${compacta ? 'text-[12px]' : 'text-[13px]'} text-[color:var(--c-c0c0cc)] leading-relaxed whitespace-pre-wrap`}>{p.cuerpo}</p>}
           </div>
         );
       })}
@@ -37,7 +37,7 @@ export default function DescripcionOrdenada({ texto, compacta = false }: { texto
 
 // ---------- Vista del estudiante (página personal) ----------
 function Etiqueta({ icono, children }: { icono: string; children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-wider text-[#a5b4fc] mb-2 flex items-center gap-1.5"><span className="text-sm">{icono}</span>{children}</p>;
+  return <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-a5b4fc)] mb-2 flex items-center gap-1.5"><span className="text-sm">{icono}</span>{children}</p>;
 }
 
 // "Claridad (40%), detalle (40%), cobertura (20%)" → [{nombre, pct}]
@@ -54,7 +54,7 @@ function criterios(cuerpo: string): { nombre: string; pct: number }[] {
 
 export function DescripcionEstudiante({ texto, estudiante }: { texto: string; estudiante?: string }) {
   const partes = partesDescripcion(texto);
-  if (partes.length === 1 && !partes[0].titulo) return <p className="text-sm text-[#c0c0d0] whitespace-pre-wrap leading-relaxed">{partes[0].cuerpo}</p>;
+  if (partes.length === 1 && !partes[0].titulo) return <p className="text-sm text-[color:var(--c-c0c0d0)] whitespace-pre-wrap leading-relaxed">{partes[0].cuerpo}</p>;
   const de = (t: string) => partes.find(p => p.titulo === t || (t === 'CRITERIOS' && p.titulo.startsWith('CRITERIOS')));
   const intro = partes.find(p => !p.titulo);
   const objetivo = de('OBJETIVO'), actividad = de('ACTIVIDAD'), herramientas = de('HERRAMIENTAS'), entregables = de('ENTREGABLES'), crit = de('CRITERIOS');
@@ -79,17 +79,17 @@ export function DescripcionEstudiante({ texto, estudiante }: { texto: string; es
 
   return (
     <div className="space-y-3">
-      {intro && <p className="text-sm text-[#c0c0d0] leading-relaxed whitespace-pre-wrap">{intro.cuerpo}</p>}
+      {intro && <p className="text-sm text-[color:var(--c-c0c0d0)] leading-relaxed whitespace-pre-wrap">{intro.cuerpo}</p>}
       {objetivo && (
-        <div className="rounded-xl border-l-[3px] border-[#818cf8] bg-[#818cf8]/[0.07] px-4 py-3">
+        <div className="rounded-xl border-l-[3px] border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/[0.07] px-4 py-3">
           <Etiqueta icono="🎯">Objetivo</Etiqueta>
-          <p className="text-[15px] text-white leading-relaxed">{sinPunto(objetivo.cuerpo)}.</p>
+          <p className="text-[15px] text-[color:var(--c-blanco)] leading-relaxed">{sinPunto(objetivo.cuerpo)}.</p>
         </div>
       )}
       {actividad && (
-        <div className="rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-4 py-3">
+        <div className="rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-4 py-3">
           <Etiqueta icono="🛠️">Qué vas a hacer</Etiqueta>
-          <p className="text-sm text-[#d0d0dc] leading-relaxed whitespace-pre-wrap">{actividad.cuerpo}</p>
+          <p className="text-sm text-[color:var(--c-d0d0dc)] leading-relaxed whitespace-pre-wrap">{actividad.cuerpo}</p>
         </div>
       )}
       {miCaso && (
@@ -101,44 +101,44 @@ export function DescripcionEstudiante({ texto, estudiante }: { texto: string; es
       {(listaHerr.length > 0 || listaEntr.length > 0) && (
         <div className="grid gap-3 sm:grid-cols-2">
           {listaHerr.length > 0 && (
-            <div className="rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-4 py-3">
+            <div className="rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-4 py-3">
               <Etiqueta icono="🧰">Herramientas</Etiqueta>
-              <div className="flex flex-wrap gap-1.5">{listaHerr.map((h, k) => <span key={k} className="text-xs px-2.5 py-1 rounded-full bg-[#232438] border border-[#34354d] text-[#c7d2fe]">{h}</span>)}</div>
+              <div className="flex flex-wrap gap-1.5">{listaHerr.map((h, k) => <span key={k} className="text-xs px-2.5 py-1 rounded-full bg-[color:var(--c-232438)] border border-[color:var(--c-34354d)] text-[color:var(--c-c7d2fe)]">{h}</span>)}</div>
             </div>
           )}
           {listaEntr.length > 0 && (
-            <div className="rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-4 py-3">
+            <div className="rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-4 py-3">
               <Etiqueta icono="📦">Qué entregas</Etiqueta>
-              <ul className="space-y-1.5">{listaEntr.map((x, k) => <li key={k} className="flex gap-2 text-sm text-[#d0d0dc] leading-snug"><span className="mt-0.5 text-emerald-300">✓</span><span>{x}</span></li>)}</ul>
+              <ul className="space-y-1.5">{listaEntr.map((x, k) => <li key={k} className="flex gap-2 text-sm text-[color:var(--c-d0d0dc)] leading-snug"><span className="mt-0.5 text-emerald-300">✓</span><span>{x}</span></li>)}</ul>
             </div>
           )}
         </div>
       )}
       {crit && (
-        <div className="rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-4 py-3">
+        <div className="rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-4 py-3">
           <Etiqueta icono="✅">Cómo te van a evaluar</Etiqueta>
           {listaCrit.length >= 2 ? (
             <ul className="space-y-2">
               {listaCrit.map((c, k) => (
                 <li key={k}>
-                  <div className="flex items-baseline justify-between gap-3 text-sm"><span className="text-[#d0d0dc]">{c.nombre}</span><span className="font-semibold text-[#c7d2fe] tabular-nums">{c.pct}%</span></div>
-                  <div className="mt-1 h-1.5 rounded-full bg-[#2a2b3d] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[#818cf8] to-[#a78bfa]" style={{ width: `${c.pct}%` }} /></div>
+                  <div className="flex items-baseline justify-between gap-3 text-sm"><span className="text-[color:var(--c-d0d0dc)]">{c.nombre}</span><span className="font-semibold text-[color:var(--c-c7d2fe)] tabular-nums">{c.pct}%</span></div>
+                  <div className="mt-1 h-1.5 rounded-full bg-[color:var(--c-2a2b3d)] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-a78bfa)]" style={{ width: `${c.pct}%` }} /></div>
                 </li>
               ))}
             </ul>
-          ) : <p className="text-sm text-[#d0d0dc] leading-relaxed whitespace-pre-wrap">{crit.cuerpo}</p>}
+          ) : <p className="text-sm text-[color:var(--c-d0d0dc)] leading-relaxed whitespace-pre-wrap">{crit.cuerpo}</p>}
         </div>
       )}
       {casosGrupo && (
-        <div className="rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-4 py-3">
+        <div className="rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-4 py-3">
           <Etiqueta icono="👥">Temas por grupo</Etiqueta>
-          <ul className="space-y-1">{lineas(casosGrupo.cuerpo).map((x, k) => <li key={k} className="text-sm text-[#d0d0dc] leading-snug">{x}</li>)}</ul>
+          <ul className="space-y-1">{lineas(casosGrupo.cuerpo).map((x, k) => <li key={k} className="text-sm text-[color:var(--c-d0d0dc)] leading-snug">{x}</li>)}</ul>
         </div>
       )}
       {otras.map((p, k) => (
-        <div key={k} className="rounded-xl bg-[#161722]/70 border border-[#2a2b3d] px-4 py-3">
+        <div key={k} className="rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-4 py-3">
           <Etiqueta icono={ICONO[p.titulo] || '•'}>{p.titulo.charAt(0) + p.titulo.slice(1).toLowerCase()}</Etiqueta>
-          <p className="text-sm text-[#d0d0dc] leading-relaxed whitespace-pre-wrap">{p.cuerpo}</p>
+          <p className="text-sm text-[color:var(--c-d0d0dc)] leading-relaxed whitespace-pre-wrap">{p.cuerpo}</p>
         </div>
       ))}
     </div>

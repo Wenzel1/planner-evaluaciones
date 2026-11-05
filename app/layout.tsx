@@ -14,7 +14,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('tema')==='claro')document.documentElement.classList.add('claro')}catch(e){}" }} />
+      </head>
       <body className="font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
