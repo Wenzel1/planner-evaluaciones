@@ -30,9 +30,9 @@ export function pasosTutorial(nombre: string, esMovil: boolean): PasoTutorial[] 
         : 'Escríbele como a un colega: «recomiéndame 4 evaluaciones para la Sección A», «mueve la 2 al viernes» o «hazme el examen de la 3». Él te propone y tú decides; en modo automático aplica solo lo seguro.' },
     { objetivo: 'divisor', titulo: 'Ajusta el tamaño', texto: 'Arrastra esta barra para hacer el chat más ancho o más angosto. Con doble clic vuelve al tamaño normal.', opcional: true },
     { objetivo: 'materia', titulo: 'Tus materias', texto: 'Cambia de materia o crea una nueva. Cada materia tiene su propio plan de evaluaciones.', opcional: true },
-    { objetivo: 'formularios', titulo: 'Crear evaluaciones a mano', texto: 'Llena el tema, la estrategia, el peso, la fecha y los grupos, y presiona Guardar. Lo que te proponga el asistente también aparece aquí para que lo revises antes.' },
+    { objetivo: 'formularios', titulo: 'Crear evaluaciones a mano', texto: 'Llena el tema, la estrategia, el peso, la fecha y los grupos, y presiona Guardar. Lo que te proponga el asistente también aparece aquí para que lo revises antes. Cuando ya tienes evaluaciones, este espacio se pliega para no estorbar.' },
     { objetivo: 'secciones', titulo: 'Secciones', texto: 'Si das la misma materia a varios grupos (A, B, C…), cada sección tiene sus propias evaluaciones y estudiantes.', opcional: true },
-    { objetivo: 'guardadas', titulo: 'Tus evaluaciones', texto: 'Desde cada tarjeta puedes ver la rúbrica, los recursos de estudio, el examen en línea, las notas y el estado (realizada, reprogramada…), y enviar el plan a tus estudiantes (por correo o WhatsApp).' },
+    { objetivo: 'guardadas', titulo: 'Tus evaluaciones', texto: 'Cada tarjeta muestra lo esencial. Usa «Notas» para calificar y el lápiz para editar; en el menú ⋯ están la rúbrica, los recursos de estudio y el examen en línea. Toca el nombre para ver el detalle.' },
     { objetivo: 'pestanas', titulo: 'Más herramientas', texto: 'Dashboard con estadísticas, Calendario para ver y mover fechas, Estudiantes (cada uno tiene su página personal) y Papelera para recuperar lo borrado.' },
     { objetivo: 'ayuda', titulo: '¡Listo! 🎉', texto: 'Ya conoces lo principal. Cuando quieras repetir este recorrido, presiona este botón.' },
   ];

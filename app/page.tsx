@@ -6967,7 +6967,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                       {[
                         { hecho: (estudiantesSeccion ?? 0) > 0, titulo: 'Agrega tus estudiantes', texto: (estudiantesSeccion ?? 0) > 0 ? `${estudiantesSeccion} en la sección` : 'Uno por uno o desde Excel', boton: 'Ir a Estudiantes', hacer: () => setVista('estudiantes') },
                         { hecho: seccionesFiltradas.length > 0, titulo: 'Crea tu plan', texto: seccionesFiltradas.length > 0 ? `${seccionesFiltradas.length} evaluación(es)` : 'Pídeselo a EvaPlanner: «Hazme un plan de 4 evaluaciones»', boton: 'Abrir el chat', hacer: () => onAbrirChat?.() },
-                        { hecho: false, titulo: 'Envíales el plan', texto: 'Con el botón ✉️ del plan, cada estudiante recibe el enlace a su página personal.', boton: '', hacer: () => {} },
+                        { hecho: false, titulo: 'Envíales el plan', texto: 'Genera el Plan de Acción y pulsa enviar: cada estudiante recibe el enlace a su página personal.', boton: '', hacer: () => {} },
                       ].map((paso, i) => (
                         <li key={paso.titulo} className={`rounded-xl border p-3 flex flex-col gap-2 ${paso.hecho ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-[#313248] bg-[#1b1c2b]'}`}>
                           <div className="flex items-center gap-2">
