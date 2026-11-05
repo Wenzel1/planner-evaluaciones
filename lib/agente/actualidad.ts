@@ -4,6 +4,8 @@
 // Los contenidos clásicos de ingeniería de software (UML, diagramas de flujo…) no necesitan actualidad: se devuelve clasico = true.
 
 export interface Fuente { titulo: string; url: string }
+import type { TipoPerfil } from './perfil'
+
 export interface Actualidad { texto: string; fuentes: Fuente[]; clasico: boolean; via: 'google' | 'openrouter' }
 
 const TIEMPO_MAX = 15000
@@ -18,8 +20,17 @@ export function pideEvaluacionesNuevas(mensaje: string): boolean {
   return ideas || crear
 }
 
-function pedidoDeBusqueda(materia: string, pedido: string, existentes: string[]): string {
+function pedidoDeBusqueda(materia: string, pedido: string, existentes: string[], perfil: TipoPerfil = 'software'): string {
   const hoy = new Date().toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' })
+  if (perfil === 'otra') {
+    return `Hoy es ${hoy}. Un profesor universitario de la materia «${materia}» pidió a su asistente: «${pedido.slice(0, 400)}».
+${existentes.length ? `Evaluaciones que ya tiene: ${existentes.slice(0, 8).join('; ')}.
+` : ''}
+Si el pedido trata SOLO de fundamentos clásicos y atemporales de «${materia}» (lo que se enseña igual desde hace años), responde únicamente la palabra: CLASICO
+
+Si no, busca en Google novedades REALES y recientes (últimos 12 a 18 meses) de «${materia}» que sirvan como tema de una evaluación universitaria: equipos, herramientas, normas y estándares, prácticas del oficio, incidentes conocidos y tendencias de esa área. Incluye cómo la IA o la automatización están cambiando esa área SOLO si de verdad aplica (máximo 2 viñetas).
+Responde en español con 8 viñetas cortas, cada una así: «- Tema: por qué es actual (mes y año)». Sin introducción ni cierre.`
+  }
   return `Hoy es ${hoy}. Un profesor universitario de ${materia ? `la materia «${materia}»` : 'ingeniería de software'} pidió a su asistente: «${pedido.slice(0, 400)}».
 ${existentes.length ? `Evaluaciones que ya tiene: ${existentes.slice(0, 8).join('; ')}.\n` : ''}
 Si el pedido trata SOLO de contenidos clásicos y atemporales de ingeniería de software (UML, diagramas de flujo, diagramas entidad-relación, casos de uso, pseudocódigo, algoritmos y estructuras de datos, normalización de bases de datos, patrones de diseño, modelos de ciclo de vida), responde únicamente la palabra: CLASICO
@@ -95,8 +106,8 @@ async function conOpenRouter(pregunta: string, senal: AbortSignal): Promise<Actu
 }
 
 // Devuelve null si no se pudo buscar (el agente sigue igual, con lo que sabe)
-export async function buscarActualidad(o: { materia: string; pedido: string; existentes: string[]; senal?: AbortSignal }): Promise<Actualidad | null> {
-  const pregunta = pedidoDeBusqueda(o.materia, o.pedido, o.existentes)
+export async function buscarActualidad(o: { materia: string; perfil?: TipoPerfil; pedido: string; existentes: string[]; senal?: AbortSignal }): Promise<Actualidad | null> {
+  const pregunta = pedidoDeBusqueda(o.materia, o.pedido, o.existentes, o.perfil)
   for (const buscar of [conGoogle, conOpenRouter]) {
     try {
       return await buscar(pregunta, conLimite(o.senal))

@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import DescripcionOrdenada from '@/components/DescripcionOrdenada';
 import { aWav16k } from '@/lib/audioWav';
+import { tipoPerfil } from '@/lib/agente/perfil';
 import Tutorial, { pasosTutorial, tutorialVisto, marcarTutorialVisto } from '@/components/Tutorial';
 
 // Agregar esto debajo de los imports de lucide-react
@@ -390,6 +391,9 @@ function validarContenidoSE(texto: string): { valido: boolean; error: string; pu
     return { valido: false, error: 'El texto no parece un tema válido. Revisa lo que escribiste.', puntuacion: 0 };
   }
 
+  // Otra materia (Soporte Técnico, Redes…): la lista de palabras de Ingeniería de Software no aplica
+  if (tipoPerfil(MATERIA_ACTIVA.nombre) === 'otra') return { valido: true, error: '', puntuacion: 3 };
+
   const t = normalizarSE(limpio);
   let puntuacion = 0;
   for (const re of REGEX_SE.fuerte) if (re.test(t)) puntuacion += 3;
@@ -663,6 +667,8 @@ const CONFIG_COMPLETA_DEFECTO: ConfigCompleta = { ...CONFIG_CLIENTE_DEFECTO, acc
 const LIMITES = { grupos: 20, personas: 300 };
 // Canal por el que se avisa a los estudiantes: 'correo' (Gmail) o 'whatsapp'. Lo decide el servidor según sus variables de entorno.
 const CANAL = { valor: 'whatsapp' as 'correo' | 'whatsapp' };
+// Materia activa (la fija el panel): decide si el validador de temas exige palabras de Ingeniería de Software
+const MATERIA_ACTIVA = { nombre: '' };
 const porCorreo = () => CANAL.valor === 'correo';
 /** ¿Es un id de la base de datos (cuid)? Las evaluaciones recién creadas en pantalla tienen ids locales como "eval1-1730…". */
 const esIdGuardado = (id: unknown) => /^[a-z0-9]{20,40}$/i.test(String(id || ''));
@@ -6068,6 +6074,7 @@ interface UsuarioSesion { id: string; nombre: string; email: string; rol: 'SUPER
 interface PanelDerechoProps { onSeccionActivaCambia?: (letra: string) => void; chatAbierto?: boolean; onAbrirChat?: () => void; usuario?: UsuarioSesion | null; onLogout?: () => void; onUsuarioActualizado?: (u: UsuarioSesion) => void; onConfigActualizada?: (c: ConfigCliente) => void; datosCargados?: boolean; planificacion: PlanificacionExamen; setPlanificacion: React.Dispatch<React.SetStateAction<PlanificacionExamen>>; propuestaPendiente: PropuestaEvaluacion | null; aceptarPropuesta: () => void; setPropuestaPendiente: (p: PropuestaEvaluacion | null) => void; vistaInicial: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'; onCambiarVista: (v: 'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario') => void; pdfUrl: string | null; setPdfUrl: (url: string | null) => void; pdfAbierto: boolean; setPdfAbierto: (abierto: boolean) => void; generarPDF: (secciones?: SeccionExamen[]) => Promise<string | null>; planificacionId: string | null; setPlanificacionId: (id: string | null) => void; materias?: MateriaCorta[]; materiaActivaId?: string | null; onAbrirMateria?: (id: string) => Promise<void>; onNuevaMateria?: (nombre: string) => Promise<void>; onTutorial?: () => void; }
 
 const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId, materias = [], materiaActivaId = null, onAbrirMateria, onNuevaMateria, onTutorial }: PanelDerechoProps, ref) {
+  MATERIA_ACTIVA.nombre = planificacion?.materia || ''; // para el validador de temas (perfil de la materia)
   const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>(vistaInicial);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);

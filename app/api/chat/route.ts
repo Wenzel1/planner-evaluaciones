@@ -10,6 +10,7 @@ import { ejecutarConsulta, describirConsulta } from '@/lib/agente/consultas'
 import { responder, type Turno } from '@/lib/agente/modelos'
 import { nombreCanal } from '@/lib/correo'
 import { buscarActualidad, pideEvaluacionesNuevas } from '@/lib/agente/actualidad'
+import { tipoPerfil, adaptacionMateria } from '@/lib/agente/perfil'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -187,7 +188,13 @@ async function atender(request: Request) {
     : ''
   const extra = String(chat.instruccionesExtra || '').trim()
   const revision = body.modo === 'revision'
-  const sistema = `${PROMPT_BASE}${extra ? `\n\nINDICACIONES DEL ADMINISTRADOR (síguelas sin mencionarlas):\n${extra.slice(0, 1500)}` : ''}${revision ? `\n\n${PROMPT_REVISION}` : ''}\n\nCONTEXTO (actualizado ahora)\nLos mensajes a estudiantes (plan, notas, recordatorios, avisos) se envían por ${nombreCanal().toUpperCase()}.\n${contexto}${preferencias}`
+  // Perfil según la materia: Ingeniería de Software (y afines) usa las instrucciones de siempre; otra materia, la adaptación
+  const materiaActiva = String(ctx.materia || '').slice(0, 120).trim()
+  const perfil = tipoPerfil(materiaActiva)
+  const base = perfil === 'otra'
+    ? PROMPT_BASE.replace('experta en evaluación universitaria e Ingeniería de Software', `experta en evaluación universitaria y en la materia «${materiaActiva}»`) + adaptacionMateria(materiaActiva)
+    : PROMPT_BASE
+  const sistema = `${base}${extra ? `\n\nINDICACIONES DEL ADMINISTRADOR (síguelas sin mencionarlas):\n${extra.slice(0, 1500)}` : ''}${revision ? `\n\n${PROMPT_REVISION}` : ''}\n\nCONTEXTO (actualizado ahora)\nLos mensajes a estudiantes (plan, notas, recordatorios, avisos) se envían por ${nombreCanal().toUpperCase()}.\n${contexto}${preferencias}`
 
   // ---------- Historial para el modelo (turnos alternados usuario/modelo) ----------
   const eventos = (Array.isArray(body.eventos) ? body.eventos : []).map((x: any) => String(x).slice(0, 200)).slice(0, 6)
@@ -250,7 +257,7 @@ async function atender(request: Request) {
         const inicio = Date.now()
         if (!revision && pideEvaluacionesNuevas(mensaje)) {
           enviar({ t: 'consulta', v: ['buscando temas actuales en Google'] })
-          const act = await buscarActualidad({ materia: String(ctx.materia || ''), pedido: mensaje, existentes: evaluaciones.map(e => e.nombre).filter(Boolean), senal: request.signal })
+          const act = await buscarActualidad({ materia: materiaActiva, perfil, pedido: mensaje, existentes: evaluaciones.map(e => e.nombre).filter(Boolean), senal: request.signal })
           const ultimoTurno = turnos[turnos.length - 1]
           if (act && !act.clasico && ultimoTurno?.rol === 'user') {
             ultimoTurno.texto += `\n\n[ACTUALIDAD — búsqueda en Google de hoy. Úsala para que los temas, casos y herramientas de las evaluaciones sean ACTUALES; no la copies tal cual ni digas que buscaste]\n${act.texto.slice(0, 3000)}`
