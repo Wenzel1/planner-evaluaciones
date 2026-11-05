@@ -4309,6 +4309,25 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
 }) {
   const dragControls = useDragControls();
   const nombreLimpio = limpiarTexto(seccion.nombre);
+  // Menú "⋯": las acciones menos frecuentes quedan aquí para que la tarjeta se vea limpia
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const fuera = (e: MouseEvent | TouchEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false); };
+    document.addEventListener('mousedown', fuera); document.addEventListener('touchstart', fuera); document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('touchstart', fuera); document.removeEventListener('keydown', esc); };
+  }, [menu]);
+  const cancelada = String(seccion.estado || '').toUpperCase() === 'CANCELADA';
+  const tieneRubrica = !!seccion.rubrica?.criterios?.length;
+  const nRecursos = seccion.recursos?.length || 0;
+  const puedeExamen = !!onExamen && (!!seccion.examen || admiteExamenEnLinea(seccion.tipoActividad, seccion.enfoque, seccion.descripcion));
+  const opciones = [
+    onRubrica && { icono: ClipboardCheck, titulo: tieneRubrica ? 'Rúbrica' : 'Crear rúbrica', detalle: tieneRubrica ? `${textoPuntos(totalRubrica(seccion.rubrica))} pts · ver o editar` : 'Criterios y niveles de 20 puntos', hacer: () => onRubrica(seccion) },
+    onRecursos && { icono: Paperclip, titulo: 'Recursos de estudio', detalle: nRecursos ? `${nRecursos} para los estudiantes${seccion.abiertaManual ? ' · abierta antes de tiempo' : ''}` : 'Videos y páginas para estudiar', hacer: () => onRecursos(seccion) },
+    puedeExamen && { icono: FileCheck, titulo: 'Examen en línea', detalle: seccion.examen ? `${seccion.examen.preguntas.length} preguntas · ver entregas` : 'Crear el examen que presentan en su página', hacer: () => onExamen!(seccion) },
+  ].filter(Boolean) as { icono: any; titulo: string; detalle: string; hacer: () => void }[];
   return (
     <Reorder.Item
       as="div"
@@ -4317,12 +4336,13 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
       dragControls={dragControls}
       whileDrag={{ scale: 1.03, boxShadow: '0 18px 40px rgba(0,0,0,0.45)', zIndex: 50, cursor: 'grabbing' }}
       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-      className="bg-[#1f2035] rounded-xl border border-[#313248] hover:border-[#414258] select-none relative"
+      className={`bg-[#1f2035] rounded-xl border border-[#313248] hover:border-[#414258] select-none relative ${menu ? 'z-30' : ''}`}
     >
       <div className="p-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
         <div
           onPointerDown={(e) => dragControls.start(e)}
           className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[#272839] transition-colors text-[#6a6b7e] touch-none"
+          title="Arrastra para reordenar"
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -4335,30 +4355,72 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
             {index + 1}
           </button>
         </Tooltip>
-        <div className="flex-1 min-w-[140px] cursor-pointer" onClick={onToggleExpand}>
-          <div className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#818cf8] flex-shrink-0" /><h4 className="text-sm text-[#d0d0da] font-medium truncate">{nombreLimpio}</h4><SelectorEstadoEvaluacion seccion={seccion} onCambiar={onCambiarEstado} /></div>
-          <div className="flex flex-wrap gap-3 mt-0.5 text-xs text-[#b0b0c4]">
-            {seccion.peso != null && <span>{seccion.peso}%</span>}
-            {seccion.tipoActividad && <span>🎯 {seccion.tipoActividad}</span>}
-            {seccion.enfoque && <span>📌 {seccion.enfoque}</span>}
-            {seccion.tiempoEstimadoMinutos && <span>⏱️ {seccion.tiempoEstimadoMinutos} min</span>}
-            {seccion.cantidadGrupos && <span>👥 {seccion.cantidadGrupos} grupos</span>}
-            {seccion.fecha && <span>📅 {new Date(seccion.fecha).toLocaleDateString()}</span>}
-            {seccion.rubrica && seccion.rubrica.criterios?.length > 0 && <span className="text-[#a5b4fc]">📋 Rúbrica {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
-            {(seccion.preparados ?? 0) > 0 && !['REALIZADA', 'CANCELADA'].includes(String(seccion.estado || '').toUpperCase()) && <span className="text-emerald-300" title="Marcaron «Ya me preparé» en su página">🙋 {seccion.preparados} se prepararon</span>}
+        <div className="flex-1 min-w-[140px] cursor-pointer" onClick={onToggleExpand} title={expanded ? 'Ocultar detalle' : 'Ver detalle'}>
+          <div className="flex items-center gap-2 min-w-0"><h4 className="text-sm text-[#e0e0ec] font-medium truncate">{nombreLimpio}</h4><SelectorEstadoEvaluacion seccion={seccion} onCambiar={onCambiarEstado} /></div>
+          {/* Lo esencial a la vista: peso, fecha y estrategia. Lo demás, al expandir. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-[#a0a1b5]">
+            {seccion.peso != null && <span className="font-semibold text-[#c7d2fe]">{seccion.peso}%</span>}
+            {seccion.fecha && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" />{new Date(seccion.fecha).toLocaleDateString('es-VE', { weekday: 'short', day: 'numeric', month: 'short' })}</span>}
+            {seccion.tipoActividad && <span className="truncate max-w-[180px]">{seccion.tipoActividad}</span>}
+            {/* Indicadores de lo que ya está listo */}
+            {(tieneRubrica || nRecursos > 0 || seccion.examen) && (
+              <span className="flex items-center gap-1.5 text-[#818cf8]">
+                {tieneRubrica && <span title="Tiene rúbrica"><ClipboardCheck className="w-3.5 h-3.5" /></span>}
+                {nRecursos > 0 && <span title={`${nRecursos} recurso(s)`}><Paperclip className="w-3.5 h-3.5" /></span>}
+                {seccion.examen && <span title="Tiene examen en línea"><FileCheck className="w-3.5 h-3.5" /></span>}
+              </span>
+            )}
+            {(seccion.preparados ?? 0) > 0 && !['REALIZADA', 'CANCELADA'].includes(String(seccion.estado || '').toUpperCase()) && <span className="text-emerald-300" title="Marcaron «Ya me preparé» en su página">🙋 {seccion.preparados}</span>}
           </div>
         </div>
         <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
-          <Tooltip text="Ver Detalle"><button onClick={onToggleExpand} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg">{expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button></Tooltip>
-          {onRubrica && <Tooltip text={seccion.rubrica ? 'Ver o editar la rúbrica' : 'Crear rúbrica'}><button onClick={() => onRubrica(seccion)} className={`p-1.5 rounded-lg ${seccion.rubrica ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><ClipboardCheck className="w-4 h-4" /></button></Tooltip>}
-          {onRecursos && <Tooltip text={seccion.recursos?.length ? `${seccion.recursos.length} recurso(s) para los estudiantes` : 'Agregar recursos para los estudiantes'}><button onClick={() => onRecursos(seccion)} className={`relative p-1.5 rounded-lg ${seccion.recursos?.length ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><Paperclip className="w-4 h-4" />{seccion.abiertaManual && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400" title="Abierta antes de tiempo" />}</button></Tooltip>}
-          {onExamen && (seccion.examen || admiteExamenEnLinea(seccion.tipoActividad, seccion.enfoque, seccion.descripcion)) && <Tooltip text={seccion.examen ? `Examen en línea (${seccion.examen.preguntas.length} preguntas) · ver entregas` : 'Crear examen en línea'}><button onClick={() => onExamen(seccion)} className={`relative p-1.5 rounded-lg ${seccion.examen ? 'text-[#a5b4fc] bg-[#818cf8]/10 hover:bg-[#818cf8]/20' : 'text-[#8a8b9e] hover:text-[#a5b4fc] hover:bg-[#272839]'}`}><FileCheck className="w-4 h-4" />{seccion.examen?.desde && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400" title="Abierto a mano antes de la fecha" />}</button></Tooltip>}
-          {onNotas && String(seccion.estado || '').toUpperCase() !== 'CANCELADA' && <Tooltip text="Notas de los estudiantes"><button onMouseEnter={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onTouchStart={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onClick={() => onNotas(seccion)} className="p-1.5 rounded-lg text-[#8a8b9e] hover:text-emerald-300 hover:bg-emerald-500/10"><GraduationCap className="w-4 h-4" /></button></Tooltip>}
-          <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
-          <Tooltip text="Eliminar"><button onClick={() => onDelete(seccion.id)} className="p-1.5 text-[#8a8b9e] hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 className="w-4 h-4" /></button></Tooltip>
+          {onNotas && !cancelada && (
+            <button onMouseEnter={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onTouchStart={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onClick={() => onNotas(seccion)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">
+              <GraduationCap className="w-3.5 h-3.5" />Notas
+            </button>
+          )}
+          <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} aria-label="Editar evaluación" className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
+          <div className="relative" ref={menuRef}>
+            <button onClick={() => setMenu(v => !v)} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
+              className={`p-1.5 rounded-lg transition-colors ${menu ? 'text-[#e0e0ec] bg-[#2c2d42]' : 'text-[#8a8b9e] hover:text-[#e0e0ec] hover:bg-[#272839]'}`}>
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            <AnimatePresence>
+              {menu && (
+                <motion.div initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }} transition={{ duration: 0.12 }}
+                  className="absolute right-0 top-full mt-1.5 w-64 z-40 rounded-xl border border-[#313248] bg-[#1b1c2b] shadow-2xl shadow-black/50 p-1.5" role="menu">
+                  {opciones.map(o => (
+                    <button key={o.titulo} role="menuitem" onClick={() => { setMenu(false); o.hacer(); }} className="w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left hover:bg-[#272839] transition-colors">
+                      <o.icono className="w-4 h-4 mt-0.5 text-[#a5b4fc] flex-shrink-0" />
+                      <span className="min-w-0"><span className="block text-[13px] text-[#e0e0ec]">{o.titulo}</span><span className="block text-[11px] text-[#8a8b9e] truncate">{o.detalle}</span></span>
+                    </button>
+                  ))}
+                  <div className="my-1 border-t border-[#2a2b3d]" />
+                  <button role="menuitem" onClick={() => { setMenu(false); onDelete(seccion.id); }} className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left text-[13px] text-red-300 hover:bg-red-500/10 transition-colors">
+                    <Trash2 className="w-4 h-4" />Eliminar evaluación
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
-      <AnimatePresence>{expanded && seccion.descripcion && (<motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]"><div className="p-3 sm:pl-14"><DescripcionOrdenada texto={seccion.descripcion} /></div></motion.div>)}</AnimatePresence>
+      <AnimatePresence>{expanded && (
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[#313248]">
+          <div className="p-3 sm:pl-14 space-y-3">
+            {/* Detalle que no hace falta ver siempre */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#a0a1b5]">
+              {seccion.enfoque && <span>📌 {seccion.enfoque}</span>}
+              {seccion.tiempoEstimadoMinutos && <span>⏱️ {seccion.tiempoEstimadoMinutos} min</span>}
+              {seccion.cantidadGrupos && <span>👥 {seccion.cantidadGrupos} grupos{seccion.personasPorGrupo ? ` de ${seccion.personasPorGrupo}` : ''}</span>}
+              {seccion.fecha && <span>🕗 {new Date(seccion.fecha).toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}</span>}
+              {tieneRubrica && <span className="text-[#a5b4fc]">📋 Rúbrica de {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
+            </div>
+            {seccion.descripcion ? <DescripcionOrdenada texto={seccion.descripcion} /> : <p className="text-xs text-[#6a6b7e]">Sin descripción. Puedes agregarla con el lápiz.</p>}
+          </div>
+        </motion.div>
+      )}</AnimatePresence>
     </Reorder.Item>
   );
 }
