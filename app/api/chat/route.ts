@@ -9,6 +9,7 @@ import { normalizarAccion, resumenAccion, HERRAMIENTAS_SERVIDOR, type Accion } f
 import { ejecutarConsulta, describirConsulta } from '@/lib/agente/consultas'
 import { responder, type Turno } from '@/lib/agente/modelos'
 import { nombreCanal } from '@/lib/correo'
+import { buscarActualidad, pideEvaluacionesNuevas } from '@/lib/agente/actualidad'
 
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
@@ -124,7 +125,7 @@ async function atender(request: Request) {
     examen: e?.examen ? String(e.examen).slice(0, 80) : null,
   }))
   const ids = evaluaciones.map(e => e.id).filter(Boolean) as string[]
-  const [estudiantesSeccion, notas, opiniones, estudiantesLista, evsDB, memorias, materias] = await Promise.all([
+  const [estudiantesSeccion, notas, opiniones, estudiantesLista, evsDB, memorias, materias, valoradas] = await Promise.all([
     prisma.estudiante.count({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' } }).catch(() => null),
     ids.length ? prisma.calificacion.groupBy({ by: ['evaluacionId'], where: { evaluacionId: { in: ids }, puntaje: { not: null }, evaluacion: { planificacion: { materia: { usuarioId: actor.id } } } }, _avg: { puntaje: true }, _count: { _all: true } }).catch(() => []) : Promise.resolve([] as any[]),
     plan ? prisma.opinionPlan.findMany({ where: { materiaId: plan.materiaId, leida: false }, orderBy: { updatedAt: 'desc' }, take: 20, select: { deAcuerdo: true, comentario: true, estudiante: { select: { nombre: true, grupo: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
@@ -132,6 +133,7 @@ async function atender(request: Request) {
     plan ? prisma.evaluacion.findMany({ where: { planificacionId: plan.id, grupoSeccion: seccion }, select: { id: true, nombre: true, peso: true, estado: true, fecha: true, rubrica: true, calificaciones: { select: { estudianteId: true, puntaje: true, detalle: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
     prisma.memoriaAgente.findMany({ where: { usuarioId: actor.id }, orderBy: { createdAt: 'asc' }, take: 25, select: { texto: true } }).catch(() => []),
     prisma.materia.findMany({ where: { usuarioId: actor.id }, orderBy: { nombre: 'asc' }, take: 30, select: { nombre: true } }).catch(() => []),
+    prisma.mensaje.findMany({ where: { rol: 'AGENT', valoracion: { not: null }, conversacion: { usuarioId: actor.id } }, orderBy: { createdAt: 'desc' }, take: 10, select: { contenido: true, acciones: true, valoracion: true } }).catch(() => []),
   ])
   for (const n of (Array.isArray(notas) ? notas : []) as any[]) {
     const e = evaluaciones.find(x => x.id === n.evaluacionId)
@@ -163,9 +165,20 @@ async function atender(request: Request) {
     materias: (Array.isArray(materias) ? materias : []).map((m: any) => m.nombre),
     modoAuto: body.modoAuto === true,
   })
+  // Lo que el profesor marcó con 👍 / 👎: el agente repite lo que le gustó y evita lo que no
+  const resumenValorada = (m: any) => {
+    const acc = Array.isArray(m.acciones) ? (m.acciones as any[]).map(a => resumenAccion(a).replace(/^\[|\]$/g, '')).filter(Boolean).join('; ') : ''
+    return `«${limpiarResumenes(String(m.contenido || '')).replace(/\s+/g, ' ').slice(0, 220)}${acc ? ` (${acc.slice(0, 200)})` : ''}»`
+  }
+  const valoradasLista = (Array.isArray(valoradas) ? valoradas : []) as any[]
+  const gustaron = valoradasLista.filter(m => m.valoracion > 0).slice(0, 4).map(resumenValorada)
+  const noGustaron = valoradasLista.filter(m => m.valoracion < 0).slice(0, 4).map(resumenValorada)
+  const preferencias = gustaron.length || noGustaron.length
+    ? `\n\nPREFERENCIAS DEL PROFESOR (según sus 👍 y 👎; no las menciones, solo aplícalas)\n${gustaron.length ? `Le GUSTARON estas respuestas tuyas (sigue ese estilo y nivel de detalle):\n${gustaron.map(t => `- ${t}`).join('\n')}\n` : ''}${noGustaron.length ? `NO le gustaron estas (evita repetir ese enfoque, tono o tipo de propuesta):\n${noGustaron.map(t => `- ${t}`).join('\n')}` : ''}`
+    : ''
   const extra = String(chat.instruccionesExtra || '').trim()
   const revision = body.modo === 'revision'
-  const sistema = `${PROMPT_BASE}${extra ? `\n\nINDICACIONES DEL ADMINISTRADOR (síguelas sin mencionarlas):\n${extra.slice(0, 1500)}` : ''}${revision ? `\n\n${PROMPT_REVISION}` : ''}\n\nCONTEXTO (actualizado ahora)\nLos mensajes a estudiantes (plan, notas, recordatorios, avisos) se envían por ${nombreCanal().toUpperCase()}.\n${contexto}`
+  const sistema = `${PROMPT_BASE}${extra ? `\n\nINDICACIONES DEL ADMINISTRADOR (síguelas sin mencionarlas):\n${extra.slice(0, 1500)}` : ''}${revision ? `\n\n${PROMPT_REVISION}` : ''}\n\nCONTEXTO (actualizado ahora)\nLos mensajes a estudiantes (plan, notas, recordatorios, avisos) se envían por ${nombreCanal().toUpperCase()}.\n${contexto}${preferencias}`
 
   // ---------- Historial para el modelo (turnos alternados usuario/modelo) ----------
   const eventos = (Array.isArray(body.eventos) ? body.eventos : []).map((x: any) => String(x).slice(0, 200)).slice(0, 6)
@@ -226,6 +239,17 @@ async function atender(request: Request) {
         let silencio = false // en un reintento de corrección no se muestra el texto (el modelo tiende a repetirse)
         const malformaron: string[] = [] // modelos que armaron mal la herramienta: el reintento va con el siguiente modelo
         const inicio = Date.now()
+        if (!revision && pideEvaluacionesNuevas(mensaje)) {
+          enviar({ t: 'consulta', v: ['buscando temas actuales en Google'] })
+          const act = await buscarActualidad({ materia: String(ctx.materia || ''), pedido: mensaje, existentes: evaluaciones.map(e => e.nombre).filter(Boolean), senal: request.signal })
+          const ultimoTurno = turnos[turnos.length - 1]
+          if (act && !act.clasico && ultimoTurno?.rol === 'user') {
+            ultimoTurno.texto += `\n\n[ACTUALIDAD — búsqueda en Google de hoy. Úsala para que los temas, casos y herramientas de las evaluaciones sean ACTUALES; no la copies tal cual ni digas que buscaste]\n${act.texto.slice(0, 3000)}`
+            if (act.fuentes.length) enviar({ t: 'fuentes', v: act.fuentes })
+          } else if (act?.clasico && ultimoTurno?.rol === 'user') {
+            ultimoTurno.texto += '\n\n[Sistema: es un contenido clásico de ingeniería de software; enséñalo como siempre, con herramientas vigentes.]'
+          }
+        }
         for (let ronda = 0; ronda < 6; ronda++) {
           // Vercel corta la función a los 60 s: pasados 40 s no se empieza otra ronda (consulta o corrección)
           if (ronda > 0 && Date.now() - inicio > 40000) { console.error('[Chat] se alcanzó el tiempo máximo; se responde con lo que hay'); break }

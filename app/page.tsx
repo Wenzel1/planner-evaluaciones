@@ -130,7 +130,7 @@ function buscarPorNombre<T extends { nombre: string }>(lista: T[], nombre: strin
   return parciales.length > 1 || exactos.length > 1 ? 'varios' : null;
 }
 const TIPO_PREGUNTA: Record<string, string> = { seleccion: 'Selección', verdadero_falso: 'V o F', desarrollo: 'Desarrollo', caso: 'Caso', practica: 'Práctica' };
-interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; acciones?: AccionChat[]; streaming?: boolean; modelo?: string; respaldo?: boolean; aviso?: string; error?: boolean; dbId?: string; valoracion?: number; adjunto?: string; consultas?: string[] }
+interface Mensaje { rol: 'agent' | 'user'; contenido: string; completo?: boolean; id: string; acciones?: AccionChat[]; streaming?: boolean; modelo?: string; respaldo?: boolean; aviso?: string; error?: boolean; dbId?: string; valoracion?: number; adjunto?: string; consultas?: string[]; fuentes?: { titulo: string; url: string }[] }
 interface PropuestaEvaluacion {
   evaluaciones: Array<{
     tipo?: string; materia: string; tipoActividad?: string; enfoque?: string;
@@ -1922,9 +1922,9 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className={etiqueta}>Modelo de lenguaje</label>
-            <input list="modelos-sugeridos" value={cfg.chat.modelo} onChange={(e) => cambiarChat({ modelo: e.target.value })} placeholder="gemini-2.5-flash (por defecto)" className={campo} />
-            <datalist id="modelos-sugeridos"><option value="gemini-2.5-flash" /><option value="gemini-2.5-flash-lite" /><option value="gemini-2.5-pro" /><option value="gemini-2.0-flash" /><option value="llama-3.3-70b-versatile" /></datalist>
-            <p className={ayuda}>El primero que se intenta. Si falla o no tiene cupo, el chat pasa solo a Gemini Flash-Lite, Gemini 2.0, OpenRouter y Groq (Llama 3.3). Un modelo con «/» (ej. google/gemini-2.5-flash) usa OPENROUTER_API_KEY; los «llama…», GROQ_API_KEY.</p>
+            <input list="modelos-sugeridos" value={cfg.chat.modelo} onChange={(e) => cambiarChat({ modelo: e.target.value })} placeholder="google/gemini-2.5-flash (por defecto)" className={campo} />
+            <datalist id="modelos-sugeridos"><option value="google/gemini-2.5-flash" /><option value="google/gemini-2.5-pro" /><option value="openai/gpt-4.1-mini" /><option value="deepseek/deepseek-chat-v3.1" /></datalist>
+            <p className={ayuda}>El agente usa solo OpenRouter (OPENROUTER_API_KEY). Escribe el nombre del modelo tal como aparece en openrouter.ai, con «/». Vacío = OPENROUTER_MODELO o google/gemini-2.5-flash.</p>
           </div>
           <div>
             <label className={etiqueta}>Dirección de n8n (solo respaldo de WhatsApp)</label>
@@ -1950,7 +1950,7 @@ function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigCliente) => 
         </div>
         <div className="flex items-start gap-2 text-xs text-[#9a9bb0] bg-[#161722] border border-[#282a3f] rounded-xl p-3">
           <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#a5b4fc]" />
-          <span>Estos valores los usa el agente EvaPlanner en cada mensaje: el <strong className="text-[#c0c0cc]">modelo</strong> (vacío = Gemini con respaldo automático en OpenRouter y Groq), la <strong className="text-[#c0c0cc]">creatividad</strong>, la <strong className="text-[#c0c0cc]">memoria</strong>, el largo máximo y las <strong className="text-[#c0c0cc]">instrucciones extra</strong>. La dirección de n8n ya no la usa el chat.</span>
+          <span>Estos valores los usa el agente EvaPlanner en cada mensaje: el <strong className="text-[#c0c0cc]">modelo</strong> (de OpenRouter; vacío = google/gemini-2.5-flash), la <strong className="text-[#c0c0cc]">creatividad</strong>, la <strong className="text-[#c0c0cc]">memoria</strong>, el largo máximo y las <strong className="text-[#c0c0cc]">instrucciones extra</strong>. La dirección de n8n ya no la usa el chat.</span>
         </div>
       </div>
 
@@ -2746,7 +2746,7 @@ function CampanitaNotificacionesFlotante({ notificaciones, setNotificaciones, ca
   };
 
   return (
-    <div className="relative" ref={panelRef}>
+    <div className="relative" ref={panelRef} data-tutorial="notificaciones">
       <AvisosEmergentes notificaciones={notificaciones} setNotificaciones={setNotificaciones} />
       <button onClick={toggleNotificaciones} className={`p-2 rounded-lg transition-colors relative ${mostrarPanel ? 'text-[#818cf8] bg-[#272839]' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'}`} aria-label="Notificaciones">
         <motion.span key={timbre} className="block" animate={timbre ? { rotate: [0, -18, 15, -10, 6, 0] } : {}} transition={{ duration: 0.6 }} style={{ transformOrigin: '50% 10%' }}>
@@ -3688,7 +3688,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
       
       <div className="flex justify-end gap-2 mt-4">
         <Tooltip text={`Acta de notas de la sección ${seccionActiva} (para Excel)`}>
-          <button onClick={descargarActa} disabled={descargandoActa || !secciones.some((s: SeccionExamen) => esIdGuardado(s.id))} className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-medium rounded-lg transition-all border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+          <button data-tutorial="acta" onClick={descargarActa} disabled={descargandoActa || !secciones.some((s: SeccionExamen) => esIdGuardado(s.id))} className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-medium rounded-lg transition-all border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
             {descargandoActa ? <div className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />} Acta de notas
           </button>
         </Tooltip>
@@ -5420,6 +5420,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           scrollToBottom();
         }
         else if (ev.t === 'aviso') { asegurarMensaje(); actualizar(m => ({ ...m, aviso: ev.v })); }
+        else if (ev.t === 'fuentes') { asegurarMensaje(); actualizar(m => ({ ...m, fuentes: Array.isArray(ev.v) ? ev.v.slice(0, 5) : [] })); }
         else if (ev.t === 'consulta') { asegurarMensaje(); actualizar(m => ({ ...m, consultas: [...(m.consultas || []), ...(Array.isArray(ev.v) ? ev.v : [String(ev.v)])] })); }
         else if (ev.t === 'fin') { asegurarMensaje(); actualizar(m => ({ ...m, completo: true, streaming: false, dbId: ev.mensajeId })); }
         else if (ev.t === 'error') throw new Error(ev.mensaje || 'El agente no pudo responder.');
@@ -5445,8 +5446,10 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   };
   const detener = () => abortRef.current?.abort('usuario');
   const revisarPlan = () => handleSend(`Revisa mi plan de la Sección ${seccionActiva} y ponle nota`, { modo: 'revision' });
+  const [agradecidoId, setAgradecidoId] = useState<string | null>(null);
   const valorar = (m: Mensaje, v: 1 | -1) => {
     const nuevo = m.valoracion === v ? 0 : v;
+    if (nuevo) { setAgradecidoId(m.id); setTimeout(() => setAgradecidoId(x => (x === m.id ? null : x)), 3000); }
     setHistorial(prev => prev.map(x => (x.id === m.id ? { ...x, valoracion: nuevo || undefined } : x)));
     if (m.dbId) fetch(`/api/chat/mensajes/${encodeURIComponent(m.dbId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ valoracion: nuevo }) }).catch(() => {});
   };
@@ -5871,7 +5874,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           <p className="text-xs text-[#8a8b9e] flex items-center gap-1.5 truncate"><span className={`w-1.5 h-1.5 rounded-full inline-block ${chatInactivo ? 'bg-[#6a6b7e]' : ocupado ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>{estadoTexto}<span className="text-[#5f6074]">· Sección {seccionActiva}</span></p>
         </div>
         <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-          <div className="flex items-center gap-0.5 p-1 bg-[#161722]/80 border border-[#282a3f] rounded-xl">
+          <div data-tutorial="chat-herramientas" className="flex items-center gap-0.5 p-1 bg-[#161722]/80 border border-[#282a3f] rounded-xl">
             <Tooltip text={modoAuto ? 'Modo automático: activado (las acciones seguras se aplican solas)' : 'Modo automático: desactivado (todo pide confirmación)'} lado="abajo"><button onClick={alternarModoAuto} aria-label="Modo automático" aria-pressed={modoAuto} className={`p-2 rounded-lg transition-colors ${modoAuto ? 'text-amber-300 bg-amber-400/15' : 'text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15'}`}><Sparkles className="w-4 h-4" /></button></Tooltip>
             <Tooltip text="Revisar mi plan (nota y mejoras)" lado="abajo"><button onClick={revisarPlan} disabled={ocupado || chatInactivo || evaluacionesActivas().length === 0} aria-label="Revisar mi plan" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-transparent"><ClipboardCheck className="w-4 h-4" /></button></Tooltip>
             <Tooltip text="Nueva conversación" lado="abajo"><button onClick={nuevaConversacion} aria-label="Nueva conversación" className="p-2 text-[#8a8b9e] hover:text-[#c7d2fe] hover:bg-[#818cf8]/15 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button></Tooltip>
@@ -5953,7 +5956,13 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
                     {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="inline-block w-2 h-4 bg-[#818cf8] animate-pulse rounded-sm" />}
                     {msg.consultas?.length ? (
                       <div className="mb-1.5 flex flex-wrap gap-1.5">
-                        {msg.consultas.map((c, i) => <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#232438] border border-[#313248] text-[#8a8b9e]"><Search className="w-3 h-3" />{/^preparando/.test(c) ? c.charAt(0).toUpperCase() + c.slice(1) : `Revisé ${c}`}</span>)}
+                        {msg.consultas.map((c, i) => <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#232438] border border-[#313248] text-[#8a8b9e]"><Search className="w-3 h-3" />{/^(preparando|corrigiendo|aplicando|cuadrando|buscando)/.test(c) ? c.charAt(0).toUpperCase() + c.slice(1) : `Revisé ${c}`}</span>)}
+                      </div>
+                    ) : null}
+                    {msg.fuentes?.length ? (
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-[#8a8b9e]">Temas actuales según:</span>
+                        {msg.fuentes.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#1e2a3a] border border-[#2c4a66] text-[#93c5fd] hover:text-white hover:border-[#60a5fa] max-w-[200px]"><ExternalLink className="w-3 h-3 flex-shrink-0" /><span className="truncate">{f.titulo}</span></a>)}
                       </div>
                     ) : null}
                     {msg.acciones?.map(a => renderAccion(msg, a))}
@@ -5971,9 +5980,10 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
                         {msg.contenido && <Tooltip text={copiadoId === msg.id ? '¡Copiado!' : 'Copiar'}><button type="button" onClick={() => copiar(msg.contenido, msg.id)} className="p-1.5 rounded-md text-[#6a6b7e] hover:text-[#c7d2fe] hover:bg-[#232438]">{copiadoId === msg.id ? <CheckCircle className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}</button></Tooltip>}
                         {msg.id === ultimoAgenteId && <Tooltip text="Responder de nuevo"><button type="button" onClick={regenerar} disabled={ocupado} className="p-1.5 rounded-md text-[#6a6b7e] hover:text-[#c7d2fe] hover:bg-[#232438] disabled:opacity-40"><RotateCcw className="w-3.5 h-3.5" /></button></Tooltip>}
                         {msg.contenido && <Tooltip text={leyendoId === msg.id ? 'Detener lectura' : 'Leer en voz alta'}><button type="button" onClick={() => leerEnVoz(msg)} className={`p-1.5 rounded-md hover:bg-[#232438] ${leyendoId === msg.id ? 'text-[#a5b4fc]' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}>{leyendoId === msg.id ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}</button></Tooltip>}
-                        <Tooltip text="Buena respuesta"><button type="button" onClick={() => valorar(msg, 1)} className={`p-1.5 rounded-md hover:bg-[#232438] ${msg.valoracion === 1 ? 'text-emerald-300' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}><ThumbsUp className="w-3.5 h-3.5" /></button></Tooltip>
-                        <Tooltip text="Mala respuesta"><button type="button" onClick={() => valorar(msg, -1)} className={`p-1.5 rounded-md hover:bg-[#232438] ${msg.valoracion === -1 ? 'text-red-300' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}><ThumbsDown className="w-3.5 h-3.5" /></button></Tooltip>
-                        {msg.modelo && <span className="text-[10px] text-[#5f6074] ml-1">{msg.respaldo ? 'respaldo · ' : ''}{msg.modelo}</span>}
+                        <Tooltip text="Buena respuesta (EvaPlanner repetirá este estilo)"><button type="button" onClick={() => valorar(msg, 1)} className={`p-1.5 rounded-md hover:bg-[#232438] ${msg.valoracion === 1 ? 'text-emerald-300' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}><ThumbsUp className="w-3.5 h-3.5" /></button></Tooltip>
+                        <Tooltip text="Mala respuesta (EvaPlanner evitará este estilo)"><button type="button" onClick={() => valorar(msg, -1)} className={`p-1.5 rounded-md hover:bg-[#232438] ${msg.valoracion === -1 ? 'text-red-300' : 'text-[#6a6b7e] hover:text-[#c7d2fe]'}`}><ThumbsDown className="w-3.5 h-3.5" /></button></Tooltip>
+                        {agradecidoId === msg.id ? <span className="text-[10px] text-emerald-300 ml-1">¡Gracias! Lo tendré en cuenta en mis próximas respuestas</span>
+                          : msg.modelo && <span className="text-[10px] text-[#5f6074] ml-1">{msg.respaldo ? 'respaldo · ' : ''}{msg.modelo}</span>}
                       </div>
                     )}
                   </div>
@@ -6009,7 +6019,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
             {adjunto && <button type="button" onClick={() => setAdjunto(null)} className="p-0.5 text-[#8a8b9e] hover:text-white" aria-label="Quitar documento"><X className="w-3.5 h-3.5" /></button>}
           </div>
         )}
-        <div className="relative">
+        <div className="relative" data-tutorial="chat-entrada">
           <div className="relative flex items-end gap-2 bg-[#1f2035] border border-[#313248] rounded-2xl px-3 py-2.5 focus-within:border-[#818cf8]/60 transition-colors shadow-lg shadow-black/20">
             <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar documento" title="Adjuntar documento: programa de la materia, guía… (PDF, Word, .txt)" className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
             <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.docx,.txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} />
@@ -6911,6 +6921,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           )}
           <motion.button
             onClick={() => setVista('configuracion')}
+            data-tutorial="configuracion"
             title="Configuración del plan"
             aria-label="Configuración del plan"
             whileHover={{ scale: 1.05 }}
@@ -7146,7 +7157,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                       </span>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" data-tutorial="plan-accion">
                     <motion.button 
                         whileHover={{ scale: 1.02 }} 
                         whileTap={{ scale: 0.98 }}
@@ -7543,7 +7554,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
       <BandaRol rol={usuario.rol} />
       {tutorialAbierto && (
         <Tutorial pasos={pasosTutorial(usuario.nombre, esMovil)} onTerminar={cerrarTutorial}
-          alCambiarPaso={(p) => { if (p.objetivo && p.objetivo !== 'agente' && p.objetivo !== 'divisor') setVistaActual('planificacion'); if ((p.objetivo === 'agente' || p.objetivo === 'divisor') && !esMovil) setAgenteExpandido(true); }} />
+          alCambiarPaso={(p) => { const delChat = ['agente', 'divisor', 'chat-herramientas', 'chat-entrada'].includes(p.objetivo || ''); if (p.objetivo && !delChat && !['notificaciones', 'configuracion', 'pestanas', 'ayuda'].includes(p.objetivo)) setVistaActual('planificacion'); if (delChat && !esMovil) setAgenteExpandido(true); }} />
       )}
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
                 <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} formulariosLibres={() => panelDerechoRef.current?.formulariosLibres() ?? true} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} arrastrando={arrastrando} esSuperadmin={usuario.rol === 'SUPERADMIN'} />

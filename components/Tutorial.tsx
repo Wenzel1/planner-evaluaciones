@@ -24,17 +24,23 @@ export function marcarTutorialVisto(usuarioId: string) {
 export function pasosTutorial(nombre: string, esMovil: boolean): PasoTutorial[] {
   const primerNombre = String(nombre || '').trim().split(/\s+/)[0] || '';
   return [
-    { titulo: `¡Bienvenido${primerNombre ? `, ${primerNombre}` : ''}! 👋`, texto: 'Te muestro en un minuto cómo funciona el Planificador de Evaluaciones. Si ya lo conoces, presiona «Omitir»; puedes volver a verlo cuando quieras con el botón ?.' },
-    { objetivo: 'agente', titulo: 'Tu asistente con IA', texto: esMovil
-        ? 'Toca el botón del chat para hablar con el asistente. Escríbele como a un colega: «recomiéndame 4 evaluaciones», «mueve la 2 al viernes» o «hazme el examen de la 3».'
-        : 'Escríbele como a un colega: «recomiéndame 4 evaluaciones para la Sección A», «mueve la 2 al viernes» o «hazme el examen de la 3». Él te propone y tú decides; en modo automático aplica solo lo seguro.' },
+    { titulo: `¡Bienvenido${primerNombre ? `, ${primerNombre}` : ''}! 👋`, texto: 'En 2 minutos te muestro cada herramienta del Planificador: el asistente EvaPlanner, tus evaluaciones, las notas y lo que reciben tus estudiantes. Presiona «Omitir» si ya lo conoces; el botón ? lo repite cuando quieras.' },
+    { objetivo: 'agente', titulo: 'EvaPlanner, tu asistente con IA', texto: esMovil
+        ? 'Toca el botón del chat para abrirlo. EvaPlanner crea planes y evaluaciones con temas actuales (busca en Google), arma rúbricas, exámenes y recursos, mueve fechas, ajusta pesos, carga notas y escribe a tus estudiantes. Siempre te muestra lo que va a hacer antes de aplicarlo.'
+        : 'EvaPlanner crea planes y evaluaciones con temas actuales (busca en Google cada vez), arma rúbricas, exámenes en línea y recursos de estudio, mueve fechas, ajusta pesos para que sumen 100 %, carga notas, agrega estudiantes y les escribe. Siempre te muestra lo que va a hacer antes de aplicarlo.' },
+    { objetivo: 'chat-entrada', titulo: 'Pídeselo como a un colega', texto: 'Ejemplos: «Hazme un plan de 4 evaluaciones», «mueve la 2 al viernes», «crea la rúbrica de la 3», «hazme el examen de la 1 con 10 preguntas», «¿quiénes están en riesgo?». Usa el clip para adjuntar el programa de la materia (PDF o Word) o el micrófono para dictar.', opcional: true },
+    { objetivo: 'chat-herramientas', titulo: 'Controles del chat', texto: '⚡ Modo automático: aplica solo lo seguro sin preguntar. 📋 Revisar mi plan: le pone nota a tu plan y sugiere mejoras. ＋ Nueva conversación. 🕘 Conversaciones anteriores. Debajo de cada respuesta puedes copiarla, escucharla o darle 👍 / 👎: EvaPlanner aprende de tus valoraciones.', opcional: true },
     { objetivo: 'divisor', titulo: 'Ajusta el tamaño', texto: 'Arrastra esta barra para hacer el chat más ancho o más angosto. Con doble clic vuelve al tamaño normal.', opcional: true },
-    { objetivo: 'materia', titulo: 'Tus materias', texto: 'Cambia de materia o crea una nueva. Cada materia tiene su propio plan de evaluaciones.', opcional: true },
-    { objetivo: 'formularios', titulo: 'Crear evaluaciones a mano', texto: 'Llena el tema, la estrategia, el peso, la fecha y los grupos, y presiona Guardar. Lo que te proponga el asistente también aparece aquí para que lo revises antes. Cuando ya tienes evaluaciones, este espacio se pliega para no estorbar.' },
-    { objetivo: 'secciones', titulo: 'Secciones', texto: 'Si das la misma materia a varios grupos (A, B, C…), cada sección tiene sus propias evaluaciones y estudiantes.', opcional: true },
-    { objetivo: 'guardadas', titulo: 'Tus evaluaciones', texto: 'Cada tarjeta muestra lo esencial. Usa «Notas» para calificar y el clip para los recursos de estudio; en el menú ⋯ están editar, la rúbrica, el examen en línea y eliminar. Toca el nombre para ver el detalle.' },
-    { objetivo: 'pestanas', titulo: 'Más herramientas', texto: 'Dashboard con estadísticas, Calendario para ver y mover fechas, Estudiantes (cada uno tiene su página personal) y Papelera para recuperar lo borrado.' },
-    { objetivo: 'ayuda', titulo: '¡Listo! 🎉', texto: 'Ya conoces lo principal. Cuando quieras repetir este recorrido, presiona este botón.' },
+    { objetivo: 'materia', titulo: 'Tus materias', texto: 'Cambia de materia o crea una nueva. Cada materia tiene su propio plan, sus secciones y sus estudiantes.', opcional: true },
+    { objetivo: 'formularios', titulo: 'Crear o revisar evaluaciones', texto: 'Aquí llega lo que te propone EvaPlanner para que lo revises y lo guardes, o lo llenas tú: contenido, estrategia, enfoque, duración, peso, grupos, fecha y descripción. Cuando ya tienes evaluaciones se pliega en una barra para no estorbar.' },
+    { objetivo: 'secciones', titulo: 'Secciones A, B, C…', texto: 'Si das la misma materia a varios grupos, cada sección tiene sus propias evaluaciones, fechas y estudiantes. Con ＋ creas otra y EvaPlanner puede copiar el plan de una sección a otra.', opcional: true },
+    { objetivo: 'guardadas', titulo: 'Tus evaluaciones', texto: 'Arrastra ⋮⋮ para reordenarlas y toca el número para incluirla o quitarla del Plan de Acción. «Notas» abre la planilla para calificar (con o sin rúbrica). El clip guarda videos y páginas de estudio. En ⋯ están Editar, la Rúbrica, el Examen en línea (con preguntas mezcladas y aviso si el estudiante sale de la página) y Eliminar.' },
+    { objetivo: 'plan-accion', titulo: 'Plan de Acción y envío', texto: 'Genera el Plan de Acción en PDF con las evaluaciones marcadas y envíaselo a tus estudiantes: cada uno recibe por correo el enlace a su página personal, con fechas, recursos, exámenes y sus notas.', opcional: true },
+    { objetivo: 'acta', titulo: 'Acta de notas', texto: 'Descarga en un clic el acta de la sección para Excel: cada estudiante con sus notas, su promedio y si aprueba o no.', opcional: true },
+    { objetivo: 'pestanas', titulo: 'Más pantallas', texto: '📊 Dashboard: promedios, avance y estudiantes en riesgo. 📅 Calendario: ve y arrastra las fechas, con feriados. 👥 Estudiantes: agrégalos uno a uno o desde Excel y abre su página personal. 🗑️ Papelera: recupera lo que borraste.' },
+    { objetivo: 'notificaciones', titulo: 'Notificaciones', texto: 'Te avisa cuando un estudiante opina sobre el plan, marca «Ya me preparé» o entrega un examen, y de las evaluaciones que se acercan. Los recordatorios a los estudiantes salen solos por correo.', opcional: true },
+    { objetivo: 'configuracion', titulo: 'Configuración', texto: 'Datos del plan (institución, lapso, materia) que salen en el PDF, y las preferencias de tu cuenta.', opcional: true },
+    { objetivo: 'ayuda', titulo: '¡Listo! 🎉', texto: 'Para empezar, prueba en el chat: «Hazme un plan de 4 evaluaciones». Cuando quieras repetir este recorrido, presiona este botón.' },
   ];
 }
 

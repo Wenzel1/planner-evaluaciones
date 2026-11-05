@@ -1,12 +1,12 @@
-// Llamadas a los modelos con respuesta en tiempo real (streaming) y respaldo automático:
-// Gemini (el modelo configurado) → Gemini 2.5 Flash-Lite → Gemini 2.0 Flash → Groq (Llama 3.3 70B).
-// Solo se pasa al siguiente si el modelo falla ANTES de empezar a responder (así nunca se mezclan respuestas).
-import { herramientasGemini, herramientasGroq } from './herramientas'
+// Llamadas al modelo del agente con respuesta en tiempo real (streaming).
+// El agente usa SOLO OpenRouter (OPENROUTER_API_KEY): el modelo configurado (con «/», ej. google/gemini-2.5-flash)
+// o, si no hay, OPENROUTER_MODELO o google/gemini-2.5-flash.
+import { herramientasGroq } from './herramientas'
 
 export interface Turno { rol: 'user' | 'model'; texto: string }
 export type Evento = { t: 'texto'; v: string } | { t: 'herramienta'; nombre: string; args: any } | { t: 'aviso'; v: string } | { t: 'malformada' }
 export interface Opciones { temperatura: number; maxTokens: number; senal?: AbortSignal; sinHerramientas?: boolean; evitar?: string[] }
-interface Candidato { proveedor: 'gemini' | 'groq' | 'openrouter'; modelo: string }
+interface Candidato { proveedor: 'openrouter'; modelo: string }
 
 class FalloModelo extends Error { constructor(msg: string, public estado = 0) { super(msg) } }
 
@@ -34,51 +34,12 @@ async function errorDe(r: Response): Promise<string> {
   try { const d = JSON.parse(t); return String(d?.error?.message || d?.error || t).slice(0, 200) } catch { return t.slice(0, 200) }
 }
 
-// ---------- Gemini ----------
-async function* gemini(modelo: string, sistema: string, turnos: Turno[], op: Opciones): AsyncGenerator<Evento> {
-  const clave = process.env.GEMINI_API_KEY
-  if (!clave) throw new FalloModelo('Falta GEMINI_API_KEY')
-  const generationConfig: any = { temperature: op.temperatura, maxOutputTokens: op.maxTokens }
-  // Los 2.5 "piensan" antes de responder: se apaga (o se limita en Pro) para que la respuesta empiece al instante
-  if (/2\.5/.test(modelo)) generationConfig.thinkingConfig = { thinkingBudget: /pro/.test(modelo) ? 128 : 0 }
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:streamGenerateContent?alt=sse`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': clave },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: sistema }] },
-      contents: turnos.map(t => ({ role: t.rol, parts: [{ text: t.texto }] })),
-      ...(op.sinHerramientas ? {} : { tools: herramientasGemini(), toolConfig: { functionCallingConfig: { mode: 'AUTO' } } }),
-      generationConfig,
-    }),
-    signal: op.senal,
-  })
-  if (!r.ok) throw new FalloModelo(`${modelo}: ${r.status} ${await errorDe(r)}`, r.status)
-  for await (const dato of lineasSSE(r)) {
-    if (!dato || dato === '[DONE]') continue
-    let d: any; try { d = JSON.parse(dato) } catch { continue }
-    if (d?.promptFeedback?.blockReason) throw new FalloModelo(`${modelo}: bloqueado (${d.promptFeedback.blockReason})`)
-    const cand = d?.candidates?.[0]
-    for (const p of cand?.content?.parts || []) {
-      if (p.thought) continue
-      if (typeof p.text === 'string' && p.text) yield { t: 'texto', v: p.text }
-      if (p.functionCall?.name) yield { t: 'herramienta', nombre: p.functionCall.name, args: p.functionCall.args || {} }
-    }
-    if (cand?.finishReason === 'MAX_TOKENS') yield { t: 'aviso', v: 'La respuesta llegó al límite de largo y pudo quedar cortada.' }
-    // Gemini a veces arma mal la llamada a una herramienta cuando lleva mucho texto (ej. 4 evaluaciones con descripción):
-    // se avisa para que el chat la pida de nuevo en vez de quedarse en "Aquí tienes la propuesta:"
-    if (cand?.finishReason === 'MALFORMED_FUNCTION_CALL' || cand?.finishReason === 'UNEXPECTED_TOOL_CALL') {
-      console.error(`[Chat] ${modelo}: llamada a herramienta mal formada (${cand.finishReason})`)
-      yield { t: 'malformada' }
-    }
-  }
-}
-
-// ---------- Groq y OpenRouter (mismo formato, el de OpenAI) ----------
-async function* groq(modelo: string, sistema: string, turnos: Turno[], op: Opciones, proveedor: 'groq' | 'openrouter' = 'groq'): AsyncGenerator<Evento> {
-  const clave = proveedor === 'openrouter' ? process.env.OPENROUTER_API_KEY : process.env.GROQ_API_KEY
-  if (!clave) throw new FalloModelo(proveedor === 'openrouter' ? 'Falta OPENROUTER_API_KEY' : 'Falta GROQ_API_KEY')
-  const url = proveedor === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.groq.com/openai/v1/chat/completions'
-  const extra: Record<string, string> = proveedor === 'openrouter' ? { 'HTTP-Referer': process.env.APP_URL || 'https://planner-evaluaciones.vercel.app', 'X-Title': 'Planificador de Evaluaciones' } : {}
+// ---------- OpenRouter (formato de OpenAI) ----------
+async function* openrouter(modelo: string, sistema: string, turnos: Turno[], op: Opciones): AsyncGenerator<Evento> {
+  const clave = process.env.OPENROUTER_API_KEY
+  if (!clave) throw new FalloModelo('Falta OPENROUTER_API_KEY')
+  const url = 'https://openrouter.ai/api/v1/chat/completions'
+  const extra: Record<string, string> = { 'HTTP-Referer': process.env.APP_URL || 'https://planner-evaluaciones.vercel.app', 'X-Title': 'Planificador de Evaluaciones' }
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${clave}`, ...extra },
@@ -87,12 +48,13 @@ async function* groq(modelo: string, sistema: string, turnos: Turno[], op: Opcio
       messages: [{ role: 'system', content: sistema }, ...turnos.map(t => ({ role: t.rol === 'model' ? 'assistant' : 'user', content: t.texto }))],
       ...(op.sinHerramientas ? {} : { tools: herramientasGroq(), tool_choice: 'auto' }),
       // Gemini Flash por OpenRouter "piensa" antes de responder si no se le dice nada: sin eso responde mucho más rápido
-      ...(proveedor === 'openrouter' && /flash/i.test(modelo) ? { reasoning: { enabled: false } } : {}),
+      ...(/flash/i.test(modelo) ? { reasoning: { enabled: false } } : {}),
     }),
     signal: op.senal,
   })
   if (!r.ok) throw new FalloModelo(`${modelo}: ${r.status} ${await errorDe(r)}`, r.status)
   const llamadas = new Map<number, { nombre: string; args: string }>()
+  let malformada = false
   for await (const dato of lineasSSE(r)) {
     if (!dato || dato === '[DONE]') continue
     let d: any; try { d = JSON.parse(dato) } catch { continue }
@@ -107,35 +69,24 @@ async function* groq(modelo: string, sistema: string, turnos: Turno[], op: Opcio
       llamadas.set(i, actual)
     }
     if (d?.choices?.[0]?.finish_reason === 'length') yield { t: 'aviso', v: 'La respuesta llegó al límite de largo y pudo quedar cortada.' }
+    // Gemini por OpenRouter a veces arma mal la llamada a la herramienta (mucho texto): el chat la pide de nuevo
+    if (/MALFORMED|UNEXPECTED_TOOL/i.test(String(d?.choices?.[0]?.native_finish_reason || ''))) malformada = true
   }
   for (const { nombre, args } of llamadas.values()) {
     if (!nombre) continue
-    let a: any = {}; try { a = JSON.parse(args || '{}') } catch { /* argumentos incompletos: se ignoran */ }
+    let a: any = {}
+    try { a = JSON.parse(args || '{}') } catch { malformada = true; continue } // argumentos cortados o inválidos
     yield { t: 'herramienta', nombre, args: a }
   }
+  if (malformada) { console.error(`[Chat] ${modelo}: llamada a herramienta mal formada`); yield { t: 'malformada' } }
 }
 
 export function candidatos(modeloConfigurado?: string): Candidato[] {
-  const lista: Candidato[] = []
-  const base = String(modeloConfigurado || '').trim().replace(/^models\//, '')
-  if (process.env.GEMINI_API_KEY) {
-    if (base && /gemini/i.test(base) && !base.includes('/')) lista.push({ proveedor: 'gemini', modelo: base })
-    for (const m of ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash']) lista.push({ proveedor: 'gemini', modelo: m })
-  }
-  // OpenRouter (de pago, con saldo): después de Gemini gratis y antes de Groq. Modelo con "/" en la configuración → OpenRouter.
-  if (process.env.OPENROUTER_API_KEY) {
-    if (base && base.includes('/')) lista.push({ proveedor: 'openrouter', modelo: base })
-    lista.push({ proveedor: 'openrouter', modelo: (process.env.OPENROUTER_MODELO || 'google/gemini-2.5-flash').trim() })
-  }
-  if (process.env.GROQ_API_KEY) {
-    if (base && !base.includes('/') && /llama|qwen|gpt-oss|mixtral|gemma/i.test(base)) lista.push({ proveedor: 'groq', modelo: base })
-    lista.push({ proveedor: 'groq', modelo: 'llama-3.3-70b-versatile' })
-  }
-  // Si el administrador eligió un modelo de OpenRouter (con "/"), ese va primero
-  const elegido = lista.findIndex(c => c.proveedor === 'openrouter' && c.modelo === base)
-  if (elegido > 0) lista.unshift(...lista.splice(elegido, 1))
-  const vistos = new Set<string>()
-  return lista.filter(c => { const k = `${c.proveedor}:${c.modelo}`; if (vistos.has(k)) return false; vistos.add(k); return true })
+  if (!process.env.OPENROUTER_API_KEY) return []
+  // Un modelo configurado con «/» es de OpenRouter; los nombres viejos (gemini-…, llama-…) se ignoran
+  const base = String(modeloConfigurado || '').trim()
+  const modelo = base.includes('/') ? base : (process.env.OPENROUTER_MODELO || 'google/gemini-2.5-flash').trim()
+  return [{ proveedor: 'openrouter', modelo }]
 }
 
 // Responde con el primer modelo que funcione. Emite { t:'modelo' } al empezar con el que respondió.
@@ -144,10 +95,10 @@ export async function* responder(sistema: string, turnos: Turno[], op: Opciones,
   const todos = candidatos(modeloConfigurado)
   const sinEvitados = todos.filter(c => !op.evitar?.includes(c.modelo))
   const lista = sinEvitados.length ? sinEvitados : todos
-  if (lista.length === 0) throw new Error('No hay claves de IA: agrega GEMINI_API_KEY, OPENROUTER_API_KEY o GROQ_API_KEY en Vercel.')
+  if (lista.length === 0) throw new Error('Falta la clave de OpenRouter: agrega OPENROUTER_API_KEY en Vercel.')
   const fallos: string[] = []
   for (const [i, c] of lista.entries()) {
-    const gen = c.proveedor === 'gemini' ? gemini(c.modelo, sistema, turnos, op) : groq(c.modelo, sistema, turnos, op, c.proveedor)
+    const gen = openrouter(c.modelo, sistema, turnos, op)
     let primero: IteratorResult<Evento>
     try {
       primero = await gen.next()
@@ -164,5 +115,5 @@ export async function* responder(sistema: string, turnos: Turno[], op: Opciones,
     return
   }
   const cupo = fallos.every(f => / 429 /.test(f) || /quota|rate/i.test(f))
-  throw new Error(cupo ? 'Todos los modelos de IA están sin cupo por ahora. Intenta en unos minutos.' : `Ningún modelo de IA respondió. (${fallos.slice(-2).join(' | ')})`)
+  throw new Error(cupo ? 'OpenRouter está sin cupo o sin saldo por ahora. Revisa el saldo o intenta en unos minutos.' : `El modelo de IA no respondió. (${fallos.slice(-2).join(' | ')})`)
 }
