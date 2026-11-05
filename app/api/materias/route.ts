@@ -59,3 +59,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Error al crear materia' }, { status: 500 });
   }
 }
+
+// PATCH /api/materias  { id, abrir: true } — marca la materia como la última abierta en la cuenta,
+// para que la computadora y el teléfono abran la misma al entrar.
+export async function PATCH(request: Request) {
+  try {
+    const { actor, error } = await requerirActor(request);
+    if (error) return error;
+    const body = await request.json().catch(() => ({}));
+    if (!body.id || body.abrir !== true) return NextResponse.json({ error: 'Solicitud no válida.' }, { status: 400 });
+    const r = await prisma.materia.updateMany({ where: { id: String(body.id), usuarioId: actor.id }, data: { updatedAt: new Date() } });
+    return NextResponse.json({ ok: r.count > 0 });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json({ error: 'No se pudo marcar la materia.' }, { status: 500 });
+  }
+}

@@ -4866,7 +4866,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   }, [planificacionId]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // El cuadro de texto crece con el contenido (hasta 160px)
-  useEffect(() => { const t = textareaRef.current; if (!t) return; t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 120)}px`; }, [mensaje]);
+  useEffect(() => { const t = textareaRef.current; if (!t) return; t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 128)}px`; }, [mensaje]);
   useEffect(() => { mensajeRef.current = mensaje; }, [mensaje]);
 
   const [isRecording, setIsRecording] = useState(false);
@@ -5476,6 +5476,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
         if (ev.t === 'inicio' && ev.conversacionId) setConversacionId(ev.conversacionId);
         else if (ev.t === 'modelo') { asegurarMensaje(); actualizar(m => ({ ...m, modelo: ev.v, respaldo: !!ev.respaldo })); }
         else if (ev.t === 'texto') { asegurarMensaje(); actualizar(m => ({ ...m, contenido: m.contenido + ev.v })); scrollToBottom(); }
+        else if (ev.t === 'texto_reset') { asegurarMensaje(); actualizar(m => ({ ...m, contenido: String(ev.v || '') })); }
         else if (ev.t === 'accion' && ev.accion) {
           asegurarMensaje(); actualizar(m => ({ ...m, acciones: [...(m.acciones || []), { ...ev.accion, estado: 'pendiente' }] }));
           if (ev.accion.tipo === 'proponer_evaluaciones') {
@@ -5714,7 +5715,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     if (!archivo) return;
     const ext = (archivo.name.match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();
     if (!['pdf', 'docx', 'txt', 'md', 'csv'].includes(ext)) { agregarNotificacion?.('📎 Puedo leer PDF, Word (.docx), .txt, .md o .csv.'); return; }
-    if (archivo.size > 10 * 1024 * 1024) { agregarNotificacion?.('📎 El archivo pesa más de 10 MB.'); return; }
+    if (archivo.size > 4 * 1024 * 1024 && ext !== 'txt' && ext !== 'md' && ext !== 'csv') { agregarNotificacion?.(`📎 El archivo pesa ${(archivo.size / 1048576).toFixed(1).replace('.', ',')} MB y el máximo es 4 MB. Comprímelo (por ejemplo en ilovepdf.com) o copia el texto en el chat.`); return; }
     setSubiendoAdjunto(true);
     try {
       if (['txt', 'md', 'csv'].includes(ext)) {
@@ -5725,7 +5726,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
         const fd = new FormData(); fd.append('file', archivo, archivo.name);
         const r = await fetch('/api/chat/archivo', { method: 'POST', body: fd });
         const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error || 'No se pudo leer el archivo.');
+        if (!r.ok) throw new Error(d.error || (r.status === 413 ? 'El archivo es muy pesado para subirlo (máximo 4 MB).' : 'No se pudo leer el archivo.'));
         setAdjunto({ nombre: d.nombre, texto: d.texto, recortado: d.recortado });
       }
       textareaRef.current?.focus();
@@ -6149,17 +6150,17 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           </div>
         )}
         <div className="relative" data-tutorial="chat-entrada">
-          <div className={`@container relative flex items-end gap-1.5 bg-[#1f2035] border rounded-2xl px-2 py-1.5 transition-colors shadow-lg shadow-black/20 ${isRecording ? 'border-red-500/50' : 'border-[#313248] focus-within:border-[#818cf8]/60'}`}>
+          <div className={`@container relative flex items-end gap-1.5 bg-[#1f2035] border rounded-2xl px-2 py-1.5 transition-colors shadow-lg shadow-black/20 ${isRecording ? 'border-[#8b5cf6]/60 shadow-[#8b5cf6]/10' : 'border-[#313248] focus-within:border-[#818cf8]/60'}`}>
             <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar documento" title="Adjuntar documento: programa de la materia, guía… (PDF, Word, .txt)" className="w-10 h-10 flex items-center justify-center text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
             <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.docx,.txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} />
-            <Tooltip text={isRecording ? 'Terminar y transcribir' : 'Hablar (se detiene solo tras 5 s de silencio)'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo || chatInactivo} aria-label={isRecording ? 'Terminar grabación' : 'Hablar'} className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-300 bg-red-500/20 ring-1 ring-red-500/40' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-[#818cf8]/30 border-t-[#a5b4fc] rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3.5 h-3.5 bg-red-500 rounded-[3px]"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
-            <div className="flex-1 min-w-0 relative self-stretch flex items-end"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo tu audio…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="block w-full bg-transparent text-[15px] leading-[22px] text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-[9px] font-['Inter'] min-h-[40px] max-h-[120px] disabled:opacity-60" />
+            <Tooltip text={isRecording ? 'Terminar y transcribir' : 'Hablar (se detiene solo tras 5 s de silencio)'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo || chatInactivo} aria-label={isRecording ? 'Terminar grabación' : 'Hablar'} className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-[#ddd6fe] bg-[#8b5cf6]/20 ring-1 ring-[#8b5cf6]/50 hover:bg-[#8b5cf6]/30' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-[#818cf8]/30 border-t-[#a5b4fc] rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3.5 h-3.5 bg-[#a78bfa] rounded-[3px]"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
+            <div className="flex-1 min-w-0 relative self-stretch flex items-end"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo tu audio…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="block w-full bg-transparent text-[15px] leading-[22px] text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-[9px] font-['Inter'] min-h-[40px] max-h-[128px] overflow-y-auto custom-scrollbar [overflow-wrap:anywhere] disabled:opacity-60" />
               {isRecording && (
                 <div className="absolute inset-0 flex items-center gap-2.5 bg-[#1f2035] rounded-lg" role="status" aria-live="polite">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                  <span className="text-xs tabular-nums text-red-300 w-8 flex-shrink-0">{Math.floor(segGrabando / 60)}:{String(segGrabando % 60).padStart(2, '0')}</span>
+                  <span className="w-2 h-2 rounded-full bg-[#a78bfa] animate-pulse flex-shrink-0" />
+                  <span className="text-xs tabular-nums text-[#c4b5fd] w-8 flex-shrink-0">{Math.floor(segGrabando / 60)}:{String(segGrabando % 60).padStart(2, '0')}</span>
                   <div className="flex-1 min-w-0 h-8 flex items-center gap-[3px] overflow-hidden" aria-hidden="true">
-                    {[...Array(Math.max(0, 28 - nivelesMic.length)).fill(0), ...nivelesMic].map((v, k) => <span key={k} className="w-[3px] flex-shrink-0 rounded-full bg-gradient-to-t from-red-500 to-rose-300 transition-[height] duration-75" style={{ height: `${Math.max(3, Math.round(v * 28))}px`, opacity: 0.35 + v * 0.65 }} />)}
+                    {[...Array(Math.max(0, 28 - nivelesMic.length)).fill(0), ...nivelesMic].map((v, k) => <span key={k} className="w-[3px] flex-shrink-0 rounded-full bg-gradient-to-t from-[#7c3aed] to-[#c4b5fd] transition-[height] duration-75" style={{ height: `${Math.max(3, Math.round(v * 28))}px`, opacity: 0.35 + v * 0.65 }} />)}
                   </div>
                   <span className="hidden @md:inline text-[11px] text-[#8a8b9e] whitespace-nowrap">{silencioMic >= 2 ? `Se detiene en ${Math.max(1, 5 - silencioMic)} s…` : segGrabando < 2 ? 'Habla, te escucho…' : 'Te escucho…'}</span>
                   <Tooltip text={autoEnviarVoz ? 'Al terminar se envía solo (clic para solo escribirlo)' : 'Al terminar solo se escribe (clic para enviarlo solo)'}><button type="button" onClick={() => { const v = !autoEnviarVoz; setAutoEnviarVoz(v); try { localStorage.setItem('voz_autoenviar', v ? '1' : '0'); } catch {} }} className={`flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors ${autoEnviarVoz ? 'text-[#c7d2fe] border-[#818cf8]/50 bg-[#818cf8]/15' : 'text-[#8a8b9e] border-[#313248] hover:text-[#c7d2fe]'}`}>{autoEnviarVoz ? 'Enviar solo ✓' : 'Enviar solo'}</button></Tooltip>
@@ -7040,7 +7041,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
       <style>{` input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } input[type="number"] { -moz-appearance: textfield; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } .sin-barra { scrollbar-width: none; } .sin-barra::-webkit-scrollbar { display: none; } `}</style>
-      <div className="@container px-2 sm:px-4 py-2 sm:py-3 border-b border-[#282a3f] flex items-center gap-2 bg-[#161722] flex-shrink-0">
+      <div className="@container px-2 sm:px-4 py-2 sm:py-3 border-b border-[#282a3f] flex flex-wrap @4xl:flex-nowrap items-center gap-x-2 gap-y-2 bg-[#161722] flex-shrink-0">
         <AnimatePresence initial={false}>
           {!chatAbierto && onAbrirChat && (
             <motion.div key="abrir-chat" initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.2 }} className="flex-shrink-0 flex items-center gap-2 overflow-hidden">
@@ -7053,11 +7054,11 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
             </motion.div>
           )}
         </AnimatePresence>
-        <div data-tutorial="pestanas" className="flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra">
+        <div data-tutorial="pestanas" className="order-last basis-full @4xl:order-none @4xl:basis-auto flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra -mx-1 px-1 @4xl:mx-0 @4xl:px-0">
         {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[#313248] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 px-2.5 @5xl:px-3.5 py-2 rounded-xl text-[13px] @5xl:text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className="relative z-10">{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
         </div>
         {/* Botón de configuración junto a la campanita */}
-        <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
+        <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2 ml-auto">
           {onAbrirMateria && onNuevaMateria && (
             <div data-tutorial="materia" className="flex items-center"><SelectorMateria materias={materias} actualId={materiaActivaId} actualNombre={planificacion.materia} onAbrir={onAbrirMateria} onNueva={onNuevaMateria} /></div>
           )}
@@ -7152,7 +7153,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                   </button>
                 ) : (<>
                 {seccionesFiltradas.length > 0 && !formulariosConContenido && (
-                  <div className="flex justify-end -mb-2"><button type="button" onClick={() => setVerFormularios(false)} className="text-xs text-[#8a8b9e] hover:text-[#c7d2fe] flex items-center gap-1"><ChevronUp className="w-3.5 h-3.5" />Ocultar formularios</button></div>
+                  <div className="flex justify-end mb-1"><button type="button" onClick={() => setVerFormularios(false)} className="text-xs text-[#8a8b9e] hover:text-[#c7d2fe] flex items-center gap-1"><ChevronUp className="w-3.5 h-3.5" />Ocultar formularios</button></div>
                 )}
                 <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
@@ -7500,7 +7501,9 @@ const [materiaActivaId, setMateriaActivaId] = useState<string | null>(null);
 // Cambiar de materia: se guarda lo pendiente, se recuerda la elección y se recarga (así nada del plan anterior se mezcla)
 const abrirMateria = async (id: string) => {
   try { await panelDerechoRef.current?.guardarAhora(); } catch { /* si falla el guardado, igual se cambia */ }
-  try { localStorage.setItem(CLAVE_MATERIA, id); } catch { /* sin almacenamiento: se abrirá la más reciente */ }
+  try { localStorage.setItem(CLAVE_MATERIA, id); } catch { /* sin almacenamiento */ }
+  // Se marca en la cuenta como la última abierta (así el teléfono y la computadora abren la misma)
+  await fetch('/api/materias', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, abrir: true }) }).catch(() => {});
   window.location.reload();
 };
 const crearMateria = async (nombre: string) => {
@@ -7564,10 +7567,11 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
 
         // 2. Buscar la materia "Ing Software" o usar la primera
         // Se abre la materia con actividad más reciente (antes se buscaba una llamada 'Ing Software')
-        const actividadDe = (m: any) => new Date(m.planificaciones?.[0]?.updatedAt || m.planificaciones?.[0]?.createdAt || m.createdAt || 0).getTime();
-        let preferida: string | null = null;
-        try { preferida = localStorage.getItem(CLAVE_MATERIA); } catch { /* sin almacenamiento */ }
-        const materiaActual = materias.find((m: any) => m.id === preferida) || [...materias].sort((a: any, b: any) => actividadDe(b) - actividadDe(a))[0];
+        // La materia que se abre es la última usada en la cuenta (abierta o editada), así la computadora y el teléfono muestran la misma
+        const t = (x: any) => (x ? new Date(x).getTime() || 0 : 0);
+        const actividadDe = (m: any) => Math.max(t(m.updatedAt), t(m.planificaciones?.[0]?.updatedAt), t(m.planificaciones?.[0]?.createdAt), t(m.createdAt));
+        const materiaActual = [...materias].sort((a: any, b: any) => actividadDe(b) - actividadDe(a))[0];
+        try { localStorage.setItem(CLAVE_MATERIA, materiaActual.id); } catch { /* sin almacenamiento */ }
         setMateriaActivaId(materiaActual.id);
         // Materia nueva, todavía sin plan: se muestra con su nombre (el primer guardado crea su plan)
         setPlanificacion(prev => ({ ...prev, materia: materiaActual.nombre || prev.materia, secciones: [] }));

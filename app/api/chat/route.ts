@@ -255,7 +255,19 @@ async function atender(request: Request) {
         let silencio = false // en un reintento de corrección no se muestra el texto (el modelo tiende a repetirse)
         const malformaron: string[] = [] // modelos que armaron mal la herramienta: el reintento va con el siguiente modelo
         const inicio = Date.now()
-        if (!revision && pideEvaluacionesNuevas(mensaje)) {
+        // Cupo de la sección (máximo 6). Si está llena y no pidió reemplazar, se pregunta ANTES de crear nada.
+        const pideNuevas = !revision && pideEvaluacionesNuevas(mensaje)
+        const caben = Math.max(0, 6 - evaluaciones.length)
+        const hablaDeReemplazar = /(reemplaz|sustitu|en (lugar|vez) de|cambia(r)? (la|las|el|los) |quita|elimin|borra|desde cero|reh[aá]z|rehacer|plan (completo|nuevo)|todo el plan)/i.test(mensaje)
+        const preguntaCupo = `La Sección ${seccion} ya tiene ${evaluaciones.length} evaluaciones, que es el máximo, así que no puedo agregar nuevas todavía.\n\nAhora tiene: ${evaluaciones.map(e => `#${e.numero} ${String(e.nombre || '').replace(/^(Evaluaci[oó]n\s*\d+\s*:\s*)/i, '')}`).join(', ')}.\n\n¿Qué prefieres?\n- **Reemplazar** algunas: dime cuáles (por ejemplo, «reemplaza la 5 y la 6»).\n- **Eliminar** alguna primero y luego te preparo las nuevas.`
+        const sinCupo = pideNuevas && caben === 0 && !hablaDeReemplazar
+        let rechazoCupo = false
+        if (sinCupo) { texto = preguntaCupo; enviar({ t: 'texto', v: texto }) }
+        else if (pideNuevas && caben < 6 && !hablaDeReemplazar) {
+          const ultimo = turnos[turnos.length - 1]
+          if (ultimo?.rol === 'user') ultimo.texto += `\n\n[Sistema: la Sección ${seccion} tiene ${evaluaciones.length} evaluaciones y el máximo es 6, así que solo caben ${caben} nuevas (#${evaluaciones.length + 1}${caben > 1 ? ` a #6` : ''}). Si el profesor pidió más de ${caben}, NO llames ninguna herramienta ni digas que ya las preparaste: pregúntale primero si quiere reemplazar algunas (cuáles) o agregar solo ${caben}.]`
+        }
+        if (!sinCupo && pideNuevas) {
           enviar({ t: 'consulta', v: ['buscando temas actuales en Google'] })
           const act = await buscarActualidad({ materia: materiaActiva, perfil, pedido: mensaje, existentes: evaluaciones.map(e => e.nombre).filter(Boolean), senal: request.signal })
           const ultimoTurno = turnos[turnos.length - 1]
@@ -266,10 +278,11 @@ async function atender(request: Request) {
             ultimoTurno.texto += '\n\n[Sistema: es un contenido clásico de ingeniería de software; enséñalo como siempre, con herramientas vigentes.]'
           }
         }
-        for (let ronda = 0; ronda < 6; ronda++) {
+        for (let ronda = 0; ronda < (sinCupo ? 0 : 6); ronda++) {
           // Vercel corta la función a los 60 s: pasados 40 s no se empieza otra ronda (consulta o corrección)
           if (ronda > 0 && Date.now() - inicio > 40000) { console.error('[Chat] se alcanzó el tiempo máximo; se responde con lo que hay'); break }
           let retenido = ''
+          const textoAntesRonda = texto
           const consultas: any[] = []
           let textoRonda = ''
           let malformada = false
@@ -303,9 +316,12 @@ async function atender(request: Request) {
           // Dijo que ya lo hizo ("¡Listo! Ajusté los pesos…") pero no llamó ninguna herramienta: no se hizo nada
           const dijoHecho = /(^|[^a-záéíóúñ])(ajust[eé]|reprogram[eé]|mov[ií]|cambi[eé]|elimin[eé]|borr[eé]|agregu[eé]|a[nñ]ad[ií]|actualic[eé]|cre[eé]|marqu[eé]|guard[eé]|cargu[eé]|asign[eé]|quit[eé]|modifiqu[eé]|distribu[ií])(?![a-záéíóúñ])/i.test(textoRonda)
             && /\b(listo|hecho|ya |ahora|así quedaron|quedaron|quedó)/i.test(textoRonda)
+          // La propuesta se rechazó: lo que escribió en esta ronda ("¡Listo! Te preparé…") ya no es cierto y se borra
+          if (invalidas.length && texto !== textoAntesRonda) { texto = textoAntesRonda; enviar({ t: 'texto_reset', v: texto }) }
+          if (invalidas.some(t => t.includes('NO llames'))) rechazoCupo = true
           if (invalidas.length && reintentos < 2) {
             reintentos++
-            enviar({ t: 'consulta', v: ['corrigiendo el número de la evaluación'] })
+            enviar({ t: 'consulta', v: [rechazoCupo ? 'revisando cuántas evaluaciones caben' : 'corrigiendo el número de la evaluación'] })
             agregar('model', textoRonda || '(llamé una herramienta)')
             silencio = true
             agregar('user', `[Sistema: ${invalidas.join(' ')} En la Sección ${seccion} existen ${evaluaciones.length ? evaluaciones.map(e => `#${e.numero} ${e.nombre}`).join(', ') : 'ninguna evaluación todavía'}. ${invalidas.some(t => t.includes('NO llames')) ? 'Escríbele la pregunta al profesor.' : 'Vuelve a llamar la herramienta con el número correcto. No repitas lo que ya escribiste.'}]`)
@@ -356,6 +372,10 @@ async function atender(request: Request) {
           texto = propuestas > 1
             ? `¡Listo! Te preparé ${propuestas} evaluaciones. Revísalas abajo y guarda las que te sirvan.`
             : '¡Listo! Te preparé la evaluación. Revísala abajo y guárdala si te sirve.'
+          enviar({ t: 'texto', v: texto })
+        }
+        if (!texto.trim() && !acciones.length && rechazoCupo) {
+          texto = caben === 0 ? preguntaCupo : `La Sección ${seccion} tiene ${evaluaciones.length} evaluaciones y el máximo es 6, así que solo caben ${caben} más. ¿Quieres que agregue solo ${caben}, o prefieres reemplazar algunas de las existentes (dime cuáles)?`
           enviar({ t: 'texto', v: texto })
         }
         if (!texto.trim() && !acciones.length) {
