@@ -1567,8 +1567,11 @@ function ActividadPanel() {
 // ============================================
 interface OpinionEstudiante { id: string; deAcuerdo: boolean; comentario: string | null; leida: boolean; fecha: string; estudiante: string; seccion: string; materia: string }
 
-function OpinionesEstudiantes({ items, onVistas }: { items: OpinionEstudiante[]; onVistas: (id?: string) => void }) {
+function OpinionesEstudiantes({ items, onVistas, onBorrar }: { items: OpinionEstudiante[]; onVistas: (id?: string) => void; onBorrar: (ids: string[]) => Promise<void> }) {
   const [abierto, setAbierto] = useState(false);
+  const [confirmar, setConfirmar] = useState<string | null>(null); // id de la opinión, o 'todas'
+  const [borrando, setBorrando] = useState(false);
+  const borrar = async (ids: string[]) => { setBorrando(true); try { await onBorrar(ids); } finally { setBorrando(false); setConfirmar(null); } };
   const [filtro, setFiltro] = useState<'sugerencias' | 'todas'>('sugerencias');
   const [seccion, setSeccion] = useState('todas');
   if (items.length === 0) return null;
@@ -1605,7 +1608,12 @@ function OpinionesEstudiantes({ items, onVistas }: { items: OpinionEstudiante[];
                     <button key={v} type="button" onClick={() => setFiltro(v)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${filtro === v ? 'bg-[#272839] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{t}</button>
                   ))}
                 </div>
-                {nuevas > 0 && <button type="button" onClick={() => onVistas()} className="ml-auto text-xs text-[#a5b4fc] hover:text-white underline">Marcar todas como vistas</button>}
+                <div className="ml-auto flex items-center gap-3">
+                  {nuevas > 0 && <button type="button" onClick={() => onVistas()} className="text-xs text-[#a5b4fc] hover:text-white underline">Marcar todas como vistas</button>}
+                  {visibles.length > 0 && (confirmar === 'todas'
+                    ? <span className="flex items-center gap-1.5 text-xs"><span className="text-red-200">¿Borrar {visibles.length}?</span><button type="button" disabled={borrando} onClick={() => borrar(visibles.map(o => o.id))} className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/40 text-red-200 font-semibold hover:bg-red-500/30 disabled:opacity-50">{borrando ? 'Borrando…' : 'Sí, borrar'}</button><button type="button" onClick={() => setConfirmar(null)} className="px-2 py-1 rounded-md text-[#8a8b9e] hover:text-white">No</button></span>
+                    : <button type="button" onClick={() => setConfirmar('todas')} className="flex items-center gap-1 text-xs text-red-300/80 hover:text-red-200"><Trash2 className="w-3.5 h-3.5" />Borrar {filtro === 'sugerencias' ? 'sugerencias' : 'opiniones'}{seccion !== 'todas' ? ` de Sec. ${seccion}` : ''}</button>)}
+                </div>
               </div>
               <div>
                 <div className="flex justify-between text-[11px] text-[#8a8b9e] mb-1"><span>{pct}% de acuerdo</span><span>{deSeccion.length} opinaron</span></div>
@@ -1625,6 +1633,9 @@ function OpinionesEstudiantes({ items, onVistas }: { items: OpinionEstudiante[];
                       {o.comentario ? <p className="text-sm text-[#c0c0cc] mt-0.5 whitespace-pre-wrap break-words">{o.comentario}</p> : <p className="text-xs text-[#6a6b7e] mt-0.5">Está de acuerdo con el plan.</p>}
                     </div>
                     {!o.leida && <button type="button" onClick={() => onVistas(o.id)} className="shrink-0 text-[11px] text-[#a5b4fc] hover:text-white">Visto</button>}
+                    {confirmar === o.id
+                      ? <span className="shrink-0 flex items-center gap-1"><button type="button" disabled={borrando} onClick={() => borrar([o.id])} className="text-[11px] px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-200 font-semibold disabled:opacity-50">¿Borrar?</button><button type="button" onClick={() => setConfirmar(null)} className="p-0.5 text-[#8a8b9e] hover:text-white" aria-label="No borrar"><X className="w-3.5 h-3.5" /></button></span>
+                      : <Tooltip text="Borrar esta opinión"><button type="button" onClick={() => setConfirmar(o.id)} aria-label="Borrar opinión" className="shrink-0 p-1 rounded-md text-[#6a6b7e] hover:text-red-300 hover:bg-red-500/10"><Trash2 className="w-3.5 h-3.5" /></button></Tooltip>}
                   </div>
                 ))}
               </div>
@@ -2086,8 +2097,16 @@ function UsuariosPanel() {
   const inputCls = 'w-full bg-[#272839] border border-[#313248] rounded-xl px-3 py-2.5 text-sm text-[#e0e0ec] placeholder-[#6a6b7e] focus:outline-none focus:border-[#818cf8] transition-colors';
   const rolesDisponibles: RolU[] = esSuper ? ['USUARIO', 'ADMIN', 'SUPERADMIN'] : ['USUARIO'];
   const editandoSelf = modal !== null && modal !== 'nuevo' && modal.id === actor?.id;
+  const [buscarU, setBuscarU] = useState('');
+  const [filtroRol, setFiltroRol] = useState<'todos' | RolU | 'inactivos'>('todos');
   const pendientes = usuarios.filter(u => u.pendiente);
-  const aprobados = usuarios.filter(u => !u.pendiente);
+  const normalU = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const todosAprobados = usuarios.filter(u => !u.pendiente);
+  const aprobados = todosAprobados.filter(u => {
+    if (filtroRol === 'inactivos' ? u.activo : filtroRol !== 'todos' && u.rol !== filtroRol) return false;
+    const q = normalU(buscarU.trim());
+    return !q || normalU(`${u.nombre} ${u.email} ${u.telefono || ''} ${u.cedula || ''}`).includes(q);
+  });
 
   // Aprueba una solicitud de cuenta hecha desde el login (rechazar = eliminar, con el mismo "¿Seguro?")
   // Solicitudes de "olvidé mi contraseña": el superadmin restablece la clave y se la hace llegar por teléfono
@@ -2212,11 +2231,26 @@ function UsuariosPanel() {
         )}
       </AnimatePresence>
 
+      {todosAprobados.length > 3 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex-1 min-w-[200px] flex items-center gap-2 px-3 h-9 rounded-xl bg-[#1d1e2e] border border-[#313248] focus-within:border-[#818cf8]/60">
+            <Search className="w-4 h-4 text-[#6a6b7e]" />
+            <input value={buscarU} onChange={(e) => setBuscarU(e.target.value)} placeholder="Buscar por nombre, correo, teléfono o cédula" className="flex-1 bg-transparent text-sm text-[#d8d8e2] placeholder-[#6a6b7e] outline-none" />
+            {buscarU && <button type="button" onClick={() => setBuscarU('')} className="text-[#6a6b7e] hover:text-white" aria-label="Limpiar búsqueda"><X className="w-3.5 h-3.5" /></button>}
+          </div>
+          <div className="flex gap-1 bg-[#1d1e2e] border border-[#313248] rounded-xl p-1">
+            {([['todos', 'Todos'], ['USUARIO', 'Usuarios'], ['ADMIN', 'Admins'], ...(esSuper ? [['SUPERADMIN', 'Superadmins']] : []), ['inactivos', 'Desactivados']] as [string, string][]).map(([v, t]) => (
+              <button key={v} type="button" onClick={() => setFiltroRol(v as any)} className={`h-7 px-2.5 rounded-lg text-xs font-semibold ${filtroRol === v ? 'bg-[#818cf8] text-white' : 'text-[#8a8b9e] hover:text-white'}`}>{t}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-[#1d1e2e] border border-[#313248] rounded-2xl overflow-hidden">
         {cargando ? (
           <div className="p-8 text-center text-sm text-[#8a8b9e]">Cargando...</div>
         ) : aprobados.length === 0 ? (
-          <div className="p-8 text-center text-sm text-[#8a8b9e]">No hay usuarios registrados.</div>
+          <div className="p-8 text-center text-sm text-[#8a8b9e]">{todosAprobados.length ? 'Ningún usuario coincide con la búsqueda.' : 'No hay usuarios registrados.'}</div>
         ) : (
           <div className="divide-y divide-[#313248]">
             {aprobados.map(u => (
@@ -2230,7 +2264,7 @@ function UsuariosPanel() {
                     {!u.activo && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30">DESACTIVADO</span>}
                     {u.debeCambiarPassword && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30">CLAVE TEMPORAL</span>}
                   </div>
-                  <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · CC ${u.cedula}` : ''}</div>
+                  <div className="text-xs text-[#8a8b9e] truncate">{u.email}{u.telefono ? ` · 📞 ${u.telefono}` : ''}{u.cedula ? ` · C.I. ${u.cedula}` : ''}</div>
                 </div>
                 <div className="flex items-center gap-1">
                   {puedeEditar(u) && <Tooltip text="Editar"><button onClick={() => abrirEditar(u)} className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>}
@@ -2585,11 +2619,11 @@ function EstudiantesPanel() {
       {/* MODAL AGREGAR CON VALIDACIONES */}
       <AnimatePresence>
         {showAddModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} className="bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.1 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0b0b12]/75 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
+            <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 6, opacity: 0 }} transition={{ duration: 0.14, ease: 'easeOut' }} className="bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl w-full max-w-md p-6">
               <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-semibold text-[#d0d0da] flex items-center gap-2"><User className="w-5 h-5 text-[#818cf8]" />Nuevo estudiante</h3><button onClick={() => setShowAddModal(false)} className="p-1.5 text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#272839] rounded-lg transition-colors"><X className="w-5 h-5" /></button></div>
               <div className="space-y-4">
-                <div><label className={labelBase}>Nombre completo</label><input type="text" value={nuevoNombre} onChange={(e) => { setNuevoNombre(e.target.value); setErroresNuevo(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.nombre ? 'border-red-500/50' : ''}`} placeholder="Ej: Juan Pérez" />{erroresNuevo.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.nombre}</p>}</div>
+                <div><label className={labelBase}>Nombre completo</label><input type="text" value={nuevoNombre} onChange={(e) => { setNuevoNombre(e.target.value); setErroresNuevo(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.nombre ? 'border-red-500/50' : ''}`} placeholder="Ej: Juan Pérez" autoFocus onKeyDown={(e) => { if (e.key === 'Escape') setShowAddModal(false); }} />{erroresNuevo.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.nombre}</p>}</div>
                 <div><label className={labelBase}>Correo electrónico</label><input type="email" value={nuevoEmail} onChange={(e) => { setNuevoEmail(e.target.value); setErroresNuevo(p => ({...p, email: validarCampo('email', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.email ? 'border-red-500/50' : ''}`} placeholder="juan@email.com" />{erroresNuevo.email && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.email}</p>}</div>
                 <div><label className={labelBase}>Teléfono</label><input type="tel" inputMode="numeric" value={nuevoTelefono} onChange={(e) => { setNuevoTelefono(e.target.value); setErroresNuevo(p => ({...p, telefono: validarCampo('telefono', e.target.value)})); }} className={`${inputBase} ${erroresNuevo.telefono ? 'border-red-500/50' : ''}`} placeholder="04121234567" />{erroresNuevo.telefono && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresNuevo.telefono}</p>}</div>
                 <div><label className={labelBase}>Grupo</label><select value={nuevoGrupo} onChange={(e) => setNuevoGrupo(e.target.value)} className={inputBase}>{opcionesSeccion(nuevoGrupo, grupos as string[]).map(g => <option key={g} value={g}>Grupo {g}</option>)}</select></div>
@@ -2606,8 +2640,8 @@ function EstudiantesPanel() {
       {/* MODAL EDITAR CON VALIDACIONES */}
       <AnimatePresence>
         {editando && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditando(null); }}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} className="bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.1 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0b0b12]/75 p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditando(null); }}>
+            <motion.div initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 6, opacity: 0 }} transition={{ duration: 0.14, ease: 'easeOut' }} className="bg-[#1f2035] border border-[#313248] rounded-2xl shadow-2xl w-full max-w-md p-6">
               <div className="flex items-center justify-between mb-5"><h3 className="text-lg font-semibold text-[#d0d0da] flex items-center gap-2"><Pencil className="w-5 h-5 text-[#818cf8]" />Editar estudiante</h3><button onClick={() => setEditando(null)} className="p-1.5 text-[#8a8b9e] hover:text-[#d0d0da] hover:bg-[#272839] rounded-lg transition-colors"><X className="w-5 h-5" /></button></div>
               <div className="space-y-4">
                 <div><label className={labelBase}>Nombre completo</label><input type="text" value={editando.nombre} onChange={(e) => { setEditando({...editando, nombre: e.target.value}); setErroresEdit(p => ({...p, nombre: validarCampo('nombre', e.target.value)})); }} className={`${inputBase} ${erroresEdit.nombre ? 'border-red-500/50' : ''}`} />{erroresEdit.nombre && <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{erroresEdit.nombre}</p>}</div>
@@ -2829,7 +2863,7 @@ function aInputFechaHora(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function SelectorEstadoEvaluacion({ seccion, onCambiar }: { seccion: SeccionExamen; onCambiar?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean> }) {
+function SelectorEstadoEvaluacion({ seccion, onCambiar, alinear = 'izquierda', grande = false }: { seccion: SeccionExamen; onCambiar?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean>; alinear?: 'izquierda' | 'derecha'; grande?: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const [reprogramando, setReprogramando] = useState(false);
   const [nuevaFecha, setNuevaFecha] = useState('');
@@ -2854,11 +2888,11 @@ function SelectorEstadoEvaluacion({ seccion, onCambiar }: { seccion: SeccionExam
   return (
     <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
       <button type="button" disabled={!onCambiar} onClick={() => setAbierto(a => !a)} title="Cambiar el estado de la evaluación"
-        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap transition-colors ${v.clase} ${onCambiar ? 'hover:brightness-125 cursor-pointer' : 'cursor-default'}`}>
+        className={`${grande ? 'text-xs font-medium px-2.5 py-1.5 rounded-lg' : 'text-[10px] font-semibold px-2 py-0.5 rounded-full'} border whitespace-nowrap transition-colors ${v.clase} ${onCambiar ? 'hover:brightness-125 cursor-pointer' : 'cursor-default'}`}>
         {guardando ? '...' : v.texto}
       </button>
       {abierto && (
-        <div className="absolute z-50 left-0 top-full mt-1 w-60 p-1.5 bg-[#1b1c2b] border border-[#313248] rounded-xl shadow-2xl">
+        <div className={`absolute z-50 ${alinear === 'derecha' ? 'right-0' : 'left-0'} top-full mt-1 w-60 p-1.5 bg-[#1b1c2b] border border-[#313248] rounded-xl shadow-2xl`}>
           {!reprogramando ? (
             <>
               <button disabled={guardando} className={opcion} onClick={() => elegir('REALIZADA')}>✅ Marcar como realizada</button>
@@ -3253,8 +3287,11 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
   const sel = secciones.find(s => s.id === selId) || null;
   const hoyClave = claveDia(hoy);
 
-  const cambiarMes = (delta: number) => setMesVista(p => { const d = new Date(p.anio, p.mes + delta, 1); return { anio: d.getFullYear(), mes: d.getMonth() }; });
-  const irHoy = () => { setMesVista({ anio: hoy.getFullYear(), mes: hoy.getMonth() }); setDiaSel(hoyClave); };
+  const [direccionMes, setDireccionMes] = useState(0); // -1 = hacia atrás, 1 = hacia adelante (para la animación)
+  const cambiarMes = (delta: number) => { setDireccionMes(delta); setMesVista(p => { const d = new Date(p.anio, p.mes + delta, 1); return { anio: d.getFullYear(), mes: d.getMonth() }; }); };
+  const irHoy = () => { setDireccionMes((hoy.getFullYear() * 12 + hoy.getMonth()) >= (mesVista.anio * 12 + mesVista.mes) ? 1 : -1); setMesVista({ anio: hoy.getFullYear(), mes: hoy.getMonth() }); setDiaSel(hoyClave); };
+  // Deslizar con el dedo (o el trackpad) sobre el calendario también cambia de mes
+  const toqueX = useRef<number | null>(null);
   const esMovible = (s: SeccionExamen) => !['REALIZADA', 'CANCELADA'].includes(String(s.estado || '').toUpperCase());
   const horaTexto = (d: Date) => d.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' });
 
@@ -3335,7 +3372,7 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
       {/* Navegación + filtros */}
       <div className="flex flex-wrap items-center gap-2 bg-[#1d1e2e] border border-[#313248] rounded-2xl p-2">
         <button onClick={() => cambiarMes(-1)} className="p-2 rounded-lg text-[#b0b0c4] hover:bg-[#272839]" aria-label="Mes anterior"><ChevronLeft className="w-4 h-4" /></button>
-        <span className="min-w-[150px] text-center text-sm font-semibold text-[#e0e0ec]">{MESES[mesVista.mes]} {mesVista.anio}</span>
+        <span className="relative min-w-[150px] h-5 overflow-hidden text-center text-sm font-semibold text-[#e0e0ec]"><AnimatePresence mode="popLayout" initial={false} custom={direccionMes}><motion.span key={`${mesVista.anio}-${mesVista.mes}`} custom={direccionMes} initial={{ y: direccionMes * 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: direccionMes * -14, opacity: 0 }} transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }} className="block">{MESES[mesVista.mes]} {mesVista.anio}</motion.span></AnimatePresence></span>
         <button onClick={() => cambiarMes(1)} className="p-2 rounded-lg text-[#b0b0c4] hover:bg-[#272839]" aria-label="Mes siguiente"><ChevronRight className="w-4 h-4" /></button>
         <button onClick={irHoy} className="px-3 py-1.5 text-xs rounded-lg bg-[#272839] text-[#d0d0da] hover:bg-[#2e2f42]">Hoy</button>
         <div className="flex flex-wrap items-center gap-1.5 ml-auto">
@@ -3393,7 +3430,14 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
           <div className="grid grid-cols-7 border-b border-[#313248]">
             {DIAS_SEMANA.map(d => <div key={d} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-[#8a8b9e]">{d}</div>)}
           </div>
-          <div className="grid grid-cols-7">
+          <div className="relative overflow-hidden"
+            onTouchStart={(e) => { toqueX.current = e.touches[0].clientX; }}
+            onTouchEnd={(e) => { if (toqueX.current == null) return; const dx = e.changedTouches[0].clientX - toqueX.current; toqueX.current = null; if (Math.abs(dx) > 60) cambiarMes(dx < 0 ? 1 : -1); }}>
+          <AnimatePresence mode="popLayout" initial={false} custom={direccionMes}>
+          <motion.div key={`${mesVista.anio}-${mesVista.mes}`} custom={direccionMes}
+            initial={{ x: `${direccionMes * 100}%`, opacity: 0.4 }} animate={{ x: 0, opacity: 1 }} exit={{ x: `${direccionMes * -100}%`, opacity: 0.4 }}
+            transition={{ type: 'tween', duration: 0.32, ease: [0.25, 0.1, 0.25, 1] }}
+            className="grid grid-cols-7">
             {dias.map((dia, i) => {
               const k = claveDia(dia);
               const delMes = dia.getMonth() === mesVista.mes;
@@ -3430,6 +3474,8 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
                 </div>
               );
             })}
+          </motion.div>
+          </AnimatePresence>
           </div>
         </div>
 
@@ -3513,6 +3559,9 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
   );
 }
 
+// Evaluación que se debe abrir al llegar al planificador (desde el calendario: «Ver en el planificador»)
+const EVAL_POR_ABRIR = { id: '' };
+
 function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica, onEstadoLocal, onGuardarRecursos, onExamenLocal }: any) {
   const [recursosDe, setRecursosDe] = useState<SeccionExamen | null>(null);
   const [rubricaDe, setRubricaDe] = useState<SeccionExamen | null>(null);
@@ -3540,6 +3589,21 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Agregar al inicio de DragDropSecciones, después de los otros useState:
   const handleCardClick = (seccionId: string) => { setExpandedId(expandedId === seccionId ? null : seccionId); };
+  // Viene del calendario: abre la evaluación, la centra en pantalla y la resalta un momento
+  useEffect(() => {
+    const id = EVAL_POR_ABRIR.id;
+    if (!id || !secciones.some((x: SeccionExamen) => x.id === id)) return;
+    EVAL_POR_ABRIR.id = '';
+    setExpandedId(id);
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-eval="${CSS.escape(id)}"]`) as HTMLElement | null;
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.remove('eval-resaltada'); void el.offsetWidth; el.classList.add('eval-resaltada');
+      setTimeout(() => el.classList.remove('eval-resaltada'), 2600);
+    }, 380);
+    return () => clearTimeout(t);
+  }, [secciones]);
   const handleClosePdf = () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); setPdfUrl(null); setPdfAbierto(false); setMostrarMenuEnvio(false); agregarNotificacion('🗑️ Plan eliminado.'); };
 
   // Acta de notas de la sección activa (lo arma el servidor con las notas guardadas)
@@ -3551,7 +3615,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
     try {
       const r = await fetch(`/api/acta?ids=${encodeURIComponent(ids.join(','))}`);
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'No se pudo generar el acta.'); }
-      const nombre = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || `Acta_Seccion_${seccionActiva}.csv`;
+      const nombre = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || `Acta_Seccion_${seccionActiva}.xlsx`;
       const url = URL.createObjectURL(await r.blob());
       const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
@@ -3560,21 +3624,25 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
     finally { setDescargandoActa(false); }
   };
 
-  const exportToCSV = () => {
-    const headers = ["Nombre", "Actividad", "Enfoque", "Duracion (min)", "Peso (%)", "Grupos", "Pers/Grupo", "Fecha", "Descripcion"];
-    const escapeCSV = (str: string) => `"${str.replace(/"/g, '""')}"`;
-    const rows = planificacion.secciones.map((s: SeccionExamen) => [
-      escapeCSV(limpiarTexto(s.nombre)), escapeCSV(s.tipoActividad || ''), escapeCSV(s.enfoque || ''),
-      s.tiempoEstimadoMinutos || 0, s.peso || 0, s.cantidadGrupos || 0, s.personasPorGrupo || 0,
-      s.fecha ? new Date(s.fecha).toLocaleDateString() : '', escapeCSV(s.descripcion || '')
-    ].join(","));
-    const csvContent = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `evaluaciones_${planificacion.materia || 'asignatura'}.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    agregarNotificacion('📊 Evaluaciones exportadas a CSV correctamente.');
+  // Exporta las evaluaciones a un Excel con formato (hoja «Plan» y hoja «Detalle»); lo arma el servidor
+  const [exportando, setExportando] = useState(false);
+  const exportarExcel = async () => {
+    if (exportando) return;
+    setExportando(true);
+    try {
+      const evaluaciones = planificacion.secciones.map((s: SeccionExamen) => ({
+        nombre: s.nombre, tipoActividad: s.tipoActividad, enfoque: s.enfoque, minutos: s.tiempoEstimadoMinutos, peso: s.peso,
+        grupos: s.cantidadGrupos, personas: s.personasPorGrupo, fecha: s.fecha, estado: s.estado, seccion: s.grupoSeccion, descripcion: s.descripcion,
+      }));
+      const r = await fetch('/api/exportar/evaluaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ materia: planificacion.materia, profesor, evaluaciones }) });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'No se pudo generar el Excel.'); }
+      const nombre = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || 'Evaluaciones.xlsx';
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement('a'); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      agregarNotificacion('📊 Evaluaciones exportadas a Excel.');
+    } catch (e: any) { agregarNotificacion(`⚠️ ${e.message}`); }
+    finally { setExportando(false); }
   };
 
   return (
@@ -3701,14 +3769,14 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
       </div>
       
       <div className="flex justify-end gap-2 mt-4">
-        <Tooltip text={`Acta de notas de la sección ${seccionActiva} (para Excel)`}>
+        <Tooltip text={`Acta de notas de la sección ${seccionActiva} en Excel`}>
           <button data-tutorial="acta" onClick={descargarActa} disabled={descargandoActa || !secciones.some((s: SeccionExamen) => esIdGuardado(s.id))} className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-medium rounded-lg transition-all border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
             {descargandoActa ? <div className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />} Acta de notas
           </button>
         </Tooltip>
-        <Tooltip text="Exportar las evaluaciones a Excel/CSV">
-          <button onClick={exportToCSV} disabled={secciones.length === 0} className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-lg transition-all border border-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
-            <FileSpreadsheet className="w-3.5 h-3.5" /> Exportar CSV
+        <Tooltip text="Descarga todas las evaluaciones en Excel (resumen y detalle)">
+          <button onClick={exportarExcel} disabled={secciones.length === 0 || exportando} className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-lg transition-all border border-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+            {exportando ? <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />} Exportar a Excel
           </button>
         </Tooltip>
       </div>
@@ -4315,6 +4383,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
       dragControls={dragControls}
       whileDrag={{ scale: 1.03, boxShadow: '0 18px 40px rgba(0,0,0,0.45)', zIndex: 50, cursor: 'grabbing' }}
       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+      data-eval={seccion.id}
       className={`bg-[#1f2035] rounded-xl border border-[#313248] hover:border-[#414258] select-none relative ${menu ? 'z-30' : ''}`}
     >
       <div className="p-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
@@ -4335,7 +4404,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
           </button>
         </Tooltip>
         <div className="flex-1 min-w-[140px] cursor-pointer" onClick={onToggleExpand} title={expanded ? 'Ocultar detalle' : 'Ver detalle'}>
-          <div className="flex items-center gap-2 min-w-0"><h4 className="text-sm text-[#e0e0ec] font-medium truncate">{nombreLimpio}</h4><SelectorEstadoEvaluacion seccion={seccion} onCambiar={onCambiarEstado} /></div>
+          <div className="flex items-center gap-2 min-w-0"><h4 className="text-sm text-[#e0e0ec] font-medium truncate">{nombreLimpio}</h4></div>
           {/* Lo esencial a la vista: peso, fecha y estrategia. Lo demás, al expandir. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-[#a0a1b5]">
             {seccion.peso != null && <span className="font-semibold text-[#c7d2fe]">{seccion.peso}%</span>}
@@ -4351,7 +4420,8 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
             {(seccion.preparados ?? 0) > 0 && !['REALIZADA', 'CANCELADA'].includes(String(seccion.estado || '').toUpperCase()) && <span className="text-emerald-300" title="Marcaron «Ya me preparé» en su página">🙋 {seccion.preparados}</span>}
           </div>
         </div>
-        <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5 ml-auto" onClick={(e) => e.stopPropagation()}>
+          <SelectorEstadoEvaluacion seccion={seccion} onCambiar={onCambiarEstado} alinear="derecha" grande />
           {onNotas && !cancelada && (
             <button onMouseEnter={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onTouchStart={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onClick={() => onNotas(seccion)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">
@@ -4738,6 +4808,18 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
 // ============================================
 // AGENTE PANEL (CON SCROLL MEJORADO)
 // ============================================
+// Mientras el agente piensa, la frase va cambiando para que se note que avanza
+function FrasePensando() {
+  const FRASES = ['Leyendo tu plan…', 'Pensando…', 'Revisando los detalles…', 'Preparando la respuesta…'];
+  const [i, setI] = useState(0);
+  useEffect(() => { const t = setInterval(() => setI(v => Math.min(v + 1, FRASES.length - 1)), 2200); return () => clearInterval(t); }, []);
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.span key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }} className="eva-brillo text-xs font-medium">{FRASES[i]}</motion.span>
+    </AnimatePresence>
+  );
+}
+
 function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guardarAhora, formulariosLibres, planificacionId = null, seccionActiva = 'A', expandido, setExpandido, planificacion, setPlanificacion, setPropuestaPendiente, onAccept, setVistaPanel, setPdfUrl, setPdfAbierto, agregarNotificacion, generarPDF, limpiarYScroll, totalEstudiantes = 8, config, usuarioId, esMovil = false, anchoChat = 640, arrastrando = false, esSuperadmin = false }: any) {
   // Atajos del encabezado del chat: llevan al panel de la derecha (en el celular el chat se oculta para dejarlo ver)
   const irAPanel = (vista: string) => { setVistaPanel(vista); if (esMovil) setExpandido(false); };
@@ -4785,11 +4867,20 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // El cuadro de texto crece con el contenido (hasta 160px)
   useEffect(() => { const t = textareaRef.current; if (!t) return; t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 120)}px`; }, [mensaje]);
+  useEffect(() => { mensajeRef.current = mensaje; }, [mensaje]);
 
   const [isRecording, setIsRecording] = useState(false);
   const [transcribiendo, setTranscribiendo] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const [nivelesMic, setNivelesMic] = useState<number[]>([]);
+  const [segGrabando, setSegGrabando] = useState(0);
+  const [silencioMic, setSilencioMic] = useState(0);
+  const micDescartarRef = useRef(false);
+  const micLimpiarRef = useRef<(() => void) | null>(null);
+  const [autoEnviarVoz, setAutoEnviarVoz] = useState(() => { try { return localStorage.getItem('voz_autoenviar') === '1'; } catch { return false; } });
+  const autoEnviarVozRef = useRef(autoEnviarVoz); autoEnviarVozRef.current = autoEnviarVoz;
+  const mensajeRef = useRef('');
 
   // Considera "abajo" si el usuario está a menos de 100px del final del chat
   const comprobarSiEstaAbajo = () => {
@@ -5537,26 +5628,80 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
 
-  const handleMicClick = async () => {
-    if (isRecording) { if (mediaRecorderRef.current) mediaRecorderRef.current.stop(); setIsRecording(false); } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); const mediaRecorder = new MediaRecorder(stream); audioChunksRef.current = [];
-        mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
-        mediaRecorder.onstop = async () => {
-          stream.getTracks().forEach(t => t.stop()); setTranscribiendo(true);
-          const grabado = new Blob(audioChunksRef.current, { type: (mediaRecorder.mimeType || 'audio/webm').split(';')[0] });
-          // Se envía en WAV (lo aceptan todos los servicios de transcripción); si el navegador no puede convertirlo, va el original
-          const wav = await aWav16k(grabado);
-          const audioBlob = wav && wav.size < 4 * 1024 * 1024 ? wav : grabado;
-          const formData = new FormData(); formData.append('file', audioBlob, wav && audioBlob === wav ? 'audio.wav' : 'audio.webm');
-          try { const res = await fetch('/api/chat/voz', { method: 'POST', body: formData }); const data = await res.json(); if (data.text) setMensaje(prev => prev ? prev + ' ' + data.text : data.text); else agregarNotificacion?.(`⚠️ ${data.error || 'No se pudo transcribir.'}`); }
-          catch { agregarNotificacion?.('⚠️ No se pudo transcribir el audio.'); } finally { setTranscribiendo(false); textareaRef.current?.focus(); }
-        };
-        mediaRecorder.start(); mediaRecorderRef.current = mediaRecorder; setIsRecording(true);
-        setTimeout(() => { if (mediaRecorder.state === 'recording') { mediaRecorder.stop(); setIsRecording(false); } }, 120000); // máximo 2 minutos
-      } catch { alert('No se pudo acceder al micrófono.'); }
-    }
+  // Micrófono: barras de volumen en vivo, se detiene solo tras 5 s de silencio (después de hablar),
+  // Esc o la X cancelan sin transcribir, y opcionalmente envía el mensaje apenas termina de transcribir.
+  const detenerMic = (descartar = false) => {
+    micDescartarRef.current = descartar;
+    const r = mediaRecorderRef.current;
+    if (r && r.state === 'recording') r.stop(); else micLimpiarRef.current?.();
+    setIsRecording(false);
   };
+  const handleMicClick = async () => {
+    if (isRecording) { detenerMic(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const mediaRecorder = new MediaRecorder(stream); audioChunksRef.current = []; micDescartarRef.current = false;
+      const Ctx: typeof AudioContext | undefined = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const actx = Ctx ? new Ctx() : null;
+      let raf = 0; const inicio = Date.now(); let ultimaVoz = 0; let hablo = false; let pintado = 0;
+      if (actx) {
+        const analizador = actx.createAnalyser(); analizador.fftSize = 1024;
+        actx.createMediaStreamSource(stream).connect(analizador);
+        const datos = new Uint8Array(analizador.fftSize);
+        let ruido = 0.008; // ruido de fondo, se ajusta solo
+        const medir = () => {
+          if (mediaRecorder.state !== 'recording') return;
+          analizador.getByteTimeDomainData(datos);
+          let suma = 0; for (let k = 0; k < datos.length; k++) { const v = (datos[k] - 128) / 128; suma += v * v; }
+          const rms = Math.sqrt(suma / datos.length);
+          const ahora = Date.now();
+          if (rms > Math.max(0.018, ruido * 2.5)) { ultimaVoz = ahora; hablo = true; } else ruido = ruido * 0.97 + rms * 0.03;
+          if (ahora - pintado > 70) {
+            pintado = ahora;
+            setNivelesMic(p => [...p.slice(-27), Math.min(1, rms * 7)]);
+            setSegGrabando(Math.floor((ahora - inicio) / 1000));
+            setSilencioMic(hablo ? Math.floor((ahora - ultimaVoz) / 1000) : 0);
+          }
+          if (hablo && ahora - ultimaVoz > 5000) { detenerMic(); return; }
+          if (!hablo && ahora - inicio > 12000) { agregarNotificacion?.('🎙️ No te escuché. Revisa que el micrófono esté activo e intenta de nuevo.'); detenerMic(true); return; }
+          raf = requestAnimationFrame(medir);
+        };
+        raf = requestAnimationFrame(medir);
+      }
+      micLimpiarRef.current = () => { cancelAnimationFrame(raf); actx?.close?.().catch(() => {}); stream.getTracks().forEach(t => t.stop()); setNivelesMic([]); setSegGrabando(0); setSilencioMic(0); micLimpiarRef.current = null; };
+      mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
+      mediaRecorder.onstop = async () => {
+        micLimpiarRef.current?.();
+        if (micDescartarRef.current) { audioChunksRef.current = []; textareaRef.current?.focus(); return; }
+        setTranscribiendo(true);
+        const grabado = new Blob(audioChunksRef.current, { type: (mediaRecorder.mimeType || 'audio/webm').split(';')[0] });
+        // Se envía en WAV (lo aceptan todos los servicios de transcripción); si el navegador no puede convertirlo, va el original
+        const wav = await aWav16k(grabado);
+        const audioBlob = wav && wav.size < 4 * 1024 * 1024 ? wav : grabado;
+        const formData = new FormData(); formData.append('file', audioBlob, wav && audioBlob === wav ? 'audio.wav' : 'audio.webm');
+        let enviarYa = '';
+        try {
+          const res = await fetch('/api/chat/voz', { method: 'POST', body: formData }); const data = await res.json();
+          if (data.text) {
+            const texto = String(data.text).trim();
+            if (autoEnviarVozRef.current && !mensajeRef.current.trim()) enviarYa = texto;
+            else setMensaje(prev => prev ? prev + ' ' + texto : texto);
+          } else agregarNotificacion?.(`⚠️ ${data.error || 'No se pudo transcribir.'}`);
+        }
+        catch { agregarNotificacion?.('⚠️ No se pudo transcribir el audio.'); } finally { setTranscribiendo(false); textareaRef.current?.focus(); }
+        if (enviarYa) handleSend(enviarYa);
+      };
+      mediaRecorder.start(250); mediaRecorderRef.current = mediaRecorder; setIsRecording(true);
+      setTimeout(() => { if (mediaRecorder.state === 'recording') detenerMic(); }, 120000); // máximo 2 minutos
+    } catch { agregarNotificacion?.('⚠️ No se pudo acceder al micrófono. Revisa el permiso del navegador (ícono del candado junto a la dirección).'); }
+  };
+  useEffect(() => {
+    if (!isRecording) return;
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); detenerMic(true); } };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  }, [isRecording]);
+  useEffect(() => () => { micLimpiarRef.current?.(); }, []);
 
   const chatInactivo = !!config && !config.chat.activo;
   const ocupado = pensando || escribiendo || transcribiendo;
@@ -5934,10 +6079,10 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
             <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.rol === 'agent' ? (
                 <div className="group/msg flex items-start gap-3 w-full max-w-[94%]">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.error ? 'bg-amber-500/20' : 'bg-gradient-to-br from-[#818cf8] to-[#6366f1] shadow-[#818cf8]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-white'}`} /></div>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.streaming ? 'eva-anillo' : ''} ${msg.error ? 'bg-amber-500/20' : 'bg-gradient-to-br from-[#818cf8] to-[#6366f1] shadow-[#818cf8]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-white'}`} /></div>
                   <div className="flex-1 min-w-0 text-[15px] text-[#c0c0cc] leading-relaxed pt-0.5 font-['Inter']">
-                    {msg.contenido && textoVisible(msg) && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(textoVisible(msg)) }} />{msg.streaming && <span className="inline-block w-2 h-4 ml-0.5 align-[-2px] bg-[#818cf8] animate-pulse rounded-sm" />}</div>}
-                    {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="inline-block w-2 h-4 bg-[#818cf8] animate-pulse rounded-sm" />}
+                    {msg.contenido && textoVisible(msg) && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(textoVisible(msg)) }} />{msg.streaming && <span className="eva-escribe" aria-label="Escribiendo"><i /><i /><i /></span>}</div>}
+                    {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="eva-brillo text-sm">Pensando…</span>}
                     {msg.consultas?.length ? (
                       <div className="mb-1.5 flex flex-wrap gap-1.5">
                         {msg.consultas.map((c, i) => <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#232438] border border-[#313248] text-[#8a8b9e]"><Search className="w-3 h-3" />{/^(preparando|corrigiendo|aplicando|cuadrando|buscando)/.test(c) ? c.charAt(0).toUpperCase() + c.slice(1) : `Revisé ${c}`}</span>)}
@@ -5979,8 +6124,8 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           ))}
           {pensando && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3 justify-start">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div>
-              <div className="px-4 py-3 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-1.5 mt-0.5">{[0, 1, 2].map(i => (<motion.span key={i} className="w-2 h-2 bg-[#818cf8] rounded-full" animate={{ y: [0, -4, 0], opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }} />))}<span className="text-xs text-[#8a8b9e] ml-1.5">Revisando tu plan…</span></div>
+              <div className="eva-anillo w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#818cf8]/20"><Bot className="w-4 h-4 text-white" /></div>
+              <div className="px-4 py-2.5 bg-[#1f2035] rounded-2xl rounded-tl-md border border-[#313248] flex items-center gap-2.5 mt-0.5"><span className="eva-escribe !ml-0" aria-hidden="true"><i /><i /><i /></span><FrasePensando /></div>
             </motion.div>
           )}
           <div ref={chatEndRef} />
@@ -6004,15 +6149,28 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           </div>
         )}
         <div className="relative" data-tutorial="chat-entrada">
-          <div className="relative flex items-end gap-2 bg-[#1f2035] border border-[#313248] rounded-2xl px-3 py-2.5 focus-within:border-[#818cf8]/60 transition-colors shadow-lg shadow-black/20">
-            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar documento" title="Adjuntar documento: programa de la materia, guía… (PDF, Word, .txt)" className="p-2 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
+          <div className={`@container relative flex items-end gap-1.5 bg-[#1f2035] border rounded-2xl px-2 py-1.5 transition-colors shadow-lg shadow-black/20 ${isRecording ? 'border-red-500/50' : 'border-[#313248] focus-within:border-[#818cf8]/60'}`}>
+            <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Adjuntar documento" title="Adjuntar documento: programa de la materia, guía… (PDF, Word, .txt)" className="w-10 h-10 flex items-center justify-center text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-xl transition-colors flex-shrink-0 self-end"><Paperclip className="w-5 h-5" /></button>
             <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.docx,.txt,.csv,.md" onChange={(e) => adjuntarArchivo(e.target.files?.[0])} />
-            <Tooltip text={isRecording ? 'Detener grabación' : 'Hablar'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo} className={`p-2 rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-t-red-400 rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3 h-3 bg-red-500 rounded-sm"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
-            <div className="flex-1 relative"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="w-full bg-transparent text-[15px] text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-1.5 font-['Inter'] min-h-[40px] max-h-[120px] disabled:opacity-60" style={{ lineHeight: '1.5' }} /></div>
+            <Tooltip text={isRecording ? 'Terminar y transcribir' : 'Hablar (se detiene solo tras 5 s de silencio)'}><button type="button" onClick={handleMicClick} disabled={transcribiendo || pensando || escribiendo || chatInactivo} aria-label={isRecording ? 'Terminar grabación' : 'Hablar'} className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors flex-shrink-0 self-end ${isRecording ? 'text-red-300 bg-red-500/20 ring-1 ring-red-500/40' : 'text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839]'} disabled:opacity-50 disabled:cursor-not-allowed`}>{transcribiendo ? (<div className="w-5 h-5 border-2 border-[#818cf8]/30 border-t-[#a5b4fc] rounded-full animate-spin"></div>) : isRecording ? (<div className="w-3.5 h-3.5 bg-red-500 rounded-[3px]"></div>) : (<Mic className="w-5 h-5" />)}</button></Tooltip>
+            <div className="flex-1 min-w-0 relative self-stretch flex items-end"><textarea ref={textareaRef} value={mensaje} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMensaje(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatInactivo ? 'El asistente está desactivado' : transcribiendo ? 'Transcribiendo tu audio…' : 'Pídele algo a EvaPlanner…'} rows={1} disabled={chatInactivo} className="block w-full bg-transparent text-[15px] leading-[22px] text-[#d8d8e2] placeholder-[#6a6b7e] outline-none resize-none py-[9px] font-['Inter'] min-h-[40px] max-h-[120px] disabled:opacity-60" />
+              {isRecording && (
+                <div className="absolute inset-0 flex items-center gap-2.5 bg-[#1f2035] rounded-lg" role="status" aria-live="polite">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  <span className="text-xs tabular-nums text-red-300 w-8 flex-shrink-0">{Math.floor(segGrabando / 60)}:{String(segGrabando % 60).padStart(2, '0')}</span>
+                  <div className="flex-1 min-w-0 h-8 flex items-center gap-[3px] overflow-hidden" aria-hidden="true">
+                    {[...Array(Math.max(0, 28 - nivelesMic.length)).fill(0), ...nivelesMic].map((v, k) => <span key={k} className="w-[3px] flex-shrink-0 rounded-full bg-gradient-to-t from-red-500 to-rose-300 transition-[height] duration-75" style={{ height: `${Math.max(3, Math.round(v * 28))}px`, opacity: 0.35 + v * 0.65 }} />)}
+                  </div>
+                  <span className="hidden @md:inline text-[11px] text-[#8a8b9e] whitespace-nowrap">{silencioMic >= 2 ? `Se detiene en ${Math.max(1, 5 - silencioMic)} s…` : segGrabando < 2 ? 'Habla, te escucho…' : 'Te escucho…'}</span>
+                  <Tooltip text={autoEnviarVoz ? 'Al terminar se envía solo (clic para solo escribirlo)' : 'Al terminar solo se escribe (clic para enviarlo solo)'}><button type="button" onClick={() => { const v = !autoEnviarVoz; setAutoEnviarVoz(v); try { localStorage.setItem('voz_autoenviar', v ? '1' : '0'); } catch {} }} className={`flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors ${autoEnviarVoz ? 'text-[#c7d2fe] border-[#818cf8]/50 bg-[#818cf8]/15' : 'text-[#8a8b9e] border-[#313248] hover:text-[#c7d2fe]'}`}>{autoEnviarVoz ? 'Enviar solo ✓' : 'Enviar solo'}</button></Tooltip>
+                  <Tooltip text="Cancelar sin transcribir (Esc)"><button type="button" onClick={() => detenerMic(true)} aria-label="Cancelar grabación" className="flex-shrink-0 p-1 rounded-md text-[#8a8b9e] hover:text-white hover:bg-[#272839]"><X className="w-4 h-4" /></button></Tooltip>
+                </div>
+              )}
+            </div>
             {pensando || escribiendo ? (
-              <Tooltip text="Detener"><button type="button" onClick={detener} aria-label="Detener respuesta" className="p-2.5 rounded-xl bg-[#272839] text-[#c7d2fe] hover:bg-red-500/20 hover:text-red-300 transition-colors flex-shrink-0 self-end"><Square className="w-4 h-4 fill-current" /></button></Tooltip>
+              <Tooltip text="Detener"><button type="button" onClick={detener} aria-label="Detener respuesta" className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#272839] text-[#c7d2fe] hover:bg-red-500/20 hover:text-red-300 transition-colors flex-shrink-0 self-end"><Square className="w-4 h-4 fill-current" /></button></Tooltip>
             ) : (
-              <button type="button" onClick={() => handleSend()} disabled={(!mensaje.trim() && !adjunto) || chatInactivo || subiendoAdjunto} aria-label="Enviar" className={`p-2.5 rounded-xl transition-all flex-shrink-0 self-end ${(mensaje.trim() || adjunto) && !subiendoAdjunto ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
+              <button type="button" onClick={() => handleSend()} disabled={(!mensaje.trim() && !adjunto) || chatInactivo || subiendoAdjunto} aria-label="Enviar" className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all flex-shrink-0 self-end ${(mensaje.trim() || adjunto) && !subiendoAdjunto ? 'bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white hover:shadow-lg hover:shadow-[#818cf8]/30 shadow-md' : 'bg-[#272839] text-[#5a5b6e] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
             )}
           </div>
         </div>
@@ -6853,6 +7011,12 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     const t = setInterval(cargarOpiniones, 60000);
     return () => clearInterval(t);
   }, [usuario?.id]);
+  const borrarOpiniones = async (ids: string[]) => {
+    const r = await fetch('/api/opiniones', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) }).catch(() => null);
+    if (!r?.ok) { agregarNotificacion('⚠️ No se pudieron borrar las opiniones.'); return; }
+    setOpiniones(prev => prev.filter(o => !ids.includes(o.id)));
+    agregarNotificacion(ids.length === 1 ? '🗑️ Opinión borrada.' : `🗑️ ${ids.length} opiniones borradas.`);
+  };
   const marcarOpinionesVistas = async (id?: string) => {
     await fetch('/api/opiniones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id } : { todas: true }) }).catch(() => {});
     await cargarOpiniones();
@@ -6890,7 +7054,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           )}
         </AnimatePresence>
         <div data-tutorial="pestanas" className="flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra">
-        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[#313248] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 md:gap-2 px-2.5 @5xl:px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className={`relative z-10 ${vista === tab.id ? 'hidden sm:inline' : 'hidden @5xl:inline'}`}>{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
+        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[#313248] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 px-2.5 @5xl:px-3.5 py-2 rounded-xl text-[13px] @5xl:text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[#c7d2fe] bg-[#818cf8]/10' : 'text-[#8a8b9e] hover:text-[#b0b0c4] hover:bg-[#1d1e2e]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[#818cf8]/10 border border-[#818cf8]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[#818cf8]' : ''}`} /><span className="relative z-10">{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
         </div>
         {/* Botón de configuración junto a la campanita */}
         <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
@@ -6946,7 +7110,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                 materia={planificacion.materia || 'Asignatura'}
                 onCambiarFecha={cambiarFechaEvaluacion}
                 onCambiarEstado={cambiarEstadoEvaluacion}
-                onIrAPlanificador={(s: SeccionExamen) => { setSeccionActiva((s.grupoSeccion || 'A').toUpperCase()); setVista('planificacion'); setScrollToSections(true); }}
+                onIrAPlanificador={(s: SeccionExamen) => { EVAL_POR_ABRIR.id = s.id; setSeccionActiva((s.grupoSeccion || 'A').toUpperCase()); setVista('planificacion'); }}
                 agregarNotificacion={agregarNotificacion}
               />
             </motion.div>
@@ -6955,7 +7119,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
                 <ObservacionesRecibidas items={observaciones} onLeer={marcarObservacionLeida} />
-                <OpinionesEstudiantes items={opiniones} onVistas={marcarOpinionesVistas} />
+                <OpinionesEstudiantes items={opiniones} onVistas={marcarOpinionesVistas} onBorrar={borrarOpiniones} />
                 {/* Guía de primeros pasos: solo mientras falten estudiantes o evaluaciones en la sección */}
                 {datosCargados && estudiantesSeccion !== null && (estudiantesSeccion === 0 || seccionesFiltradas.length === 0) && !guiasCerradas.includes(seccionActiva) && (
                   <div className="rounded-2xl border border-[#818cf8]/25 bg-gradient-to-br from-[#22234a]/70 to-[#1d1e2e] p-5">

@@ -10,7 +10,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     const datos = await datosPortal(token)
     if (!datos) return NextResponse.json({ error: 'Este enlace no existe o ya no está activo. Pídele a tu profesor uno nuevo.' }, { status: 404 })
     // Cuando el profesor abre la página desde la app (?profesor=1) no cuenta como visita del estudiante
-    if (new URL(request.url).searchParams.get('profesor') !== '1') await registrarVisitaPortal(token).catch(() => {})
+    // La actualización automática de la página (?refresco=1) tampoco cuenta como visita
+    const sp = new URL(request.url).searchParams
+    if (sp.get('profesor') !== '1' && sp.get('refresco') !== '1') await registrarVisitaPortal(token).catch(() => {})
     return NextResponse.json(datos, { headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } })
   } catch (e) {
     console.error(e)

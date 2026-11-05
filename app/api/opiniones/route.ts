@@ -34,3 +34,20 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Error al actualizar' }, { status: 500 })
   }
 }
+
+// DELETE /api/opiniones  { id } | { ids: [...] } — borra opiniones (solo las de las materias del profesor).
+// Si el estudiante vuelve a opinar desde su página, aparece de nuevo.
+export async function DELETE(request: Request) {
+  try {
+    const { actor, error } = await requerirActor(request)
+    if (error) return error
+    const body = await request.json().catch(() => ({}))
+    const ids: string[] = (body.id ? [body.id] : Array.isArray(body.ids) ? body.ids : []).map((x: unknown) => String(x)).filter(Boolean).slice(0, 300)
+    if (!ids.length) return NextResponse.json({ error: 'Solicitud no válida.' }, { status: 400 })
+    const r = await prisma.opinionPlan.deleteMany({ where: { id: { in: ids }, materia: { usuarioId: actor.id } } })
+    return NextResponse.json({ borradas: r.count })
+  } catch (e) {
+    console.error(e)
+    return NextResponse.json({ error: 'No se pudieron borrar las opiniones.' }, { status: 500 })
+  }
+}

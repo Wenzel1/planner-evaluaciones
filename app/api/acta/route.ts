@@ -2,19 +2,13 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
-import { NOTA_APROBATORIA, promedioPonderado, textoNota } from '@/lib/notas'
+import { NOTA_APROBATORIA, promedioPonderado } from '@/lib/notas'
+import { nuevoLibro, titulo, encabezados, filaDatos, respuestaExcel, nombreArchivo, textoSeguro, COLOR, BORDES } from '@/lib/excel'
 
 export const dynamic = 'force-dynamic'
 
 const limpio = (n: string) => String(n || '').replace(/^(Evaluaci[oó]n\s*\d+\s*:\s*|Pr[aá]ctica:\s*|Te[oó]rica:\s*)+/i, '').trim() || 'Evaluación'
-// Celda para Excel: entre comillas si hace falta; se neutralizan fórmulas (=, +, -, @) para que nadie inyecte una fórmula con su nombre
-function celda(v: unknown): string {
-  let t = String(v ?? '').replace(/\r?\n/g, ' ')
-  if (/^[=+\-@]/.test(t)) t = `'${t}`
-  return /[;"]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
-}
-
-// GET /api/acta?ids=ID1,ID2,…  — Acta de notas de una sección en CSV para Excel (separador ";" y decimales con coma).
+// GET /api/acta?ids=ID1,ID2,…  — Acta de notas de una sección en Excel (.xlsx) con formato.
 // Los ids son las evaluaciones de la sección (en el orden que ve el profesor). Una fila por estudiante:
 // nota de cada evaluación, cuántas tiene calificadas, promedio ponderado (sobre 20) y condición.
 export async function GET(request: Request) {
@@ -51,32 +45,75 @@ export async function GET(request: Request) {
       orderBy: { nombre: 'asc' },
     })).filter(e => e.estado === 'ACTIVO' || conNota.has(e.id)) // los retirados solo salen si tienen alguna nota
 
-    const filas: string[] = []
-    // Sin la línea "sep=;": con ella Excel ignora la marca UTF-8 y las tildes salen dañadas. En Excel en español el separador ya es ";".
-    filas.push([celda(`Acta de notas · ${materia}`), celda(`Sección ${seccion}`), celda(`Generada el ${new Date().toLocaleDateString('es-VE', { timeZone: process.env.ZONA_HORARIA || 'America/Caracas' })}`)].join(';'))
-    filas.push('')
-    filas.push(['N°', 'Estudiante', 'Correo', ...evs.map(e => celda(`${limpio(e.nombre)} (${e.peso ?? 0}%)`)), 'Calificadas', 'Promedio (sobre 20)', 'Condición'].join(';'))
-    let aprobados = 0, reprobados = 0
+    const fechaHoy = new Date().toLocaleDateString('es-VE', { timeZone: process.env.ZONA_HORARIA || 'America/Caracas', day: 'numeric', month: 'long', year: 'numeric' })
+    const libro = nuevoLibro()
+    const hoja = libro.addWorksheet(`Sección ${seccion}`, { pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } })
+    const cols = ['N°', 'Estudiante', 'Correo', ...evs.map(e => `${limpio(e.nombre)}\n(${e.peso ?? 0}%)`), 'Calificadas', 'Promedio\n(sobre 20)', 'Condición']
+    const nEv = evs.length
+    titulo(hoja, cols.length, `Acta de notas · ${materia}`, `Sección ${seccion}  ·  Generada el ${fechaHoy}  ·  Nota mínima aprobatoria: ${NOTA_APROBATORIA}/20`)
+    encabezados(hoja, 4, cols)
+    hoja.columns = cols.map((_, i) => ({ width: i === 0 ? 6 : i === 1 ? 30 : i === 2 ? 30 : i < 3 + nEv ? 16 : i === 3 + nEv ? 12 : i === 4 + nEv ? 13 : 14 }))
+
+    let aprobados = 0, reprobados = 0, sumaProm = 0, conProm = 0
     estudiantes.forEach((est, i) => {
       const notas = evs.map(e => e.calificaciones.find(c => c.estudianteId === est.id)?.puntaje ?? null)
       const calificadas = notas.map((n, k) => (n == null ? null : { puntaje: n, peso: evs[k].peso })).filter(Boolean) as { puntaje: number; peso: number | null }[]
       const promedio = calificadas.length ? promedioPonderado(calificadas) : null
       const condicion = promedio == null ? 'Sin notas' : promedio >= NOTA_APROBATORIA ? 'Aprobado' : 'Reprobado'
       if (condicion === 'Aprobado') aprobados++; else if (condicion === 'Reprobado') reprobados++
-      filas.push([
-        i + 1, celda(est.nombre + (est.estado !== 'ACTIVO' ? ' (retirado)' : '')), celda(est.email),
-        ...notas.map(n => (n == null ? '' : textoNota(n))),
-        `${calificadas.length}/${evs.length}`, promedio == null ? '' : textoNota(promedio), condicion,
-      ].join(';'))
+      if (promedio != null) { sumaProm += promedio; conProm++ }
+      const f = 5 + i
+      const fila = hoja.getRow(f)
+      fila.values = [i + 1, textoSeguro(est.nombre + (est.estado !== 'ACTIVO' ? ' (retirado)' : '')), textoSeguro(est.email), ...notas.map(n => (n == null ? null : n)), `${calificadas.length}/${nEv}`, promedio, condicion]
+      filaDatos(hoja, f, cols.length, i % 2 === 1, [1, ...evs.map((_, k) => 4 + k), 4 + nEv, 5 + nEv, 6 + nEv])
+      fila.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
+      for (let k = 0; k < nEv + 1; k++) fila.getCell(4 + k + (k === nEv ? 1 : 0)).numFmt = '0.00'
+      // Notas en rojo si están por debajo de la mínima
+      notas.forEach((n, k) => { if (n != null) fila.getCell(4 + k).font = { size: 10, color: { argb: n >= NOTA_APROBATORIA ? 'FF111827' : COLOR.rojo } } })
+      const prom = fila.getCell(5 + nEv)
+      prom.font = { size: 10, bold: true, color: { argb: promedio == null ? COLOR.gris : promedio >= NOTA_APROBATORIA ? COLOR.verde : COLOR.rojo } }
+      const cond = fila.getCell(6 + nEv)
+      const [txt, fondo] = condicion === 'Aprobado' ? [COLOR.verde, COLOR.verdeFondo] : condicion === 'Reprobado' ? [COLOR.rojo, COLOR.rojoFondo] : [COLOR.gris, 'FFF3F4F6']
+      cond.font = { size: 10, bold: true, color: { argb: txt } }
+      cond.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondo } }
+      fila.height = 20
     })
-    filas.push('')
-    filas.push(`Estudiantes: ${estudiantes.length};Aprobados: ${aprobados};Reprobados: ${reprobados};Nota mínima aprobatoria: ${NOTA_APROBATORIA}/20`)
+    if (estudiantes.length === 0) {
+      hoja.mergeCells(5, 1, 5, cols.length)
+      hoja.getCell(5, 1).value = 'No hay estudiantes activos en esta sección.'
+      hoja.getCell(5, 1).font = { italic: true, color: { argb: COLOR.gris } }
+    }
+
+    // Resumen al final
+    const r0 = 5 + Math.max(1, estudiantes.length) + 1
+    const resumen: [string, string | number][] = [
+      ['Estudiantes', estudiantes.length],
+      ['Aprobados', aprobados],
+      ['Reprobados', reprobados],
+      ['Sin notas', estudiantes.length - aprobados - reprobados],
+      ['Promedio de la sección', conProm ? Math.round((sumaProm / conProm) * 100) / 100 : '—'],
+    ]
+    resumen.forEach(([k, v], i) => {
+      const r = hoja.getRow(r0 + i)
+      r.getCell(2).value = k; r.getCell(3).value = v
+      r.getCell(2).font = { bold: true, size: 10, color: { argb: 'FF3730A3' } }
+      r.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.indigoClaro } }
+      r.getCell(3).font = { size: 10, bold: true }
+      r.getCell(3).alignment = { horizontal: 'left' }
+      if (typeof v === 'number' && i === 4) r.getCell(3).numFmt = '0.00'
+      r.getCell(2).border = BORDES; r.getCell(3).border = BORDES
+    })
+    // Firma
+    const rf = r0 + resumen.length + 2
+    hoja.getCell(rf, 2).value = '______________________________'
+    hoja.getCell(rf + 1, 2).value = 'Firma del profesor'
+    hoja.getCell(rf + 1, 2).font = { size: 9, color: { argb: COLOR.gris } }
+
+    hoja.views = [{ state: 'frozen', xSplit: 2, ySplit: 4 }]
+    if (estudiantes.length) hoja.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + estudiantes.length, column: cols.length } }
 
     await registrarActividad({ actor, accion: 'EXPORTAR', entidad: 'Notas', detalle: `Descargó el acta de notas de ${materia}, sección ${seccion}`.slice(0, 300) })
-    const archivo = `Acta_${materia.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '_').slice(0, 40)}_Seccion_${seccion}.csv`
-    return new NextResponse('﻿' + filas.join('\r\n') + '\r\n', {
-      headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${archivo}"`, 'Cache-Control': 'no-store' },
-    })
+    return respuestaExcel(libro, `Acta_${nombreArchivo(materia)}_Seccion_${seccion}.xlsx`)
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'No se pudo generar el acta.' }, { status: 500 })

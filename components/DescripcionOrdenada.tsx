@@ -3,20 +3,10 @@
 // (OBJETIVO:, ACTIVIDAD:, HERRAMIENTAS:, ENTREGABLES:, CRITERIOS DE EVALUACIÓN:, CASOS POR ESTUDIANTE:…).
 // Aquí se separa en partes y se muestra ordenada: compacta para el profesor y más amigable para el estudiante.
 
-const TITULOS = ['OBJETIVO', 'ACTIVIDAD', 'HERRAMIENTAS', 'ENTREGABLES', 'CRITERIOS DE EVALUACIÓN', 'CRITERIOS DE EVALUACION', 'CRITERIOS', 'TEMAS POR GRUPO', 'CASOS POR GRUPO', 'CASOS POR ESTUDIANTE', 'RECURSOS', 'INSTRUCCIONES'];
-const ICONO: Record<string, string> = { OBJETIVO: '🎯', ACTIVIDAD: '🛠️', HERRAMIENTAS: '🧰', ENTREGABLES: '📦', CRITERIOS: '✅', 'TEMAS POR GRUPO': '👥', 'CASOS POR GRUPO': '👥', 'CASOS POR ESTUDIANTE': '🧑‍🎓', RECURSOS: '📚', INSTRUCCIONES: '📝' };
+import { partesDescripcion } from '@/lib/descripcion';
+export { partesDescripcion };
 
-export function partesDescripcion(texto: string): { titulo: string; cuerpo: string }[] {
-  const t = String(texto || '').replace(/\*\*/g, '').trim();
-  const re = new RegExp(`(^|\\n|\\.\\s|\\s)(${TITULOS.join('|')})\\s*:`, 'g');
-  const cortes: { i: number; fin: number; titulo: string }[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(t))) cortes.push({ i: m.index + m[1].length, fin: re.lastIndex, titulo: m[2] });
-  if (cortes.length < 2) return [{ titulo: '', cuerpo: t }];
-  const partes = cortes.map((c, k) => ({ titulo: c.titulo.replace('CRITERIOS DE EVALUACION', 'CRITERIOS DE EVALUACIÓN'), cuerpo: t.slice(c.fin, k + 1 < cortes.length ? cortes[k + 1].i : t.length).trim() }));
-  const antes = t.slice(0, cortes[0].i).trim();
-  return antes ? [{ titulo: '', cuerpo: antes }, ...partes] : partes;
-}
+const ICONO: Record<string, string> = { OBJETIVO: '🎯', ACTIVIDAD: '🛠️', HERRAMIENTAS: '🧰', ENTREGABLES: '📦', CRITERIOS: '✅', 'TEMAS POR GRUPO': '👥', 'CASOS POR GRUPO': '👥', 'CASOS POR ESTUDIANTE': '🧑‍🎓', RECURSOS: '📚', INSTRUCCIONES: '📝' };
 
 const sinPunto = (x: string) => x.replace(/^[-•*]\s*/, '').replace(/[.;,]\s*$/, '').trim();
 const normal = (x: string) => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();

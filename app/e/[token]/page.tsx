@@ -114,6 +114,28 @@ export default function PortalEstudiante() {
     return () => { vivo = false; clearInterval(t); };
   }, [token]);
 
+  // Actualización automática: si el profesor cambia algo (evaluaciones, fechas, notas, recursos), aparece aquí
+  // sin refrescar. Se consulta cada 15 s mientras la pestaña está a la vista, y al volver a ella.
+  const [actualizado, setActualizado] = useState(false);
+  useEffect(() => {
+    if (!datos) return;
+    let vivo = true, ultima = JSON.stringify(datos.materias);
+    const refrescar = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const r = await fetch(`/api/portal/${encodeURIComponent(token)}?refresco=1`, { cache: 'no-store' });
+        if (!r.ok || !vivo) return;
+        const d: Datos = await r.json();
+        const firma = JSON.stringify(d.materias);
+        if (firma !== ultima) { ultima = firma; setDatos(d); setActualizado(true); setTimeout(() => vivo && setActualizado(false), 4000); }
+      } catch { /* sin conexión: se intenta en el siguiente ciclo */ }
+    };
+    const t = setInterval(refrescar, 15000);
+    const alVolver = () => { if (document.visibilityState === 'visible') refrescar(); };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => { vivo = false; clearInterval(t); document.removeEventListener('visibilitychange', alVolver); };
+  }, [token, !!datos]);
+
   const materia = datos?.materias.find(m => m.id === materiaId) || datos?.materias[0] || null;
   const lista = useMemo(() => {
     if (!materia) return [];
@@ -159,6 +181,13 @@ export default function PortalEstudiante() {
 
   return (
     <Pantalla>
+      <AnimatePresence>
+        {actualizado && (
+          <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-[#818cf8] text-white text-xs font-semibold shadow-lg shadow-[#818cf8]/30">
+            <Sparkles className="w-3.5 h-3.5" />Tu plan se actualizó
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Celular: una sola columna. Computadora (lg): panel fijo a la izquierda con el estudiante y su resumen, evaluaciones a la derecha */}
       <div className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 pb-16 lg:grid lg:grid-cols-[340px_1fr] lg:gap-10 xl:gap-14">
         <aside className="lg:sticky lg:top-0 lg:self-start lg:max-h-screen lg:overflow-y-auto lg:pb-10 [scrollbar-width:none]">
