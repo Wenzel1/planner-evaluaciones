@@ -235,6 +235,21 @@ export const HERRAMIENTAS: Herramienta[] = [
     },
   },
   {
+    name: 'recordatorios',
+    description: 'Maneja los recordatorios a los estudiantes: apagar o encender los automáticos de una evaluación, enviar el recordatorio de una evaluación ahora, o programar un mensaje para una fecha y hora (ej. «recuérdales mañana a las 7 que traigan el diagrama»). Para saber quién no recibió un recordatorio usa consultar con que = envios_whatsapp.',
+    parameters: {
+      type: 'object',
+      properties: {
+        accion: { type: 'string', enum: ['apagar', 'encender', 'enviar_ahora', 'programar'] },
+        evaluacion: evaluacionRef,
+        texto: { type: 'string', description: 'Solo para programar: el mensaje (usa {nombre} para personalizar)' },
+        fecha: { type: 'string', description: 'Solo para programar: AAAA-MM-DD' },
+        hora: { type: 'string', description: 'Solo para programar: HH:MM en 24 horas (por defecto 07:00)' },
+      },
+      required: ['accion'],
+    },
+  },
+  {
     name: 'abrir_en_portal',
     description: 'Abre (o vuelve a cerrar) una evaluación en la página de los estudiantes antes de los 7 días previos, para que vean descripción, recursos y rúbrica.',
     parameters: { type: 'object', properties: { evaluacion: evaluacionRef, abrir: { type: 'boolean' } }, required: ['evaluacion', 'abrir'] },
@@ -388,6 +403,15 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
       }).filter((x: any) => x.nombre && x.nota != null)
       return n && notas.length ? { id, tipo: nombre, datos: { evaluacion: n, notas, enviar: a.enviar === true } } : null
     }
+    case 'recordatorios': {
+      const acc = String(a.accion || '')
+      if (['apagar', 'encender', 'enviar_ahora'].includes(acc)) { const n = ent(a.evaluacion, 1, 20); return n ? { id, tipo: nombre, datos: { accion: acc, evaluacion: n } } : null }
+      if (acc === 'programar') {
+        const msg = texto(a.texto, 1000); const f = String(a.fecha || '').trim(); const h = /^\d{1,2}:\d{2}$/.test(String(a.hora || '')) ? String(a.hora).padStart(5, '0') : '07:00'
+        return msg.length >= 3 && /^\d{4}-\d{2}-\d{2}$/.test(f) ? { id, tipo: nombre, datos: { accion: acc, texto: msg, fecha: f, hora: h } } : null
+      }
+      return null
+    }
     case 'abrir_en_portal': {
       const n = ent(a.evaluacion, 1, 20)
       return n ? { id, tipo: nombre, datos: { evaluacion: n, abrir: a.abrir !== false } } : null
@@ -430,6 +454,7 @@ export function resumenAccion(a: Accion): string {
     case 'agregar_estudiantes': return `[Propuse agregar ${a.datos.estudiantes.length} estudiante(s): ${a.datos.estudiantes.map((e: any) => e.nombre).join(', ').slice(0, 200)}]`
     case 'modificar_estudiantes': return `[Propuse ${a.datos.accion} a ${a.datos.nombres.join(', ').slice(0, 200)}${a.datos.seccion ? ` → sección ${a.datos.seccion}` : ''}]`
     case 'cargar_notas': return `[Propuse cargar ${a.datos.notas.length} nota(s) en #${a.datos.evaluacion}${a.datos.enviar ? ' y enviarlas' : ''}]`
+    case 'recordatorios': return a.datos.accion === 'programar' ? `[Propuse programar un mensaje para el ${a.datos.fecha} ${a.datos.hora}: "${String(a.datos.texto).slice(0, 100)}"]` : `[Propuse ${a.datos.accion === 'apagar' ? 'apagar' : a.datos.accion === 'encender' ? 'encender' : 'enviar ahora'} los recordatorios de #${a.datos.evaluacion}]`
     case 'abrir_en_portal': return `[Propuse ${a.datos.abrir ? 'abrir' : 'cerrar'} #${a.datos.evaluacion} en la página de los estudiantes]`
     case 'enviar_plan': return `[Propuse enviar el plan${a.datos.soloSinAbrir ? ' a quienes no han abierto su página' : ''}]`
     case 'eliminar_evaluaciones': return `[Propuse eliminar ${a.datos.evaluaciones.map((n: number) => `#${n}`).join(', ')}]`

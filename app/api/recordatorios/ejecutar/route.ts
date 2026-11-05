@@ -1,45 +1,20 @@
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import prisma from '@/lib/prisma'
-import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
-import { enviarLoteN8n, fechaBonita, nombreLimpio, nuevoId, primerNombre, destinoDe, tieneDestino, ZONA_HORARIA, type MensajeLote } from '@/lib/whatsappLotes'
-import { ultramsgConfigurado } from '@/lib/ultramsg'
+import { nombreLimpio } from '@/lib/whatsappLotes'
 import { correoConfigurado } from '@/lib/correo'
+import { ultramsgConfigurado } from '@/lib/ultramsg'
+import {
+  leerPref, ventanaQueToca, enHorario, enviarAviso, notaDe, anotarEstadoCron, anotarNoAutorizado,
+  leerProgramados, guardarProgramados, enviarProgramado, type PrefRecordatorios,
+} from '@/lib/recordatorios'
 
 export const maxDuration = 60
 
 const HORA = 60 * 60 * 1000
-// Con correo o UltraMsg directo los mensajes salen desde aquí y la función tiene 60 s: se mandan menos por pasada (la siguiente, en 15 min, sigue)
-const maxPorPasada = () => (correoConfigurado() ? 100 : ultramsgConfigurado() ? 120 : 300)
-
-// Ventanas: se envía el recordatorio que corresponde al tiempo que falta (si ya pasó la ventana de 3 días, va el de 1 día)
-function tipoSegunTiempo(msFaltan: number): '3D' | '1D' | '2H' | null {
-  if (msFaltan <= 0) return null
-  if (msFaltan <= 2 * HORA) return '2H'
-  if (msFaltan <= 24 * HORA) return '1D'
-  if (msFaltan <= 72 * HORA) return '3D'
-  return null
-}
-
-// Días de calendario (en la hora de Venezuela) entre hoy y la fecha: 0 = hoy, 1 = mañana...
-const diaLocal = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_HORARIA }).format(d) // AAAA-MM-DD
-function diasDeCalendario(desde: Date, hasta: Date): number {
-  return Math.round((Date.parse(diaLocal(hasta)) - Date.parse(diaLocal(desde))) / 86400000)
-}
-
-function texto(tipo: '3D' | '1D' | '2H', d: { nombre: string; evaluacion: string; materia: string; seccion: string; fecha: Date; peso: number | null; actividad: string | null; enlace: string }) {
-  const cuando = fechaBonita(d.fecha)
-  const extra = [d.actividad ? `Estrategia: ${d.actividad}` : '', d.peso != null ? `Peso: ${d.peso}%` : ''].filter(Boolean).join(' · ')
-  // Antes decía "mañana" aunque fuera hoy en la tarde, y "en 3 días" aunque faltaran 30 horas
-  const dias = diasDeCalendario(new Date(), d.fecha)
-  const minutos = Math.max(1, Math.round((d.fecha.getTime() - Date.now()) / 60000))
-  const encabezado = tipo === '2H'
-    ? `🔔 *Recordatorio:* en ${minutos >= 90 ? '2 horas' : minutos >= 50 ? '1 hora' : `${minutos} minutos`} comienza tu evaluación`
-    : dias <= 0 ? '⏰ *Recordatorio:* hoy tienes una evaluación'
-    : dias === 1 ? '⏰ *Recordatorio:* mañana tienes una evaluación'
-    : `📅 *Recordatorio:* en ${dias} días tienes una evaluación`
-  return `Hola ${d.nombre} 👋\n${encabezado}.\n\n*${d.evaluacion}*\n${d.materia} · Sección ${d.seccion}\n🗓️ ${cuando}${extra ? `\n${extra}` : ''}\n\n📚 Repasa los recursos y la rúbrica aquí:\n${d.enlace}\n\n¡Mucho éxito! 💪`
-}
+// cron-job.org espera 30 s como máximo: con correo o UltraMsg directo se mandan pocos por pasada (la siguiente, en 15 min, sigue)
+const maxPorPasada = () => (correoConfigurado() ? 40 : ultramsgConfigurado() ? 60 : 300)
+const TIEMPO_MAXIMO = 22_000
 
 function autorizado(request: Request): boolean {
   const clave = process.env.RECORDATORIOS_CLAVE || process.env.N8N_CLAVE_WHATSAPP || ''
@@ -50,17 +25,21 @@ function autorizado(request: Request): boolean {
 }
 
 // GET/POST /api/recordatorios/ejecutar?clave=...  — la llama cron-job.org cada 15 minutos.
-// Busca evaluaciones programadas en las próximas 72 horas y envía por WhatsApp el recordatorio que toque
-// (3 días, 1 día o 2 horas antes) a los estudiantes activos de esa sección. Nunca repite un recordatorio.
+// Revisa las evaluaciones de los próximos 7 días y envía el recordatorio que toque según lo que eligió cada profesor
+// (1 semana, 3 días, 1 día o 2 horas antes; dentro de su horario), más los mensajes programados que ya vencieron.
+// Nunca repite un recordatorio. Con ?prueba=1 solo dice qué enviaría, sin enviar nada.
+// Cada llamada queda anotada para que el profesor vea en el panel si el servicio está funcionando.
 async function ejecutar(request: Request) {
-  if (!autorizado(request)) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!autorizado(request)) {
+    await anotarNoAutorizado()
+    return NextResponse.json({ error: 'No autorizado: la clave no coincide con RECORDATORIOS_CLAVE de Vercel.' }, { status: 401 })
+  }
+  const prueba = new URL(request.url).searchParams.get('prueba') === '1'
+  const inicio = Date.now()
   try {
     const ahora = Date.now()
     const evaluaciones = await prisma.evaluacion.findMany({
-      where: {
-        fecha: { gt: new Date(ahora), lte: new Date(ahora + 72 * HORA) },
-        estado: { in: ['PROGRAMADA', 'REPROGRAMADA'] },
-      },
+      where: { fecha: { gt: new Date(ahora), lte: new Date(ahora + 168 * HORA) }, estado: { in: ['PROGRAMADA', 'REPROGRAMADA'] } },
       orderBy: { fecha: 'asc' }, // las más cercanas primero
       select: {
         id: true, nombre: true, fecha: true, peso: true, tipoActividad: true, grupoSeccion: true,
@@ -69,56 +48,59 @@ async function ejecutar(request: Request) {
       },
     })
 
-    const mensajes: MensajeLote[] = []
-    const filas: any[] = []
-    const resumen: { evaluacion: string; tipo: string; estudiantes: number }[] = []
+    const prefs = new Map<string, PrefRecordatorios>()
+    const pref = async (u: string) => { if (!prefs.has(u)) prefs.set(u, await leerPref(u)); return prefs.get(u)! }
+    let mensajes = 0
+    const resumen: { evaluacion: string; tipo: string; estudiantes: number; error?: string }[] = []
+    const errores: string[] = []
 
     for (const ev of evaluaciones) {
       if (!ev.fecha) continue
-      const tipo = tipoSegunTiempo(ev.fecha.getTime() - ahora)
       const materia = ev.planificacion.materia
-      if (!tipo || !materia.usuarioId || materia.usuario?.activo === false) continue
+      if (!materia.usuarioId || materia.usuario?.activo === false) continue
+      const p = await pref(materia.usuarioId)
+      if (p.apagadas.includes(ev.id)) continue
+      const tipo = ventanaQueToca(ev.fecha.getTime() - ahora, p.ventanas)
+      if (!tipo) continue
+      if (tipo !== '2H' && !enHorario(p)) continue // fuera del horario del profesor: espera a la mañana
       if (ev.recordatorios.some(r => r.tipo === tipo && r.fechaEvaluacion.getTime() === ev.fecha!.getTime())) continue
+      if (mensajes >= maxPorPasada() || Date.now() - inicio > TIEMPO_MAXIMO) break // lo que falte, en la siguiente pasada
 
-      const seccion = ev.grupoSeccion || 'A'
-      const estudiantes = (await prisma.estudiante.findMany({
-        where: { usuarioId: materia.usuarioId, grupo: seccion, estado: 'ACTIVO' },
-        select: { id: true, nombre: true, telefono: true, email: true },
-      })).filter(tieneDestino) // con correo configurado: los que tienen correo; si no: los que tienen teléfono
-      // Si la sección completa no cabe en esta pasada, queda para la siguiente (salvo que sea la primera: esa va entera)
-      if (mensajes.length > 0 && mensajes.length + estudiantes.length > maxPorPasada()) break
-
+      const datos = { id: ev.id, nombre: ev.nombre, fecha: ev.fecha, peso: ev.peso, tipoActividad: ev.tipoActividad, grupoSeccion: ev.grupoSeccion, materia: materia.nombre, usuarioId: materia.usuarioId }
+      if (prueba) {
+        const r = await enviarAviso(request, datos, tipo, { probar: true })
+        resumen.push({ evaluacion: nombreLimpio(ev.nombre), tipo, estudiantes: r.total }); continue
+      }
       // Se registra ANTES de enviar: si dos pasadas coinciden, la segunda choca con el registro único y no repite
-      try {
-        await prisma.recordatorioEnviado.create({ data: { evaluacionId: ev.id, tipo, fechaEvaluacion: ev.fecha } })
-      } catch (e: any) {
-        if (e?.code === 'P2002') continue
-        throw e
-      }
-
-      const loteId = nuevoId()
-      const tokens = await tokensDeEstudiantes(estudiantes.map(e => e.id))
-      let cuenta = 0
-      for (const est of estudiantes) {
-        const id = nuevoId()
-        const destino = destinoDe(est)
-        mensajes.push({
-          id, telefono: destino,
-          asunto: `Recordatorio: ${nombreLimpio(ev.nombre)} · ${fechaBonita(ev.fecha)}`,
-          texto: texto(tipo, { nombre: primerNombre(est.nombre), evaluacion: nombreLimpio(ev.nombre), materia: materia.nombre, seccion, fecha: ev.fecha, peso: ev.peso, actividad: ev.tipoActividad, enlace: urlPortal(request, tokens.get(est.id) as string) }),
-        })
-        filas.push({ id, loteId, usuarioId: materia.usuarioId, tipo: 'RECORDATORIO', estudianteId: est.id, nombre: est.nombre, telefono: destino })
-        cuenta++
-      }
-      await prisma.recordatorioEnviado.updateMany({ where: { evaluacionId: ev.id, tipo, fechaEvaluacion: ev.fecha }, data: { enviados: cuenta } })
-      resumen.push({ evaluacion: nombreLimpio(ev.nombre), tipo, estudiantes: cuenta })
+      try { await prisma.recordatorioEnviado.create({ data: { evaluacionId: ev.id, tipo, fechaEvaluacion: ev.fecha } }) }
+      catch (e: any) { if (e?.code === 'P2002') continue; throw e }
+      const r = await enviarAviso(request, datos, tipo, { nota: notaDe(p, ev.id) })
+      await prisma.recordatorioEnviado.updateMany({ where: { evaluacionId: ev.id, tipo, fechaEvaluacion: ev.fecha }, data: { enviados: r.total } })
+      mensajes += r.total
+      if (!r.ok && r.error) errores.push(r.error)
+      resumen.push({ evaluacion: nombreLimpio(ev.nombre), tipo, estudiantes: r.total, ...(r.ok ? {} : { error: r.error }) })
     }
 
-    if (filas.length > 0) await prisma.envioWhatsApp.createMany({ data: filas })
-    const r = await enviarLoteN8n(request, mensajes)
-    return NextResponse.json({ ok: r.ok, error: r.error, revisadas: evaluaciones.length, mensajes: mensajes.length, resumen })
-  } catch (e) {
+    // Mensajes programados por los profesores que ya vencieron
+    const programados = await leerProgramados()
+    const vencidos = programados.filter(x => new Date(x.enviarEn).getTime() <= Date.now())
+    if (vencidos.length && !prueba) {
+      const enviados = new Set<string>()
+      for (const x of vencidos) {
+        if (Date.now() - inicio > TIEMPO_MAXIMO) break
+        const r = await enviarProgramado(request, x)
+        enviados.add(x.id); mensajes += r.total
+        if (!r.ok && r.error) errores.push(r.error)
+        resumen.push({ evaluacion: `Mensaje programado (Sección ${x.seccion})`, tipo: 'PROGRAMADO', estudiantes: r.total })
+      }
+      await guardarProgramados((await leerProgramados()).filter(x => !enviados.has(x.id)))
+    } else if (prueba) vencidos.forEach(x => resumen.push({ evaluacion: `Mensaje programado (Sección ${x.seccion})`, tipo: 'PROGRAMADO', estudiantes: 0 }))
+
+    if (!prueba) await anotarEstadoCron({ ultima: new Date().toISOString(), ok: errores.length === 0, error: errores[0] || null, mensajes, revisadas: evaluaciones.length })
+    return NextResponse.json({ ok: errores.length === 0, prueba, error: errores[0], revisadas: evaluaciones.length, mensajes, resumen })
+  } catch (e: any) {
     console.error(e)
+    if (!prueba) await anotarEstadoCron({ ultima: new Date().toISOString(), ok: false, error: String(e?.message || e).slice(0, 200) })
     return NextResponse.json({ error: 'Error al procesar los recordatorios' }, { status: 500 })
   }
 }

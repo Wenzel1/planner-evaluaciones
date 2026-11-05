@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { recalcularPromedios } from '@/lib/notas'
+import { leerPref, evalParaAviso, enviarAviso, notaDe } from '@/lib/recordatorios'
 
 const ESTADOS = ['PROGRAMADA', 'REALIZADA', 'REPROGRAMADA', 'CANCELADA'] as const
 const ETIQUETA: Record<string, string> = { PROGRAMADA: 'programada', REALIZADA: 'realizada', REPROGRAMADA: 'reprogramada', CANCELADA: 'cancelada' }
@@ -20,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const ev = await prisma.evaluacion.findUnique({
       where: { id },
-      select: { id: true, nombre: true, planificacion: { select: { materia: { select: { nombre: true, usuarioId: true } } } } },
+      select: { id: true, nombre: true, fecha: true, estado: true, planificacion: { select: { materia: { select: { nombre: true, usuarioId: true } } } } },
     })
     if (!ev) return NextResponse.json({ error: 'Evaluación no encontrada. Si la acabas de crear, espera a que se guarde e intenta de nuevo.' }, { status: 404 })
     const denegado = verificarAcceso(actor, ev.planificacion.materia.usuarioId, 'escribir')
@@ -38,7 +39,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const conNota = await prisma.calificacion.findMany({ where: { evaluacionId: id }, select: { estudianteId: true } })
     if (conNota.length) await recalcularPromedios(conNota.map(c => c.estudianteId))
     await registrarActividad({ actor, accion: 'EDITAR', entidad: 'Evaluación', detalle: `Marcó "${ev.nombre}" como ${ETIQUETA[estado]} (${ev.planificacion.materia.nombre})`.slice(0, 300) })
-    return NextResponse.json(actualizada)
+    // Aviso a los estudiantes de la sección si se reprogramó o canceló una evaluación futura (el profesor lo puede apagar)
+    let aviso: { total: number; ok: boolean; error?: string } | null = null
+    const dueno = ev.planificacion.materia.usuarioId
+    const eraFutura = ev.fecha && ev.fecha.getTime() > Date.now()
+    if (dueno && body.avisar !== false && ((estado === 'REPROGRAMADA') || (estado === 'CANCELADA' && eraFutura && String(ev.estado) !== 'CANCELADA'))) {
+      const pref = await leerPref(dueno)
+      const datos = await evalParaAviso(id)
+      if (pref.avisarCambios && datos) {
+        if (estado === 'CANCELADA' && ev.fecha) datos.fecha = ev.fecha
+        const r = await enviarAviso(request, datos, estado as 'REPROGRAMADA' | 'CANCELADA', { nota: notaDe(pref, id), fechaAnterior: estado === 'REPROGRAMADA' ? ev.fecha : null }).catch((e: any) => ({ total: 0, ok: false, error: String(e?.message || e) }))
+        aviso = { total: r.total, ok: r.ok, error: r.error }
+      }
+    }
+    return NextResponse.json({ ...actualizada, aviso })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'No se pudo cambiar el estado.' }, { status: 500 })

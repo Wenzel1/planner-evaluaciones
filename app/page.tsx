@@ -28,9 +28,10 @@ import {
   MessageCircleQuestion, Eye as EyeIcon, Speech, Download,
   UserCog, ShieldCheck, RefreshCw, Upload, PanelLeftClose, PanelLeftOpen,
   CircleHelp,
-  Sun, Moon,
+  Sun, Moon, BellOff,
 } from 'lucide-react';
 import DescripcionOrdenada from '@/components/DescripcionOrdenada';
+import PanelRecordatorios from '@/components/PanelRecordatorios';
 import { aWav16k } from '@/lib/audioWav';
 import { tipoPerfil } from '@/lib/agente/perfil';
 import Tutorial, { pasosTutorial, tutorialVisto, marcarTutorialVisto } from '@/components/Tutorial';
@@ -89,7 +90,7 @@ interface PlanificacionExamen {
 }
 // Acción que propone el agente (tarjeta con botón en el chat)
 interface AccionChat { id: string; tipo: string; datos: any; estado?: 'pendiente' | 'trabajando' | 'hecha' | 'descartada' | 'deshecha'; resultado?: string; automatica?: boolean }
-const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar', navegar: 'abrir pantalla', agregar_estudiantes: 'agregar estudiantes', modificar_estudiantes: 'modificar estudiantes', cargar_notas: 'cargar notas', abrir_en_portal: 'abrir en la página de estudiantes', enviar_plan: 'enviar plan', eliminar_evaluaciones: 'eliminar evaluaciones', cambiar_materia: 'cambiar de materia', crear_examen: 'examen en línea' };
+const TITULO_ACCION: Record<string, string> = { proponer_evaluaciones: 'evaluaciones', crear_rubrica: 'crear rúbrica', buscar_recursos: 'buscar recursos', reprogramar: 'cambiar fecha', ajustar_pesos: 'ajustar pesos', generar_plan_accion: 'plan de acción', generar_preguntas: 'preguntas', copiar_plan: 'copiar plan', mensaje_estudiantes: 'mensaje a estudiantes', cambiar_estado: 'cambiar estado', recordar_preferencia: 'recordar', navegar: 'abrir pantalla', agregar_estudiantes: 'agregar estudiantes', modificar_estudiantes: 'modificar estudiantes', cargar_notas: 'cargar notas', abrir_en_portal: 'abrir en la página de estudiantes', enviar_plan: 'enviar plan', eliminar_evaluaciones: 'eliminar evaluaciones', cambiar_materia: 'cambiar de materia', crear_examen: 'examen en línea', recordatorios: 'recordatorios' };
 // El modelo a veces copia el registro interno ("[Propuse …]"): esas líneas no se muestran
 const CAMPO_REPETIDO = /^\s*(?:[-•*]|\d+[.)])?\s*(?:\*\*)?\s*(nombre|contenido|tema|estrategia|tipo de actividad|tipo|enfoque|peso|ponderaci[oó]n|fecha|hora|duraci[oó]n|grupos?|personas por grupo|modalidad|descripci[oó]n|objetivo|actividad|herramientas|entregables|criterios(?: de evaluaci[oó]n)?|temas por grupo|casos(?: por (?:grupo|estudiante))?|examen en l[ií]nea)\s*(?:\*\*)?\s*:/i;
 const sinCamposPropuesta = (t: string) => {
@@ -117,7 +118,7 @@ const ACCIONES_AUTOMATICAS = ['navegar'];
 const ACCIONES_SEGURAS = ['crear_rubrica', 'buscar_recursos', 'reprogramar', 'ajustar_pesos', 'abrir_en_portal', 'cambiar_estado', 'recordar_preferencia', 'generar_plan_accion'];
 const CLAVE_MODO_AUTO = 'agenteModoAuto';
 // "Aplicar todo" aplica de una vez las tarjetas pendientes de un mensaje, menos las que envían mensajes, borran o recargan
-const FUERA_DE_APLICAR_TODO = ['mensaje_estudiantes', 'enviar_plan', 'eliminar_evaluaciones', 'cambiar_materia', 'generar_preguntas', 'navegar', 'crear_examen'];
+const FUERA_DE_APLICAR_TODO = ['recordatorios', 'mensaje_estudiantes', 'enviar_plan', 'eliminar_evaluaciones', 'cambiar_materia', 'generar_preguntas', 'navegar', 'crear_examen'];
 interface AvisoChat { tipo: string; texto: string; pedido: string; seccion?: string; urgente?: boolean }
 const VISTA_DE_AGENTE: Record<string, string> = { dashboard: 'estadisticas', planificador: 'planificacion', calendario: 'calendario', estudiantes: 'estudiantes', papelera: 'papelera', perfil: 'perfil' };
 const NOMBRE_VISTA: Record<string, string> = { dashboard: 'el Dashboard', planificador: 'el Planificador', calendario: 'el Calendario', estudiantes: 'Estudiantes', papelera: 'la Papelera', perfil: 'tu perfil' };
@@ -3262,6 +3263,7 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
   agregarNotificacion: (m: string) => void;
 }) {
   const hoy = new Date();
+  const [verRecordatorios, setVerRecordatorios] = useState(false);
   const [mesVista, setMesVista] = useState(() => ({ anio: hoy.getFullYear(), mes: hoy.getMonth() }));
   const [ocultas, setOcultas] = useState<string[]>([]);
   const [diaSel, setDiaSel] = useState<string | null>(null);
@@ -3364,6 +3366,16 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setVerRecordatorios(true)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/20 transition-colors" title="Avisos automáticos a tus estudiantes antes de cada evaluación">
+            <Bell className="w-4 h-4" />Recordatorios
+          </button>
+          <AnimatePresence>
+            {verRecordatorios && (
+              <VentanaFlotante onCerrar={() => setVerRecordatorios(false)} ancho="max-w-3xl">
+                <PanelRecordatorios onCerrar={() => setVerRecordatorios(false)} notificar={agregarNotificacion} seccionActiva={(secciones[0]?.grupoSeccion || 'A').toUpperCase()} />
+              </VentanaFlotante>
+            )}
+          </AnimatePresence>
           <button onClick={exportarIcs} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] text-[color:var(--c-c7d2fe)] hover:border-[color:var(--c-818cf8)]/50 hover:bg-[color:var(--c-818cf8)]/10 transition-colors" title="Descarga un archivo .ics para Google Calendar o el calendario del celular">
             <Download className="w-4 h-4" />Exportar calendario
           </button>
@@ -3568,6 +3580,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
   const [rubricaDe, setRubricaDe] = useState<SeccionExamen | null>(null);
   const [notasDe, setNotasDe] = useState<SeccionExamen | null>(null);
   const [examenDe, setExamenDe] = useState<SeccionExamen | null>(null);
+  const [recordatoriosDe, setRecordatoriosDe] = useState<SeccionExamen | null>(null);
   // Vista previa del plan: SOLO las evaluaciones de la sección activa que están marcadas
   const listaPlan: SeccionExamen[] = Array.isArray(seccionesPlan) ? seccionesPlan : secciones;
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
@@ -3735,6 +3748,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               onNotas={setNotasDe}
               onRecursos={onGuardarRecursos ? setRecursosDe : undefined}
               onExamen={onExamenLocal ? setExamenDe : undefined}
+              onRecordatorios={(s: SeccionExamen) => esIdGuardado(s.id) ? setRecordatoriosDe(s) : agregarNotificacion('⏳ Guarda la evaluación primero para ver sus recordatorios.')}
             />
           );
         })}
@@ -3760,6 +3774,11 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
         {examenDe && onExamenLocal && (
           <ModalExamen key={examenDe.id} evaluacion={examenDe} onCerrar={() => setExamenDe(null)} notificar={agregarNotificacion}
             onGuardado={(ex) => onExamenLocal(examenDe.id, ex)} />
+        )}
+        {recordatoriosDe && (
+          <VentanaFlotante key={`rec-${recordatoriosDe.id}`} onCerrar={() => setRecordatoriosDe(null)} ancho="max-w-3xl">
+            <PanelRecordatorios enfoque={recordatoriosDe.id} onCerrar={() => setRecordatoriosDe(null)} notificar={agregarNotificacion} seccionActiva={seccionActiva} />
+          </VentanaFlotante>
         )}
         {notasDe && (
           <ModalNotas key={notasDe.id} seccion={notasDe} onCerrar={() => setNotasDe(null)} agregarNotificacion={agregarNotificacion} onEstadoCambiado={onEstadoLocal} />
@@ -4346,7 +4365,7 @@ function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: Se
 // ============================================
 // TARJETA DE EVALUACIÓN (draggable individual, fluida con Framer Motion)
 // ============================================
-function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas, onRecursos, onExamen }: {
+function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas, onRecursos, onExamen, onRecordatorios }: {
   seccion: SeccionExamen; index: number; isSelected: boolean; onToggleSelect?: (id: string) => void;
   expanded: boolean; onToggleExpand: () => void; onEdit: (s: SeccionExamen) => void; onDelete: (id: string) => void;
   onEnviar: (s: SeccionExamen) => void; enviando: boolean; onCambiarEstado?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean>;
@@ -4354,6 +4373,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
   onNotas?: (s: SeccionExamen) => void;
   onRecursos?: (s: SeccionExamen) => void;
   onExamen?: (s: SeccionExamen) => void;
+  onRecordatorios?: (s: SeccionExamen) => void;
 }) {
   const dragControls = useDragControls();
   const nombreLimpio = limpiarTexto(seccion.nombre);
@@ -4375,6 +4395,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
     onRubrica && { icono: ClipboardCheck, titulo: tieneRubrica ? 'Rúbrica' : 'Crear rúbrica', detalle: tieneRubrica ? `${textoPuntos(totalRubrica(seccion.rubrica))} pts · ver o editar` : 'Criterios y niveles de 20 puntos', hacer: () => onRubrica(seccion) },
     { icono: Pencil, titulo: 'Editar evaluación', detalle: 'Contenido, peso, fecha y descripción', hacer: () => onEdit(seccion) },
     puedeExamen && { icono: FileCheck, titulo: 'Examen en línea', detalle: seccion.examen ? `${seccion.examen.preguntas.length} preguntas · ver entregas` : 'Crear el examen que presentan en su página', hacer: () => onExamen!(seccion) },
+    onRecordatorios && seccion.fecha && !['REALIZADA', 'CANCELADA'].includes(String(seccion.estado || '').toUpperCase()) && { icono: Bell, titulo: 'Recordatorios', detalle: 'Cuándo se avisa a los estudiantes · enviar ahora', hacer: () => onRecordatorios(seccion) },
   ].filter(Boolean) as { icono: any; titulo: string; detalle: string; hacer: () => void }[];
   return (
     <Reorder.Item
@@ -5284,6 +5305,31 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           resultado = `${dd.guardadas ?? notas.length} nota(s) guardadas en «${limpiarTexto(s.nombre)}»${enviadas}${faltan.length ? `; no encontré a ${faltan.join(', ')}` : ''}`;
           break;
         }
+        case 'recordatorios': {
+          if (a.datos.accion === 'programar') {
+            const enviarEn = new Date(`${a.datos.fecha}T${a.datos.hora}:00-04:00`);
+            const r = await fetch('/api/recordatorios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'programar', seccion: seccionActiva, texto: a.datos.texto, enviarEn: enviarEn.toISOString(), incluirEnlace: true }) });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.error || 'No se pudo programar.');
+            deshacer = async () => { await fetch(`/api/recordatorios?programado=${encodeURIComponent(d.programado.id)}`, { method: 'DELETE' }); return 'Mensaje programado cancelado'; };
+            resultado = `Mensaje programado para la Sección ${seccionActiva} el ${enviarEn.toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}`;
+            break;
+          }
+          const s = await evGuardada(a.datos.evaluacion);
+          if (a.datos.accion === 'enviar_ahora') {
+            const r = await fetch('/api/recordatorios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'enviar', evaluacionId: s.id }) });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(d.error || 'No se pudo enviar.');
+            resultado = `Recordatorio de «${limpiarTexto(s.nombre)}» enviado a ${d.total} estudiante(s)`;
+            break;
+          }
+          const apagar = a.datos.accion === 'apagar';
+          const poner = async (v: boolean) => { const r = await fetch('/api/recordatorios', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evaluacion: { id: s.id, apagada: v } }) }); if (!r.ok) throw new Error('No se pudo cambiar.'); };
+          await poner(apagar);
+          deshacer = async () => { await poner(!apagar); return apagar ? 'Recordatorios encendidos de nuevo' : 'Recordatorios apagados de nuevo'; };
+          resultado = apagar ? `«${limpiarTexto(s.nombre)}» ya no enviará recordatorios automáticos` : `«${limpiarTexto(s.nombre)}» volverá a enviar recordatorios automáticos`;
+          break;
+        }
         case 'abrir_en_portal': {
           const s = ev(a.datos.evaluacion);
           deshacer = foto(seccionActiva, 'Vuelve a abrirse sola 7 días antes', { ids: [s.id], campos: ['abiertaManual'] });
@@ -5965,6 +6011,9 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
       modificar_estudiantes: { icono: UserCheck, titulo: a.datos?.accion === 'mover' ? `Mover a la Sección ${a.datos?.seccion}` : a.datos?.accion === 'retirar' ? 'Retirar estudiantes' : 'Reactivar estudiantes', detalle: (a.datos?.nombres || []).join(', ') + (a.datos?.accion === 'retirar' ? ' · quedan inactivos (no reciben mensajes); sus notas se conservan' : ''), boton: a.datos?.accion === 'mover' ? 'Mover' : a.datos?.accion === 'retirar' ? 'Retirar' : 'Reactivar' },
       abrir_en_portal: { icono: a.datos?.abrir ? LockOpen : Lock, titulo: a.datos?.abrir ? 'Abrir en la página de estudiantes' : 'Cerrar en la página de estudiantes', detalle: `${nombreEv(a.datos?.evaluacion)} ${a.datos?.abrir ? '→ verán descripción, recursos y rúbrica desde ya' : '→ se abrirá sola 7 días antes'}`, boton: a.datos?.abrir ? 'Abrir' : 'Cerrar' },
       enviar_plan: { icono: Send, titulo: `Enviar el plan por ${medioEnvio()}`, detalle: `Enlace a su página personal · Sección ${seccionActiva}${a.datos?.soloSinAbrir ? ' · solo a quienes no la han abierto' : ' · a todos los activos'}`, boton: 'Enviar' },
+      recordatorios: a.datos?.accion === 'programar'
+        ? { icono: Bell, titulo: 'Programar mensaje', detalle: `Sección ${seccionActiva} · ${a.datos?.fecha ? new Date(`${a.datos.fecha}T${a.datos.hora || '07:00'}:00-04:00`).toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }) : ''} · «${String(a.datos?.texto || '').slice(0, 140)}»`, boton: 'Programar' }
+        : { icono: a.datos?.accion === 'apagar' ? BellOff : Bell, titulo: a.datos?.accion === 'apagar' ? 'Apagar recordatorios' : a.datos?.accion === 'encender' ? 'Encender recordatorios' : `Enviar recordatorio por ${medioEnvio()}`, detalle: `${nombreEv(a.datos?.evaluacion)}${a.datos?.accion === 'enviar_ahora' ? ` · a toda la Sección ${seccionActiva}` : ''}`, boton: a.datos?.accion === 'enviar_ahora' ? 'Enviar' : 'Confirmar' },
       eliminar_evaluaciones: { icono: Trash2, titulo: 'Eliminar evaluaciones', detalle: `${(a.datos?.evaluaciones || []).map((n: number) => nombreEv(n)).join(', ')} · quedan en la Papelera con sus notas`, boton: 'Eliminar' },
       cambiar_materia: { icono: BookOpen, titulo: a.datos?.crear ? 'Abrir o crear materia' : 'Cambiar de materia', detalle: `«${a.datos?.nombre}»${(materias as any[]).length ? ` · tus materias: ${(materias as any[]).map((m: any) => m.nombre).join(', ')}` : ''}`, boton: 'Abrir' },
     };
@@ -6431,6 +6480,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, estado: d.estado, fecha: d.fecha ? new Date(d.fecha) : s.fecha } : s) }));
       const textos: Record<string, string> = { REALIZADA: '✅ Evaluación marcada como realizada.', REPROGRAMADA: '🔁 Evaluación reprogramada. Los recordatorios usarán la nueva fecha.', CANCELADA: '⛔ Evaluación cancelada: no se enviarán recordatorios.', PROGRAMADA: '🗓 Evaluación programada de nuevo.' };
       agregarNotificacion(textos[d.estado] || 'Estado actualizado.');
+      if (d.aviso?.total) agregarNotificacion(d.aviso.ok ? `📣 Se avisó del cambio a ${d.aviso.total} estudiante(s).` : `⚠️ No se pudo avisar a los estudiantes: ${d.aviso.error || 'error de envío'}`);
       return true;
     } catch {
       agregarNotificacion('❌ No se pudo conectar con el servidor.');
@@ -7039,6 +7089,19 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   useEffect(() => {
     if (!usuario) return;
     cargarOpiniones();
+    // Alertas del día: evaluaciones sin rúbrica o recursos, notas sin cargar, pesos que no suman 100%, estudiantes sin abrir su página
+    (async () => {
+      const clave = `alertas_${usuario.id}_${new Date().toDateString()}`;
+      try { if (localStorage.getItem(clave)) return; } catch { /* sin almacenamiento */ }
+      const r = await fetch('/api/recordatorios?solo=alertas').catch(() => null);
+      if (!r?.ok) return;
+      const d = await r.json().catch(() => ({}));
+      const lista: { tipo: string; texto: string }[] = Array.isArray(d.alertas) ? d.alertas : [];
+      const ICONO: Record<string, string> = { rubrica: '📋', recursos: '📚', notas: '📝', pesos: '⚖️', portal: '👀' };
+      lista.slice(0, 6).forEach(a => agregarNotificacion(`${ICONO[a.tipo] || '🔔'} ${a.texto}`));
+      if (lista.length > 6) agregarNotificacion(`🔔 Y ${lista.length - 6} pendiente(s) más.`);
+      try { localStorage.setItem(clave, '1'); } catch { /* sin almacenamiento */ }
+    })();
     const t = setInterval(cargarOpiniones, 60000);
     return () => clearInterval(t);
   }, [usuario?.id]);
