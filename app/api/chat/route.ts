@@ -224,6 +224,7 @@ async function atender(request: Request) {
         let pesosRevisados = false
         let soloPesos = false
         let silencio = false // en un reintento de corrección no se muestra el texto (el modelo tiende a repetirse)
+        const malformaron: string[] = [] // modelos que armaron mal la herramienta: el reintento va con el siguiente modelo
         const inicio = Date.now()
         for (let ronda = 0; ronda < 6; ronda++) {
           // Vercel corta la función a los 60 s: pasados 40 s no se empieza otra ronda (consulta o corrección)
@@ -234,8 +235,9 @@ async function atender(request: Request) {
           let malformada = false
           const invalidas: string[] = []
           const accionesAntes = acciones.length
-          for await (const ev of responder(sistema, turnos, { temperatura, maxTokens, senal: request.signal }, chat.modelo)) {
-            if (ev.t === 'modelo') { if (!modelo) { modelo = ev.v; respaldo = ev.respaldo; enviar({ t: 'modelo', v: ev.v, respaldo: ev.respaldo }) } }
+          let modeloRonda = ''
+          for await (const ev of responder(sistema, turnos, { temperatura, maxTokens, senal: request.signal, evitar: malformaron }, chat.modelo)) {
+            if (ev.t === 'modelo') { modeloRonda = ev.v; if (!modelo || modelo !== ev.v) { modelo = ev.v; respaldo = ev.respaldo; enviar({ t: 'modelo', v: ev.v, respaldo: ev.respaldo }) } }
             else if (ev.t === 'texto') { textoRonda += ev.v; if (silencio) retenido += ev.v; else { texto += ev.v; enviar({ t: 'texto', v: ev.v }) } }
             else if (ev.t === 'aviso') enviar({ t: 'aviso', v: ev.v })
             else if (ev.t === 'malformada') malformada = true
@@ -254,6 +256,7 @@ async function atender(request: Request) {
           // Si un reintento no trajo herramienta, su texto sí se muestra (era una respuesta normal)
           if (silencio && acciones.length === accionesAntes && retenido.trim() && !consultas.length) { texto += retenido; enviar({ t: 'texto', v: retenido }) }
           silencio = false
+          if (malformada && modeloRonda && !malformaron.includes(modeloRonda)) malformaron.push(modeloRonda)
           // Anunció una acción ("Aquí tienes la propuesta:") pero la herramienta no llegó o llegó mal formada: se le pide de nuevo
           const prometio = /(:|…|\.\.\.)\s*$/.test(textoRonda.trim()) && /propuesta|aqu[ií] (tienes|va|est[aá])|te propongo|quedar[ií]a|plan/i.test(textoRonda)
           const copioResumen = new RegExp(RESUMEN_COPIADO.source, 'im').test(textoRonda)
@@ -308,7 +311,9 @@ async function atender(request: Request) {
         }
         texto = limpiarResumenes(texto)
         if (!texto.trim() && !acciones.length) {
-          texto = 'No alcancé a terminar la respuesta a tiempo. ¿Me lo pides de nuevo, quizás en partes más cortas?'
+          texto = malformaron.length
+            ? 'No logré armar la propuesta esta vez (el modelo de IA la envió incompleta). ¿Me lo pides de nuevo? Si vuelve a pasar, pídemela de a 2 evaluaciones.'
+            : 'No alcancé a terminar la respuesta a tiempo. ¿Me lo pides de nuevo, quizás en partes más cortas?'
           enviar({ t: 'texto', v: texto })
         }
         const guardado = await prisma.mensaje.create({ data: { conversacionId, rol: 'AGENT', contenido: texto, completo: true, acciones: acciones.length ? (acciones as any) : undefined, modelo, respaldo } })

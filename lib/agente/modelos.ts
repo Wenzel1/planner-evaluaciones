@@ -5,7 +5,7 @@ import { herramientasGemini, herramientasGroq } from './herramientas'
 
 export interface Turno { rol: 'user' | 'model'; texto: string }
 export type Evento = { t: 'texto'; v: string } | { t: 'herramienta'; nombre: string; args: any } | { t: 'aviso'; v: string } | { t: 'malformada' }
-export interface Opciones { temperatura: number; maxTokens: number; senal?: AbortSignal; sinHerramientas?: boolean }
+export interface Opciones { temperatura: number; maxTokens: number; senal?: AbortSignal; sinHerramientas?: boolean; evitar?: string[] }
 interface Candidato { proveedor: 'gemini' | 'groq' | 'openrouter'; modelo: string }
 
 class FalloModelo extends Error { constructor(msg: string, public estado = 0) { super(msg) } }
@@ -140,7 +140,10 @@ export function candidatos(modeloConfigurado?: string): Candidato[] {
 
 // Responde con el primer modelo que funcione. Emite { t:'modelo' } al empezar con el que respondió.
 export async function* responder(sistema: string, turnos: Turno[], op: Opciones, modeloConfigurado?: string): AsyncGenerator<Evento | { t: 'modelo'; v: string; respaldo: boolean }> {
-  const lista = candidatos(modeloConfigurado)
+  // evitar: modelos que ya fallaron en esta misma respuesta (ej. armaron mal la herramienta): se prueba con otro
+  const todos = candidatos(modeloConfigurado)
+  const sinEvitados = todos.filter(c => !op.evitar?.includes(c.modelo))
+  const lista = sinEvitados.length ? sinEvitados : todos
   if (lista.length === 0) throw new Error('No hay claves de IA: agrega GEMINI_API_KEY, OPENROUTER_API_KEY o GROQ_API_KEY en Vercel.')
   const fallos: string[] = []
   for (const [i, c] of lista.entries()) {

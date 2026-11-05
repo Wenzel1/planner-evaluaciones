@@ -4325,7 +4325,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
   const puedeExamen = !!onExamen && (!!seccion.examen || admiteExamenEnLinea(seccion.tipoActividad, seccion.enfoque, seccion.descripcion));
   const opciones = [
     onRubrica && { icono: ClipboardCheck, titulo: tieneRubrica ? 'Rúbrica' : 'Crear rúbrica', detalle: tieneRubrica ? `${textoPuntos(totalRubrica(seccion.rubrica))} pts · ver o editar` : 'Criterios y niveles de 20 puntos', hacer: () => onRubrica(seccion) },
-    onRecursos && { icono: Paperclip, titulo: 'Recursos de estudio', detalle: nRecursos ? `${nRecursos} para los estudiantes${seccion.abiertaManual ? ' · abierta antes de tiempo' : ''}` : 'Videos y páginas para estudiar', hacer: () => onRecursos(seccion) },
+    { icono: Pencil, titulo: 'Editar evaluación', detalle: 'Contenido, peso, fecha y descripción', hacer: () => onEdit(seccion) },
     puedeExamen && { icono: FileCheck, titulo: 'Examen en línea', detalle: seccion.examen ? `${seccion.examen.preguntas.length} preguntas · ver entregas` : 'Crear el examen que presentan en su página', hacer: () => onExamen!(seccion) },
   ].filter(Boolean) as { icono: any; titulo: string; detalle: string; hacer: () => void }[];
   return (
@@ -4363,10 +4363,9 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
             {seccion.fecha && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" />{new Date(seccion.fecha).toLocaleDateString('es-VE', { weekday: 'short', day: 'numeric', month: 'short' })}</span>}
             {seccion.tipoActividad && <span className="truncate max-w-[180px]">{seccion.tipoActividad}</span>}
             {/* Indicadores de lo que ya está listo */}
-            {(tieneRubrica || nRecursos > 0 || seccion.examen) && (
+            {(tieneRubrica || seccion.examen) && (
               <span className="flex items-center gap-1.5 text-[#818cf8]">
                 {tieneRubrica && <span title="Tiene rúbrica"><ClipboardCheck className="w-3.5 h-3.5" /></span>}
-                {nRecursos > 0 && <span title={`${nRecursos} recurso(s)`}><Paperclip className="w-3.5 h-3.5" /></span>}
                 {seccion.examen && <span title="Tiene examen en línea"><FileCheck className="w-3.5 h-3.5" /></span>}
               </span>
             )}
@@ -4380,7 +4379,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
               <GraduationCap className="w-3.5 h-3.5" />Notas
             </button>
           )}
-          <Tooltip text="Editar"><button onClick={() => onEdit(seccion)} aria-label="Editar evaluación" className="p-1.5 text-[#8a8b9e] hover:text-[#818cf8] hover:bg-[#272839] rounded-lg"><Pencil className="w-4 h-4" /></button></Tooltip>
+          {onRecursos && <Tooltip text={nRecursos ? `Recursos de estudio (${nRecursos})` : 'Recursos de estudio'}><button onClick={() => onRecursos(seccion)} aria-label="Recursos de estudio" className={`relative p-1.5 hover:bg-[#272839] rounded-lg ${nRecursos ? 'text-[#a5b4fc] hover:text-[#c7d2fe]' : 'text-[#8a8b9e] hover:text-[#818cf8]'}`}><Paperclip className="w-4 h-4" />{nRecursos > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#818cf8] text-[9px] font-bold text-white flex items-center justify-center">{nRecursos}</span>}</button></Tooltip>}
           <div className="relative" ref={menuRef}>
             <button onClick={() => setMenu(v => !v)} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
               className={`p-1.5 rounded-lg transition-colors ${menu ? 'text-[#e0e0ec] bg-[#2c2d42]' : 'text-[#8a8b9e] hover:text-[#e0e0ec] hover:bg-[#272839]'}`}>
@@ -4417,7 +4416,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
               {seccion.fecha && <span>🕗 {new Date(seccion.fecha).toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}</span>}
               {tieneRubrica && <span className="text-[#a5b4fc]">📋 Rúbrica de {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
             </div>
-            {seccion.descripcion ? <DescripcionOrdenada texto={seccion.descripcion} /> : <p className="text-xs text-[#6a6b7e]">Sin descripción. Puedes agregarla con el lápiz.</p>}
+            {seccion.descripcion ? <DescripcionOrdenada texto={seccion.descripcion} /> : <p className="text-xs text-[#6a6b7e]">Sin descripción. Puedes agregarla con «Editar evaluación» en el menú ⋯.</p>}
           </div>
         </motion.div>
       )}</AnimatePresence>
@@ -6204,6 +6203,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   // Los 4 formularios manuales ocupan mucho: si la sección ya tiene evaluaciones se pliegan.
   // Se abren solos cuando tienen algo (una propuesta del agente o una evaluación en edición) o con el botón.
   const [verFormularios, setVerFormularios] = useState(false);
+  // La guía de primeros pasos se puede cerrar; se recuerda por sección en este navegador
+  const [guiasCerradas, setGuiasCerradas] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('guia_pasos_cerrada') || '[]'); } catch { return []; } });
+  const cerrarGuia = () => setGuiasCerradas(prev => { const n = [...new Set([...prev, seccionActiva])]; try { localStorage.setItem('guia_pasos_cerrada', JSON.stringify(n)); } catch { /* sin almacenamiento */ } return n; });
   // El plan usa solo las evaluaciones de la sección activa que siguen marcadas
   const seccionesParaPlan = seccionesFiltradas.filter((s: SeccionExamen) => !tarjetasExcluidas.includes(s.id));
   const idsSeleccionados = seccionesParaPlan.map((s: SeccionExamen) => s.id);
@@ -6959,9 +6961,9 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                 <ObservacionesRecibidas items={observaciones} onLeer={marcarObservacionLeida} />
                 <OpinionesEstudiantes items={opiniones} onVistas={marcarOpinionesVistas} />
                 {/* Guía de primeros pasos: solo mientras falten estudiantes o evaluaciones en la sección */}
-                {datosCargados && estudiantesSeccion !== null && (estudiantesSeccion === 0 || seccionesFiltradas.length === 0) && (
+                {datosCargados && estudiantesSeccion !== null && (estudiantesSeccion === 0 || seccionesFiltradas.length === 0) && !guiasCerradas.includes(seccionActiva) && (
                   <div className="rounded-2xl border border-[#818cf8]/25 bg-gradient-to-br from-[#22234a]/70 to-[#1d1e2e] p-5">
-                    <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#a5b4fc]" /><h3 className="text-sm font-semibold text-white">Primeros pasos · Sección {seccionActiva}</h3></div>
+                    <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#a5b4fc]" /><h3 className="text-sm font-semibold text-white flex-1">Primeros pasos · Sección {seccionActiva}</h3><button type="button" onClick={cerrarGuia} aria-label="Cerrar la guía" title="Cerrar la guía" className="p-1 -mr-1 rounded-lg text-[#8a8b9e] hover:text-white hover:bg-white/10 transition-colors"><X className="w-4 h-4" /></button></div>
                     <p className="text-xs text-[#9a9bb0] mt-1">Tres pasos y tus estudiantes tendrán su plan de evaluación.</p>
                     <ol className="mt-4 grid gap-2 sm:grid-cols-3">
                       {[
