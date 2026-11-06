@@ -6553,8 +6553,11 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   // Se abren solos cuando tienen algo (una propuesta del agente o una evaluación en edición) o con el botón.
   const [verFormularios, setVerFormularios] = useState(false);
   // La guía de primeros pasos se puede cerrar; se recuerda por sección en este navegador
-  const [guiasCerradas, setGuiasCerradas] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('guia_pasos_cerrada') || '[]'); } catch { return []; } });
-  const cerrarGuia = () => setGuiasCerradas(prev => { const n = [...new Set([...prev, seccionActiva])]; try { localStorage.setItem('guia_pasos_cerrada', JSON.stringify(n)); } catch { /* sin almacenamiento */ } return n; });
+  // Guía "Primeros pasos": se recuerda cerrada por cuenta y por materia (cada cuenta y cada materia nueva la vuelve a ver)
+  const claveGuia = `guia_pasos_cerrada:${usuario?.id || 'anon'}:${materiaActivaId || 'sin-materia'}`;
+  const [guiasCerradas, setGuiasCerradas] = useState<string[]>([]);
+  useEffect(() => { try { setGuiasCerradas(JSON.parse(localStorage.getItem(claveGuia) || '[]')); } catch { setGuiasCerradas([]); } }, [claveGuia]);
+  const cerrarGuia = () => setGuiasCerradas(prev => { const n = [...new Set([...prev, seccionActiva])]; try { localStorage.setItem(claveGuia, JSON.stringify(n)); } catch { /* sin almacenamiento */ } return n; });
   // El plan usa solo las evaluaciones de la sección activa que siguen marcadas
   const seccionesParaPlan = seccionesFiltradas.filter((s: SeccionExamen) => !tarjetasExcluidas.includes(s.id));
   const idsSeleccionados = seccionesParaPlan.map((s: SeccionExamen) => s.id);
