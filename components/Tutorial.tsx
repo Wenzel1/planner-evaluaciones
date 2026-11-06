@@ -2,7 +2,7 @@
 
 // Recorrido guiado para quien entra por primera vez: resalta cada parte de la pantalla y explica para qué sirve.
 // Se abre solo la primera vez (por usuario y navegador), se puede omitir en cualquier paso y repetir con el botón "?".
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 
@@ -34,7 +34,7 @@ export function pasosTutorial(nombre: string, esMovil: boolean): PasoTutorial[] 
     { objetivo: 'materia', titulo: 'Tus materias', texto: 'Cambia de materia o crea una nueva. Cada materia tiene su propio plan, sus secciones y sus estudiantes.', opcional: true },
     { objetivo: 'formularios', titulo: 'Crear o revisar evaluaciones', texto: 'Aquí llega lo que te propone EvaPlanner para que lo revises y lo guardes, o lo llenas tú: contenido, estrategia, enfoque, duración, peso, grupos, fecha y descripción. Cuando ya tienes evaluaciones se pliega en una barra para no estorbar.' },
     { objetivo: 'secciones', titulo: 'Secciones A, B, C…', texto: 'Si das la misma materia a varios grupos, cada sección tiene sus propias evaluaciones, fechas y estudiantes. Con ＋ creas otra y EvaPlanner puede copiar el plan de una sección a otra.', opcional: true },
-    { objetivo: 'guardadas', titulo: 'Tus evaluaciones', texto: 'Arrastra ⋮⋮ para reordenarlas y toca el número para incluirla o quitarla del Plan de Acción. «Notas» abre la planilla para calificar (con o sin rúbrica). El clip guarda videos y páginas de estudio. En ⋯ están Editar, la Rúbrica, el Examen en línea (con preguntas mezcladas y aviso si el estudiante sale de la página) y Eliminar.' },
+    { objetivo: 'guardadas', titulo: 'Tus evaluaciones', texto: 'La flecha ⌄ abre el detalle de cada una. ⋮⋮ las reordena y el número la incluye en el Plan de Acción. El estado (Programada) se cambia con un clic, «Notas» abre la planilla para calificar y el clip guarda recursos de estudio. En ⋯ están Editar, Rúbrica, Examen en línea, Recordatorios y Eliminar.' },
     { objetivo: 'plan-accion', titulo: 'Plan de Acción y envío', texto: 'Genera el Plan de Acción en PDF con las evaluaciones marcadas y envíaselo a tus estudiantes: cada uno recibe por correo el enlace a su página personal, con fechas, recursos, exámenes y sus notas.', opcional: true },
     { objetivo: 'acta', titulo: 'Acta de notas', texto: 'Descarga en un clic el acta de la sección para Excel: cada estudiante con sus notas, su promedio y si aprueba o no.', opcional: true },
     { objetivo: 'pestanas', titulo: 'Más pantallas', texto: '📊 Dashboard: promedios, avance y estudiantes en riesgo. 📅 Calendario: ve y arrastra las fechas, con feriados. 👥 Estudiantes: agrégalos uno a uno o desde Excel y abre su página personal. 🗑️ Papelera: recupera lo que borraste.' },
@@ -44,15 +44,43 @@ export function pasosTutorial(nombre: string, esMovil: boolean): PasoTutorial[] 
   ];
 }
 
+// Recorrido corto la primera vez que se entra a cada pestaña
+export function pasosDeVista(vista: string | null): PasoTutorial[] {
+  switch (vista) {
+    case 'calendario': return [
+      { objetivo: 'cal-nav', titulo: 'Tu calendario', texto: 'Cambia de mes con las flechas (en el teléfono, deslizando). Toca una sección para ocultarla o mostrarla. Si dos evaluaciones de la misma sección chocan, se marca en rojo.' },
+      { objetivo: 'cal-grid', titulo: 'Mueve fechas arrastrando', texto: 'Arrastra una evaluación a otro día para cambiar su fecha; si ya está guardada, te pregunta si avisar a los estudiantes. Toca un día para ver sus evaluaciones y ábrelas en el planificador.', opcional: true },
+      { objetivo: 'cal-recordatorios', titulo: 'Recordatorios', texto: 'Decide cuándo reciben el aviso tus estudiantes (1 semana, 3 días, 1 día, 2 horas) y en qué horario. También puedes enviar uno al instante o programar un mensaje.' },
+      { objetivo: 'cal-exportar', titulo: 'Llévalo a tu calendario', texto: 'Descarga las fechas para Google Calendar o el calendario del celular.', opcional: true },
+    ];
+    case 'estudiantes': return [
+      { objetivo: 'est-agregar', titulo: 'Tus estudiantes', texto: 'Agrégalos uno a uno con su correo y su sección. A ese correo les llegan el plan, los recordatorios y sus notas.' },
+      { objetivo: 'est-importar', titulo: 'Desde Excel', texto: 'Descarga la plantilla, llénala y súbela para cargar toda la lista de una vez.', opcional: true },
+      { objetivo: 'est-prueba', titulo: 'Estudiantes de prueba', texto: 'Crea estudiantes de ejemplo sin correo real para probar evaluaciones en grupo, notas y su página. No reciben mensajes; para probar los correos, agrégate tú con tu correo.' },
+    ];
+    case 'estadisticas': return [
+      { objetivo: 'dash-titulo', titulo: 'Dashboard', texto: 'El resumen de la materia: evaluaciones realizadas y pendientes, promedio, estudiantes en riesgo y cómo se reparten las estrategias. Se actualiza solo con tus cambios.' },
+    ];
+    case 'papelera': return [
+      { titulo: 'Papelera', texto: 'Lo que eliminas (evaluaciones, estudiantes, materias) se guarda aquí 30 días. Puedes restaurarlo tal como estaba, con sus notas.' },
+    ];
+    default: return [];
+  }
+}
+
 const ANCHO = 340;
 const MARGEN = 12;
 
-export default function Tutorial({ pasos, onTerminar, alCambiarPaso }: { pasos: PasoTutorial[]; onTerminar: () => void; alCambiarPaso?: (p: PasoTutorial) => void }) {
+export default function Tutorial({ pasos, onTerminar, alCambiarPaso, etiquetaInicio = 'Empezar recorrido' }: { pasos: PasoTutorial[]; onTerminar: () => void; alCambiarPaso?: (p: PasoTutorial) => void; etiquetaInicio?: string }) {
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [vista, setVista] = useState({ w: 1024, h: 768 });
   const paso = pasos[i];
   const ultimo = i === pasos.length - 1;
+  // Alto REAL de la tarjeta (antes se suponía 230 px y con textos largos quedaba cortada fuera de la pantalla)
+  const tarjetaRef = useRef<HTMLDivElement>(null);
+  const [altoTarjeta, setAltoTarjeta] = useState(230);
+  useLayoutEffect(() => { const h = tarjetaRef.current?.offsetHeight; if (h && Math.abs(h - altoTarjeta) > 2) setAltoTarjeta(h); });
 
   const elemento = useCallback((p?: PasoTutorial) => {
     if (!p?.objetivo) return null;
@@ -108,7 +136,7 @@ export default function Tutorial({ pasos, onTerminar, alCambiarPaso }: { pasos: 
   let tarjeta: React.CSSProperties;
   if (!hueco) tarjeta = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
   else {
-    const alto = 230;
+    const alto = altoTarjeta;
     const derecha = vista.w - (hueco.left + hueco.width), izquierda = hueco.left;
     const abajo = vista.h - (hueco.top + hueco.height), arriba = hueco.top;
     const clampX = (x: number) => Math.max(MARGEN, Math.min(vista.w - ancho - MARGEN, x));
@@ -134,8 +162,8 @@ export default function Tutorial({ pasos, onTerminar, alCambiarPaso }: { pasos: 
       )}
       <div className="absolute inset-0" onClick={(e) => e.stopPropagation()} />
 
-      <div key={i} className="absolute bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-3a3d5c)] rounded-2xl shadow-2xl shadow-black/60 p-5 transition-all duration-300 ease-out animate-[aparecer_.25s_ease-out]"
-        style={{ ...tarjeta, width: ancho }}>
+      <div key={i} ref={tarjetaRef} className="absolute bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-3a3d5c)] rounded-2xl shadow-2xl shadow-black/60 p-5 transition-all duration-300 ease-out animate-[aparecer_.25s_ease-out]"
+        style={{ ...tarjeta, width: ancho, maxHeight: vista.h - MARGEN * 2, overflowY: 'auto' }}>
         <style>{`@keyframes aparecer { from { opacity: 0; transform: ${hueco ? 'translateY(6px)' : 'translate(-50%, calc(-50% + 6px))'}; } }`}</style>
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -150,17 +178,20 @@ export default function Tutorial({ pasos, onTerminar, alCambiarPaso }: { pasos: 
         </div>
         <p className="text-sm text-[color:var(--c-b8b8c8)] leading-relaxed">{paso.texto}</p>
         <div className="flex items-center justify-between mt-4 gap-3">
-          <div className="flex items-center gap-1" aria-label={`Paso ${i + 1} de ${pasos.length}`}>
-            {pasos.map((_, k) => <span key={k} className={`h-1.5 rounded-full transition-all ${k === i ? 'w-4 bg-[color:var(--c-818cf8)]' : k < i ? 'w-1.5 bg-[color:var(--c-818cf8)]/50' : 'w-1.5 bg-[color:var(--c-3a3d5c)]'}`} />)}
-          </div>
-          <div className="flex items-center gap-2">
+          {pasos.length > 1 ? (
+            <div className="flex-1 min-w-0 max-w-[110px]" aria-label={`Paso ${i + 1} de ${pasos.length}`}>
+              <p className="text-[11px] text-[color:var(--c-8a8b9e)] tabular-nums mb-1">Paso {i + 1} de {pasos.length}</p>
+              <div className="h-1 rounded-full bg-[color:var(--c-3a3d5c)] overflow-hidden"><div className="h-full rounded-full bg-[color:var(--c-818cf8)] transition-all duration-300" style={{ width: `${((i + 1) / pasos.length) * 100}%` }} /></div>
+            </div>
+          ) : <span />}
+          <div className="flex items-center gap-2 flex-shrink-0">
             {i > 0 && (
               <button onClick={() => ir(i - 1, -1)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-2e2f42)]">
                 <ChevronLeft className="w-3.5 h-3.5" />Atrás
               </button>
             )}
             <button autoFocus onClick={() => (ultimo ? onTerminar() : ir(i + 1, 1))} className="flex items-center gap-1 px-3.5 py-1.5 text-xs rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6f7af0)] text-white font-semibold">
-              {i === 0 ? 'Empezar recorrido' : ultimo ? 'Terminar' : 'Siguiente'}{!ultimo && <ChevronRight className="w-3.5 h-3.5" />}
+              {ultimo ? (pasos.length === 1 ? 'Entendido' : 'Terminar') : i === 0 ? etiquetaInicio : 'Siguiente'}{!ultimo && <ChevronRight className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>

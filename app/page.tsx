@@ -34,7 +34,7 @@ import DescripcionOrdenada from '@/components/DescripcionOrdenada';
 import PanelRecordatorios from '@/components/PanelRecordatorios';
 import { aWav16k } from '@/lib/audioWav';
 import { tipoPerfil } from '@/lib/agente/perfil';
-import Tutorial, { pasosTutorial, tutorialVisto, marcarTutorialVisto } from '@/components/Tutorial';
+import Tutorial, { pasosTutorial, pasosDeVista, tutorialVisto, marcarTutorialVisto } from '@/components/Tutorial';
 
 // Agregar esto debajo de los imports de lucide-react
 import { apiEstudiantes, apiPlanificaciones } from '@/lib/api'; 
@@ -628,7 +628,7 @@ function Dashboard({ planificacion }: { planificacion: PlanificacionExamen }) {
 
   return (
     <div className="@container space-y-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-bold text-[color:var(--c-d0d0da)] flex items-center gap-3"><BarChart3 className="w-6 h-6 text-[color:var(--c-818cf8)]" />Dashboard</h2><p className="text-sm text-[color:var(--c-8a8b9e)] mt-1">Resumen para {planificacion.materia || 'la asignatura'}</p></div><div className="flex items-center gap-2 text-xs text-[color:var(--c-8a8b9e)]"><Calendar className="w-4 h-4" /><span>{new Date().toLocaleDateString()}</span></div></div>
+      <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 data-tutorial="dash-titulo" className="text-2xl font-bold text-[color:var(--c-d0d0da)] flex items-center gap-3"><BarChart3 className="w-6 h-6 text-[color:var(--c-818cf8)]" />Dashboard</h2><p className="text-sm text-[color:var(--c-8a8b9e)] mt-1">Resumen para {planificacion.materia || 'la asignatura'}</p></div><div className="flex items-center gap-2 text-xs text-[color:var(--c-8a8b9e)]"><Calendar className="w-4 h-4" /><span>{new Date().toLocaleDateString()}</span></div></div>
       <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-3 @lg:gap-4">{statsCards.map((stat, index) => (<motion.div key={stat.titulo} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.08, duration: 0.3 }} className={`bg-[color:var(--c-1f2035)] border ${stat.borde} rounded-xl p-4 shadow-lg`}><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-xs text-[color:var(--c-8a8b9e)] font-medium leading-tight">{stat.titulo}</p><p className="text-xl @lg:text-2xl font-bold text-[color:var(--c-d0d0da)] mt-1 whitespace-nowrap">{stat.valor}</p></div><div className={`${stat.bg} p-2.5 rounded-xl flex-shrink-0`}><stat.icono className={`w-5 h-5 ${stat.color}`} /></div></div></motion.div>))}</div>
       <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.3 }} className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl p-5"><h3 className="text-sm font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2 mb-4"><PieChart className="w-4 h-4 text-[color:var(--c-818cf8)]" />Distribución por Tipo</h3><div className="space-y-3">{porTipo.map(e=>(<div key={e.l}><div className="flex justify-between text-xs text-[color:var(--c-b0b0c4)] mb-1"><span>{e.l}</span><span>{e.d.length} eval.</span></div><div className="w-full h-2 bg-[color:var(--c-313248)] rounded-full overflow-hidden"><div className={`h-full ${e.c} rounded-full transition-all duration-500`} style={{ width: totalEvaluaciones > 0 ? `${(e.d.length / totalEvaluaciones) * 100}%` : '0%' }} /></div></div>))}</div></motion.div>
@@ -2355,7 +2355,32 @@ function EstudiantesPanel() {
   const [resultadoImport, setResultadoImport] = useState<{ creados: number; omitidos: { fila: number; motivo: string }[]; desplazamiento: number } | null>(null);
   const [errorImport, setErrorImport] = useState('');
   const inputArchivoRef = useRef<HTMLInputElement>(null);
-  
+  // Estudiantes de prueba (correos @demo.planificador: la app nunca les envía nada)
+  const [verPrueba, setVerPrueba] = useState(false);
+  const [prueba, setPrueba] = useState({ cantidad: 12, grupo: 'A' });
+  const [procesandoPrueba, setProcesandoPrueba] = useState(false);
+  const esDePrueba = (e: { email?: string }) => String(e.email || '').toLowerCase().endsWith('@demo.planificador');
+  const crearPrueba = async () => {
+    setProcesandoPrueba(true);
+    try {
+      const r = await fetch('/api/estudiantes/prueba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prueba) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'No se pudieron crear.');
+      await recargarEstudiantes(); window.dispatchEvent(new Event('estudiantes-cambiaron'));
+      setVerPrueba(false);
+    } catch (e: any) { alert(e.message); } finally { setProcesandoPrueba(false); }
+  };
+  const borrarPrueba = async () => {
+    if (!window.confirm('¿Borrar todos los estudiantes de prueba (y sus notas de prueba)?')) return;
+    setProcesandoPrueba(true);
+    try {
+      const r = await fetch('/api/estudiantes/prueba', { method: 'DELETE' });
+      if (!r.ok) throw new Error('No se pudieron borrar.');
+      await recargarEstudiantes(); window.dispatchEvent(new Event('estudiantes-cambiaron'));
+      setVerPrueba(false);
+    } catch (e: any) { alert(e.message); } finally { setProcesandoPrueba(false); }
+  };
+
   // Estados para Agregar
   const [nuevoNombre, setNuevoNombre] = useState('');
   const [nuevoEmail, setNuevoEmail] = useState('');
@@ -2551,8 +2576,27 @@ function EstudiantesPanel() {
         <div className="flex items-center gap-2 flex-wrap">
           <input ref={inputArchivoRef} type="file" accept=".csv,.txt" className="hidden" onChange={(e) => importarArchivo(e.target.files?.[0])} />
           <button onClick={descargarPlantilla} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 transition-colors"><Download className="w-4 h-4" />Plantilla</button>
-          <button onClick={() => inputArchivoRef.current?.click()} disabled={importando} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 transition-colors disabled:opacity-60"><Upload className="w-4 h-4" />{importando ? 'Importando...' : 'Importar CSV'}</button>
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-medium rounded-xl transition-all shadow-md"><Plus className="w-4 h-4" /> Agregar estudiante</motion.button>
+          <button data-tutorial="est-importar" onClick={() => inputArchivoRef.current?.click()} disabled={importando} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 transition-colors disabled:opacity-60"><Upload className="w-4 h-4" />{importando ? 'Importando...' : 'Importar CSV'}</button>
+          <button data-tutorial="est-prueba" onClick={() => setVerPrueba(true)} title="Crea estudiantes de ejemplo sin correo real para probar grupos, notas y la página del estudiante" className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 rounded-xl hover:bg-[color:var(--c-818cf8)]/20 transition-colors"><Sparkles className="w-4 h-4" />Estudiantes de prueba</button>
+          <motion.button data-tutorial="est-agregar" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-medium rounded-xl transition-all shadow-md"><Plus className="w-4 h-4" /> Agregar estudiante</motion.button>
+          <AnimatePresence>
+            {verPrueba && (
+              <VentanaFlotante onCerrar={() => setVerPrueba(false)} ancho="max-w-md">
+                <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><Sparkles className="w-5 h-5 text-[color:var(--c-818cf8)]" />Estudiantes de prueba</h3><button onClick={() => setVerPrueba(false)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)] rounded-lg"><X className="w-5 h-5" /></button></div>
+                  <p className="text-sm text-[color:var(--c-9a9bb0)] leading-relaxed">Crea estudiantes de ejemplo para probar evaluaciones en grupo, notas y su página personal. <strong className="text-[color:var(--c-c7d2fe)]">No tienen correo real: nunca se les envía nada.</strong> Para probar los correos, agrégate tú con tu propio correo.</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className={labelBase}>Cantidad</label><select value={prueba.cantidad} onChange={(e) => setPrueba({ ...prueba, cantidad: Number(e.target.value) })} className={inputBase}>{[4, 6, 8, 12, 16, 20, 30].map(n => <option key={n} value={n}>{n} estudiantes</option>)}</select></div>
+                    <div><label className={labelBase}>Sección</label><select value={prueba.grupo} onChange={(e) => setPrueba({ ...prueba, grupo: e.target.value })} className={inputBase}>{opcionesSeccion(prueba.grupo, grupos as string[]).map(g => <option key={g} value={g}>Sección {g}</option>)}</select></div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    {estudiantes.some(esDePrueba) ? <button type="button" disabled={procesandoPrueba} onClick={borrarPrueba} className="text-xs text-red-300/80 hover:text-red-200 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />Borrar los de prueba ({estudiantes.filter(esDePrueba).length})</button> : <span />}
+                    <button type="button" disabled={procesandoPrueba} onClick={crearPrueba} className="px-4 py-2 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-medium rounded-xl flex items-center gap-2 disabled:opacity-60">{procesandoPrueba ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Plus className="w-4 h-4" />}Crear</button>
+                  </div>
+                </div>
+              </VentanaFlotante>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -2597,7 +2641,7 @@ function EstudiantesPanel() {
               {filteredEstudiantes.map(est => (
                 <tr key={est.id} className="hover:bg-[color:var(--c-272839)]/50 transition-colors">
                   <td className="py-3 px-4 text-[color:var(--c-d0d0da)] font-medium">{est.nombre}</td>
-                  <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{est.email}</td>
+                  <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{esDePrueba(est) ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 text-[color:var(--c-a5b4fc)]" title="Estudiante de prueba: no recibe correos">de prueba · sin correo</span> : est.email}</td>
                   <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{est.telefono}</td>
                   <td className="py-3 px-4"><span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-818cf8)] border border-[color:var(--c-818cf8)]/20">{est.grupo}</span></td>
                   <td className="py-3 px-4 text-center">{(est.notasCargadas ?? 0) > 0 ? (<span title={`Promedio ponderado de ${est.notasCargadas} evaluación(es)`} className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${est.promedio >= 10 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25' : 'bg-red-500/10 text-red-300 border-red-500/25'}`}>{est.promedio.toFixed(1).replace('.', ',')}</span>) : <span className="text-[color:var(--c-6a6b7e)]">—</span>}</td>
@@ -3368,7 +3412,7 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setVerRecordatorios(true)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/20 transition-colors" title="Avisos automáticos a tus estudiantes antes de cada evaluación">
+          <button data-tutorial="cal-recordatorios" onClick={() => setVerRecordatorios(true)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/20 transition-colors" title="Avisos automáticos a tus estudiantes antes de cada evaluación">
             <Bell className="w-4 h-4" />Recordatorios
           </button>
           <AnimatePresence>
@@ -3378,14 +3422,14 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
               </VentanaFlotante>
             )}
           </AnimatePresence>
-          <button onClick={exportarIcs} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] text-[color:var(--c-c7d2fe)] hover:border-[color:var(--c-818cf8)]/50 hover:bg-[color:var(--c-818cf8)]/10 transition-colors" title="Descarga un archivo .ics para Google Calendar o el calendario del celular">
+          <button data-tutorial="cal-exportar" onClick={exportarIcs} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] text-[color:var(--c-c7d2fe)] hover:border-[color:var(--c-818cf8)]/50 hover:bg-[color:var(--c-818cf8)]/10 transition-colors" title="Descarga un archivo .ics para Google Calendar o el calendario del celular">
             <Download className="w-4 h-4" />Exportar calendario
           </button>
         </div>
       </div>
 
       {/* Navegación + filtros */}
-      <div className="flex flex-wrap items-center gap-2 bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-2">
+      <div data-tutorial="cal-nav" className="flex flex-wrap items-center gap-2 bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-2">
         <button onClick={() => cambiarMes(-1)} className="p-2 rounded-lg text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-272839)]" aria-label="Mes anterior"><ChevronLeft className="w-4 h-4" /></button>
         <span className="relative min-w-[150px] h-5 overflow-hidden text-center text-sm font-semibold text-[color:var(--c-e0e0ec)]"><AnimatePresence mode="popLayout" initial={false} custom={direccionMes}><motion.span key={`${mesVista.anio}-${mesVista.mes}`} custom={direccionMes} initial={{ y: direccionMes * 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: direccionMes * -14, opacity: 0 }} transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }} className="block">{MESES[mesVista.mes]} {mesVista.anio}</motion.span></AnimatePresence></span>
         <button onClick={() => cambiarMes(1)} className="p-2 rounded-lg text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-272839)]" aria-label="Mes siguiente"><ChevronRight className="w-4 h-4" /></button>
@@ -3445,7 +3489,7 @@ function CalendarioPanel({ secciones, materia, onCambiarFecha, onCambiarEstado, 
           <div className="grid grid-cols-7 border-b border-[color:var(--c-313248)]">
             {DIAS_SEMANA.map(d => <div key={d} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)]">{d}</div>)}
           </div>
-          <div className="relative overflow-hidden"
+          <div data-tutorial="cal-grid" className="relative overflow-hidden"
             onTouchStart={(e) => { toqueX.current = e.touches[0].clientX; }}
             onTouchEnd={(e) => { if (toqueX.current == null) return; const dx = e.changedTouches[0].clientX - toqueX.current; toqueX.current = null; if (Math.abs(dx) > 60) cambiarMes(dx < 0 ? 1 : -1); }}>
           <AnimatePresence mode="popLayout" initial={false} custom={direccionMes}>
@@ -4463,6 +4507,10 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
             </button>
           )}
           {onRecursos && <Tooltip text={nRecursos ? `Recursos de estudio (${nRecursos})` : 'Recursos de estudio'}><button onClick={() => onRecursos(seccion)} aria-label="Recursos de estudio" className={`relative p-1.5 hover:bg-[color:var(--c-272839)] rounded-lg ${nRecursos ? 'text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)]'}`}><Paperclip className="w-4 h-4" />{nRecursos > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[color:var(--c-818cf8)] text-[9px] font-bold text-white flex items-center justify-center">{nRecursos}</span>}</button></Tooltip>}
+          <Tooltip text={expanded ? 'Ocultar detalle' : 'Ver detalle'}><button onClick={onToggleExpand} aria-label={expanded ? 'Ocultar detalle' : 'Ver detalle'} aria-expanded={expanded}
+            className={`p-1.5 rounded-lg transition-colors ${expanded ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-272839)]'}`}>
+            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+          </button></Tooltip>
           <div className="relative" ref={menuRef}>
             <button onClick={() => setMenu(v => !v)} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
               className={`p-1.5 rounded-lg transition-colors ${menu ? 'text-[color:var(--c-e0e0ec)] bg-[color:var(--c-2c2d42)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]'}`}>
@@ -5228,7 +5276,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
           break;
         }
         case 'navegar': {
-          if (a.datos.seccion) onCambiarSeccion?.(a.datos.seccion);
+          if (a.datos.seccion) { seccionPorAgente.current = true; onCambiarSeccion?.(a.datos.seccion); }
           setVistaPanel(VISTA_DE_AGENTE[a.datos.vista] || 'planificacion');
           if (esMovil) setExpandido(false);
           resultado = `Abrí ${NOMBRE_VISTA[a.datos.vista] || a.datos.vista}${a.datos.seccion ? ` · Sección ${a.datos.seccion}` : ''}`;
@@ -5680,6 +5728,18 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     setConversacionId(null); setHistorial([]); setPropuestaPendienteLocal(null); eventosRef.current = []; setVerHistorial(false);
     setTimeout(() => textareaRef.current?.focus(), 50);
   };
+  // Al cambiar de sección empieza una conversación nueva (cada sección tiene su propio plan).
+  // No se reinicia si el cambio lo hizo el propio agente o si está respondiendo.
+  const seccionPorAgente = useRef(false);
+  const seccionAnterior = useRef(seccionActiva);
+  useEffect(() => {
+    if (seccionAnterior.current === seccionActiva) return;
+    seccionAnterior.current = seccionActiva;
+    if (seccionPorAgente.current) { seccionPorAgente.current = false; return; }
+    if (!historial.length || pensando || escribiendo) return;
+    nuevaConversacion();
+    agregarNotificacion?.(`💬 Nueva conversación para la Sección ${seccionActiva}.`);
+  }, [seccionActiva]);
   const borrarConversacion = async (id: string) => {
     await fetch(`/api/chat/conversaciones/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
     setConversaciones(prev => (prev || []).filter(c => c.id !== id));
@@ -5690,6 +5750,13 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
   const sugerencias = (() => {
     const evs = evaluacionesActivas();
     const s: { texto: string; icono: any; accion?: () => void }[] = [];
+    if (totalEstudiantes === 0) s.push({ texto: 'Crear 12 estudiantes de prueba (sin correo) para practicar', icono: Users, accion: async () => {
+      const r = await fetch('/api/estudiantes/prueba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cantidad: 12, grupo: seccionActiva }) }).catch(() => null);
+      const d = await r?.json().catch(() => ({})) ?? {};
+      if (!r?.ok) { agregarNotificacion?.(`⚠️ ${d.error || 'No se pudieron crear.'}`); return; }
+      window.dispatchEvent(new Event('estudiantes-cambiaron'));
+      agregarNotificacion?.(`🧪 ${d.creados} estudiantes de prueba creados en la Sección ${seccionActiva}. No reciben correos; para probarlos, agrégate tú con tu correo.`);
+    } });
     if (evs.length === 0) {
       s.push({ texto: 'Crea un plan completo de 4 evaluaciones', icono: Sparkles });
       s.push({ texto: 'Propón una evaluación práctica en grupos', icono: Users });
@@ -6141,7 +6208,7 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
                 <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold mb-2 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" />Pendientes de hoy</p>
                 <div className="space-y-1.5">
                   {avisos.map((av, i) => (
-                    <button key={i} type="button" disabled={chatInactivo} onClick={() => { if (av.seccion && av.seccion !== seccionActiva) onCambiarSeccion?.(av.seccion); handleSend(av.pedido); }} className={`w-full flex items-start gap-2.5 text-left px-3 py-2.5 rounded-xl border text-[13px] transition-colors disabled:opacity-50 ${av.urgente ? 'bg-amber-500/[0.07] border-amber-500/30 hover:border-amber-400/60' : 'bg-[color:var(--c-1f2035)] border-[color:var(--c-313248)] hover:border-[color:var(--c-818cf8)]/50'}`}>
+                    <button key={i} type="button" disabled={chatInactivo} onClick={() => { if (av.seccion && av.seccion !== seccionActiva) { seccionPorAgente.current = true; onCambiarSeccion?.(av.seccion); } handleSend(av.pedido); }} className={`w-full flex items-start gap-2.5 text-left px-3 py-2.5 rounded-xl border text-[13px] transition-colors disabled:opacity-50 ${av.urgente ? 'bg-amber-500/[0.07] border-amber-500/30 hover:border-amber-400/60' : 'bg-[color:var(--c-1f2035)] border-[color:var(--c-313248)] hover:border-[color:var(--c-818cf8)]/50'}`}>
                       <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${av.urgente ? 'bg-amber-400' : 'bg-[color:var(--c-818cf8)]'}`} />
                       <span className="flex-1 min-w-0"><span className="block text-[color:var(--c-d0d0da)]">{av.texto}</span><span className="block text-[11px] text-[color:var(--c-a5b4fc)] mt-0.5">{av.pedido} →</span></span>
                     </button>
@@ -6499,6 +6566,27 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     setPdfPorSeccion(prev => { const copia = { ...prev }; delete copia[letra]; return copia; });
     agregarNotificacion(rubrica ? `📋 Rúbrica de "${limpiarTexto(sec.nombre)}" guardada (${textoPuntos(totalRubrica(rubrica))} pts).` : `🗑️ Rúbrica de "${limpiarTexto(sec.nombre)}" quitada.`);
   };
+  // Enlaces oficiales de las herramientas que nombra cada evaluación: se agregan solos a sus Recursos.
+  // Se recuerda qué herramientas ya se agregaron, así un enlace que el profesor borra no vuelve a aparecer.
+  useEffect(() => {
+    if (!datosCargados) return;
+    const cambios = new Map<string, { titulo: string; url: string }[]>();
+    for (const s of planificacion.secciones) {
+      if (!esIdGuardado(s.id) || !s.descripcion) continue;
+      const herramientas = enlacesDeDescripcion(s.descripcion);
+      if (!herramientas.length) continue;
+      const clave = `herramientasAgregadas:${s.id}`;
+      let vistas: string[] = [];
+      try { vistas = JSON.parse(localStorage.getItem(clave) || '[]'); } catch { vistas = []; }
+      const nuevas = herramientas.filter(h => !vistas.includes(h.url));
+      if (!nuevas.length) continue;
+      try { localStorage.setItem(clave, JSON.stringify([...vistas, ...nuevas.map(h => h.url)])); } catch { /* sin almacenamiento */ }
+      const actuales = s.recursos || [];
+      const agregar = nuevas.filter(h => !actuales.some(r => r.url === h.url));
+      if (agregar.length) cambios.set(s.id, [...actuales, ...agregar].slice(0, 10));
+    }
+    if (cambios.size) setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(x => (cambios.has(x.id) ? { ...x, recursos: cambios.get(x.id)! } : x)) }));
+  }, [planificacion.secciones, datosCargados]);
   const cambiarFechaEvaluacion = (sec: SeccionExamen, fecha: Date) => {
     const anterior = sec.fecha ? new Date(sec.fecha) : null;
     setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, fecha } : s) }));
@@ -7730,6 +7818,16 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
     return () => clearTimeout(t);
   }, [puedeVerTutorial, !!configSistema, usuario?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const cerrarTutorial = () => { setTutorialAbierto(false); if (usuario) marcarTutorialVisto(usuario.id); };
+  // La primera vez que entra a Calendario, Estudiantes, Dashboard o Papelera: un recorrido corto de esa pestaña
+  const [tourVista, setTourVista] = useState<string | null>(null);
+  useEffect(() => {
+    if (!usuario || tutorialAbierto || !tutorialVisto(usuario.id) || !pasosDeVista(vistaActual).length) return;
+    const clave = `tutorialVista:${usuario.id}:${vistaActual}`;
+    try { if (localStorage.getItem(clave)) return; } catch { return; }
+    const t = setTimeout(() => setTourVista(vistaActual), 700);
+    return () => clearTimeout(t);
+  }, [vistaActual, tutorialAbierto, usuario?.id]);
+  const cerrarTourVista = () => { if (usuario && tourVista) { try { localStorage.setItem(`tutorialVista:${usuario.id}:${tourVista}`, '1'); } catch { /* sin almacenamiento */ } } setTourVista(null); };
 
   // Hasta saber quién entró no se dibuja la interfaz (evita que las pestañas "salten" al cargar)
   if (!usuario) {
@@ -7754,6 +7852,9 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
       {tutorialAbierto && (
         <Tutorial pasos={pasosTutorial(usuario.nombre, esMovil)} onTerminar={cerrarTutorial}
           alCambiarPaso={(p) => { const delChat = ['agente', 'divisor', 'chat-herramientas', 'chat-entrada'].includes(p.objetivo || ''); if (p.objetivo && !delChat && !['notificaciones', 'tema', 'pestanas', 'ayuda'].includes(p.objetivo)) setVistaActual('planificacion'); if (delChat && !esMovil) setAgenteExpandido(true); }} />
+      )}
+      {tourVista && !tutorialAbierto && (
+        <Tutorial key={tourVista} pasos={pasosDeVista(tourVista)} onTerminar={cerrarTourVista} etiquetaInicio="Siguiente" />
       )}
       <div className="flex-1 flex overflow-hidden min-h-0 h-full">
                 <AgentePanel materias={materias} onCambiarMateria={cambiarMateriaPorNombre} onCambiarSeccion={(l: string) => panelDerechoRef.current?.cambiarSeccion(l)} guardarAhora={() => panelDerechoRef.current?.guardarAhora()} formulariosLibres={() => panelDerechoRef.current?.formulariosLibres() ?? true} planificacionId={planificacionId} seccionActiva={seccionPlanificador} expandido={agenteExpandido} setExpandido={setAgenteExpandido} planificacion={planificacion} setPlanificacion={setPlanificacion} setPropuestaPendiente={setPropuestaPendiente} onAccept={aceptarPropuesta} setVistaPanel={setVistaActual} setPdfUrl={setPdfUrl} setPdfAbierto={setPdfAbierto} agregarNotificacion={agregarNotificacion} generarPDF={generarPDF} limpiarYScroll={() => { if (panelDerechoRef.current?.limpiarYScroll) panelDerechoRef.current.limpiarYScroll(); }} totalEstudiantes={totalEstudiantesGlobal} config={configSistema} usuarioId={usuario.id} esMovil={esMovil} anchoChat={anchoChat} arrastrando={arrastrando} esSuperadmin={usuario.rol === 'SUPERADMIN'} />
