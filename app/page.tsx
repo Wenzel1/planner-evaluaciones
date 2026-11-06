@@ -5728,21 +5728,35 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     setConversacionId(null); setHistorial([]); setPropuestaPendienteLocal(null); eventosRef.current = []; setVerHistorial(false);
     setTimeout(() => textareaRef.current?.focus(), 50);
   };
-  // Al cambiar de sección empieza una conversación nueva (cada sección tiene su propio plan).
-  // No se reinicia si el cambio lo hizo el propio agente o si está respondiendo.
+  // Cada sección tiene su propia conversación: al cambiar de sección se guarda la actual y, al volver,
+  // se reabre la que tenía. Si la sección no tenía, empieza una nueva. No cambia si lo hizo el agente o si está respondiendo.
+  const claveChats = `chatPorSeccion:${planificacionId || 'sin-plan'}`;
+  const leerChats = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(claveChats) || '{}'); } catch { return {}; } };
+  const guardarChat = (seccion: string, id: string | null) => { try { const m = leerChats(); if (id) m[seccion] = id; else delete m[seccion]; localStorage.setItem(claveChats, JSON.stringify(m)); } catch { /* sin almacenamiento */ } };
   const seccionPorAgente = useRef(false);
   const seccionAnterior = useRef(seccionActiva);
+  useEffect(() => { if (conversacionId) guardarChat(seccionActiva, conversacionId); }, [conversacionId]);
   useEffect(() => {
-    if (seccionAnterior.current === seccionActiva) return;
+    const anterior = seccionAnterior.current;
+    if (anterior === seccionActiva) return;
     seccionAnterior.current = seccionActiva;
     if (seccionPorAgente.current) { seccionPorAgente.current = false; return; }
-    if (!historial.length || pensando || escribiendo) return;
-    nuevaConversacion();
-    agregarNotificacion?.(`💬 Nueva conversación para la Sección ${seccionActiva}.`);
+    if (pensando || escribiendo) return;
+    if (conversacionId) guardarChat(anterior, conversacionId);
+    const previa = leerChats()[seccionActiva];
+    if (previa && previa !== conversacionId) {
+      abrirConversacion(previa);
+      agregarNotificacion?.(`💬 Volviste a la conversación de la Sección ${seccionActiva}.`);
+    } else if (!previa && historial.length) {
+      nuevaConversacion();
+      agregarNotificacion?.(`💬 Nueva conversación para la Sección ${seccionActiva}.`);
+    }
   }, [seccionActiva]);
   const borrarConversacion = async (id: string) => {
     await fetch(`/api/chat/conversaciones/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
     setConversaciones(prev => (prev || []).filter(c => c.id !== id));
+    // Si era la conversación guardada de alguna sección, se olvida
+    try { const m = leerChats(); for (const k of Object.keys(m)) if (m[k] === id) delete m[k]; localStorage.setItem(claveChats, JSON.stringify(m)); } catch { /* sin almacenamiento */ }
     if (id === conversacionId) nuevaConversacion();
   };
 
@@ -6585,7 +6599,11 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
       const agregar = nuevas.filter(h => !actuales.some(r => r.url === h.url));
       if (agregar.length) cambios.set(s.id, [...actuales, ...agregar].slice(0, 10));
     }
-    if (cambios.size) setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(x => (cambios.has(x.id) ? { ...x, recursos: cambios.get(x.id)! } : x)) }));
+    if (cambios.size) {
+      const total = [...cambios.entries()].reduce((t, [id, lista]) => t + lista.length - (planificacion.secciones.find(x => x.id === id)?.recursos?.length || 0), 0);
+      setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(x => (cambios.has(x.id) ? { ...x, recursos: cambios.get(x.id)! } : x)) }));
+      agregarNotificacion(`🧰 Se agregaron ${total} enlace${total === 1 ? '' : 's'} de herramientas a los recursos de ${cambios.size} evaluaci${cambios.size === 1 ? 'ón' : 'ones'} (Figma, GitHub… según su descripción). Puedes quitarlos con 📎.`);
+    }
   }, [planificacion.secciones, datosCargados]);
   const cambiarFechaEvaluacion = (sec: SeccionExamen, fecha: Date) => {
     const anterior = sec.fecha ? new Date(sec.fecha) : null;
