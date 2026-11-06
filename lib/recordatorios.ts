@@ -55,8 +55,13 @@ export const leerPref = async (usuarioId: string) => limpiarPref(await leer(ID_P
 export const guardarPref = (usuarioId: string, p: PrefRecordatorios) => escribir(ID_PREF(usuarioId), p, usuarioId)
 export const leerEstadoCron = () => leer<EstadoCron>(ID_ESTADO, {})
 export async function anotarEstadoCron(cambio: Partial<EstadoCron>) { const e = await leerEstadoCron(); await escribir(ID_ESTADO, { ...e, ...cambio }).catch(() => {}) }
+// Llamadas con clave incorrecta: se anotan como mucho una vez por minuto (así nadie puede llenar la base de datos a propósito)
+let ultimaNoAutorizada = 0
 export async function anotarNoAutorizado() {
+  if (Date.now() - ultimaNoAutorizada < 60_000) return
+  ultimaNoAutorizada = Date.now()
   const e = await leerEstadoCron()
+  if (e.noAutorizado && Date.now() - new Date(e.noAutorizado.ultima).getTime() < 60_000) return
   await escribir(ID_ESTADO, { ...e, noAutorizado: { ultima: new Date().toISOString(), veces: (e.noAutorizado?.veces || 0) + 1 } }).catch(() => {})
 }
 export const leerProgramados = () => leer<Programado[]>(ID_PROGRAMADOS, [])

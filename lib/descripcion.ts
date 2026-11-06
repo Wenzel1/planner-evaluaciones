@@ -2,7 +2,7 @@
 // (OBJETIVO:, ACTIVIDAD:, HERRAMIENTAS:, ENTREGABLES:, CRITERIOS DE EVALUACIÓN:, CASOS POR ESTUDIANTE:…).
 // Esta función la separa en partes. La usan la vista del profesor, la página del estudiante y la exportación a Excel.
 
-export const TITULOS_DESCRIPCION = ['OBJETIVO', 'ACTIVIDAD', 'HERRAMIENTAS', 'ENTREGABLES', 'CRITERIOS DE EVALUACIÓN', 'CRITERIOS DE EVALUACION', 'CRITERIOS', 'TEMAS POR GRUPO', 'CASOS POR GRUPO', 'CASOS POR ESTUDIANTE', 'RECURSOS', 'INSTRUCCIONES'];
+export const TITULOS_DESCRIPCION = ['OBJETIVO', 'ACTIVIDAD', 'HERRAMIENTAS', 'ENTREGABLES', 'CRITERIOS DE EVALUACIÓN', 'CRITERIOS DE EVALUACION', 'CRITERIOS', 'TEMAS POR GRUPO', 'CASOS POR GRUPO', 'CASOS POR ESTUDIANTE', 'GRUPOS', 'RECURSOS', 'INSTRUCCIONES'];
 
 export function partesDescripcion(texto: string): { titulo: string; cuerpo: string }[] {
   const t = String(texto || '').replace(/\*\*/g, '').trim();

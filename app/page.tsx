@@ -40,6 +40,8 @@ import Tutorial, { pasosTutorial, tutorialVisto, marcarTutorialVisto } from '@/c
 import { apiEstudiantes, apiPlanificaciones } from '@/lib/api'; 
 import StreamInput from "@/components/StreamInput";
 import StreamTextarea from "@/components/StreamTextarea";
+import EditorDescripcion, { tieneSecciones } from "@/components/EditorDescripcion";
+import { enlacesDeDescripcion } from "@/lib/herramientasEnlaces";
 import { validarNombre, validarEmail, validarPassword, validarTelefono, validarCedula } from '@/lib/validacionesUsuario';
 import { csvAEstudiantes, plantillaCSV } from '@/lib/csvEstudiantes';
 import { NIVELES_RUBRICA, normalizarRubrica, puntosNivel, rubricaSugerida, textoPuntos, totalRubrica, type RubricaEval } from '@/lib/rubrica';
@@ -148,7 +150,7 @@ interface EvaluacionFormulario {
   materia: string; duracionMinutos: number | null; duracionUnidad: 'min' | 'hrs';
   peso: number | null; fecha: Date; tipoActividad: string; descripcion: string;
   cantidadGrupos: number | null; personasPorGrupo: number | null;
-  editandoId: string | null; mostrarDescripcion: boolean; enfoque: string;
+  editandoId: string | null; mostrarDescripcion: boolean; enfoque: string; descripcionTexto?: boolean;
   errores: ErroresEvaluacion;
   // Marca qué campos fueron autocompletados por el agente (IA). Mientras un campo esté marcado
   // como true, se omite la validación estricta de "palabras de la materia" para ese campo,
@@ -4277,6 +4279,16 @@ function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: Se
                 {buscando ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                 {buscando ? 'Buscando videos y páginas…' : sugerencias ? 'Buscar otra vez' : 'Buscar recursos automáticamente'}
               </button>
+              {(() => {
+                // Enlaces oficiales de las herramientas que nombra la descripción (Figma, GitHub, Docker…)
+                const faltan = enlacesDeDescripcion(seccion.descripcion || '').filter(h => !filas.some(f => f.url.trim() === h.url));
+                return faltan.length > 0 ? (
+                  <button type="button" onClick={() => setFilas(prev => [...prev.filter(f => f.titulo.trim() || f.url.trim()), ...faltan].slice(0, 10))} title={faltan.map(h => h.titulo.replace(' (herramienta)', '')).join(', ')}
+                    className="h-9 px-3 rounded-lg border border-[color:var(--c-818cf8)]/40 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10 text-xs font-semibold flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5" />Agregar enlaces de las herramientas ({faltan.length})
+                  </button>
+                ) : null;
+              })()}
               <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Videos reales de YouTube y páginas comprobadas para «{limpiarTexto(seccion.nombre)}».</span>
             </div>
             {errorBusqueda && <p className="text-xs text-red-300">{errorBusqueda}</p>}
@@ -4762,12 +4774,24 @@ function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvaluacion1,
         <div
           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) validarCampoAlBlur('descripcion', ev.descripcion || ''); }}
         >
+          {/* Por partes (Objetivo, Actividad, Herramientas…) cuando la descripción las tiene; o el texto completo */}
+          {tieneSecciones(ev.descripcion || '') && (
+            <div className="flex justify-end mt-2">
+              <button type="button" onClick={() => setEv((prev: EvaluacionFormulario) => ({ ...prev, descripcionTexto: !prev.descripcionTexto }))} className="text-[11px] text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)]">
+                {ev.descripcionTexto ? '▦ Ver por partes' : '¶ Ver como texto completo'}
+              </button>
+            </div>
+          )}
+          {tieneSecciones(ev.descripcion || '') && !ev.descripcionTexto ? (
+            <EditorDescripcion value={ev.descripcion || ''} onChange={(val: string) => setEv((prev: EvaluacionFormulario) => ({...prev, descripcion: val, errores: {...prev.errores, descripcion: undefined}, origenAgente: {...prev.origenAgente, descripcion: false}}))} />
+          ) : (
           <StreamTextarea
             value={ev.descripcion ?? ''}
             onChange={(val: string) => { setEv((prev: EvaluacionFormulario) => ({...prev, descripcion: val, errores: {...prev.errores, descripcion: undefined}, origenAgente: {...prev.origenAgente, descripcion: false}})); }}
-            placeholder="Descripción detallada de la evaluación..."
+            placeholder="Descripción detallada de la evaluación. Puedes usar secciones: OBJETIVO: … ACTIVIDAD: … HERRAMIENTAS: … ENTREGABLES: … CRITERIOS DE EVALUACIÓN: …"
             className={`${textareaBase} min-h-[200px] mt-2 ${ev.errores?.descripcion ? 'border-red-500/50 focus:border-red-500/60' : ''}`}
           />
+          )}
           <AnimatePresence>
             {ev.errores?.descripcion && (
               <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="text-red-400 text-[11px] mt-1 flex items-start gap-1 leading-relaxed">
@@ -5418,12 +5442,23 @@ function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion, guarda
     const nuevas = activas.map((s, i) => ({ s, numero: i + 1 })).filter(({ s }) => nombres.includes(limpiarTexto(s.nombre).toLowerCase()));
     if (!nuevas.length) return;
     let conRecursos = 0;
-    for (const { s } of nuevas.filter(x => !x.s.recursos?.length)) {
-      try {
-        const d = await pedirSugerenciasRecursos(s, planRef.current.materia);
-        const lista = [...d.videos.slice(0, 2), ...d.paginas.slice(0, 2)].map(x => ({ titulo: x.titulo, url: x.url }));
-        if (lista.length) { setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.map(x => (x.id === s.id ? { ...x, recursos: lista } : x)) })); conRecursos++; }
-      } catch { /* sin recursos: se pueden buscar después con 📎 */ }
+    // A cada evaluación nueva: videos y páginas sugeridas (si no tenía recursos) + el enlace oficial de cada herramienta que nombra
+    for (const { s } of nuevas) {
+      const herramientas = enlacesDeDescripcion(s.descripcion || '');
+      let sugeridos: { titulo: string; url: string }[] = [];
+      if (!s.recursos?.length) {
+        try {
+          const d = await pedirSugerenciasRecursos(s, planRef.current.materia);
+          sugeridos = [...d.videos.slice(0, 2), ...d.paginas.slice(0, 2)].map(x => ({ titulo: x.titulo, url: x.url }));
+        } catch { /* sin sugerencias: se pueden buscar después con 📎 */ }
+      }
+      const actuales = s.recursos || [];
+      const nuevos = [...sugeridos, ...herramientas].filter(n => !actuales.some(x => x.url === n.url));
+      if (nuevos.length) {
+        const lista = [...actuales, ...nuevos].filter((x, i, arr) => arr.findIndex(y => y.url === x.url) === i).slice(0, 10);
+        setPlanificacion((prev: PlanificacionExamen) => ({ ...prev, secciones: prev.secciones.map(x => (x.id === s.id ? { ...x, recursos: lista } : x)) }));
+        conRecursos++;
+      }
     }
     if (conRecursos) agregarNotificacion?.(`⚡ Recursos agregados a ${conRecursos} evaluación(es) nueva(s).`);
     const teoricas = nuevas.filter(({ s }) => {
@@ -6465,7 +6500,20 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     agregarNotificacion(rubrica ? `📋 Rúbrica de "${limpiarTexto(sec.nombre)}" guardada (${textoPuntos(totalRubrica(rubrica))} pts).` : `🗑️ Rúbrica de "${limpiarTexto(sec.nombre)}" quitada.`);
   };
   const cambiarFechaEvaluacion = (sec: SeccionExamen, fecha: Date) => {
+    const anterior = sec.fecha ? new Date(sec.fecha) : null;
     setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, fecha } : s) }));
+    // Si ya estaba guardada y la fecha nueva es futura, se ofrece avisar a los estudiantes del cambio
+    const realmenteCambio = !anterior || Math.abs(anterior.getTime() - fecha.getTime()) > 60_000;
+    if (esIdGuardado(sec.id) && realmenteCambio && fecha.getTime() > Date.now() && !['REALIZADA', 'CANCELADA'].includes(String(sec.estado || '').toUpperCase())) {
+      setTimeout(async () => {
+        if (!window.confirm(`¿Avisar a los estudiantes de la Sección ${(sec.grupoSeccion || 'A').toUpperCase()} que «${limpiarTexto(sec.nombre)}» cambió de fecha?`)) return;
+        const r = await fetch('/api/recordatorios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'avisar_cambio', evaluacionId: sec.id, fecha: fecha.toISOString(), fechaAnterior: anterior?.toISOString() }) }).catch(() => null);
+        const d = await r?.json().catch(() => ({})) ?? {};
+        if (!r?.ok) agregarNotificacion(`⚠️ ${d.error || 'No se pudo avisar a los estudiantes.'}`);
+        else if (d.desactivado) agregarNotificacion('ℹ️ Los avisos de cambios están apagados (Calendario → Recordatorios).');
+        else agregarNotificacion(d.ok === false ? `⚠️ No se pudo avisar: ${d.error || 'error de envío'}` : `📣 Se avisó del cambio de fecha a ${d.total} estudiante(s).`);
+      }, 150);
+    }
     agregarNotificacion(`📅 "${limpiarTexto(sec.nombre)}" ahora es el ${fecha.toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}.`);
   };
   // Marca una evaluación como realizada / reprogramada / cancelada (se guarda al instante en la base de datos)
@@ -7451,88 +7499,6 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
           {vista === 'actividad' && esSuperadmin && (<motion.div key="actividad" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><ActividadPanel /></motion.div>)}
           {vista === 'perfil' && (<motion.div key="perfil" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-3xl mx-auto"><PerfilPanel usuario={usuario} onActualizado={onUsuarioActualizado} /></motion.div>)}
           {vista === 'usuarios' && puedeAdministrar && (<motion.div key="usuarios" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><UsuariosPanel /></motion.div>)}
-          {vista === 'configuracion' && (
-            <motion.div key="configuracion" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-3xl mx-auto">
-              <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-8 shadow-xl space-y-6">
-                <div>
-                  <h2 className="text-xl font-bold text-[color:var(--c-d0d0da)] flex items-center gap-3 mb-1">
-                    <Settings className="w-6 h-6 text-[color:var(--c-818cf8)]" /> Configuración del plan
-                  </h2>
-                  <p className="text-sm text-[color:var(--c-8a8b9e)]">Ajusta los parámetros generales de la planificación. Los cambios se guardan solos.</p>
-                  <p className={`text-xs mt-2 flex items-center gap-1.5 ${estadoGuardado === 'error' ? 'text-red-300' : estadoGuardado === 'guardando' ? 'text-amber-300' : 'text-emerald-300'}`}>
-                    {estadoGuardado === 'guardando' ? 'Guardando...' : estadoGuardado === 'error' ? (<>No se pudo guardar. <button type="button" onClick={() => sincronizarConBD(planificacion)} className="underline">Reintentar</button></>) : estadoGuardado === 'guardado' ? (<><CheckCircle className="w-3.5 h-3.5" />Guardado</>) : ''}
-                  </p>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className={labelBase}>Materia / Asignatura</label>
-                    <input
-                      type="text"
-                      value={planificacion.materia}
-                      maxLength={120}
-                      onChange={(e) => setPlanificacion(prev => ({ ...prev, materia: e.target.value }))}
-                      className={inputBase}
-                      placeholder="Ej: Ingeniería de Software"
-                    />
-                  </div>
-                  <div>
-                    <label className={labelBase}>Fecha del examen</label>
-                    <DatePicker
-                      value={planificacion.fechaExamen}
-                      onChange={(date) => setPlanificacion(prev => ({ ...prev, fechaExamen: date }))}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelBase}>Tipo de examen</label>
-                    <select
-                      value={planificacion.tipoExamen}
-                      onChange={(e) => setPlanificacion(prev => ({ ...prev, tipoExamen: e.target.value as any }))}
-                      className={inputBase}
-                    >
-                      <option value="teorico">Teórico</option>
-                      <option value="practico">Práctico</option>
-                      <option value="mixto">Mixto</option>
-                      <option value="proyecto">Proyecto</option>
-                      <option value="oral">Oral</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelBase}>Duración total (minutos)</label>
-                    <input
-                      type="number"
-                      value={planificacion.duracionMinutos}
-                      onChange={(e) => setPlanificacion(prev => ({ ...prev, duracionMinutos: Math.min(600, Math.max(0, parseInt(e.target.value) || 0)) }))}
-                      className={smallInput}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                <div className="pt-4 border-t border-[color:var(--c-313248)]">
-                  <button
-                    onClick={() => {
-                      if (confirm('¿Estás seguro de que deseas restablecer toda la planificación? Esta acción no se puede deshacer.')) {
-                        setPlanificacion(prev => ({
-                          ...prev,
-                          materia: '',
-                          fechaExamen: new Date(),
-                          tipoExamen: 'mixto',
-                          duracionMinutos: 0,
-                          secciones: [],
-                          rubrica: [],
-                          comentariosAgente: []
-                        }));
-                        limpiarYScroll();
-                        agregarNotificacion('🔄 Planificación restablecida por completo.');
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-medium rounded-xl transition-all border border-red-500/20"
-                  >
-                    <RotateCcw className="w-4 h-4" /> Restablecer todo
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </AnimatePresence>
       </div>
     </div>

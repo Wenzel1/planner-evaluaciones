@@ -154,6 +154,17 @@ export async function POST(request: Request) {
       await registrarActividad({ actor, accion: 'ENVIAR', entidad: 'Recordatorio', detalle: `Envió el recordatorio de "${ev.nombre}" a ${r.total} estudiante(s)`.slice(0, 300) })
       return NextResponse.json({ total: r.total, sinDestino: r.sinDestino, ok: r.ok, error: r.error, loteId: r.loteId })
     }
+    // Se movió la fecha (por ejemplo, arrastrándola en el Calendario): aviso a la sección con la fecha nueva
+    if (body.accion === 'avisar_cambio') {
+      const ev = await evalParaAviso(String(body.evaluacionId || ''))
+      if (!ev || ev.usuarioId !== actor.id) return NextResponse.json({ error: 'Evaluación no encontrada. Si la acabas de crear, espera a que se guarde.' }, { status: 404 })
+      const nueva = new Date(body.fecha), anterior = body.fechaAnterior ? new Date(body.fechaAnterior) : null
+      if (isNaN(nueva.getTime()) || nueva.getTime() < Date.now()) return NextResponse.json({ error: 'La nueva fecha debe ser futura.' }, { status: 400 })
+      const pref = await leerPref(actor.id)
+      if (!pref.avisarCambios) return NextResponse.json({ total: 0, desactivado: true })
+      const r = await enviarAviso(request, { ...ev, fecha: nueva }, 'REPROGRAMADA', { nota: notaDe(pref, ev.id), fechaAnterior: anterior && !isNaN(anterior.getTime()) ? anterior : null })
+      return NextResponse.json({ total: r.total, ok: r.ok, error: r.error })
+    }
     if (body.accion === 'programar') {
       const seccion = String(body.seccion || 'A').toUpperCase().slice(0, 2)
       const texto = String(body.texto || '').trim().slice(0, 1000)

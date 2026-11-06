@@ -4,9 +4,10 @@
 // Aquí se separa en partes y se muestra ordenada: compacta para el profesor y más amigable para el estudiante.
 
 import { partesDescripcion } from '@/lib/descripcion';
+import { enlaceHerramienta } from '@/lib/herramientasEnlaces';
 export { partesDescripcion };
 
-const ICONO: Record<string, string> = { OBJETIVO: '🎯', ACTIVIDAD: '🛠️', HERRAMIENTAS: '🧰', ENTREGABLES: '📦', CRITERIOS: '✅', 'TEMAS POR GRUPO': '👥', 'CASOS POR GRUPO': '👥', 'CASOS POR ESTUDIANTE': '🧑‍🎓', RECURSOS: '📚', INSTRUCCIONES: '📝' };
+const ICONO: Record<string, string> = { OBJETIVO: '🎯', ACTIVIDAD: '🛠️', HERRAMIENTAS: '🧰', ENTREGABLES: '📦', CRITERIOS: '✅', 'TEMAS POR GRUPO': '👥', 'CASOS POR GRUPO': '👥', GRUPOS: '👥', 'CASOS POR ESTUDIANTE': '🧑‍🎓', RECURSOS: '📚', INSTRUCCIONES: '📝' };
 
 const sinPunto = (x: string) => x.replace(/^[-•*]\s*/, '').replace(/[.;,]\s*$/, '').trim();
 const normal = (x: string) => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -58,7 +59,7 @@ export function DescripcionEstudiante({ texto, estudiante }: { texto: string; es
   const de = (t: string) => partes.find(p => p.titulo === t || (t === 'CRITERIOS' && p.titulo.startsWith('CRITERIOS')));
   const intro = partes.find(p => !p.titulo);
   const objetivo = de('OBJETIVO'), actividad = de('ACTIVIDAD'), herramientas = de('HERRAMIENTAS'), entregables = de('ENTREGABLES'), crit = de('CRITERIOS');
-  const casosEst = de('CASOS POR ESTUDIANTE'), casosGrupo = de('TEMAS POR GRUPO') || de('CASOS POR GRUPO');
+  const casosEst = de('CASOS POR ESTUDIANTE'), casosGrupo = de('CASOS POR GRUPO') || de('TEMAS POR GRUPO') || de('GRUPOS');
   const otras = partes.filter(p => p.titulo && ['RECURSOS', 'INSTRUCCIONES'].includes(p.titulo));
 
   // De la lista de casos por estudiante, solo el suyo
@@ -71,6 +72,19 @@ export function DescripcionEstudiante({ texto, estudiante }: { texto: string; es
       if (i < 0) continue;
       const quien = normal(l.slice(0, i));
       if (quien === yo || yo.startsWith(quien) || quien.startsWith(yo) || (quien.split(' ')[0] === primero && quien.split(' ').length === 1)) { miCaso = l.slice(i + 1).trim(); break; }
+    }
+  }
+  // En grupo: "Grupo 2 (Ana Pérez, Luis Gómez): caso" → el grupo donde está este estudiante
+  let miGrupo: { numero: string; companeros: string[]; caso: string } | null = null;
+  if (casosGrupo && estudiante) {
+    const yo = normal(estudiante);
+    const mismo = (n: string) => { const q = normal(n); if (q === yo) return true; const a = q.split(' '), b = yo.split(' '); return a[0] === b[0] && (a[1] || '') === (b[1] || ''); };
+    for (const l of casosGrupo.cuerpo.split(/\n+/).map(x => x.trim()).filter(Boolean)) {
+      const m = /^grupo\s*(\d+)\s*(?:\(([^)]*)\))?\s*:?\s*(.*)$/i.exec(l);
+      if (!m) continue;
+      // Integrantes: entre paréntesis (con caso) o después de los dos puntos (sección GRUPOS, sin casos)
+      const integrantes = (m[2] ?? (casosGrupo.titulo === 'GRUPOS' ? m[3] : '')).split(/\s*,\s*|\s+y\s+/).map(x => x.trim()).filter(Boolean);
+      if (integrantes.some(mismo)) { miGrupo = { numero: m[1], companeros: integrantes.filter(n => !mismo(n)), caso: m[2] != null ? sinPunto(m[3]) : '' }; break; }
     }
   }
   const listaCrit = crit ? criterios(crit.cuerpo) : [];
@@ -92,6 +106,13 @@ export function DescripcionEstudiante({ texto, estudiante }: { texto: string; es
           <p className="text-sm text-[color:var(--c-d0d0dc)] leading-relaxed whitespace-pre-wrap">{actividad.cuerpo}</p>
         </div>
       )}
+      {miGrupo && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] px-4 py-3">
+          <Etiqueta icono="👥">Tu grupo · Grupo {miGrupo.numero}</Etiqueta>
+          {miGrupo.companeros.length > 0 && <p className="text-sm text-emerald-100/90 mb-1.5">Trabajas con <strong>{miGrupo.companeros.join(', ').replace(/, ([^,]*)$/, ' y $1')}</strong>.</p>}
+          {miGrupo.caso && <p className="text-sm text-emerald-100 leading-relaxed"><span className="text-emerald-300/90">Su caso:</span> {miGrupo.caso}.</p>}
+        </div>
+      )}
       {miCaso && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] px-4 py-3">
           <Etiqueta icono="🧑‍🎓">Tu caso</Etiqueta>
@@ -103,7 +124,9 @@ export function DescripcionEstudiante({ texto, estudiante }: { texto: string; es
           {listaHerr.length > 0 && (
             <div className="rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-4 py-3">
               <Etiqueta icono="🧰">Herramientas</Etiqueta>
-              <div className="flex flex-wrap gap-1.5">{listaHerr.map((h, k) => <span key={k} className="text-xs px-2.5 py-1 rounded-full bg-[color:var(--c-232438)] border border-[color:var(--c-34354d)] text-[color:var(--c-c7d2fe)]">{h}</span>)}</div>
+              <div className="flex flex-wrap gap-1.5">{listaHerr.map((h, k) => { const e = enlaceHerramienta(h); return e
+                ? <a key={k} href={e.url} target="_blank" rel="noopener noreferrer" title={`Abrir ${e.titulo}`} className="text-xs px-2.5 py-1 rounded-full bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/35 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/20 inline-flex items-center gap-1">{h}<span aria-hidden="true">↗</span></a>
+                : <span key={k} className="text-xs px-2.5 py-1 rounded-full bg-[color:var(--c-232438)] border border-[color:var(--c-34354d)] text-[color:var(--c-c7d2fe)]">{h}</span>; })}</div>
             </div>
           )}
           {listaEntr.length > 0 && (
@@ -131,7 +154,7 @@ export function DescripcionEstudiante({ texto, estudiante }: { texto: string; es
       )}
       {casosGrupo && (
         <div className="rounded-xl bg-[color:var(--c-161722)]/70 border border-[color:var(--c-2a2b3d)] px-4 py-3">
-          <Etiqueta icono="👥">Temas por grupo</Etiqueta>
+          <Etiqueta icono="👥">{miGrupo ? 'Todos los grupos' : casosGrupo.titulo === 'GRUPOS' ? 'Grupos' : 'Casos por grupo'}</Etiqueta>
           <ul className="space-y-1">{lineas(casosGrupo.cuerpo).map((x, k) => <li key={k} className="text-sm text-[color:var(--c-d0d0dc)] leading-snug">{x}</li>)}</ul>
         </div>
       )}

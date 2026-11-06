@@ -28,10 +28,46 @@ const json = (d: any, status = 200) => new Response(JSON.stringify(d), { status,
 // Respuesta: líneas JSON (NDJSON): {t:'inicio'} {t:'texto',v} {t:'accion',accion} {t:'aviso',v} {t:'fin'} | {t:'error',mensaje}
 // ¿La acción apunta a una evaluación que no existe? (las nuevas de proponer_evaluaciones en esta misma respuesta sí valen)
 // Grupos siempre con números: si el modelo dio personas por grupo, se calcula cuántos grupos salen con los estudiantes de la sección
+// Tamaño de grupo sugerido según la cantidad de estudiantes de la sección
+const tamanoSugerido = (n: number) => (n <= 6 ? 2 : n <= 20 ? 3 : 4)
+
+// Grupos coherentes con los estudiantes: si no vino el tamaño, se decide por el tipo de actividad;
+// la cantidad de grupos se reparte para que nadie quede solo (10 estudiantes en grupos de 3 → 3 grupos: 4, 3 y 3)
 function completarGrupos(a: Accion, estudiantes: number) {
   for (const e of a.datos.evaluaciones || []) {
-    if (!e.personasPorGrupo) e.personasPorGrupo = /grup|equip|colabor|proyecto|debate|cooperat/i.test(`${e.tipoActividad} ${e.enfoque}`) ? 3 : 1
-    if (!e.cantidadGrupos && estudiantes > 0) e.cantidadGrupos = Math.max(1, Math.ceil(estudiantes / e.personasPorGrupo))
+    const texto = `${e.tipoActividad} ${e.enfoque}`
+    if (!e.personasPorGrupo) {
+      const individual = /individual|examen|prueba|quiz|cuestionario|ensayo|te[oó]ric/i.test(texto)
+      const grupal = /grup|equip|colabor|cooperat|proyecto|laboratorio|taller|debate|exposici|despliegue|integrador/i.test(texto)
+      e.personasPorGrupo = grupal && !individual ? tamanoSugerido(estudiantes || 12) : 1
+    }
+    if (estudiantes > 0) {
+      if (e.personasPorGrupo <= 1) { e.personasPorGrupo = 1; e.cantidadGrupos = estudiantes; continue }
+      if (estudiantes <= e.personasPorGrupo) { e.cantidadGrupos = 1; e.personasPorGrupo = estudiantes; continue }
+      const grupos = Math.max(1, Math.round(estudiantes / e.personasPorGrupo))
+      e.cantidadGrupos = grupos
+      e.personasPorGrupo = Math.ceil(estudiantes / grupos)
+    } else if (!e.cantidadGrupos) e.cantidadGrupos = null
+  }
+}
+
+// En grupo: la app arma los grupos con los nombres de la sección (en orden de lista, repartidos parejo)
+// y deja cada caso con sus integrantes: "Grupo 2 (Ana Pérez, Luis Gómez): …". Sin casos, queda la lista de GRUPOS.
+function armarGrupos(a: Accion, nombres: string[]) {
+  if (!nombres.length) return
+  for (const e of a.datos.evaluaciones || []) {
+    const grupos = Number(e.cantidadGrupos) || 0
+    if ((e.personasPorGrupo ?? 1) <= 1 || grupos < 1) continue
+    const integrantes: string[][] = Array.from({ length: grupos }, () => [])
+    nombres.forEach((n, i) => integrantes[i % grupos].push(n))
+    const desc = String(e.descripcion || '')
+    const m = /\n?\s*(TEMAS POR GRUPO|CASOS POR GRUPO|CASOS POR ESTUDIANTE|GRUPOS)\s*:\s*([\s\S]*)$/i.exec(desc)
+    const base = (m ? desc.slice(0, m.index) : desc).trim()
+    const casos = m ? m[2].split(/\n+/).map(l => l.trim().replace(/^(grupo\s*\d+\s*(\([^)]*\))?|[-•*]|\d+[.)])\s*:?\s*/i, '').replace(m && /ESTUDIANTE/i.test(m[1]) ? /^[^:]{2,40}:\s*/ : /^$/, '')).filter(Boolean) : []
+    const lineas = integrantes.map((g, i) => casos.length
+      ? `Grupo ${i + 1} (${g.join(', ')}): ${casos[i % casos.length]}`
+      : `Grupo ${i + 1}: ${g.join(', ')}`)
+    e.descripcion = `${base}\n${casos.length ? 'CASOS POR GRUPO' : 'GRUPOS'}:\n${lineas.join('\n')}`.slice(0, 6000)
   }
 }
 
@@ -305,7 +341,7 @@ async function atender(request: Request) {
               if (!a || acciones.length >= 8) continue
               // En la ronda de "cuadra los pesos" solo vale ajustar_pesos (si repite la propuesta, saldría duplicada)
               if (soloPesos && a.tipo !== 'ajustar_pesos') continue
-              if (a.tipo === 'proponer_evaluaciones') completarGrupos(a, typeof estudiantesSeccion === 'number' ? estudiantesSeccion : 0)
+              if (a.tipo === 'proponer_evaluaciones') { completarGrupos(a, typeof estudiantesSeccion === 'number' ? estudiantesSeccion : alumnos.length); armarGrupos(a, alumnos.map(x => x.nombre).filter(Boolean)) }
               const mala = referenciaInvalida(a, evaluaciones.length, acciones)
               if (mala) { invalidas.push(mala); continue }
               acciones.push(a); enviar({ t: 'accion', accion: a })
