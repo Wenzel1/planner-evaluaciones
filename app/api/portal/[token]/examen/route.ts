@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { accesoPortal } from '@/lib/portalAcceso'
 import prisma from '@/lib/prisma'
 import { TOKEN_VALIDO } from '@/lib/portal'
 import { normalizarExamen, examenParaEstudiante, ventanaExamen, limiteEstudiante, GRACIA_SEG, semillaExamen, respuestasAOriginal, respuestasAMezcla, CLAVE_SALIDAS, salidasDe, type Correccion } from '@/lib/examen'
@@ -43,6 +44,8 @@ function resultado(examen: ReturnType<typeof normalizarExamen> & {}, f: any, cer
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
+    const sinAcceso = await accesoPortal(request, token)
+    if (sinAcceso) return sinAcceso
     const r = await cargar(token, String(new URL(request.url).searchParams.get('evaluacionId') || ''))
     if ('error' in r) return r.error
     const { est, ev, examen } = r
@@ -67,6 +70,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
+    const sinAcceso = await accesoPortal(request, token)
+    if (sinAcceso) return sinAcceso
     const body = await request.json().catch(() => ({}))
     const r = await cargar(token, String(body.evaluacionId || ''))
     if ('error' in r) return r.error

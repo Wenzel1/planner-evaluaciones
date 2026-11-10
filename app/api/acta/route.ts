@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { filtroMateria } from '@/lib/clases'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { NOTA_APROBATORIA, promedioPonderado } from '@/lib/notas'
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
       where: { id: { in: ids } },
       select: {
         id: true, nombre: true, peso: true, estado: true, grupoSeccion: true, fecha: true,
-        planificacion: { select: { materia: { select: { nombre: true, usuarioId: true } } } },
+        planificacion: { select: { materiaId: true, materia: { select: { nombre: true, usuarioId: true } } } },
         calificaciones: { select: { estudianteId: true, puntaje: true } },
       },
     })
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
     const materia = encontradas[0].planificacion.materia.nombre
     const conNota = new Set(evs.flatMap(e => e.calificaciones.filter(c => c.puntaje != null).map(c => c.estudianteId)))
     const estudiantes = (await prisma.estudiante.findMany({
-      where: { usuarioId: dueno ?? actor.id, grupo: seccion },
+      where: { usuarioId: dueno ?? actor.id, grupo: seccion, estado: { not: 'PENDIENTE' }, ...filtroMateria(encontradas[0].planificacion.materiaId) },
       select: { id: true, nombre: true, email: true, estado: true },
       orderBy: { nombre: 'asc' },
     })).filter(e => e.estado === 'ACTIVO' || conNota.has(e.id)) // los retirados solo salen si tienen alguna nota

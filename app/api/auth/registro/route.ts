@@ -24,6 +24,8 @@ export async function POST(request: Request) {
     const nombre = String(body.nombre ?? '').trim()
     const email = String(body.email ?? '').trim().toLowerCase()
     const password = String(body.password ?? '')
+    // Cuenta de profesor (USUARIO) o de estudiante (ESTUDIANTE: ve sus materias, entrega trabajos)
+    const esEstudiante = body.tipo === 'estudiante'
     const canal = canalMensajes()
     const telefono = canal === 'whatsapp' ? String(body.telefono ?? '') : ''
 
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
         nombre,
         email,
         passwordHash: await hashPassword(password),
-        rol: 'USUARIO',
+        rol: esEstudiante ? 'ESTUDIANTE' : 'USUARIO',
         activo: false,
         pendiente: true,
         telefono: telefonoNormalizado,
@@ -72,7 +74,7 @@ export async function POST(request: Request) {
       },
       select: { id: true },
     })
-    await registrarActividad({ usuarioNombre: nombre, accion: 'REGISTRO', entidad: 'Usuario', detalle: `Solicitó una cuenta (${email})` })
+    await registrarActividad({ usuarioNombre: nombre, accion: 'REGISTRO', entidad: 'Usuario', detalle: `Solicitó una cuenta ${esEstudiante ? 'de estudiante' : 'de profesor'} (${email})` })
 
     const enviado = await enviarCodigo({ email, telefono: telefonoNormalizado, nombre, codigo, motivo: 'registro' })
     // verificar: true → el login pasa a la pantalla "Escribe el código"

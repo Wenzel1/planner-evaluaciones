@@ -44,7 +44,7 @@ async function ejecutar(request: Request) {
       select: {
         id: true, nombre: true, fecha: true, peso: true, tipoActividad: true, grupoSeccion: true,
         recordatorios: { select: { tipo: true, fechaEvaluacion: true } },
-        planificacion: { select: { materia: { select: { nombre: true, usuarioId: true, usuario: { select: { activo: true } } } } } },
+        planificacion: { select: { materiaId: true, materia: { select: { nombre: true, usuarioId: true, usuario: { select: { activo: true } } } } } },
       },
     })
 
@@ -66,7 +66,7 @@ async function ejecutar(request: Request) {
       if (ev.recordatorios.some(r => r.tipo === tipo && r.fechaEvaluacion.getTime() === ev.fecha!.getTime())) continue
       if (mensajes >= maxPorPasada() || Date.now() - inicio > TIEMPO_MAXIMO) break // lo que falte, en la siguiente pasada
 
-      const datos = { id: ev.id, nombre: ev.nombre, fecha: ev.fecha, peso: ev.peso, tipoActividad: ev.tipoActividad, grupoSeccion: ev.grupoSeccion, materia: materia.nombre, usuarioId: materia.usuarioId }
+      const datos = { id: ev.id, nombre: ev.nombre, fecha: ev.fecha, peso: ev.peso, tipoActividad: ev.tipoActividad, grupoSeccion: ev.grupoSeccion, materia: materia.nombre, usuarioId: materia.usuarioId, materiaId: ev.planificacion.materiaId }
       if (prueba) {
         const r = await enviarAviso(request, datos, tipo, { probar: true })
         resumen.push({ evaluacion: nombreLimpio(ev.nombre), tipo, estudiantes: r.total }); continue

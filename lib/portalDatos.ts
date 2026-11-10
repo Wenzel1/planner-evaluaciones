@@ -4,6 +4,7 @@ import { normalizarRubrica } from '@/lib/rubrica'
 import { estaAbierta, normalizarRecursos, TOKEN_VALIDO } from '@/lib/portal'
 import { promedioPonderado } from '@/lib/notas'
 import { normalizarExamen, ventanaExamen } from '@/lib/examen'
+import { archivosConfigurados } from '@/lib/almacenamiento'
 
 const limpiarNombre = (n: string) => String(n || '').replace(/^(Evaluaci[oó]n\s*\d+\s*:\s*|Pr[aá]ctica:\s*|Te[oó]rica:\s*)+/i, '').trim() || 'Evaluación'
 
@@ -22,13 +23,14 @@ export async function datosPortal(token: string) {
   if (!TOKEN_VALIDO.test(token)) return null
   const est = await prisma.estudiante.findUnique({
     where: { enlaceToken: token },
-    select: { id: true, nombre: true, grupo: true, estado: true, usuarioId: true, usuario: { select: { nombre: true, activo: true } } },
+    select: { id: true, nombre: true, grupo: true, estado: true, usuarioId: true, materiaId: true, usuario: { select: { nombre: true, activo: true } } },
   })
   if (!est || est.estado !== 'ACTIVO' || !est.usuarioId || est.usuario?.activo === false) return null
   const grupo = est.grupo || 'A'
 
   const materias = await prisma.materia.findMany({
-    where: { usuarioId: est.usuarioId },
+    // Si se unió a una materia concreta (código de clase), solo esa; los cargados sin materia ven todas las del profesor
+    where: { usuarioId: est.usuarioId, ...(est.materiaId ? { id: est.materiaId } : {}) },
     select: {
       id: true, nombre: true,
       opiniones: { where: { estudianteId: est.id }, select: { deAcuerdo: true, comentario: true, updatedAt: true } },
@@ -49,6 +51,9 @@ export async function datosPortal(token: string) {
               preparaciones: { where: { estudianteId: est.id }, select: { id: true } },
               examen: true,
               examenes: { where: { estudianteId: est.id }, select: { entregadoEn: true, publicada: true, nota: true, limite: true } },
+              aceptaEntregas: true,
+              entregas: { where: { estudianteId: est.id }, select: { tipo: true, url: true, archivoNombre: true, comentario: true, entregadaEn: true, devuelta: true, devolucion: true } },
+              comentarios: { where: { estudianteId: est.id }, select: { autor: true, leido: true } },
             },
           },
         },
@@ -74,6 +79,11 @@ export async function datosPortal(token: string) {
           preparado: ev.preparaciones.length > 0,
           examen: infoExamen(ev, ahora),
           nota: nota && nota.puntaje != null ? { puntaje: nota.puntaje, observaciones: nota.observaciones, detalle: Array.isArray(nota.detalle) ? nota.detalle : null } : null,
+          // Entrega del estudiante y conversación privada con el profesor
+          aceptaEntregas: ev.aceptaEntregas && ev.estado !== 'CANCELADA',
+          entrega: ev.entregas[0] ? { ...ev.entregas[0], tarde: !!ev.fecha && ev.entregas[0].entregadaEn.getTime() > ev.fecha.getTime() + 60000 } : null,
+          mensajes: ev.comentarios.length,
+          mensajesNuevos: ev.comentarios.filter(c => c.autor === 'PROFESOR' && !c.leido).length,
         }
       })
       const conNota = evaluaciones.filter(e => e.nota)
@@ -88,6 +98,7 @@ export async function datosPortal(token: string) {
     estudiante: { nombre: est.nombre, seccion: grupo },
     profesor: est.usuario?.nombre || 'Profesor',
     materias: lista,
+    archivos: archivosConfigurados(), // se pueden subir archivos (si no, solo enlaces)
     generado: new Date(ahora).toISOString(),
   }
 }

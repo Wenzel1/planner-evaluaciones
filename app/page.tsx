@@ -28,7 +28,7 @@ import {
   MessageCircleQuestion, Eye as EyeIcon, Speech, Download,
   UserCog, ShieldCheck, RefreshCw, Upload, PanelLeftClose, PanelLeftOpen,
   CircleHelp,
-  Sun, Moon, BellOff,
+  Sun, Moon, BellOff, KeyRound, Inbox,
 } from 'lucide-react';
 import DescripcionOrdenada from '@/components/DescripcionOrdenada';
 import PanelRecordatorios from '@/components/PanelRecordatorios';
@@ -41,6 +41,9 @@ import { apiEstudiantes, apiPlanificaciones } from '@/lib/api';
 import StreamInput from "@/components/StreamInput";
 import StreamTextarea from "@/components/StreamTextarea";
 import EditorDescripcion, { tieneSecciones } from "@/components/EditorDescripcion";
+import BienvenidaProfesor from "@/components/BienvenidaProfesor";
+import CodigoClase from "@/components/CodigoClase";
+import PanelEntregas from "@/components/PanelEntregas";
 import { enlacesDeDescripcion } from "@/lib/herramientasEnlaces";
 import { validarNombre, validarEmail, validarPassword, validarTelefono, validarCedula } from '@/lib/validacionesUsuario';
 import { csvAEstudiantes, plantillaCSV } from '@/lib/csvEstudiantes';
@@ -2360,6 +2363,15 @@ function EstudiantesPanel() {
   const [prueba, setPrueba] = useState({ cantidad: 12, grupo: 'A' });
   const [procesandoPrueba, setProcesandoPrueba] = useState(false);
   const esDePrueba = (e: { email?: string }) => String(e.email || '').toLowerCase().endsWith('@demo.planificador');
+  // Solicitudes de estudiantes que se unieron con el código de clase (si la sección pide aprobación)
+  const [solicitudes, setSolicitudes] = useState<{ id: string; nombre: string; email: string; grupo: string; solicitadoEn: string | null; materia?: { nombre: string } | null }[]>([]);
+  const cargarSolicitudes = async () => { try { const r = await fetch('/api/estudiantes?estado=PENDIENTE', { cache: 'no-store' }); if (r.ok) setSolicitudes(await r.json()); } catch { /* sin conexión */ } };
+  useEffect(() => { cargarSolicitudes(); const t = setInterval(cargarSolicitudes, 60000); return () => clearInterval(t); }, []);
+  const responderSolicitud = async (cuerpo: { id?: string; todas?: boolean; accion: 'aceptar' | 'rechazar' }) => {
+    const r = await fetch('/api/estudiantes/solicitudes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    if (!r.ok) { alert('No se pudo procesar la solicitud.'); return; }
+    await Promise.all([cargarSolicitudes(), recargarEstudiantes()]); window.dispatchEvent(new Event('estudiantes-cambiaron'));
+  };
   const crearPrueba = async () => {
     setProcesandoPrueba(true);
     try {
@@ -2600,6 +2612,28 @@ function EstudiantesPanel() {
         </div>
       </div>
 
+      {solicitudes.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/35 bg-amber-500/[0.06] overflow-hidden">
+          <div className="px-4 py-3 flex items-center gap-2 flex-wrap border-b border-amber-500/20">
+            <span className="text-sm font-semibold text-amber-200">🙋 {solicitudes.length} solicitud{solicitudes.length === 1 ? '' : 'es'} para unirse a tu clase</span>
+            <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Usaron tu código de clase. Acéptalos para que aparezcan en tu lista.</span>
+            {solicitudes.length > 1 && <button type="button" onClick={() => responderSolicitud({ todas: true, accion: 'aceptar' })} className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-200 hover:bg-emerald-500/25">Aceptar todas</button>}
+          </div>
+          <div className="divide-y divide-amber-500/10">
+            {solicitudes.map(sol => (
+              <div key={sol.id} className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
+                <div className="flex-1 min-w-[180px]">
+                  <p className="text-sm font-medium text-[color:var(--c-e0e0ec)]">{sol.nombre}</p>
+                  <p className="text-xs text-[color:var(--c-8a8b9e)]">{sol.email} · {sol.materia?.nombre ? `${sol.materia.nombre} · ` : ''}Sección {sol.grupo}{sol.solicitadoEn ? ` · ${new Date(sol.solicitadoEn).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}` : ''}</p>
+                </div>
+                <button type="button" onClick={() => responderSolicitud({ id: sol.id, accion: 'aceptar' })} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-200 hover:bg-emerald-500/25">Aceptar</button>
+                <button type="button" onClick={() => { if (window.confirm(`¿Rechazar la solicitud de ${sol.nombre}?`)) responderSolicitud({ id: sol.id, accion: 'rechazar' }); }} className="text-xs px-3 py-1.5 rounded-lg text-red-300/80 hover:text-red-200 hover:bg-red-500/10">Rechazar</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {errorImport && (
         <div className="flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span className="flex-1">{errorImport}</span><button onClick={() => setErrorImport('')} className="text-red-300/70 hover:text-red-200"><X className="w-4 h-4" /></button></div>
       )}
@@ -2640,7 +2674,7 @@ function EstudiantesPanel() {
             <tbody className="divide-y divide-[color:var(--c-313248)]">
               {filteredEstudiantes.map(est => (
                 <tr key={est.id} className="hover:bg-[color:var(--c-272839)]/50 transition-colors">
-                  <td className="py-3 px-4 text-[color:var(--c-d0d0da)] font-medium">{est.nombre}</td>
+                  <td className="py-3 px-4 text-[color:var(--c-d0d0da)] font-medium">{est.nombre}{(est as any).cuentaId && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 align-middle" title="Tiene su propia cuenta en el sistema">con cuenta</span>}{(est as any).materia?.nombre && <span className="block text-[11px] font-normal text-[color:var(--c-8a8b9e)]">{(est as any).materia.nombre}</span>}</td>
                   <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{esDePrueba(est) ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 text-[color:var(--c-a5b4fc)]" title="Estudiante de prueba: no recibe correos">de prueba · sin correo</span> : est.email}</td>
                   <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{est.telefono}</td>
                   <td className="py-3 px-4"><span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-818cf8)] border border-[color:var(--c-818cf8)]/20">{est.grupo}</span></td>
@@ -3627,6 +3661,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
   const [notasDe, setNotasDe] = useState<SeccionExamen | null>(null);
   const [examenDe, setExamenDe] = useState<SeccionExamen | null>(null);
   const [recordatoriosDe, setRecordatoriosDe] = useState<SeccionExamen | null>(null);
+  const [entregasDe, setEntregasDe] = useState<SeccionExamen | null>(null);
   // Vista previa del plan: SOLO las evaluaciones de la sección activa que están marcadas
   const listaPlan: SeccionExamen[] = Array.isArray(seccionesPlan) ? seccionesPlan : secciones;
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
@@ -3795,6 +3830,7 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
               onRecursos={onGuardarRecursos ? setRecursosDe : undefined}
               onExamen={onExamenLocal ? setExamenDe : undefined}
               onRecordatorios={(s: SeccionExamen) => esIdGuardado(s.id) ? setRecordatoriosDe(s) : agregarNotificacion('⏳ Guarda la evaluación primero para ver sus recordatorios.')}
+              onEntregas={setEntregasDe}
             />
           );
         })}
@@ -3820,6 +3856,11 @@ function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNoti
         {examenDe && onExamenLocal && (
           <ModalExamen key={examenDe.id} evaluacion={examenDe} onCerrar={() => setExamenDe(null)} notificar={agregarNotificacion}
             onGuardado={(ex) => onExamenLocal(examenDe.id, ex)} />
+        )}
+        {entregasDe && (
+          <VentanaFlotante key={`ent-${entregasDe.id}`} onCerrar={() => setEntregasDe(null)} ancho="max-w-3xl">
+            <PanelEntregas evaluacionId={entregasDe.id} nombre={limpiarTexto(entregasDe.nombre)} onCerrar={() => setEntregasDe(null)} notificar={agregarNotificacion} />
+          </VentanaFlotante>
         )}
         {recordatoriosDe && (
           <VentanaFlotante key={`rec-${recordatoriosDe.id}`} onCerrar={() => setRecordatoriosDe(null)} ancho="max-w-3xl">
@@ -4421,7 +4462,7 @@ function EditorRecursos({ seccion, materia, onGuardar, onCerrar }: { seccion: Se
 // ============================================
 // TARJETA DE EVALUACIÓN (draggable individual, fluida con Framer Motion)
 // ============================================
-function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas, onRecursos, onExamen, onRecordatorios }: {
+function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expanded, onToggleExpand, onEdit, onDelete, onEnviar, enviando, onCambiarEstado, onRubrica, onNotas, onRecursos, onExamen, onRecordatorios, onEntregas }: {
   seccion: SeccionExamen; index: number; isSelected: boolean; onToggleSelect?: (id: string) => void;
   expanded: boolean; onToggleExpand: () => void; onEdit: (s: SeccionExamen) => void; onDelete: (id: string) => void;
   onEnviar: (s: SeccionExamen) => void; enviando: boolean; onCambiarEstado?: (s: SeccionExamen, estado: string, fecha?: Date) => Promise<boolean>;
@@ -4430,6 +4471,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
   onRecursos?: (s: SeccionExamen) => void;
   onExamen?: (s: SeccionExamen) => void;
   onRecordatorios?: (s: SeccionExamen) => void;
+  onEntregas?: (s: SeccionExamen) => void;
 }) {
   const dragControls = useDragControls();
   const nombreLimpio = limpiarTexto(seccion.nombre);
@@ -4452,6 +4494,7 @@ function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, expande
     { icono: Pencil, titulo: 'Editar evaluación', detalle: 'Contenido, peso, fecha y descripción', hacer: () => onEdit(seccion) },
     puedeExamen && { icono: FileCheck, titulo: 'Examen en línea', detalle: seccion.examen ? `${seccion.examen.preguntas.length} preguntas · ver entregas` : 'Crear el examen que presentan en su página', hacer: () => onExamen!(seccion) },
     onRecordatorios && seccion.fecha && !['REALIZADA', 'CANCELADA'].includes(String(seccion.estado || '').toUpperCase()) && { icono: Bell, titulo: 'Recordatorios', detalle: 'Cuándo se avisa a los estudiantes · enviar ahora', hacer: () => onRecordatorios(seccion) },
+    onEntregas && esIdGuardado(seccion.id) && !cancelada && { icono: Inbox, titulo: 'Entregas y mensajes', detalle: 'Quién entregó, abrir lo entregado y escribirles', hacer: () => onEntregas(seccion) },
   ].filter(Boolean) as { icono: any; titulo: string; detalle: string; hacer: () => void }[];
   return (
     <Reorder.Item
@@ -6455,7 +6498,25 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     const nuevaLetra = String.fromCharCode(siguienteCodigo);
     setSeccionesDisponibles(prev => [...prev, nuevaLetra]);
     setSeccionActiva(nuevaLetra);
+    // La sección nueva queda registrada con su código de clase
+    if (materiaActivaId) fetch('/api/materias/secciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ materiaId: materiaActivaId, letra: nuevaLetra }) }).catch(() => {});
   };
+  // Secciones registradas de la materia (con código de clase) y solicitudes pendientes de cada una
+  const [verCodigo, setVerCodigo] = useState(false);
+  const [solicitudesSeccion, setSolicitudesSeccion] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!materiaActivaId) return;
+    fetch(`/api/materias/secciones?materiaId=${encodeURIComponent(materiaActivaId)}`).then(r => (r.ok ? r.json() : [])).then((lista: { letra: string; pendientes: number }[]) => {
+      if (!Array.isArray(lista) || !lista.length) return;
+      setSeccionesDisponibles(prev => {
+        const deEvaluaciones = new Set(planificacion.secciones.map((x: SeccionExamen) => x.grupoSeccion || 'A'));
+        const letras = [...new Set([...lista.map(x => x.letra), ...deEvaluaciones])].sort();
+        return letras.length ? letras : prev;
+      });
+      setSolicitudesSeccion(Object.fromEntries(lista.map(x => [x.letra, x.pendientes])));
+      if (!lista.some(x => x.letra === seccionActiva)) setSeccionActiva(lista[0].letra);
+    }).catch(() => {});
+  }, [materiaActivaId]);
   const cambiarSeccionActiva = (letra: string) => {
     setSeccionActiva(letra);
   };
@@ -7262,6 +7323,23 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     const t = setInterval(cargarOpiniones, 60000);
     return () => clearInterval(t);
   }, [usuario?.id]);
+  // Entregas y mensajes nuevos de los estudiantes (cuentas de estudiante): aviso en la campanita
+  useEffect(() => {
+    if (!usuario) return;
+    let desde = new Date().toISOString();
+    const revisar = async () => {
+      try {
+        const r = await fetch(`/api/entregas/novedades?desde=${encodeURIComponent(desde)}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        desde = d.ahora || new Date().toISOString();
+        (d.entregas || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`📥 ${x.estudiante} entregó «${limpiarTexto(x.evaluacion)}».`));
+        (d.mensajes || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`💬 ${x.estudiante} te escribió sobre «${limpiarTexto(x.evaluacion)}»: ${x.texto}`));
+      } catch { /* sin conexión: siguiente ciclo */ }
+    };
+    const t = setInterval(revisar, 60000);
+    return () => clearInterval(t);
+  }, [usuario?.id]);
   const borrarOpiniones = async (ids: string[]) => {
     const r = await fetch('/api/opiniones', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) }).catch(() => null);
     if (!r?.ok) { agregarNotificacion('⚠️ No se pudieron borrar las opiniones.'); return; }
@@ -7462,6 +7540,21 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
                         </button>
                       </Tooltip>
                     </div>
+                    {materiaActivaId && (
+                      <Tooltip text={`Código para que los estudiantes se unan a la Sección ${seccionActiva}`}>
+                        <button type="button" data-tutorial="codigo-clase" onClick={() => setVerCodigo(true)} className="relative h-8 px-2.5 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/20">
+                          <KeyRound className="w-3.5 h-3.5" />Código de clase
+                          {(solicitudesSeccion[seccionActiva] || 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center" title="Solicitudes por aceptar en Estudiantes">{solicitudesSeccion[seccionActiva]}</span>}
+                        </button>
+                      </Tooltip>
+                    )}
+                    <AnimatePresence>
+                      {verCodigo && materiaActivaId && (
+                        <VentanaFlotante onCerrar={() => setVerCodigo(false)} ancho="max-w-xl">
+                          <CodigoClase materiaId={materiaActivaId} materia={planificacion.materia} letra={seccionActiva} onCerrar={() => setVerCodigo(false)} notificar={agregarNotificacion} />
+                        </VentanaFlotante>
+                      )}
+                    </AnimatePresence>
                     {seccionesFiltradas.length > 0 && (
                       <Tooltip text={`Buscar videos y páginas para las evaluaciones de la Sección ${seccionActiva} que aún no tienen recursos`}>
                         <button type="button" onClick={recursosParaTodas} disabled={!!llenandoRecursos}
@@ -7622,6 +7715,7 @@ export default function PlanificadorExamenes() {
   const [usuario, setUsuario] = useState<UsuarioSesion | null>(null);
   const [configSistema, setConfigSistema] = useState<ConfigCliente | null>(null);
   const [datosCargados, setDatosCargados] = useState(false);
+  const [sinMaterias, setSinMaterias] = useState(false); // profesor nuevo: primero elige su materia
   const aplicarYGuardarConfig = (c: ConfigCliente) => { aplicarConfig(c); setConfigSistema(c); };
   useEffect(() => {
     if (!usuario) return;
@@ -7661,8 +7755,8 @@ const abrirMateria = async (id: string) => {
   await fetch('/api/materias', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, abrir: true }) }).catch(() => {});
   window.location.reload();
 };
-const crearMateria = async (nombre: string) => {
-  const r = await fetch('/api/materias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: nombre.slice(0, 120), codigo: `MAT-${Date.now()}` }) });
+const crearMateria = async (nombre: string, secciones: string[] = ['A']) => {
+  const r = await fetch('/api/materias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: nombre.slice(0, 120), codigo: `MAT-${Date.now()}`, secciones }) });
   const d = await r.json().catch(() => ({}));
   if (!r.ok || !d.id) throw new Error(d.error || 'No se pudo crear la materia.');
   await abrirMateria(d.id);
@@ -7717,7 +7811,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
           try { materias = await pedir('/api/materias'); break; }
           catch (e) { if (intento >= 2) throw e; await new Promise(res => setTimeout(res, 1500 * (intento + 1))); }
         }
-        if (!Array.isArray(materias) || materias.length === 0) { setDatosCargados(true); return; } // Primera vez, no hay nada que cargar
+        if (!Array.isArray(materias) || materias.length === 0) { setSinMaterias(true); setDatosCargados(true); return; } // Primera vez: elige su materia en la bienvenida
         setMaterias(materias.map((m: any) => ({ id: m.id, nombre: m.nombre })).sort((a: MateriaCorta, b: MateriaCorta) => a.nombre.localeCompare(b.nombre)));
 
         // 2. Buscar la materia "Ing Software" o usar la primera
@@ -7834,10 +7928,10 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
   const puedeVerTutorial = !!usuario && !usuario.debeCambiarPassword && usuario.rol !== 'SUPERADMIN';
   const abrirTutorial = () => { setVistaActual('planificacion'); if (!esMovil) setAgenteExpandido(true); setTutorialAbierto(true); };
   useEffect(() => {
-    if (!puedeVerTutorial || !configSistema || !usuario || tutorialVisto(usuario.id)) return;
+    if (!puedeVerTutorial || !configSistema || !usuario || tutorialVisto(usuario.id) || sinMaterias) return;
     const t = setTimeout(abrirTutorial, 1200); // deja que la pantalla termine de cargar
     return () => clearTimeout(t);
-  }, [puedeVerTutorial, !!configSistema, usuario?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [puedeVerTutorial, !!configSistema, usuario?.id, sinMaterias]); // eslint-disable-line react-hooks/exhaustive-deps
   const cerrarTutorial = () => { setTutorialAbierto(false); if (usuario) marcarTutorialVisto(usuario.id); };
   // La primera vez que entra a Calendario, Estudiantes, Dashboard o Papelera: un recorrido corto de esa pestaña
   const [tourVista, setTourVista] = useState<string | null>(null);
@@ -7870,6 +7964,9 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
     <div className="fixed inset-0 flex flex-col bg-[color:var(--c-161722)] text-[color:var(--c-b0b0c0)] overflow-hidden">
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
       <BandaRol rol={usuario.rol} />
+      {sinMaterias && usuario && usuario.rol !== 'SUPERADMIN' && (
+        <BienvenidaProfesor nombre={usuario.nombre} onCrear={(m, secciones) => crearMateria(m, secciones)} />
+      )}
       {tutorialAbierto && (
         <Tutorial pasos={pasosTutorial(usuario.nombre, esMovil)} onTerminar={cerrarTutorial}
           alCambiarPaso={(p) => { const delChat = ['agente', 'divisor', 'chat-herramientas', 'chat-entrada'].includes(p.objetivo || ''); if (p.objetivo && !delChat && !['notificaciones', 'tema', 'pestanas', 'ayuda'].includes(p.objetivo)) setVistaActual('planificacion'); if (delChat && !esMovil) setAgenteExpandido(true); }} />

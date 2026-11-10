@@ -36,6 +36,19 @@ export async function proxy(request: NextRequest) {
     return conCabeceras(NextResponse.redirect(new URL('/login', request.url)))
   }
 
+  // Cuenta de estudiante: solo su panel y sus rutas; nada de lo del profesor
+  if (sesion.rol === 'ESTUDIANTE') {
+    const permitido = pathname.startsWith('/estudiante') || pathname.startsWith('/api/estudiante') || pathname.startsWith('/api/perfil') || pathname.startsWith('/api/auth/')
+    if (!permitido) {
+      if (esApi) return conCabeceras(NextResponse.json({ error: 'Esta sección es solo para profesores.' }, { status: 403 }))
+      return conCabeceras(NextResponse.redirect(new URL('/estudiante', request.url)))
+    }
+  } else if (pathname.startsWith('/estudiante') || pathname.startsWith('/api/estudiante')) {
+    // Un profesor o administrador no usa el panel del estudiante
+    if (esApi) return conCabeceras(NextResponse.json({ error: 'Esta sección es solo para estudiantes.' }, { status: 403 }))
+    return conCabeceras(NextResponse.redirect(new URL('/', request.url)))
+  }
+
   // Reglas por rol
   if (esApi) {
     // Solo /api/usuarios es exclusivo de ADMIN/SUPERADMIN. Los datos (materias, estudiantes, etc.)

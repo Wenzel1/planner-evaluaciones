@@ -1,6 +1,7 @@
 // Consultas que el agente hace POR SU CUENTA (solo lectura): se ejecutan en el servidor y el resultado
 // vuelve al modelo para que siga respondiendo. Siempre limitadas a los datos del profesor que pregunta.
 import prisma from '@/lib/prisma'
+import { filtroMateria } from '@/lib/clases'
 import { promedioPonderado, textoNota, NOTA_APROBATORIA } from '@/lib/notas'
 
 export interface ContextoConsulta {
@@ -91,7 +92,7 @@ async function consultaNotas(c: ContextoConsulta, numero: number): Promise<strin
     select: { nombre: true, grupoSeccion: true, estado: true, calificaciones: { select: { estudianteId: true, puntaje: true, observaciones: true } } },
   })
   if (!datos) return 'Esa evaluación no está guardada todavía.'
-  const alumnos = await prisma.estudiante.findMany({ where: { usuarioId: c.usuarioId, grupo: datos.grupoSeccion, estado: 'ACTIVO' }, select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } })
+  const alumnos = await prisma.estudiante.findMany({ where: { usuarioId: c.usuarioId, grupo: datos.grupoSeccion, estado: 'ACTIVO', ...filtroMateria(c.materiaId) }, select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } })
   const porId = new Map<string, { puntaje: number | null; observaciones: string | null }>(datos.calificaciones.map(n => [n.estudianteId, n]))
   const con = alumnos.filter(a => porId.get(a.id)?.puntaje != null)
   const sin = alumnos.filter(a => porId.get(a.id)?.puntaje == null)
@@ -109,7 +110,7 @@ async function consultaSeccion(c: ContextoConsulta, sec: string): Promise<string
   if (!/^[A-Z]$/.test(sec)) return 'Indica la letra de la sección.'
   const [evs, alumnos] = await Promise.all([
     c.planId ? prisma.evaluacion.findMany({ where: { planificacionId: c.planId, grupoSeccion: sec }, orderBy: [{ orden: 'asc' }], select: { nombre: true, peso: true, fecha: true, estado: true, tipoActividad: true, calificaciones: { where: { puntaje: { not: null } }, select: { puntaje: true } } } }) : Promise.resolve([]),
-    prisma.estudiante.findMany({ where: { usuarioId: c.usuarioId, grupo: sec, estado: 'ACTIVO' }, select: { nombre: true, portalVisitas: true } }),
+    prisma.estudiante.findMany({ where: { usuarioId: c.usuarioId, grupo: sec, estado: 'ACTIVO', ...filtroMateria(c.materiaId) }, select: { nombre: true, portalVisitas: true } }),
   ])
   const l = [`Sección ${sec}: ${alumnos.length} estudiantes activos (${alumnos.filter(a => !a.portalVisitas).length} sin abrir su página).`]
   if (!evs.length) l.push('No tiene evaluaciones en este plan.')

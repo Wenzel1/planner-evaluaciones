@@ -60,3 +60,9 @@ export async function tokensDeEstudiantes(ids: string[]): Promise<Map<string, st
 export function urlPortal(request: Request, token: string): string {
   return `${origenApp(request)}/e/${token}`
 }
+
+// Lo que reciben los estudiantes en sus mensajes: el inicio de sesión (con su cuenta ven su plan, notas y entregas).
+// Ya no se envían enlaces personales.
+export function urlAcceso(request: Request): string {
+  return `${origenApp(request)}/login?estudiante=1`
+}

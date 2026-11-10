@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { accesoPortal } from '@/lib/portalAcceso'
 import prisma from '@/lib/prisma'
 import { TOKEN_VALIDO } from '@/lib/portal'
 
@@ -7,6 +8,8 @@ import { TOKEN_VALIDO } from '@/lib/portal'
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
+    const sinAcceso = await accesoPortal(request, token)
+    if (sinAcceso) return sinAcceso
     if (!TOKEN_VALIDO.test(token)) return NextResponse.json({ error: 'Enlace no válido.' }, { status: 404 })
     const est = await prisma.estudiante.findUnique({ where: { enlaceToken: token }, select: { id: true, estado: true, usuarioId: true } })
     if (!est || est.estado !== 'ACTIVO' || !est.usuarioId) return NextResponse.json({ error: 'Enlace no válido.' }, { status: 404 })

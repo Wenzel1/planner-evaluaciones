@@ -35,6 +35,17 @@ export default function LoginPage() {
   const porCorreo = canal === 'correo'
   const medio = porCorreo ? 'correo' : 'WhatsApp'
   const [modo, setModo] = useState<Modo>('login')
+  // Tipo de cuenta al registrarse. Si llega con un código de clase (?clase=ISW-A7K2) es un estudiante
+  const [tipoCuenta, setTipoCuenta] = useState<'profesor' | 'estudiante'>('profesor')
+  const [codigoClase, setCodigoClase] = useState('')
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search)
+      const c = (q.get('clase') || '').trim().toUpperCase()
+      if (c) { setCodigoClase(c); setTipoCuenta('estudiante'); setModo('registro'); localStorage.setItem('codigoClasePendiente', c) }
+      else if (q.get('estudiante') === '1') setTipoCuenta('estudiante') // viene de un correo de su profesor
+    } catch { /* sin almacenamiento */ }
+  }, [])
   const [cargando, setCargando] = useState(true)
   const [enviando, setEnviando] = useState(false)
 
@@ -200,7 +211,7 @@ export default function LoginPage() {
       if (modo === 'registro') {
         const r = await fetch('/api/auth/registro', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre, telefono, email, password, aceptaTratamiento: acepta, captchaToken: captcha?.token, captchaRespuesta: captchaResp }),
+          body: JSON.stringify({ nombre, telefono, email, password, aceptaTratamiento: acepta, captchaToken: captcha?.token, captchaRespuesta: captchaResp, tipo: tipoCuenta }),
         })
         const d = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(d.error || 'No se pudo enviar la solicitud.')
@@ -323,6 +334,26 @@ export default function LoginPage() {
               </div>
             ) : (
               <motion.form key={`${modo}-${sacudir}`} animate={sacudir ? { x: [0, -8, 8, -6, 6, 0] } : {}} transition={{ duration: 0.35 }} onSubmit={enviar} className="space-y-4" noValidate>
+                {pideRegistro && !modoSetup && (
+                  <div>
+                    <label className={etiqueta}>Soy…</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([['profesor', '👩‍🏫 Profesor(a)', 'Planifico y evalúo'], ['estudiante', '🎓 Estudiante', 'Veo mis evaluaciones y entrego']] as const).map(([id, titulo, sub]) => (
+                        <button key={id} type="button" onClick={() => setTipoCuenta(id)} className={`text-left px-3 py-2.5 rounded-xl border transition-colors ${tipoCuenta === id ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-313248)] hover:border-[color:var(--c-818cf8)]/40'}`}>
+                          <span className="block text-sm font-semibold text-[color:var(--c-e0e0ec)]">{titulo}</span>
+                          <span className="block text-[11px] text-[color:var(--c-8a8b9e)]">{sub}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {tipoCuenta === 'estudiante' && (
+                      <div className="mt-3">
+                        <label className={etiqueta}>Código de clase (opcional)</label>
+                        <input value={codigoClase} onChange={(e) => { const v = e.target.value.toUpperCase().slice(0, 12); setCodigoClase(v); try { if (v) localStorage.setItem('codigoClasePendiente', v); else localStorage.removeItem('codigoClasePendiente'); } catch { /* sin almacenamiento */ } }} placeholder="Ej: ISW-A7K2 (te lo da tu profesor)" className={`${campo} !pl-3 uppercase tracking-wider`} />
+                        <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">También puedes unirte después, desde tu panel. Si tu profesor ya te registró, usa <strong>ese mismo correo</strong> y verás tus clases sin código.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {(pideRegistro || modoSetup) && (
                   <div>
                     <label className={etiqueta}>Nombre completo</label>

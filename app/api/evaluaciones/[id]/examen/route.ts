@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
+import { filtroMateria } from '@/lib/clases'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { normalizarExamen, notaDe, faltaCorregir, ventanaExamen, salidasDe, type Correccion } from '@/lib/examen'
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic'
 async function cargarEvaluacion(id: string) {
   return prisma.evaluacion.findUnique({
     where: { id },
-    select: { id: true, nombre: true, fecha: true, grupoSeccion: true, examen: true, tiempoEstimadoMinutos: true, planificacion: { select: { materia: { select: { nombre: true, usuarioId: true } } } } },
+    select: { id: true, nombre: true, fecha: true, grupoSeccion: true, examen: true, tiempoEstimadoMinutos: true, planificacion: { select: { materiaId: true, materia: { select: { nombre: true, usuarioId: true } } } } },
   })
 }
 
@@ -31,7 +32,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const examen = normalizarExamen(ev.examen)
     if (!examen) return NextResponse.json({ examen: null, entregas: [] })
     const [alumnos, filas] = await Promise.all([
-      prisma.estudiante.findMany({ where: { usuarioId: dueno ?? actor.id, grupo: ev.grupoSeccion, estado: 'ACTIVO' }, select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } }),
+      prisma.estudiante.findMany({ where: { usuarioId: dueno ?? actor.id, grupo: ev.grupoSeccion, estado: 'ACTIVO', ...filtroMateria(ev.planificacion.materiaId) }, select: { id: true, nombre: true }, orderBy: { nombre: 'asc' } }),
       prisma.respuestaExamen.findMany({ where: { evaluacionId: id } }),
     ])
     const porEst = new Map<string, any>()

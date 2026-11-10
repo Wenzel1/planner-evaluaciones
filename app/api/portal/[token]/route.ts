@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { accesoPortal } from '@/lib/portalAcceso'
 import { datosPortal, registrarVisitaPortal } from '@/lib/portalDatos'
 
 export const dynamic = 'force-dynamic'
@@ -7,6 +8,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
+    const sinAcceso = await accesoPortal(request, token)
+    if (sinAcceso) return sinAcceso
     const datos = await datosPortal(token)
     if (!datos) return NextResponse.json({ error: 'Este enlace no existe o ya no está activo. Pídele a tu profesor uno nuevo.' }, { status: 404 })
     // Cuando el profesor abre la página desde la app (?profesor=1) no cuenta como visita del estudiante

@@ -45,6 +45,7 @@ enum NivelBloom {
 enum EstadoEstudiante {
   ACTIVO
   INACTIVO
+  PENDIENTE // pidió unirse con el código de clase y espera que el profesor lo acepte
 }
 
 enum TipoComentario {
@@ -63,6 +64,7 @@ enum RolUsuario {
   SUPERADMIN
   ADMIN
   USUARIO
+  ESTUDIANTE // cuenta propia del estudiante: ve sus materias, entrega trabajos y conversa con su profesor
 }
 
 // ============================================
@@ -94,6 +96,8 @@ model Usuario {
   estudiantes    Estudiante[]
   conversaciones Conversacion[]
   recuperaciones SolicitudRecuperacion[]
+  // Cuenta de estudiante: sus inscripciones (una por profesor/materia en la que está)
+  inscripciones  Estudiante[] @relation("CuentaEstudiante")
 }
 
 model Materia {
@@ -110,6 +114,8 @@ model Materia {
   usuario     Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   observaciones Observacion[]
   opiniones     OpinionPlan[]
+  estudiantes   Estudiante[]
+  secciones     SeccionMateria[]
   @@index([usuarioId])
 }
 
@@ -173,6 +179,11 @@ model Evaluacion {
   examen        Json?
   examenes      RespuestaExamen[]
 
+  // Entregas de los estudiantes y comentarios privados profesor-estudiante
+  entregas      Entrega[]
+  comentarios   ComentarioEvaluacion[]
+  aceptaEntregas Boolean  @default(true)
+
   @@index([planificacionId])
   @@index([fecha])
 }
@@ -226,7 +237,18 @@ model Estudiante {
   // Dueño (profesor). El mismo estudiante puede existir en la lista de varios profesores.
   usuarioId String?
   usuario   Usuario?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  // Materia a la que pertenece (null = cargado antes de existir esta opción: aparece en todas las materias del profesor)
+  materiaId String?
+  materia   Materia?         @relation(fields: [materiaId], references: [id], onDelete: SetNull)
+  // Cuenta propia del estudiante (rol ESTUDIANTE) con la que entra al sistema
+  cuentaId  String?
+  cuenta    Usuario?         @relation("CuentaEstudiante", fields: [cuentaId], references: [id], onDelete: SetNull)
+  solicitadoEn DateTime?     // cuándo pidió unirse con el código de clase
+  entregas    Entrega[]
+  comentarios ComentarioEvaluacion[]
   @@unique([usuarioId, email])
+  @@index([cuentaId])
+  @@index([materiaId])
   @@index([usuarioId])
   @@index([usuarioId, grupo])
 }
@@ -465,4 +487,55 @@ model RespuestaExamen {
 
   @@unique([estudianteId, evaluacionId])
   @@index([evaluacionId])
+}
+
+// Sección de una materia (A, B, C…) con su código de clase: el estudiante lo escribe para unirse.
+model SeccionMateria {
+  id                 String   @id @default(cuid())
+  materiaId          String
+  materia            Materia  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  letra              String
+  codigo             String   @unique
+  requiereAprobacion Boolean  @default(true) // true = el profesor acepta cada solicitud; false = entra directo
+  activo             Boolean  @default(true) // false = el código ya no sirve
+  createdAt          DateTime @default(now())
+
+  @@unique([materiaId, letra])
+}
+
+// Lo que entrega un estudiante en una evaluación: un archivo o un enlace (una entrega vigente por evaluación).
+model Entrega {
+  id            String     @id @default(cuid())
+  evaluacionId  String
+  evaluacion    Evaluacion @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  estudianteId  String
+  estudiante    Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  tipo          String     // ARCHIVO | ENLACE
+  url           String?    // enlace entregado (GitHub, Figma, Drive…)
+  archivoRuta   String?    // ruta del archivo en el almacenamiento
+  archivoNombre String?
+  archivoTamano Int?
+  comentario    String?
+  entregadaEn   DateTime   @default(now())
+  actualizadaEn DateTime   @updatedAt
+  devuelta      Boolean    @default(false) // el profesor la devolvió para corregir
+  devolucion    String?    // comentario del profesor al devolverla
+
+  @@unique([evaluacionId, estudianteId])
+  @@index([evaluacionId])
+}
+
+// Comentarios privados entre el profesor y un estudiante sobre una evaluación.
+model ComentarioEvaluacion {
+  id           String     @id @default(cuid())
+  evaluacionId String
+  evaluacion   Evaluacion @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  autor        String     // PROFESOR | ESTUDIANTE
+  texto        String
+  leido        Boolean    @default(false) // lo leyó el destinatario
+  createdAt    DateTime   @default(now())
+
+  @@index([evaluacionId, estudianteId])
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { datosPortal } from '@/lib/portalDatos'
 import { generarIcs } from '@/lib/ics'
-import { urlPortal } from '@/lib/portal'
+import { urlAcceso } from '@/lib/portal'
 
 // GET /api/portal/:token/calendario?materia=ID — archivo .ics con las evaluaciones del estudiante (avisos 1 día y 2 horas antes)
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -11,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     if (!datos) return NextResponse.json({ error: 'Enlace no válido.' }, { status: 404 })
     const id = new URL(request.url).searchParams.get('materia')
     const materias = id ? datos.materias.filter(m => m.id === id) : datos.materias
-    const enlace = urlPortal(request, token)
+    const enlace = urlAcceso(request)
     const eventos = materias.flatMap(m => m.evaluaciones
       .filter(e => e.fecha && e.estado !== 'REALIZADA' && !e.nota)
       .map(e => ({

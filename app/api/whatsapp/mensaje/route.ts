@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { filtroMateria } from '@/lib/clases'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarLoteN8n, nuevoId, primerNombre, destinoDe, tieneDestino, nombreDestino, type MensajeLote } from '@/lib/whatsappLotes'
 import { nombreCanal } from '@/lib/correo'
-import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
+import { tokensDeEstudiantes, urlAcceso } from '@/lib/portal'
 import { estudiantesEnRiesgo, filtrarRiesgo } from '@/lib/agente/analisis'
 
 export const maxDuration = 60
@@ -22,8 +23,9 @@ export async function POST(request: Request) {
     const texto = String(body.texto ?? '').trim().slice(0, 1500)
     if (texto.length < 5) return NextResponse.json({ error: 'Escribe el mensaje.' }, { status: 400 })
 
+    const planMsg = body.planificacionId ? await prisma.planificacion.findUnique({ where: { id: String(body.planificacionId) }, select: { materiaId: true } }).catch(() => null) : null
     let estudiantes = await prisma.estudiante.findMany({
-      where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' },
+      where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO', ...filtroMateria(planMsg?.materiaId) },
       select: { id: true, nombre: true, telefono: true, email: true },
     })
     const modo = String(body.destinatarios || 'seccion')
@@ -51,7 +53,7 @@ export async function POST(request: Request) {
     const loteId = nuevoId()
     const mensajes: MensajeLote[] = conTelefono.map(e => ({
       id: nuevoId(), telefono: destinoDe(e), asunto: `Mensaje de tu profesor ${actor.nombre}`, responderA: actor.email,
-      texto: texto.replace(/\{nombre\}/gi, primerNombre(e.nombre)) + (body.incluirEnlace ? `\n\n📚 Tu plan y tus notas: ${urlPortal(request, tokens.get(e.id) as string)}` : ''),
+      texto: texto.replace(/\{nombre\}/gi, primerNombre(e.nombre)) + (body.incluirEnlace ? `\n\n📚 Tu plan y tus notas: ${urlAcceso(request)}` : ''),
     }))
     await prisma.envioWhatsApp.createMany({ data: mensajes.map((m, i) => ({ id: m.id, loteId, usuarioId: actor.id, tipo: 'MENSAJE', estudianteId: conTelefono[i].id, nombre: conTelefono[i].nombre, telefono: m.telefono })) })
     const r = await enviarLoteN8n(request, mensajes)

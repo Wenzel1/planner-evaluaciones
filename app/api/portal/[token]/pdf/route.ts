@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { accesoPortal } from '@/lib/portalAcceso'
 import { datosPortal } from '@/lib/portalDatos'
 import { generarPdfPlan, nombreArchivoPdf } from '@/lib/pdfPlan'
 
@@ -8,6 +9,8 @@ export const maxDuration = 60
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
+    const sinAcceso = await accesoPortal(request, token)
+    if (sinAcceso) return sinAcceso
     const datos = await datosPortal(token)
     if (!datos) return NextResponse.json({ error: 'Enlace no válido.' }, { status: 404 })
     const id = new URL(request.url).searchParams.get('materia')

@@ -11,14 +11,26 @@ export type ResultadoActor =
   | { actor: Actor; error?: undefined }
   | { actor?: undefined; error: NextResponse }
 
-export async function requerirActor(request: Request): Promise<ResultadoActor> {
+export async function requerirActor(request: Request, opciones: { estudiante?: boolean } = {}): Promise<ResultadoActor> {
   const actor = await getActor(request)
   if (!actor) return { error: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) }
+  // Las cuentas de estudiante solo usan sus propias rutas (/api/estudiante/*): nada del profesor
+  if (actor.rol === 'ESTUDIANTE' && !opciones.estudiante) {
+    return { error: NextResponse.json({ error: 'Esta sección es solo para profesores.' }, { status: 403 }) }
+  }
   // Entró con una clave temporal: primero debe elegir una nueva (solo /api/perfil y /api/auth/* quedan disponibles)
   if (actor.debeCambiarPassword) {
     return { error: NextResponse.json({ error: 'Debes cambiar tu contraseña temporal antes de continuar.', codigo: 'CAMBIO_OBLIGATORIO' }, { status: 403 }) }
   }
   return { actor }
+}
+
+// Solo cuentas de estudiante (rol ESTUDIANTE)
+export async function requerirEstudiante(request: Request): Promise<ResultadoActor> {
+  const r = await requerirActor(request, { estudiante: true })
+  if (r.error) return r
+  if (r.actor.rol !== 'ESTUDIANTE') return { error: NextResponse.json({ error: 'Esta sección es solo para estudiantes.' }, { status: 403 }) }
+  return r
 }
 
 export const esAdminOSuper = (actor: Actor) => actor.rol === 'ADMIN' || actor.rol === 'SUPERADMIN'

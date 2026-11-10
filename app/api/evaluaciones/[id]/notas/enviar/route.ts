@@ -5,7 +5,7 @@ import { registrarActividad } from '@/lib/actividad'
 import { enviarLoteN8n, nombreLimpio, nuevoId, primerNombre, destinoDe, tieneDestino, nombreDestino, type MensajeLote } from '@/lib/whatsappLotes'
 import { nombreCanal } from '@/lib/correo'
 import { NIVELES_RUBRICA, normalizarRubrica, puntosNivel, textoPuntos } from '@/lib/rubrica'
-import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
+import { tokensDeEstudiantes, urlPortal, urlAcceso } from '@/lib/portal'
 import { NOTA_APROBATORIA, NOTA_MAXIMA, textoNota } from '@/lib/notas'
 
 export const maxDuration = 60
@@ -61,7 +61,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         })
       }
       if (n.observaciones) lineas.push('', `💬 ${n.observaciones}`)
-      lineas.push('', `📊 Todas tus notas y tu promedio: ${urlPortal(request, tokens.get(n.estudiante.id) as string)}`)
+      lineas.push('', `📊 Todas tus notas y tu promedio: ${urlAcceso(request)}`)
       lineas.push('', aprobado ? '¡Sigue así! 💪' : 'Puedes consultar con tu profesor cómo mejorar. ¡Ánimo! 💪')
       return { id: nuevoId(), telefono: destinoDe(n.estudiante), asunto: `Tu nota de ${evaluacion}: ${textoNota(nota)}/${NOTA_MAXIMA}`, responderA: actor.email, texto: lineas.join('\n') }
     })

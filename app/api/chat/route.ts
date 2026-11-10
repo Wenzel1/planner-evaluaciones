@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { filtroMateria } from '@/lib/clases'
 import { requerirActor } from '@/lib/permisos'
 import { leerConfig } from '@/lib/configuracion'
 import { bloqueado, registrarFallo, minutosRestantes } from '@/lib/rateLimit'
@@ -172,10 +173,10 @@ async function atender(request: Request) {
   }))
   const ids = evaluaciones.map(e => e.id).filter(Boolean) as string[]
   const [estudiantesSeccion, notas, opiniones, estudiantesLista, evsDB, memorias, materias, valoradas] = await Promise.all([
-    prisma.estudiante.count({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' } }).catch(() => null),
+    prisma.estudiante.count({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO', ...filtroMateria(plan?.materiaId) } }).catch(() => null),
     ids.length ? prisma.calificacion.groupBy({ by: ['evaluacionId'], where: { evaluacionId: { in: ids }, puntaje: { not: null }, evaluacion: { planificacion: { materia: { usuarioId: actor.id } } } }, _avg: { puntaje: true }, _count: { _all: true } }).catch(() => []) : Promise.resolve([] as any[]),
     plan ? prisma.opinionPlan.findMany({ where: { materiaId: plan.materiaId, leida: false }, orderBy: { updatedAt: 'desc' }, take: 20, select: { deAcuerdo: true, comentario: true, estudiante: { select: { nombre: true, grupo: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
-    prisma.estudiante.findMany({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' }, select: { id: true, nombre: true, portalVisitas: true }, orderBy: { nombre: 'asc' }, take: 200 }).catch(() => []),
+    prisma.estudiante.findMany({ where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO', ...filtroMateria(plan?.materiaId) }, select: { id: true, nombre: true, portalVisitas: true }, orderBy: { nombre: 'asc' }, take: 200 }).catch(() => []),
     plan ? prisma.evaluacion.findMany({ where: { planificacionId: plan.id, grupoSeccion: seccion }, select: { id: true, nombre: true, peso: true, estado: true, fecha: true, rubrica: true, calificaciones: { select: { estudianteId: true, puntaje: true, detalle: true } } } }).catch(() => []) : Promise.resolve([] as any[]),
     prisma.memoriaAgente.findMany({ where: { usuarioId: actor.id }, orderBy: { createdAt: 'asc' }, take: 25, select: { texto: true } }).catch(() => []),
     prisma.materia.findMany({ where: { usuarioId: actor.id }, orderBy: { nombre: 'asc' }, take: 30, select: { nombre: true } }).catch(() => []),

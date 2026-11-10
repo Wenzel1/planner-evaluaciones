@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requerirActor, quiereTodos } from '@/lib/permisos';
 import { registrarActividad } from '@/lib/actividad';
+import { seccionConCodigo } from '@/lib/clases';
 
 // GET /api/materias — Listar las materias del usuario (ADMIN/SUPERADMIN pueden pedir ?todos=1)
 export async function GET(request: Request) {
@@ -50,6 +51,9 @@ export async function POST(request: Request) {
       },
     });
     await registrarActividad({ actor, accion: 'CREAR', entidad: 'Materia', detalle: `Materia "${materia.nombre}"` });
+    // Secciones elegidas al crearla (cada una con su código de clase)
+    const letras = (Array.isArray(body.secciones) ? body.secciones : []).map((l: any) => String(l).toUpperCase()).filter((l: string) => /^[A-Z]$/.test(l)).slice(0, 8);
+    for (const l of letras) await seccionConCodigo(materia.id, l).catch(() => null);
     return NextResponse.json(materia, { status: 201 });
   } catch (error: any) {
     if (error.code === 'P2002') {

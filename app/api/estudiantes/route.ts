@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor, quiereTodos, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarAPapelera } from '@/lib/papelera'
+import { filtroMateria } from '@/lib/clases'
 
 // GET /api/estudiantes  (solo los del usuario; ADMIN/SUPERADMIN pueden pedir ?todos=1)
 export async function GET(request: Request) {
@@ -19,7 +20,12 @@ export async function GET(request: Request) {
     if (!todos) where.usuarioId = actor.id
     else if (searchParams.get('duenoId')) where.usuarioId = searchParams.get('duenoId') // un admin mira los estudiantes de un profesor
     if (grupo) where.grupo = grupo
-    if (estado && ['ACTIVO', 'INACTIVO'].includes(estado.toUpperCase())) where.estado = estado.toUpperCase()
+    // Las solicitudes (PENDIENTE) solo salen cuando se piden: no cuentan como estudiantes hasta que el profesor las acepta
+    if (estado && ['ACTIVO', 'INACTIVO', 'PENDIENTE'].includes(estado.toUpperCase())) where.estado = estado.toUpperCase()
+    else where.estado = { not: 'PENDIENTE' }
+    // Solo los de una materia (y los cargados sin materia, que valen para todas)
+    const materiaId = searchParams.get('materiaId')
+    if (materiaId) where.AND = [filtroMateria(materiaId)]
     if (buscar) {
       where.OR = [
         { nombre: { contains: buscar, mode: 'insensitive' } },
@@ -33,6 +39,7 @@ export async function GET(request: Request) {
       include: {
         ...(todos ? { usuario: { select: { id: true, nombre: true } } } : {}),
         _count: { select: { calificaciones: { where: { puntaje: { not: null } } } } }, // cuántas notas tiene
+        materia: { select: { id: true, nombre: true } },
       },
       orderBy: { nombre: 'asc' },
     })

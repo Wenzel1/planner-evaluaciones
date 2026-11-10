@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarLoteN8n, nuevoId, primerNombre, destinoDe, tieneDestino, nombreDestino, type MensajeLote } from '@/lib/whatsappLotes'
-import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
+import { tokensDeEstudiantes, urlAcceso } from '@/lib/portal'
 import { nombreCanal } from '@/lib/correo'
 
 export const maxDuration = 60
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         .replace(/\{nombre\}/g, primerNombre(e.nombre))
         .replace(/\{materia\}/g, materia)
         .replace(/\{seccion\}/g, seccion)
-        .replace(/\{enlace\}/g, urlPortal(request, tokens.get(e.id) as string)),
+        .replace(/\{enlace\}/g, urlAcceso(request)),
     }))
 
     await prisma.envioWhatsApp.createMany({

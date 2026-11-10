@@ -2,7 +2,8 @@
 // mensajes programados y el armado/envío de los mensajes. Todo se guarda en la tabla ConfiguracionSistema
 // (filas con id "recordatorios:…"), así no hace falta cambiar la base de datos.
 import prisma from '@/lib/prisma'
-import { tokensDeEstudiantes, urlPortal } from '@/lib/portal'
+import { filtroMateria } from '@/lib/clases'
+import { tokensDeEstudiantes, urlAcceso } from '@/lib/portal'
 import { enviarLoteN8n, fechaBonita, nombreLimpio, nuevoId, primerNombre, destinoDe, tieneDestino, ZONA_HORARIA, type MensajeLote } from '@/lib/whatsappLotes'
 
 export type Ventana = '7D' | '3D' | '1D' | '2H'
@@ -124,13 +125,13 @@ export function textoAviso(tipo: TipoAviso, d: DatosAviso): string {
   return `Hola ${d.nombre} 👋\n${encabezado}.\n\n*${d.evaluacion}*\n${d.materia} · Sección ${d.seccion}\n🗓️ ${fechaBonita(d.fecha)}${extra ? `\n${extra}` : ''}${nota}${pie}\n\n¡Mucho éxito! 💪`
 }
 
-export interface EvalAviso { id: string; nombre: string; fecha: Date; peso: number | null; tipoActividad: string | null; grupoSeccion: string | null; materia: string; usuarioId: string }
+export interface EvalAviso { id: string; nombre: string; fecha: Date; peso: number | null; tipoActividad: string | null; grupoSeccion: string | null; materia: string; usuarioId: string; materiaId?: string | null }
 
 // Arma un aviso para cada estudiante activo de la sección (con correo o teléfono, según el canal) y lo envía.
 // Queda registrado en EnvioWhatsApp (lote "R_<evaluación>_<tipo>_…") para el historial del panel.
 export async function enviarAviso(request: Request, ev: EvalAviso, tipo: TipoAviso, opciones: { nota?: string; fechaAnterior?: Date | null; probar?: boolean } = {}) {
   const seccion = ev.grupoSeccion || 'A'
-  const todos = await prisma.estudiante.findMany({ where: { usuarioId: ev.usuarioId, grupo: seccion, estado: 'ACTIVO' }, select: { id: true, nombre: true, telefono: true, email: true } })
+  const todos = await prisma.estudiante.findMany({ where: { usuarioId: ev.usuarioId, grupo: seccion, estado: 'ACTIVO', ...filtroMateria(ev.materiaId) }, select: { id: true, nombre: true, telefono: true, email: true } })
   const estudiantes = todos.filter(tieneDestino)
   const sinDestino = todos.length - estudiantes.length
   if (opciones.probar || !estudiantes.length) return { total: estudiantes.length, sinDestino, ok: true as boolean, error: undefined as string | undefined, loteId: '' }
@@ -142,7 +143,7 @@ export async function enviarAviso(request: Request, ev: EvalAviso, tipo: TipoAvi
   for (const est of estudiantes) {
     const id = nuevoId()
     const destino = destinoDe(est)
-    mensajes.push({ id, telefono: destino, asunto, texto: textoAviso(tipo, { nombre: primerNombre(est.nombre), evaluacion: nombreLimpio(ev.nombre), materia: ev.materia, seccion, fecha: ev.fecha, peso: ev.peso, actividad: ev.tipoActividad, enlace: urlPortal(request, tokens.get(est.id) as string), nota: opciones.nota, fechaAnterior: opciones.fechaAnterior }) })
+    mensajes.push({ id, telefono: destino, asunto, texto: textoAviso(tipo, { nombre: primerNombre(est.nombre), evaluacion: nombreLimpio(ev.nombre), materia: ev.materia, seccion, fecha: ev.fecha, peso: ev.peso, actividad: ev.tipoActividad, enlace: urlAcceso(request), nota: opciones.nota, fechaAnterior: opciones.fechaAnterior }) })
     filas.push({ id, loteId, usuarioId: ev.usuarioId, tipo: 'RECORDATORIO', estudianteId: est.id, nombre: est.nombre, telefono: destino })
   }
   await prisma.envioWhatsApp.createMany({ data: filas })
@@ -152,7 +153,7 @@ export async function enviarAviso(request: Request, ev: EvalAviso, tipo: TipoAvi
 
 // Mensaje libre programado por el profesor (ej. "Traigan laptop") para una sección
 export async function enviarProgramado(request: Request, p: Programado) {
-  const todos = await prisma.estudiante.findMany({ where: { usuarioId: p.usuarioId, grupo: p.seccion, estado: 'ACTIVO' }, select: { id: true, nombre: true, telefono: true, email: true } })
+  const todos = await prisma.estudiante.findMany({ where: { usuarioId: p.usuarioId, grupo: p.seccion, estado: 'ACTIVO', ...filtroMateria(p.materiaId) }, select: { id: true, nombre: true, telefono: true, email: true } })
   const estudiantes = todos.filter(tieneDestino)
   if (!estudiantes.length) return { total: 0, ok: true }
   const loteId = `P_${p.id}_${nuevoId()}`
@@ -163,7 +164,7 @@ export async function enviarProgramado(request: Request, p: Programado) {
     const id = nuevoId()
     const destino = destinoDe(est)
     const cuerpo = p.texto.replace(/\{nombre\}/gi, primerNombre(est.nombre))
-    mensajes.push({ id, telefono: destino, asunto: 'Mensaje de tu profesor', texto: `Hola ${primerNombre(est.nombre)} 👋\n${cuerpo}${p.incluirEnlace ? `\n\nTu página: ${urlPortal(request, tokens.get(est.id) as string)}` : ''}` })
+    mensajes.push({ id, telefono: destino, asunto: 'Mensaje de tu profesor', texto: `Hola ${primerNombre(est.nombre)} 👋\n${cuerpo}${p.incluirEnlace ? `\n\nTu página: ${urlAcceso(request)}` : ''}` })
     filas.push({ id, loteId, usuarioId: p.usuarioId, tipo: 'RECORDATORIO', estudianteId: est.id, nombre: est.nombre, telefono: destino })
   }
   await prisma.envioWhatsApp.createMany({ data: filas })
@@ -173,9 +174,9 @@ export async function enviarProgramado(request: Request, p: Programado) {
 
 // Datos de una evaluación para avisar (con su materia y dueño)
 export async function evalParaAviso(id: string): Promise<EvalAviso | null> {
-  const e = await prisma.evaluacion.findUnique({ where: { id }, select: { id: true, nombre: true, fecha: true, peso: true, tipoActividad: true, grupoSeccion: true, planificacion: { select: { materia: { select: { nombre: true, usuarioId: true } } } } } })
+  const e = await prisma.evaluacion.findUnique({ where: { id }, select: { id: true, nombre: true, fecha: true, peso: true, tipoActividad: true, grupoSeccion: true, planificacion: { select: { materiaId: true, materia: { select: { nombre: true, usuarioId: true } } } } } })
   if (!e || !e.fecha || !e.planificacion.materia.usuarioId) return null
-  return { id: e.id, nombre: e.nombre, fecha: e.fecha, peso: e.peso, tipoActividad: e.tipoActividad, grupoSeccion: e.grupoSeccion, materia: e.planificacion.materia.nombre, usuarioId: e.planificacion.materia.usuarioId }
+  return { id: e.id, nombre: e.nombre, fecha: e.fecha, peso: e.peso, tipoActividad: e.tipoActividad, grupoSeccion: e.grupoSeccion, materia: e.planificacion.materia.nombre, usuarioId: e.planificacion.materia.usuarioId, materiaId: e.planificacion.materiaId }
 }
 
 // Nota que acompaña el recordatorio de una evaluación: la suya o la general

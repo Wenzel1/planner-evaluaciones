@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
+import { filtroMateria } from '@/lib/clases'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { NOTA_MAXIMA, recalcularPromedios, redondearNota } from '@/lib/notas'
@@ -11,7 +12,7 @@ async function cargarEvaluacion(id: string) {
     where: { id },
     select: {
       id: true, nombre: true, grupoSeccion: true, estado: true, fecha: true, peso: true, rubrica: true,
-      planificacion: { select: { materia: { select: { nombre: true, usuarioId: true } } } },
+      planificacion: { select: { materiaId: true, materia: { select: { nombre: true, usuarioId: true } } } },
     },
   })
 }
@@ -33,7 +34,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const seccion = ev.grupoSeccion || 'A'
     const [estudiantes, notas] = await Promise.all([
       prisma.estudiante.findMany({
-        where: { usuarioId: dueno ?? actor.id, grupo: seccion },
+        where: { usuarioId: dueno ?? actor.id, grupo: seccion, estado: { not: 'PENDIENTE' }, ...filtroMateria(ev.planificacion.materiaId) },
         select: { id: true, nombre: true, telefono: true, email: true, estado: true },
         orderBy: { nombre: 'asc' },
       }),

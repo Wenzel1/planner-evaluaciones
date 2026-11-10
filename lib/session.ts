@@ -2,7 +2,7 @@
 // Sesión firmada con HMAC-SHA256 usando Web Crypto (funciona en middleware/Edge y en rutas Node).
 // No requiere instalar librerías.
 
-export type Rol = 'SUPERADMIN' | 'ADMIN' | 'USUARIO'
+export type Rol = 'SUPERADMIN' | 'ADMIN' | 'USUARIO' | 'ESTUDIANTE'
 
 export interface SesionPayload {
   sub: string
