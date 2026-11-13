@@ -154,7 +154,7 @@ export default function PanelRecordatorios({ onCerrar, notificar, enfoque, secci
             </div>
             <input defaultValue={datos.pref.nota} onBlur={(e) => { if (e.target.value.trim() !== datos.pref.nota) cambiarPref({ nota: e.target.value.trim() }); }} maxLength={300} placeholder="Nota para todos los recordatorios (opcional). Ej.: Lleguen 10 minutos antes." className={`${campo} w-full`} />
             <label className="flex items-center gap-2 text-sm text-[color:var(--c-b0b0c4)] cursor-pointer select-none">
-              <input type="checkbox" checked={datos.pref.avisarCambios} onChange={(e) => cambiarPref({ avisarCambios: e.target.checked })} className="accent-[#818cf8]" />
+              <input type="checkbox" checked={datos.pref.avisarCambios} onChange={(e) => cambiarPref({ avisarCambios: e.target.checked })} className="accent-[color:var(--c-818cf8)]" />
               Avisar a los estudiantes cuando reprogramo o cancelo una evaluación
             </label>
           </div>
@@ -210,7 +210,7 @@ export default function PanelRecordatorios({ onCerrar, notificar, enfoque, secci
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <select value={prog.seccion} onChange={(e) => setProg({ ...prog, seccion: e.target.value })} className={campo}>{secciones.map(s => <option key={s} value={s}>Sección {s}</option>)}</select>
               <input type="datetime-local" value={prog.enviarEn} min={aLocal(new Date())} onChange={(e) => setProg({ ...prog, enviarEn: e.target.value })} className={campo} />
-              <label className="flex items-center gap-1.5 text-xs text-[color:var(--c-b0b0c4)] cursor-pointer"><input type="checkbox" checked={prog.incluirEnlace} onChange={(e) => setProg({ ...prog, incluirEnlace: e.target.checked })} className="accent-[#818cf8]" />Con enlace a su página</label>
+              <label className="flex items-center gap-1.5 text-xs text-[color:var(--c-b0b0c4)] cursor-pointer"><input type="checkbox" checked={prog.incluirEnlace} onChange={(e) => setProg({ ...prog, incluirEnlace: e.target.checked })} className="accent-[color:var(--c-818cf8)]" />Con enlace a su página</label>
               <button type="button" disabled={programando || prog.texto.trim().length < 3 || !prog.enviarEn} onClick={programar} className="ml-auto h-8 px-3 rounded-lg text-xs font-semibold bg-[color:var(--c-818cf8)] text-white disabled:opacity-40 flex items-center gap-1.5">
                 {programando ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />}Programar
               </button>

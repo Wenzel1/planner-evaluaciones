@@ -72,11 +72,11 @@ export default function CodigoClase({ materiaId, materia, letra, onCerrar, notif
           </div>
           <div className="rounded-xl border border-[color:var(--c-2a2b3d)] divide-y divide-[color:var(--c-2a2b3d)]">
             <label className="flex items-center gap-3 px-4 py-3 cursor-pointer">
-              <input type="checkbox" checked={s.requiereAprobacion} disabled={guardando} onChange={(e) => cambiar({ requiereAprobacion: e.target.checked })} className="accent-[#818cf8]" />
+              <input type="checkbox" checked={s.requiereAprobacion} disabled={guardando} onChange={(e) => cambiar({ requiereAprobacion: e.target.checked })} className="accent-[color:var(--c-818cf8)]" />
               <span className="text-sm text-[color:var(--c-d0d0da)]">Aprobar cada solicitud <span className="block text-[11px] text-[color:var(--c-8a8b9e)]">{s.requiereAprobacion ? 'Los verás en Estudiantes → Solicitudes, para aceptarlos o rechazarlos.' : 'Entran directo a tu lista al usar el código.'}</span></span>
             </label>
             <label className="flex items-center gap-3 px-4 py-3 cursor-pointer">
-              <input type="checkbox" checked={s.activo} disabled={guardando} onChange={(e) => cambiar({ activo: e.target.checked })} className="accent-[#818cf8]" />
+              <input type="checkbox" checked={s.activo} disabled={guardando} onChange={(e) => cambiar({ activo: e.target.checked })} className="accent-[color:var(--c-818cf8)]" />
               <span className="text-sm text-[color:var(--c-d0d0da)]">Código activo <span className="block text-[11px] text-[color:var(--c-8a8b9e)]">Desactívalo cuando ya estén todos; nadie más podrá unirse.</span></span>
             </label>
             <button type="button" disabled={guardando} onClick={() => cambiar({ nuevoCodigo: true })} className="w-full flex items-center gap-2 px-4 py-3 text-sm text-[color:var(--c-b0b0c4)] hover:text-[color:var(--c-c7d2fe)] text-left"><RefreshCw className="w-4 h-4" />Generar un código nuevo</button>

@@ -460,7 +460,7 @@ export function ConfigSistemaPanel({ onGuardada }: { onGuardada: (c: ConfigClien
         <span className={`text-xs flex-1 ${sucia ? 'text-amber-300' : 'text-[color:var(--c-8a8b9e)]'}`}>{sucia ? 'Hay cambios sin guardar.' : 'Todo guardado.'}</span>
         <button onClick={() => { setCfg(JSON.parse(original)); setError(''); setExito(''); }} disabled={!sucia || guardando} className="px-4 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl disabled:opacity-40">Descartar</button>
         <button onClick={() => { setCfg(CONFIG_COMPLETA_DEFECTO); setExito(''); }} disabled={guardando} className="px-4 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl disabled:opacity-40">Valores por defecto</button>
-        <button onClick={guardar} disabled={!sucia || guardando} className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl disabled:opacity-40">{guardando ? 'Guardando...' : 'Guardar cambios'}</button>
+        <button onClick={guardar} disabled={!sucia || guardando} className="px-5 py-2 text-sm font-semibold text-white bg-[color:var(--c-818cf8)] rounded-xl disabled:opacity-40">{guardando ? 'Guardando...' : 'Guardar cambios'}</button>
       </div>
     </div>
   );

@@ -276,8 +276,6 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[color:var(--c-12131d)] flex">
       {/* ---------- Panel de marca (solo en pantallas grandes) ---------- */}
       <div className="hidden lg:flex lg:w-[46%] relative overflow-hidden flex-col justify-between p-12 bg-gradient-to-br from-[color:var(--c-1a1b3a)] via-[color:var(--c-1d1e2e)] to-[color:var(--c-14151f)]">
-        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[color:var(--c-818cf8)]/20 blur-3xl" />
-        <div className={`absolute bottom-0 right-0 w-96 h-96 rounded-full blur-3xl transition-colors duration-500 ${tipoCuenta === 'estudiante' ? 'bg-emerald-500/15' : 'bg-fuchsia-500/10'}`} />
         <div className="relative flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/30 flex items-center justify-center"><ShieldCheck className="w-6 h-6 text-[color:var(--c-a5b4fc)]" /></div>
           <span className="text-lg font-semibold text-[color:var(--c-e0e0ec)]">Planificador de Evaluaciones</span>
@@ -548,7 +546,7 @@ export default function LoginPage() {
                   )}
                 </AnimatePresence>
 
-                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="submit" disabled={enviando} className="w-full py-3 bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] text-white font-semibold text-sm rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 disabled:opacity-60">
+                <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="submit" disabled={enviando} className="w-full py-3 bg-[color:var(--c-818cf8)] text-white font-semibold text-sm rounded-xl shadow-lg shadow-black/20 flex items-center justify-center gap-2 disabled:opacity-60">
                   {enviando ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Procesando...</>) : modoSetup ? (<><ShieldCheck className="w-4 h-4" />Crear superadmin y entrar</>) : modo === 'registro' ? (<><UserPlus className="w-4 h-4" />Crear cuenta</>) : modo === 'recuperar' ? (recPaso === 'telefono' ? (<><MessageCircle className="w-4 h-4" />Enviarme un código por {medio}</>) : (<><KeyRound className="w-4 h-4" />Cambiar contraseña y entrar</>)) : modo === 'verificar' ? (<><ShieldCheck className="w-4 h-4" />Confirmar y entrar</>) : (<><LogIn className="w-4 h-4" />Iniciar sesión</>)}
                 </motion.button>
 

@@ -42,14 +42,14 @@ export default function TutorEstudio({ token, evaluaciones, inicial }: { token: 
   return (
     <>
       {!abierto && (
-        <button type="button" onClick={() => setAbierto(true)} className="fixed bottom-5 right-5 z-40 flex items-center gap-2 h-12 pl-4 pr-5 rounded-full bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white text-sm font-semibold shadow-lg shadow-[#818cf8]/30 hover:brightness-110">
+        <button type="button" onClick={() => setAbierto(true)} className="fixed bottom-5 right-5 z-40 flex items-center gap-2 h-12 pl-4 pr-5 rounded-full bg-[color:var(--c-818cf8)] text-white text-sm font-semibold shadow-lg shadow-[color:var(--c-818cf8)]/30 hover:brightness-110">
           <Bot className="w-5 h-5" />Asistente de estudio
         </button>
       )}
       {abierto && (
         <div className="fixed z-50 inset-x-3 bottom-3 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[400px] h-[min(600px,calc(100dvh-24px))] flex flex-col bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-[color:var(--c-313248)] flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center"><Bot className="w-4 h-4 text-white" /></div>
+            <div className="w-8 h-8 rounded-lg bg-[color:var(--c-818cf8)] flex items-center justify-center"><Bot className="w-4 h-4 text-white" /></div>
             <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Asistente de estudio</p><p className="text-[11px] text-[color:var(--c-8a8b9e)]">Te explica y te hace practicar; la tarea la haces tú 😉</p></div>
             <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar" className="p-1.5 rounded-lg text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)]"><X className="w-4 h-4" /></button>
           </div>

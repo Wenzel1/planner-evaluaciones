@@ -150,7 +150,7 @@ export function UsuariosPanel() {
           <h2 className="text-lg font-semibold text-[color:var(--c-e0e0ec)]">Usuarios del sistema</h2>
           <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">{esSuper ? 'Como superadmin gestionas a todos los usuarios.' : 'Como administrador gestionas a los usuarios con rol USUARIO.'}</p>
         </div>
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] text-white text-sm font-semibold rounded-xl shadow-lg"><Plus className="w-4 h-4" />Nuevo usuario</motion.button>
+        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={abrirNuevo} className="flex items-center gap-2 px-4 py-2.5 bg-[color:var(--c-818cf8)] text-white text-sm font-semibold rounded-xl shadow-lg"><Plus className="w-4 h-4" />Nuevo usuario</motion.button>
       </div>
 
       {esSuper && recuperaciones.length > 0 && (
@@ -194,7 +194,7 @@ export function UsuariosPanel() {
                 {resultadoReset.telefono ? <p>Entrégasela por teléfono: <a href={`tel:${resultadoReset.telefono}`} className="text-emerald-300 font-medium">{resultadoReset.telefono}</a>.</p> : <p className="text-amber-300">Esta cuenta no tiene teléfono registrado: contacta a la persona por otro medio.</p>}
                 <p>Se muestra <strong className="text-[color:var(--c-c0c0cc)]">solo esta vez</strong>. Al entrar, la persona deberá elegir una contraseña nueva, y sus sesiones abiertas anteriores se cerraron.</p>
               </div>
-              <button onClick={() => setResultadoReset(null)} className="w-full py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl">Entendido</button>
+              <button onClick={() => setResultadoReset(null)} className="w-full py-2.5 text-sm font-semibold text-white bg-[color:var(--c-818cf8)] rounded-xl">Entendido</button>
             </motion.div>
           </motion.div>
         )}
@@ -328,7 +328,7 @@ export function UsuariosPanel() {
 
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setModal(null)} className="flex-1 py-2.5 text-sm font-medium text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl hover:bg-[color:var(--c-2c2d40)]">Cancelar</button>
-                <button onClick={guardar} disabled={guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar'}</button>
+                <button onClick={guardar} disabled={guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-[color:var(--c-818cf8)] rounded-xl disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </motion.div>
           </motion.div>

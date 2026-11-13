@@ -58,7 +58,7 @@ export default function PanelEntregas({ evaluacionId, nombre, onCerrar, notifica
                 <button key={v} type="button" onClick={() => setFiltro(v)} className={`h-7 px-2.5 rounded-md text-xs font-semibold ${filtro === v ? 'bg-[color:var(--c-818cf8)] text-white' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>{t}</button>
               ))}
             </div>
-            <label className="ml-auto flex items-center gap-2 text-xs text-[color:var(--c-b0b0c4)] cursor-pointer"><input type="checkbox" checked={datos.evaluacion.aceptaEntregas} onChange={(e) => alternarRecibir(e.target.checked)} className="accent-[#818cf8]" />Recibir entregas</label>
+            <label className="ml-auto flex items-center gap-2 text-xs text-[color:var(--c-b0b0c4)] cursor-pointer"><input type="checkbox" checked={datos.evaluacion.aceptaEntregas} onChange={(e) => alternarRecibir(e.target.checked)} className="accent-[color:var(--c-818cf8)]" />Recibir entregas</label>
           </div>
           {!filas.length && <p className="text-sm text-[color:var(--c-8a8b9e)] py-6 text-center">No hay estudiantes activos en esta sección.</p>}
           <div className="rounded-xl border border-[color:var(--c-2a2b3d)] divide-y divide-[color:var(--c-2a2b3d)] overflow-hidden">

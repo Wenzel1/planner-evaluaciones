@@ -272,7 +272,7 @@ export function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
               {edicionEst.error && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{edicionEst.error}</span></p>}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setEdicionEst(null)} className="flex-1 py-2.5 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl">Cancelar</button>
-                <button onClick={guardarEstudiante} disabled={edicionEst.guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl disabled:opacity-60">{edicionEst.guardando ? 'Guardando...' : 'Guardar'}</button>
+                <button onClick={guardarEstudiante} disabled={edicionEst.guardando} className="flex-1 py-2.5 text-sm font-semibold text-white bg-[color:var(--c-818cf8)] rounded-xl disabled:opacity-60">{edicionEst.guardando ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </motion.div>
           </motion.div>
@@ -421,7 +421,7 @@ export function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
                                                 {edicion.error && <p className="text-red-400 text-[11px]">{edicion.error}</p>}
                                                 <div className="flex gap-2 justify-end">
                                                   <button onClick={() => setEdicion(null)} className="px-3 py-1.5 text-xs text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-lg">Cancelar</button>
-                                                  <button onClick={guardarEdicion} disabled={edicion.guardando} className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-lg disabled:opacity-60">{edicion.guardando ? 'Guardando...' : 'Guardar cambios'}</button>
+                                                  <button onClick={guardarEdicion} disabled={edicion.guardando} className="px-3 py-1.5 text-xs font-semibold text-white bg-[color:var(--c-818cf8)] rounded-lg disabled:opacity-60">{edicion.guardando ? 'Guardando...' : 'Guardar cambios'}</button>
                                                 </div>
                                               </>
                                             ) : (

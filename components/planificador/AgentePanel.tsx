@@ -1269,7 +1269,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
       )}
       {/* Encabezado */}
       <div className="flex-shrink-0 px-3 sm:px-5 py-3.5 border-b border-[color:var(--c-282a3f)] flex items-center gap-3 bg-gradient-to-r from-[color:var(--c-191a26)] to-[color:var(--c-1f2035)] relative">
-        <div className="relative"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] flex items-center justify-center shadow-lg shadow-[color:var(--c-818cf8)]/30"><Bot className="w-5 h-5 text-[color:var(--c-blanco)]" /></div><div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-[color:var(--c-191a26)] flex items-center justify-center ${chatInactivo ? 'bg-[color:var(--c-6a6b7e)]' : ocupado ? 'bg-amber-400' : 'bg-emerald-400'}`}><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div>
+        <div className="relative"><div className="w-10 h-10 rounded-xl bg-[color:var(--c-818cf8)] flex items-center justify-center shadow-lg shadow-[color:var(--c-818cf8)]/30"><Bot className="w-5 h-5 text-[color:var(--c-blanco)]" /></div><div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-[color:var(--c-191a26)] flex items-center justify-center ${chatInactivo ? 'bg-[color:var(--c-6a6b7e)]' : ocupado ? 'bg-amber-400' : 'bg-emerald-400'}`}><div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /></div></div>
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-[color:var(--c-d0d0da)] font-['Inter'] flex items-center gap-2 flex-wrap">EvaPlanner<span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">IA</span></h2>
           <p className="text-xs text-[color:var(--c-8a8b9e)] flex items-center gap-1.5 truncate"><span className={`w-1.5 h-1.5 rounded-full inline-block ${chatInactivo ? 'bg-[color:var(--c-6a6b7e)]' : ocupado ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>{estadoTexto}<span className="text-[color:var(--c-5f6074)]">· Sección {seccionActiva}</span></p>
@@ -1283,7 +1283,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
             {esSuperadmin && (<Tooltip text="Configuración del agente" lado="abajo"><button onClick={() => irAPanel('sistema')} aria-label="Configuración del agente" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><Settings className="w-4 h-4" /></button></Tooltip>)}
             <Tooltip text="Planificador de evaluaciones" lado="abajo"><button onClick={() => irAPanel('planificacion')} aria-label="Planificador de evaluaciones" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><ClipboardList className="w-4 h-4" /></button></Tooltip>
           </div>
-          <Tooltip text={esMovil ? 'Ocultar chat' : 'Ocultar chat (Ctrl+B)'} lado="abajo" alinear="derecha"><motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={() => setExpandido(false)} aria-label="Ocultar el chat" className="group/ocultar w-9 h-9 flex items-center justify-center rounded-xl border border-[color:var(--c-818cf8)]/25 bg-gradient-to-br from-[color:var(--c-818cf8)]/15 to-[color:var(--c-6366f1)]/5 text-[color:var(--c-a5b4fc)] hover:text-white hover:border-[color:var(--c-818cf8)]/60 hover:from-[color:var(--c-818cf8)]/40 hover:to-[color:var(--c-6366f1)]/25 hover:shadow-lg hover:shadow-[color:var(--c-818cf8)]/25 transition-all"><PanelLeftClose className="w-[18px] h-[18px] transition-transform duration-200 group-hover/ocultar:-translate-x-0.5" /></motion.button></Tooltip>
+          <Tooltip text={esMovil ? 'Ocultar chat' : 'Ocultar chat (Ctrl+B)'} lado="abajo" alinear="derecha"><motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={() => setExpandido(false)} aria-label="Ocultar el chat" className="group/ocultar w-9 h-9 flex items-center justify-center rounded-xl border border-[color:var(--c-818cf8)]/25 bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-a5b4fc)] hover:text-white hover:border-[color:var(--c-818cf8)]/60 hover:from-[color:var(--c-818cf8)]/40 hover:to-[color:var(--c-6366f1)]/25 hover:shadow-lg hover:shadow-[color:var(--c-818cf8)]/25 transition-all"><PanelLeftClose className="w-[18px] h-[18px] transition-transform duration-200 group-hover/ocultar:-translate-x-0.5" /></motion.button></Tooltip>
         </div>
         {/* Historial de conversaciones */}
         <AnimatePresence>
@@ -1320,7 +1320,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
       {!isChatStarted ? (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-5 py-6 custom-scrollbar">
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="flex flex-col items-center text-center w-full max-w-md">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[color:var(--c-818cf8)]/20 to-[color:var(--c-6366f1)]/20 flex items-center justify-center border-2 border-[color:var(--c-818cf8)]/30 mb-5 shadow-2xl shadow-[color:var(--c-818cf8)]/20"><Sparkle className="w-9 h-9 text-[color:var(--c-818cf8)]" /></div>
+            <div className="w-20 h-20 rounded-full bg-[color:var(--c-818cf8)]/15 flex items-center justify-center border-2 border-[color:var(--c-818cf8)]/30 mb-5 shadow-2xl shadow-[color:var(--c-818cf8)]/20"><Sparkle className="w-9 h-9 text-[color:var(--c-818cf8)]" /></div>
             {avisos && avisos.length > 0 && (
               <div className="w-full mb-6 text-left">
                 <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold mb-2 flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" />Pendientes de hoy</p>
@@ -1351,7 +1351,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
             <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.rol === 'agent' ? (
                 <div className="group/msg flex items-start gap-3 w-full max-w-[94%]">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.streaming ? 'eva-anillo' : ''} ${msg.error ? 'bg-amber-500/20' : 'bg-gradient-to-br from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] shadow-[color:var(--c-818cf8)]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-[color:var(--c-blanco)]'}`} /></div>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.streaming ? 'eva-anillo' : ''} ${msg.error ? 'bg-amber-500/20' : 'bg-[color:var(--c-818cf8)] shadow-[color:var(--c-818cf8)]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-[color:var(--c-blanco)]'}`} /></div>
                   <div className="flex-1 min-w-0 text-[15px] text-[color:var(--c-c0c0cc)] leading-relaxed pt-0.5 font-['Inter']">
                     {msg.contenido && textoVisible(msg) && <div className="break-words"><span dangerouslySetInnerHTML={{ __html: formatMessage(textoVisible(msg)) }} />{msg.streaming && <span className="eva-escribe" aria-label="Escribiendo"><i /><i /><i /></span>}</div>}
                     {!msg.contenido && msg.streaming && !(msg.acciones?.length) && <span className="eva-brillo text-sm">Pensando…</span>}
@@ -1370,7 +1370,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
                     {(() => {
                       const pendientes = (msg.acciones || []).filter(a => (a.estado || 'pendiente') === 'pendiente' && !FUERA_DE_APLICAR_TODO.includes(a.tipo));
                       return pendientes.length >= 2 && !msg.streaming ? (
-                        <button type="button" onClick={() => aplicarTodo(msg)} className="mt-3 w-full h-10 rounded-xl bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] hover:from-[color:var(--c-6366f1)] hover:to-[color:var(--c-4f46e5)] text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-[color:var(--c-818cf8)]/20">
+                        <button type="button" onClick={() => aplicarTodo(msg)} className="mt-3 w-full h-10 rounded-xl bg-[color:var(--c-818cf8)] hover:from-[color:var(--c-6366f1)] hover:to-[color:var(--c-4f46e5)] text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-[color:var(--c-818cf8)]/20">
                           <CheckCircle className="w-4 h-4" />Aplicar todo ({pendientes.length})
                         </button>
                       ) : null;
@@ -1396,7 +1396,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
           ))}
           {pensando && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-3 justify-start">
-              <div className="eva-anillo w-8 h-8 rounded-lg bg-gradient-to-br from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] flex items-center justify-center flex-shrink-0 shadow-md shadow-[color:var(--c-818cf8)]/20"><Bot className="w-4 h-4 text-[color:var(--c-blanco)]" /></div>
+              <div className="eva-anillo w-8 h-8 rounded-lg bg-[color:var(--c-818cf8)] flex items-center justify-center flex-shrink-0 shadow-md shadow-[color:var(--c-818cf8)]/20"><Bot className="w-4 h-4 text-[color:var(--c-blanco)]" /></div>
               <div className="px-4 py-2.5 bg-[color:var(--c-1f2035)] rounded-2xl rounded-tl-md border border-[color:var(--c-313248)] flex items-center gap-2.5 mt-0.5"><span className="eva-escribe !ml-0" aria-hidden="true"><i /><i /><i /></span><FrasePensando /></div>
             </motion.div>
           )}
@@ -1431,7 +1431,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
                   <span className="w-2 h-2 rounded-full bg-[color:var(--c-a78bfa)] animate-pulse flex-shrink-0" />
                   <span className="text-xs tabular-nums text-[color:var(--c-c4b5fd)] w-8 flex-shrink-0">{Math.floor(segGrabando / 60)}:{String(segGrabando % 60).padStart(2, '0')}</span>
                   <div className="flex-1 min-w-0 h-8 flex items-center gap-[3px] overflow-hidden" aria-hidden="true">
-                    {[...Array(Math.max(0, 28 - nivelesMic.length)).fill(0), ...nivelesMic].map((v, k) => <span key={k} className="w-[3px] flex-shrink-0 rounded-full bg-gradient-to-t from-[color:var(--c-7c3aed)] to-[color:var(--c-c4b5fd)] transition-[height] duration-75" style={{ height: `${Math.max(3, Math.round(v * 28))}px`, opacity: 0.35 + v * 0.65 }} />)}
+                    {[...Array(Math.max(0, 28 - nivelesMic.length)).fill(0), ...nivelesMic].map((v, k) => <span key={k} className="w-[3px] flex-shrink-0 rounded-full bg-[color:var(--c-818cf8)] transition-[height] duration-75" style={{ height: `${Math.max(3, Math.round(v * 28))}px`, opacity: 0.35 + v * 0.65 }} />)}
                   </div>
                   <span className="hidden @md:inline text-[11px] text-[color:var(--c-8a8b9e)] whitespace-nowrap">{silencioMic >= 2 ? `Se detiene en ${Math.max(1, 5 - silencioMic)} s…` : segGrabando < 2 ? 'Habla, te escucho…' : 'Te escucho…'}</span>
                   <Tooltip text={autoEnviarVoz ? 'Al terminar se envía solo (clic para solo escribirlo)' : 'Al terminar solo se escribe (clic para enviarlo solo)'}><button type="button" onClick={() => { const v = !autoEnviarVoz; setAutoEnviarVoz(v); try { localStorage.setItem('voz_autoenviar', v ? '1' : '0'); } catch {} }} className={`flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors ${autoEnviarVoz ? 'text-[color:var(--c-c7d2fe)] border-[color:var(--c-818cf8)]/50 bg-[color:var(--c-818cf8)]/15' : 'text-[color:var(--c-8a8b9e)] border-[color:var(--c-313248)] hover:text-[color:var(--c-c7d2fe)]'}`}>{autoEnviarVoz ? 'Enviar solo ✓' : 'Enviar solo'}</button></Tooltip>
@@ -1442,7 +1442,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
             {pensando || escribiendo ? (
               <Tooltip text="Detener"><button type="button" onClick={detener} aria-label="Detener respuesta" className="w-10 h-10 flex items-center justify-center rounded-xl bg-[color:var(--c-272839)] text-[color:var(--c-c7d2fe)] hover:bg-red-500/20 hover:text-red-300 transition-colors flex-shrink-0 self-end"><Square className="w-4 h-4 fill-current" /></button></Tooltip>
             ) : (
-              <button type="button" onClick={() => handleSend()} disabled={(!mensaje.trim() && !adjunto) || chatInactivo || subiendoAdjunto} aria-label="Enviar" className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all flex-shrink-0 self-end ${(mensaje.trim() || adjunto) && !subiendoAdjunto ? 'bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] text-white hover:shadow-lg hover:shadow-[color:var(--c-818cf8)]/30 shadow-md' : 'bg-[color:var(--c-272839)] text-[color:var(--c-5a5b6e)] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
+              <button type="button" onClick={() => handleSend()} disabled={(!mensaje.trim() && !adjunto) || chatInactivo || subiendoAdjunto} aria-label="Enviar" className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all flex-shrink-0 self-end ${(mensaje.trim() || adjunto) && !subiendoAdjunto ? 'bg-[color:var(--c-818cf8)] text-white hover:shadow-lg hover:shadow-[color:var(--c-818cf8)]/30 shadow-md' : 'bg-[color:var(--c-272839)] text-[color:var(--c-5a5b6e)] cursor-not-allowed'}`}><Send className="w-4 h-4" /></button>
             )}
           </div>
         </div>

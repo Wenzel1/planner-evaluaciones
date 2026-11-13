@@ -145,7 +145,7 @@ export function DescripcionEstudiante({ texto, estudiante }: { texto: string; es
               {listaCrit.map((c, k) => (
                 <li key={k}>
                   <div className="flex items-baseline justify-between gap-3 text-sm"><span className="text-[color:var(--c-d0d0dc)]">{c.nombre}</span><span className="font-semibold text-[color:var(--c-c7d2fe)] tabular-nums">{c.pct}%</span></div>
-                  <div className="mt-1 h-1.5 rounded-full bg-[color:var(--c-2a2b3d)] overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-a78bfa)]" style={{ width: `${c.pct}%` }} /></div>
+                  <div className="mt-1 h-1.5 rounded-full bg-[color:var(--c-2a2b3d)] overflow-hidden"><div className="h-full rounded-full bg-[color:var(--c-818cf8)]" style={{ width: `${c.pct}%` }} /></div>
                 </li>
               ))}
             </ul>

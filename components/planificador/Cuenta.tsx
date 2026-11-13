@@ -50,7 +50,7 @@ export function CambioPasswordObligatorio({ usuario, onLogout }: { usuario: Usua
         <div><label className={etiqueta}>Confirmar nueva contraseña</label><input type={ver ? 'text' : 'password'} value={confirmar} onChange={(e) => setConfirmar(e.target.value)} className={campo} autoComplete="new-password" /></div>
         <label className="flex items-center gap-2 text-xs text-[color:var(--c-9a9bb0)] cursor-pointer"><input type="checkbox" checked={ver} onChange={(e) => setVer(e.target.checked)} className="accent-[color:var(--c-818cf8)]" />Mostrar contraseñas</label>
         {error && <p className="text-red-300 text-xs flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2.5" role="alert"><AlertCircle className="w-4 h-4 flex-shrink-0" /><span>{error}</span></p>}
-        <button type="submit" disabled={guardando} className="w-full py-3 bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] text-white font-semibold text-sm rounded-xl shadow-lg disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar y entrar'}</button>
+        <button type="submit" disabled={guardando} className="w-full py-3 bg-[color:var(--c-818cf8)] text-white font-semibold text-sm rounded-xl shadow-lg disabled:opacity-60">{guardando ? 'Guardando...' : 'Guardar y entrar'}</button>
         <button type="button" onClick={onLogout} className="w-full text-xs text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)]">Cerrar sesión</button>
       </motion.form>
     </div>
@@ -223,7 +223,7 @@ export function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesio
       {errorGlobal && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{errorGlobal}</span></p>}
       {exito && <p className="text-emerald-400 text-xs flex items-start gap-1.5"><CheckCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{exito}</span></p>}
 
-      <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={guardar} disabled={guardando} className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[color:var(--c-818cf8)] to-[color:var(--c-6366f1)] rounded-xl shadow-lg disabled:opacity-60">
+      <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} onClick={guardar} disabled={guardando} className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold text-white bg-[color:var(--c-818cf8)] rounded-xl shadow-lg disabled:opacity-60">
         {guardando ? 'Guardando...' : 'Guardar cambios'}
       </motion.button>
 

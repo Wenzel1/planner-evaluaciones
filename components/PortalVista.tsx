@@ -161,7 +161,7 @@ export default function PortalVista({ token, embebido = false }: { token: string
         <h1 className="text-lg font-semibold text-[color:var(--c-blanco)]">No pudimos abrir tu plan</h1>
         <p className="text-sm text-[color:var(--c-9a9bb0)] mt-2">{error}</p>
         {/Inicia sesión/i.test(error) && (
-          <a href="/login?estudiante=1" className="inline-flex items-center gap-2 mt-5 h-11 px-5 rounded-xl bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white text-sm font-semibold">Iniciar sesión o crear mi cuenta</a>
+          <a href="/login?estudiante=1" className="inline-flex items-center gap-2 mt-5 h-11 px-5 rounded-xl bg-[color:var(--c-818cf8)] text-white text-sm font-semibold">Iniciar sesión o crear mi cuenta</a>
         )}
       </div>
     </Pantalla>
@@ -224,7 +224,7 @@ export default function PortalVista({ token, embebido = false }: { token: string
 
               {/* Resumen */}
               <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-2 gap-3 mb-8 lg:mb-6">
-                <div className="sm:col-span-1 lg:col-span-2 rounded-2xl border border-[color:var(--c-818cf8)]/30 bg-gradient-to-br from-[color:var(--c-818cf8)]/15 to-[color:var(--c-1c1d2a)] p-4">
+                <div className="sm:col-span-1 lg:col-span-2 rounded-2xl border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 p-4">
                   <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-a5b4fc)] font-semibold">Próxima evaluación</p>
                   {proxima && proxima.fecha ? (
                     <button type="button" onClick={() => irA(proxima.id)} className="text-left w-full">

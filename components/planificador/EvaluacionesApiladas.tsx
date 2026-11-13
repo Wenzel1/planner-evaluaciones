@@ -71,7 +71,7 @@ export function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvalu
       initial={{ opacity: 0, height: 0, y: 10 }}
       animate={{
         opacity: 1, height: 'auto', y: 0,
-        borderColor: tieneErrores ? '#f87171' : isGlowing ? '#818cf8' : '#313248',
+        borderColor: tieneErrores ? '#f87171' : isGlowing ? '#4f8bf0' : '#313248',
         boxShadow: tieneErrores ? '0 0 12px -3px rgba(248,113,113,0.3)' : isGlowing ? '0 0 15px -3px rgba(129,140,248,0.4)' : '0 0 0 0 rgba(0,0,0,0)'
       }}
       exit={{ opacity: 0, height: 0, y: -10 }}

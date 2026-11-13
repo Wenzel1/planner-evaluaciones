@@ -46,7 +46,7 @@ export default function BienvenidaProfesor({ nombre, onCrear }: { nombre: string
           <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1.5">Secciones {letras.join(', ')}. Cada una tendrá su código para que tus estudiantes se unan.</p>
         </div>
         {error && <p className="text-xs text-red-300">{error}</p>}
-        <button type="button" onClick={crear} disabled={creando} className="w-full h-11 rounded-xl bg-gradient-to-r from-[#818cf8] to-[#6366f1] text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60">
+        <button type="button" onClick={crear} disabled={creando} className="w-full h-11 rounded-xl bg-[color:var(--c-818cf8)] text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60">
           {creando ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-4 h-4" />}Empezar
         </button>
       </div>
