@@ -1,7 +1,8 @@
 'use client';
 
+import { memoriaPaneles } from '@/components/planificador/utilidades';
 import { Activity, AlertCircle, BarChart3, CheckCircle, ClipboardList, FileText, Info, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Sparkles, Trash2, User } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ConfigChat, ConfigCliente, ConfigCompleta, UsuarioSesion } from '@/components/planificador/tipos';
 import { CONFIG_CLIENTE_DEFECTO, ESTILO_ROL, limpiarTexto } from '@/components/planificador/utilidades';
 
@@ -161,9 +162,11 @@ export function ActividadPanel() {
 // ============================================
 export function PapeleraPanel({ usuario }: { usuario?: UsuarioSesion | null }) {
   interface ItemPapelera { id: string; tipo: string; nombre: string; contexto: string | null; eliminadoPorNombre: string; eliminadoPorId: string | null; createdAt: string }
-  const [items, setItems] = useState<ItemPapelera[]>([]);
-  const [dias, setDias] = useState(30);
+  const [items, setItems] = useState<ItemPapelera[]>(() => memoriaPaneles.papelera?.items ?? []);
+  const [dias, setDias] = useState(() => memoriaPaneles.papelera?.dias ?? 30);
   const [cargando, setCargando] = useState(true);
+  const yaCargo = useRef(!!memoriaPaneles.papelera);
+  useEffect(() => { if (!cargando) { memoriaPaneles.papelera = { items, dias }; yaCargo.current = true; } }, [items, dias, cargando]);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
@@ -220,7 +223,7 @@ export function PapeleraPanel({ usuario }: { usuario?: UsuarioSesion | null }) {
       {aviso && <p className="text-emerald-400 text-sm flex items-start gap-2"><CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{aviso}</span></p>}
 
       <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl overflow-hidden">
-        {cargando ? (
+        {cargando && !yaCargo.current ? (
           <div className="p-8 text-center text-sm text-[color:var(--c-8a8b9e)]">Cargando...</div>
         ) : items.length === 0 ? (
           <div className="p-10 text-center text-sm text-[color:var(--c-8a8b9e)]"><Trash2 className="w-8 h-8 mx-auto mb-3 text-[color:var(--c-3a3b52)]" />La papelera está vacía.</div>

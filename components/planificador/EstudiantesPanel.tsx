@@ -1,5 +1,6 @@
 'use client';
 
+import { memoriaPaneles } from '@/components/planificador/utilidades';
 import { AlertCircle, CheckCircle, Copy, Download, ExternalLink, Eye, Filter, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, Upload, User, Users, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { apiEstudiantes } from '@/lib/api';
@@ -12,9 +13,10 @@ import { haceCuanto, inputBase, labelBase, olvidarCache, opcionesSeccion } from 
 export function EstudiantesPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('todos');
-  const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
+  const [estudiantes, setEstudiantes] = useState<Estudiante[]>(() => memoriaPaneles.estudiantes ?? []);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [cargando, setCargando] = useState(true);
+  const [cargando, setCargando] = useState(() => !memoriaPaneles.estudiantes);
+  useEffect(() => { if (!cargando) memoriaPaneles.estudiantes = estudiantes; }, [estudiantes, cargando]);
   const [importando, setImportando] = useState(false);
   const [resultadoImport, setResultadoImport] = useState<{ creados: number; omitidos: { fila: number; motivo: string }[]; desplazamiento: number } | null>(null);
   const [errorImport, setErrorImport] = useState('');

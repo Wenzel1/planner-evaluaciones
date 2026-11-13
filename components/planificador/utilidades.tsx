@@ -499,3 +499,7 @@ export async function pedirSugerenciasRecursos(sec: SeccionExamen, materia?: str
 }
 // Cuándo se guardó por última vez el plan que tiene abierto esta ventana (para no pisar cambios hechos en otra)
 export const planVisto: { en: string | null } = { en: null }; // objeto (no let) para compartirlo entre archivos
+
+// Últimos datos que mostró cada panel. Al volver a una pestaña se ven al instante y se actualizan por detrás
+// (antes cada visita empezaba en blanco con "Cargando..."). Se borra sola al recargar la página o cerrar sesión.
+export const memoriaPaneles: Record<string, any> = {};

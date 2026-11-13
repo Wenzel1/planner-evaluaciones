@@ -1,5 +1,6 @@
 'use client';
 
+import { memoriaPaneles } from '@/components/planificador/utilidades';
 import { AlertCircle, CheckCircle, Pencil, Phone, Plus, Search, Trash2, User, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -13,12 +14,13 @@ export function UsuariosPanel() {
   type RolU = 'SUPERADMIN' | 'ADMIN' | 'USUARIO';
   interface UsuarioFila { id: string; nombre: string; email: string; rol: RolU; activo: boolean; pendiente: boolean; telefono: string | null; cedula: string | null; debeCambiarPassword: boolean; telefonoVerificado?: boolean; }
   interface RecuperacionFila { id: string; createdAt: string; usuario: { id: string; nombre: string; email: string; telefono: string | null; cedula: string | null; rol: RolU } }
-  const [usuarios, setUsuarios] = useState<UsuarioFila[]>([]);
-  const [actor, setActor] = useState<{ id: string; rol: RolU } | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [usuarios, setUsuarios] = useState<UsuarioFila[]>(() => memoriaPaneles.usuarios?.usuarios ?? []);
+  const [actor, setActor] = useState<{ id: string; rol: RolU } | null>(() => memoriaPaneles.usuarios?.actor ?? null);
+  const [cargando, setCargando] = useState(() => !memoriaPaneles.usuarios);
   const [modal, setModal] = useState<null | 'nuevo' | UsuarioFila>(null);
   const [form, setForm] = useState({ nombre: '', email: '', password: '', rol: 'USUARIO' as RolU, activo: true, telefono: '', cedula: '' });
-  const [recuperaciones, setRecuperaciones] = useState<RecuperacionFila[]>([]);
+  const [recuperaciones, setRecuperaciones] = useState<RecuperacionFila[]>(() => memoriaPaneles.usuarios?.recuperaciones ?? []);
+  useEffect(() => { if (!cargando) memoriaPaneles.usuarios = { usuarios, actor, recuperaciones }; }, [usuarios, actor, recuperaciones, cargando]);
   const [resultadoReset, setResultadoReset] = useState<{ passwordTemporal: string; nombre: string; email: string; telefono: string | null } | null>(null);
   const [procesandoRec, setProcesandoRec] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);

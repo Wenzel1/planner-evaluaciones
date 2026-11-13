@@ -16,18 +16,15 @@ import { BotonTema, Tooltip, VentanaFlotante } from '@/components/planificador/u
 import { planAccionHTML } from '@/components/planificador/planAccionHTML';
 import { useAvisosProfesor } from '@/components/planificador/useAvisosProfesor';
 import { EVAL_POR_ABRIR, MATERIA_ACTIVA, calcularFechasEvaluaciones, esIdGuardado, estadoVisibleEvaluacion, heredado, limpiarTexto, pedirSugerenciasRecursos, planVisto, validarContenidoSE, validarEnfoque } from '@/components/planificador/utilidades';
+import { ActividadPanel, ConfigSistemaPanel, PapeleraPanel } from '@/components/planificador/Administracion';
+import { CalendarioPanel } from '@/components/planificador/CalendarioPanel';
+import { PerfilPanel } from '@/components/planificador/Cuenta';
+import { EstudiantesPanel } from '@/components/planificador/EstudiantesPanel';
+import { ObservacionesRecibidas, OpinionesEstudiantes } from '@/components/planificador/Opiniones';
 import dynamic from 'next/dynamic';
 import { CargandoPanel } from '@/components/planificador/ui';
 
-// Se descargan solo cuando se abren (la primera carga del Planificador queda mas liviana)
-const ActividadPanel = dynamic(() => import('@/components/planificador/Administracion').then(m => m.ActividadPanel), { loading: CargandoPanel });
-const ConfigSistemaPanel = dynamic(() => import('@/components/planificador/Administracion').then(m => m.ConfigSistemaPanel), { loading: CargandoPanel });
-const PapeleraPanel = dynamic(() => import('@/components/planificador/Administracion').then(m => m.PapeleraPanel), { loading: CargandoPanel });
-const CalendarioPanel = dynamic(() => import('@/components/planificador/CalendarioPanel').then(m => m.CalendarioPanel), { loading: CargandoPanel });
-const PerfilPanel = dynamic(() => import('@/components/planificador/Cuenta').then(m => m.PerfilPanel), { loading: CargandoPanel });
-const EstudiantesPanel = dynamic(() => import('@/components/planificador/EstudiantesPanel').then(m => m.EstudiantesPanel), { loading: CargandoPanel });
-const ObservacionesRecibidas = dynamic(() => import('@/components/planificador/Opiniones').then(m => m.ObservacionesRecibidas));
-const OpinionesEstudiantes = dynamic(() => import('@/components/planificador/Opiniones').then(m => m.OpinionesEstudiantes));
+// Solo para administradores o de uso ocasional: se descargan aparte (en segundo plano, poco después de abrir la página)
 const UsuariosPanel = dynamic(() => import('@/components/planificador/UsuariosPanel').then(m => m.UsuariosPanel), { loading: CargandoPanel });
 const CodigoClase = dynamic(() => import('@/components/CodigoClase'));
 
@@ -75,9 +72,23 @@ export function SelectorMateria({ materias, actualId, actualNombre, onAbrir, onN
 }
 export let contadorNotif = 0; // ids de notificación únicos aunque lleguen dos en el mismo milisegundo
 
+// Descarga por adelantado lo que se carga aparte, así al abrirlo aparece al instante
+let precargado = false;
+function precargarPaneles() {
+  if (precargado) return; precargado = true;
+  setTimeout(() => {
+    for (const cargar of [
+      () => import('@/components/planificador/UsuariosPanel'), () => import('@/components/CodigoClase'),
+      () => import('@/components/planificador/EditorRecursos'), () => import('@/components/planificador/EditorRubrica'),
+      () => import('@/components/planificador/EnviarPlanWhatsApp'), () => import('@/components/planificador/ModalNotas'),
+      () => import('@/components/ModalExamen'), () => import('@/components/PanelEntregas'), () => import('@/components/PanelRecordatorios'),
+    ]) cargar().catch(() => { /* se intentará al abrirlo */ });
+  }, 2500);
+}
 export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId, materias = [], materiaActivaId = null, onAbrirMateria, onNuevaMateria, onTutorial }: PanelDerechoProps, ref) {
   MATERIA_ACTIVA.nombre = planificacion?.materia || ''; // para el validador de temas (perfil de la materia)
   const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>(vistaInicial);
+  useEffect(() => { precargarPaneles(); }, []);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
   // --- Tarjetas incluidas en el "Plan de Acción" ---
