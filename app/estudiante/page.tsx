@@ -78,7 +78,7 @@ export default function PanelEstudiante() {
     <div className="min-h-screen bg-[color:var(--c-13141d)]">
       {/* Mi perfil: foto */}
       {verPerfil && datos && (
-        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setVerPerfil(false); }}>
+        <div className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setVerPerfil(false); }}>
           <div className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between"><p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Mi perfil</p><button type="button" onClick={() => setVerPerfil(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)]"><X className="w-4 h-4" /></button></div>
             <EditorAvatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={datos.cuenta.nombre} onCambio={(v) => setDatos(d => (d ? { ...d, cuenta: { ...d.cuenta, avatarEn: v } } : d))} />

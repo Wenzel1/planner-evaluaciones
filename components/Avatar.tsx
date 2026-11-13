@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Trash2 } from 'lucide-react';
 
-const COLORES = ['bg-sky-600/25 text-sky-200', 'bg-emerald-600/25 text-emerald-200', 'bg-amber-600/25 text-amber-200', 'bg-rose-600/25 text-rose-200', 'bg-teal-600/25 text-teal-200', 'bg-blue-600/25 text-blue-200', 'bg-orange-600/25 text-orange-200', 'bg-slate-500/30 text-slate-200'];
+const COLORES = ['bg-sky-500/15 text-sky-300', 'bg-blue-500/15 text-blue-300', 'bg-teal-500/15 text-teal-300', 'bg-slate-500/25 text-slate-300', 'bg-cyan-500/15 text-cyan-300', 'bg-indigo-500/15 text-indigo-300'];
 export const iniciales = (n: string) => String(n || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() || '').join('') || '?';
 export const colorDe = (n: string) => COLORES[[...String(n || '')].reduce((t, c) => t + c.charCodeAt(0), 0) % COLORES.length];
 export const urlAvatar = (id?: string | null, version?: string | null) => (id && version ? `/api/avatar/${encodeURIComponent(id)}?v=${encodeURIComponent(version)}` : null);

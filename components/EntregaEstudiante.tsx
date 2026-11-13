@@ -167,8 +167,8 @@ export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEva
 
       {/* Vista previa de sus propios archivos, dentro de la página */}
       {viendo && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-sm flex items-stretch justify-center md:p-6" onMouseDown={(ev) => { if (ev.target === ev.currentTarget) setViendo(null); }}>
-          <div className="w-full max-w-5xl bg-[color:var(--c-1d1e2e)] md:rounded-2xl border border-[color:var(--c-313248)] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-[300] bg-[color:var(--c-12131d)] flex items-stretch justify-center" onMouseDown={(ev) => { if (ev.target === ev.currentTarget) setViendo(null); }}>
+          <div className="w-full h-full bg-[color:var(--c-1d1e2e)] overflow-hidden flex flex-col">
             <div className="flex justify-end px-2 py-1.5 border-b border-[color:var(--c-282a3f)]"><button type="button" onClick={() => setViendo(null)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)]"><X className="w-5 h-5" /></button></div>
             <div className="flex-1 min-h-0 relative"><VistaArchivo fuente={`${base}?evaluacionId=${encodeURIComponent(evaluacionId)}&archivoId=${encodeURIComponent(viendo.id)}`} nombre={viendo.nombre} tamano={viendo.tamano} /></div>
           </div>

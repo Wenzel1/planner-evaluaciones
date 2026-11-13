@@ -63,8 +63,8 @@ export default function VisorEntregas({ entregas, inicio, rubricas, onCerrar, on
   const estado = e.devuelta ? { t: 'Devuelta para corregir', c: 'bg-amber-500/15 text-amber-200 border-amber-500/30' } : e.revisada ? { t: 'Revisada', c: 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30' } : { t: 'Sin revisar', c: 'bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)] border-[color:var(--c-818cf8)]/30' };
 
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-sm flex items-stretch justify-center p-0 md:p-4" onMouseDown={(ev) => { if (ev.target === ev.currentTarget) onCerrar(); }}>
-      <motion.div initial={{ y: 16, scale: 0.99 }} animate={{ y: 0, scale: 1 }} className="w-full max-w-[1500px] bg-[color:var(--c-1d1e2e)] md:rounded-2xl border border-[color:var(--c-313248)] shadow-2xl flex flex-col overflow-hidden">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] bg-[color:var(--c-12131d)] flex items-stretch justify-center" onMouseDown={(ev) => { if (ev.target === ev.currentTarget) onCerrar(); }}>
+      <motion.div initial={{ y: 10 }} animate={{ y: 0 }} transition={{ duration: 0.15 }} className="w-full h-full bg-[color:var(--c-1d1e2e)] flex flex-col overflow-hidden">
         {/* Encabezado */}
         <div className="flex items-center gap-3 px-3 md:px-4 py-2.5 border-b border-[color:var(--c-282a3f)] flex-shrink-0">
           <Avatar id={e.estudiante.cuentaId} version={e.estudiante.avatarEn} nombre={e.estudiante.nombre} tamano={36} />

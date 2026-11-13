@@ -60,10 +60,10 @@ export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: strin
       <div className="flex-1 min-h-0 relative bg-[color:var(--c-12131d)]">
         {error ? <Aviso texto={error} />
           : !enlaces ? <Cargando />
-          : cat === 'pdf' ? <iframe key={enlaces.ver} src={enlaces.ver} title={nombre} className="absolute inset-0 w-full h-full bg-white" />
+          : cat === 'pdf' ? <MarcoConCarga key={enlaces.ver} src={enlaces.ver} titulo={nombre} texto="Abriendo PDF…" />
           : cat === 'word' && !usaOffice ? <VistaWord key={enlaces.ver} url={enlaces.ver} onFallo={() => setConOffice(true)} />
           : cat === 'excel' && !usaOffice ? <VistaExcel key={enlaces.ver} url={enlaces.ver} onFallo={() => setConOffice(true)} />
-          : usaOffice ? <iframe key={enlaces.ver} src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(enlaces.ver)}`} title={nombre} className="absolute inset-0 w-full h-full bg-white" />
+          : usaOffice ? <MarcoConCarga key={`office:${enlaces.ver}`} src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(enlaces.ver)}`} titulo={nombre} texto="Abriendo documento con Microsoft Office…" />
           : cat === 'imagen' ? <VistaImagen url={enlaces.ver} nombre={nombre} />
           : cat === 'video' ? <div className="absolute inset-0 flex items-center justify-center p-4"><video src={enlaces.ver} controls className="max-w-full max-h-full rounded-lg" /></div>
           : cat === 'audio' ? <div className="absolute inset-0 flex items-center justify-center p-4"><audio src={enlaces.ver} controls className="w-full max-w-lg" /></div>
@@ -73,6 +73,17 @@ export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: strin
           : <SinVista nombre={nombre} enlaces={enlaces} />}
       </div>
     </div>
+  );
+}
+
+// Marco (PDF u Office) con aviso de carga encima hasta que termina de abrir
+function MarcoConCarga({ src, titulo, texto }: { src: string; titulo: string; texto: string }) {
+  const [listo, setListo] = useState(false);
+  return (
+    <>
+      <iframe src={src} title={titulo} onLoad={() => setListo(true)} className="absolute inset-0 w-full h-full bg-white" />
+      {!listo && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[color:var(--c-12131d)] text-sm text-[color:var(--c-8a8b9e)]"><span className="w-7 h-7 border-2 border-[color:var(--c-818cf8)]/30 border-t-[color:var(--c-818cf8)] rounded-full animate-spin" />{texto}</div>}
+    </>
   );
 }
 
