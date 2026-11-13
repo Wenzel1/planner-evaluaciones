@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { COOKIE_SESION, DURACION_SESION_SEG, verificarToken, type Rol } from '@/lib/session'
 
 export interface Actor {
+  avatarEn?: string | null // versión de su foto de perfil (null = sin foto)
   id: string
   nombre: string
   email: string
@@ -29,5 +30,5 @@ export async function getActor(request: Request): Promise<Actor | null> {
   // Si la clave se restableció o cambió después de iniciar esta sesión, la sesión ya no vale
   const inicio = payload.ini ?? payload.exp - DURACION_SESION_SEG
   if (u.sesionesDesde && inicio < Math.floor(u.sesionesDesde.getTime() / 1000)) return null
-  return { id: u.id, nombre: u.nombre, email: u.email, rol: u.rol as Rol, debeCambiarPassword: u.debeCambiarPassword }
+  return { id: u.id, nombre: u.nombre, email: u.email, rol: u.rol as Rol, debeCambiarPassword: u.debeCambiarPassword, avatarEn: u.avatarEn ? u.avatarEn.toISOString() : null }
 }

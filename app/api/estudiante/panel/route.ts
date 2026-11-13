@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         token: f.estado === 'ACTIVO' ? await tokenDeEstudiante(f.id) : null,
       })
     }
-    return NextResponse.json({ cuenta: { nombre: actor.nombre, email: actor.email }, clases }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ cuenta: { id: actor.id, nombre: actor.nombre, email: actor.email, avatarEn: actor.avatarEn ?? null }, clases }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'No se pudo cargar tu panel.' }, { status: 500 })

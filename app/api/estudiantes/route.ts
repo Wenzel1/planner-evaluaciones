@@ -40,6 +40,7 @@ export async function GET(request: Request) {
         ...(todos ? { usuario: { select: { id: true, nombre: true } } } : {}),
         _count: { select: { calificaciones: { where: { puntaje: { not: null } } } } }, // cuántas notas tiene
         materia: { select: { id: true, nombre: true } },
+        cuenta: { select: { avatarEn: true } }, // foto de perfil del estudiante (si tiene cuenta)
       },
       orderBy: { nombre: 'asc' },
     })

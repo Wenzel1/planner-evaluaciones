@@ -4,12 +4,14 @@
 import { useEffect, useState } from 'react';
 import { GraduationCap, LogOut, KeyRound, Plus, Hourglass, Sun, Moon, X } from 'lucide-react';
 import PortalVista from '@/components/PortalVista';
+import Avatar, { EditorAvatar } from '@/components/Avatar';
 
 interface Clase { id: string; estado: 'ACTIVO' | 'PENDIENTE' | 'INACTIVO'; profesor: string; materia: string | null; seccion: string; token: string | null }
-interface Panel { cuenta: { nombre: string; email: string }; clases: Clase[] }
+interface Panel { cuenta: { id: string; nombre: string; email: string; avatarEn?: string | null }; clases: Clase[] }
 
 export default function PanelEstudiante() {
   const [datos, setDatos] = useState<Panel | null>(null);
+  const [verPerfil, setVerPerfil] = useState(false);
   const [error, setError] = useState('');
   const [activa, setActiva] = useState<string | null>(null);
   const [codigo, setCodigo] = useState('');
@@ -74,10 +76,21 @@ export default function PanelEstudiante() {
 
   return (
     <div className="min-h-screen bg-[color:var(--c-13141d)]">
+      {/* Mi perfil: foto */}
+      {verPerfil && datos && (
+        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setVerPerfil(false); }}>
+          <div className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between"><p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Mi perfil</p><button type="button" onClick={() => setVerPerfil(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)]"><X className="w-4 h-4" /></button></div>
+            <EditorAvatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={datos.cuenta.nombre} onCambio={(v) => setDatos(d => (d ? { ...d, cuenta: { ...d.cuenta, avatarEn: v } } : d))} />
+            <div className="text-xs text-[color:var(--c-8a8b9e)] border-t border-[color:var(--c-282a3f)] pt-3"><p className="text-[color:var(--c-d0d0da)] font-medium">{datos.cuenta.nombre}</p><p>{datos.cuenta.email}</p></div>
+          </div>
+        </div>
+      )}
       {/* Barra superior */}
       <header className="sticky top-0 z-40 bg-[color:var(--c-161722)]/95 backdrop-blur border-b border-[color:var(--c-282a3f)]">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#818cf8] to-[#6366f1] flex items-center justify-center"><GraduationCap className="w-4 h-4 text-white" /></div>
+        <div className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 h-14 flex items-center gap-3">
+          {datos ? <button type="button" onClick={() => setVerPerfil(true)} title="Mi foto de perfil" className="rounded-full ring-2 ring-transparent hover:ring-[color:var(--c-818cf8)]/50 transition"><Avatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={datos.cuenta.nombre} tamano={34} /></button>
+            : <div className="w-8 h-8 rounded-lg bg-[color:var(--c-272839)] flex items-center justify-center"><GraduationCap className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></div>}
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[color:var(--c-e0e0ec)] truncate">{datos?.cuenta.nombre || 'Mi panel'}</p>
             <p className="text-[10px] uppercase tracking-wider text-emerald-300">Estudiante</p>
@@ -89,7 +102,7 @@ export default function PanelEstudiante() {
         </div>
         {/* Una pestaña por clase */}
         {aceptadas.length > 1 && (
-          <div className="max-w-6xl mx-auto px-4 pb-2 flex gap-1.5 overflow-x-auto">
+          <div className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 pb-2 flex gap-1.5 overflow-x-auto">
             {aceptadas.map(c => (
               <button key={c.id} onClick={() => setActiva(c.id)} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${c.id === activa ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/45 text-[color:var(--c-c7d2fe)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
                 {c.materia || 'Todas sus materias'} · Prof. {c.profesor.split(' ')[0]}
@@ -100,12 +113,12 @@ export default function PanelEstudiante() {
       </header>
 
       {aviso && (
-        <div className={`max-w-6xl mx-auto mt-3 mx-4 sm:mx-auto px-4 py-2.5 rounded-xl text-sm flex items-start gap-2 ${aviso.tipo === 'ok' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-200' : 'bg-red-500/10 border border-red-500/30 text-red-200'}`}>
+        <div className={`mx-4 lg:mx-10 2xl:mx-16 mt-3 px-4 py-2.5 rounded-xl text-sm flex items-start gap-2 ${aviso.tipo === 'ok' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-200' : 'bg-red-500/10 border border-red-500/30 text-red-200'}`}>
           <span className="flex-1">{aviso.texto}</span><button onClick={() => setAviso(null)} aria-label="Cerrar"><X className="w-4 h-4" /></button>
         </div>
       )}
       {pendientes.length > 0 && (
-        <div className="max-w-6xl mx-auto px-4 mt-3 space-y-2">
+        <div className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 mt-3 space-y-2">
           {pendientes.map(c => (
             <div key={c.id} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-sm text-amber-200">
               <Hourglass className="w-4 h-4 flex-shrink-0" />Esperando que {c.profesor} te acepte en {c.materia || 'su clase'}, Sección {c.seccion}.
@@ -114,7 +127,7 @@ export default function PanelEstudiante() {
         </div>
       )}
 
-      {error && <p className="max-w-6xl mx-auto px-4 mt-6 text-sm text-red-300">{error}</p>}
+      {error && <p className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 mt-6 text-sm text-red-300">{error}</p>}
       {!datos && !error && <div className="flex items-center justify-center gap-3 mt-32 text-sm text-[color:var(--c-9a9bb0)]"><span className="w-5 h-5 border-2 border-[color:var(--c-818cf8)] border-t-transparent rounded-full animate-spin" />Cargando tu panel…</div>}
 
       {/* Sin clases todavía: invitación a unirse */}

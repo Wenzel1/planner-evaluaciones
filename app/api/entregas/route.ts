@@ -26,7 +26,7 @@ export async function GET(request: Request) {
           orderBy: { entregadaEn: 'desc' },
           include: {
             archivos: { orderBy: { createdAt: 'asc' } },
-            estudiante: { select: { id: true, nombre: true, grupo: true, estado: true } },
+            estudiante: { select: { id: true, nombre: true, grupo: true, estado: true, cuentaId: true, cuenta: { select: { avatarEn: true } } } },
           },
         },
       },
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       const n = nota.get(`${ev.id}:${e.estudianteId}`)
       return {
         id: e.id,
-        estudiante: { id: e.estudiante.id, nombre: e.estudiante.nombre, grupo: e.estudiante.grupo },
+        estudiante: { id: e.estudiante.id, nombre: e.estudiante.nombre, grupo: e.estudiante.grupo, cuentaId: e.estudiante.cuentaId, avatarEn: e.estudiante.cuenta?.avatarEn?.toISOString() ?? null },
         evaluacion: { id: ev.id, nombre: ev.nombre, fecha: ev.fecha, seccion: ev.grupoSeccion || 'A' },
         entregadaEn: e.entregadaEn, tarde: esTarde(e.entregadaEn, ev.fecha),
         revisada: e.revisada, devuelta: e.devuelta, devolucion: e.devolucion,

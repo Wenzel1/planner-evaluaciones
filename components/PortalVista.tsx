@@ -194,8 +194,8 @@ export default function PortalVista({ token, embebido = false }: { token: string
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Celular: una sola columna. Computadora (lg): panel fijo a la izquierda con el estudiante y su resumen, evaluaciones a la derecha */}
-      <div className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 pb-16 lg:grid lg:grid-cols-[340px_1fr] lg:gap-10 xl:gap-14">
+      {/* Celular: una sola columna. Computadora (lg): panel fijo a la izquierda con el estudiante y su resumen, evaluaciones a la derecha ocupando todo el ancho */}
+      <div className="max-w-3xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-10 2xl:px-16 pb-16 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] lg:gap-10 xl:gap-14">
         <aside className="lg:sticky lg:top-0 lg:self-start lg:max-h-screen lg:overflow-y-auto lg:pb-10 [scrollbar-width:none]">
           {/* Encabezado: el estudiante es el protagonista */}
           <header className="pt-8 sm:pt-12 pb-6">

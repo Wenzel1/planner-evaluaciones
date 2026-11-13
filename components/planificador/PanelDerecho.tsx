@@ -16,6 +16,7 @@ import { BotonTema, Tooltip, VentanaFlotante } from '@/components/planificador/u
 import { planAccionHTML } from '@/components/planificador/planAccionHTML';
 import { useAvisosProfesor } from '@/components/planificador/useAvisosProfesor';
 import BandejaEntregas from '@/components/entregas/BandejaEntregas';
+import Avatar from '@/components/Avatar';
 import { EVAL_POR_ABRIR, MATERIA_ACTIVA, calcularFechasEvaluaciones, esIdGuardado, estadoVisibleEvaluacion, heredado, limpiarTexto, pedirSugerenciasRecursos, planVisto, validarContenidoSE, validarEnfoque } from '@/components/planificador/utilidades';
 import { ActividadPanel, ConfigSistemaPanel, PapeleraPanel } from '@/components/planificador/Administracion';
 import { CalendarioPanel } from '@/components/planificador/CalendarioPanel';
@@ -806,7 +807,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
             <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[color:var(--c-282a3f)]">
               <Tooltip text="Mi perfil">
                 <button onClick={() => setVista('perfil')} className={`flex items-center gap-2 px-2 py-1 rounded-xl transition-colors ${vista === 'perfil' ? 'bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20' : 'hover:bg-[color:var(--c-1d1e2e)] border border-transparent'}`}>
-                  <User className="w-4 h-4 text-[color:var(--c-8a8b9e)] md:hidden" />
+                  <Avatar id={usuario.id} version={usuario.avatarEn} nombre={usuario.nombre} tamano={30} />
                   <div className="hidden md:flex flex-col items-end leading-tight">
                     <span className="text-xs font-medium text-[color:var(--c-d0d0da)] max-w-[140px] truncate">{usuario.nombre}</span>
                     <span className={`text-[10px] uppercase tracking-wider ${COLOR_TEXTO_ROL[usuario.rol] || 'text-[color:var(--c-818cf8)]'}`}>{usuario.rol}</span>

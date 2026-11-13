@@ -42,7 +42,7 @@ export async function proxy(request: NextRequest) {
 
   // Cuenta de estudiante: solo su panel y sus rutas; nada de lo del profesor
   if (sesion.rol === 'ESTUDIANTE') {
-    const permitido = esRutaEstudiante(pathname) || bajo(pathname, '/api/perfil') || pathname.startsWith('/api/auth/')
+    const permitido = esRutaEstudiante(pathname) || bajo(pathname, '/api/perfil') || bajo(pathname, '/api/avatar') || pathname.startsWith('/api/auth/')
     if (!permitido) {
       if (esApi) return conCabeceras(NextResponse.json({ error: 'Esta sección es solo para profesores.' }, { status: 403 }))
       return conCabeceras(NextResponse.redirect(new URL('/estudiante', request.url)))

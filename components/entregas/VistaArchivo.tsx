@@ -13,12 +13,12 @@ export { precargarArchivo };
 
 export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: string; nombre: string; tamano?: number | null }) {
   const cat = categoria(nombre);
-  // Word (.docx) y Excel (.xlsx) se dibujan en el navegador (rápido y sin salir del sistema);
-  // los formatos antiguos (.doc, .xls), PowerPoint y OpenDocument usan el visor de Microsoft Office.
+  // Word, Excel y PowerPoint se ven con el visor de Microsoft Office (por defecto). Word (.docx) y Excel (.xlsx)
+  // tienen además una "Vista rápida" que los dibuja en el navegador, por si Office tarda.
   const ext = extension(nombre);
   const rapida = (cat === 'word' && ext === 'docx') || (cat === 'excel' && ext === 'xlsx');
-  const [conOffice, setConOffice] = useState(false);
-  useEffect(() => { setConOffice(false); }, [fuente]);
+  const [conOffice, setConOffice] = useState(true);
+  useEffect(() => { setConOffice(true); }, [fuente]);
   const usaOffice = ['word', 'excel', 'powerpoint'].includes(cat) && (!rapida || conOffice);
   const [enlaces, setEnlaces] = useState<Enlaces | null>(null);
   const [error, setError] = useState('');
@@ -44,7 +44,7 @@ export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: strin
           <p className="text-[10px] text-[color:var(--c-8a8b9e)]">{est.nombre}{tamano ? ` · ${tamanoLegible(tamano)}` : ''}{usaOffice ? ' · vista de Microsoft Office' : ''}</p>
         </div>
         {rapida && enlaces && (
-          <button type="button" onClick={() => setConOffice(v => !v)} className="h-8 px-2.5 rounded-lg text-xs font-medium text-[color:var(--c-c7d2fe)] border border-[color:var(--c-313248)] hover:bg-[color:var(--c-818cf8)]/10 flex items-center gap-1.5" title={conOffice ? 'Volver a la vista rápida' : 'Abrir con el visor de Microsoft Office (si algo se ve raro)'}>
+          <button type="button" onClick={() => setConOffice(v => !v)} className="h-8 px-2.5 rounded-lg text-xs font-medium text-[color:var(--c-c7d2fe)] border border-[color:var(--c-313248)] hover:bg-[color:var(--c-818cf8)]/10 flex items-center gap-1.5" title={conOffice ? 'Vista rápida: se dibuja en tu navegador, sin esperar a Microsoft' : 'Volver al visor de Microsoft Office'}>
             {conOffice ? <><Zap className="w-3.5 h-3.5" /><span className="hidden sm:inline">Vista rápida</span></> : <><ExternalLink className="w-3.5 h-3.5" /><span className="hidden sm:inline">Ver con Microsoft Office</span><span className="sm:hidden">Office</span></>}
           </button>
         )}

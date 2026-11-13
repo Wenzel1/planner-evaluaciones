@@ -7,15 +7,16 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Send, ExternalLink, MessageSquare, ClipboardCheck, Clock, Link2, Save, Circle } from 'lucide-react';
 import VistaArchivo from './VistaArchivo';
+import Avatar from '@/components/Avatar';
 import { precargarArchivo } from './enlaces';
-import { estiloDe, ESTILO, fechaHora, iniciales, colorAvatar, tamanoLegible } from './tiposArchivo';
+import { estiloDe, ESTILO, fechaHora, tamanoLegible } from './tiposArchivo';
 import { NIVELES_RUBRICA, type RubricaEval } from '@/lib/rubrica';
 import { notaDesdeRubrica, NIVEL_CORTO, COLOR_BOTON_NIVEL, textoNota } from '@/components/planificador/ModalNotas';
 
 export interface ArchivoBandeja { id: string; nombre: string; tamano: number | null; tipo: string | null }
 export interface EntregaBandeja {
   id: string;
-  estudiante: { id: string; nombre: string; grupo: string };
+  estudiante: { id: string; nombre: string; grupo: string; cuentaId?: string | null; avatarEn?: string | null };
   evaluacion: { id: string; nombre: string; fecha: string | null; seccion: string };
   entregadaEn: string; tarde: boolean; revisada: boolean; devuelta: boolean; devolucion: string | null;
   comentario: string | null; url: string | null; archivos: ArchivoBandeja[];
@@ -66,7 +67,7 @@ export default function VisorEntregas({ entregas, inicio, rubricas, onCerrar, on
       <motion.div initial={{ y: 16, scale: 0.99 }} animate={{ y: 0, scale: 1 }} className="w-full max-w-[1500px] bg-[color:var(--c-1d1e2e)] md:rounded-2xl border border-[color:var(--c-313248)] shadow-2xl flex flex-col overflow-hidden">
         {/* Encabezado */}
         <div className="flex items-center gap-3 px-3 md:px-4 py-2.5 border-b border-[color:var(--c-282a3f)] flex-shrink-0">
-          <span className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${colorAvatar(e.estudiante.nombre)}`}>{iniciales(e.estudiante.nombre)}</span>
+          <Avatar id={e.estudiante.cuentaId} version={e.estudiante.avatarEn} nombre={e.estudiante.nombre} tamano={36} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm md:text-base font-semibold text-[color:var(--c-e0e0ec)] truncate">{e.estudiante.nombre}</p>

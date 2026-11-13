@@ -1,5 +1,6 @@
 'use client';
 
+import Avatar from '@/components/Avatar';
 import { materiaAbierta } from '@/lib/api';
 import { memoriaPaneles } from '@/components/planificador/utilidades';
 import { AlertCircle, CheckCircle, Copy, Download, ExternalLink, Eye, Filter, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, Upload, User, Users, X } from 'lucide-react';
@@ -338,7 +339,7 @@ export function EstudiantesPanel() {
             <tbody className="divide-y divide-[color:var(--c-313248)]">
               {filteredEstudiantes.map(est => (
                 <tr key={est.id} className="hover:bg-[color:var(--c-272839)]/50 transition-colors">
-                  <td className="py-3 px-4 text-[color:var(--c-d0d0da)] font-medium">{est.nombre}{(est as any).cuentaId && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 align-middle" title="Tiene su propia cuenta en el sistema">con cuenta</span>}{(est as any).materia?.nombre && <span className="block text-[11px] font-normal text-[color:var(--c-8a8b9e)]">{(est as any).materia.nombre}</span>}</td>
+                  <td className="py-3 px-4 text-[color:var(--c-d0d0da)] font-medium"><span className="inline-flex items-center gap-2.5 align-middle"><Avatar id={(est as any).cuentaId} version={(est as any).cuenta?.avatarEn} nombre={est.nombre} tamano={28} /><span>{est.nombre}</span></span>{(est as any).cuentaId && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 align-middle" title="Tiene su propia cuenta en el sistema">con cuenta</span>}{(est as any).materia?.nombre && <span className="block text-[11px] font-normal text-[color:var(--c-8a8b9e)]">{(est as any).materia.nombre}</span>}</td>
                   <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{esDePrueba(est) ? <span className="text-[11px] px-2 py-0.5 rounded-full bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 text-[color:var(--c-a5b4fc)]" title="Estudiante de prueba: no recibe correos">de prueba · sin correo</span> : est.email}</td>
                   <td className="py-3 px-4 text-[color:var(--c-b0b0c4)]">{est.telefono}</td>
                   <td className="py-3 px-4"><span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-818cf8)] border border-[color:var(--c-818cf8)]/20">{est.grupo}</span></td>

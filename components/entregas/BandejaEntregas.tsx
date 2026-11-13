@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Inbox, Search, RefreshCw, Clock, CheckCircle2, RotateCcw, MessageSquare, Download, ChevronRight, Users, Link2, AlertCircle, Sparkles, ArrowRight } from 'lucide-react';
-import { estiloDe, ESTILO, haceTiempo, iniciales, colorAvatar } from './tiposArchivo';
+import { estiloDe, ESTILO, haceTiempo } from './tiposArchivo';
+import Avatar from '@/components/Avatar';
 import type { EntregaBandeja } from './VisorEntregas';
 import type { RubricaEval } from '@/lib/rubrica';
 import { textoNota } from '@/components/planificador/ModalNotas';
@@ -202,7 +203,7 @@ function Fila({ e, k, onAbrir }: { e: EntregaBandeja; k: number; onAbrir: () => 
   return (
     <motion.li layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, transition: { delay: Math.min(k, 10) * 0.025 } }} exit={{ opacity: 0 }}>
       <button type="button" onClick={onAbrir} onMouseEnter={() => adelantar(e)} onTouchStart={() => adelantar(e)} onFocus={() => adelantar(e)} className="w-full text-left px-4 md:px-5 py-3 flex items-center gap-3 hover:bg-[color:var(--c-818cf8)]/[0.04] transition-colors group">
-        <span className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${colorAvatar(e.estudiante.nombre)}`}>{iniciales(e.estudiante.nombre)}</span>
+        <Avatar id={e.estudiante.cuentaId} version={e.estudiante.avatarEn} nombre={e.estudiante.nombre} tamano={40} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <p className={`text-sm truncate ${!e.revisada && !e.devuelta ? 'font-semibold text-[color:var(--c-e0e0ec)]' : 'font-medium text-[color:var(--c-c0c0d0)]'}`}>{e.estudiante.nombre}</p>

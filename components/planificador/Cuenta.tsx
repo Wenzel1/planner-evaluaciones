@@ -1,5 +1,6 @@
 'use client';
 
+import { EditorAvatar } from '@/components/Avatar';
 import { AlertCircle, CheckCircle, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
@@ -131,7 +132,7 @@ export function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesio
       });
       const d = await r.json();
       if (!r.ok) { setErrorGlobal(d.error || 'No se pudieron guardar los cambios.'); return; }
-      if (onActualizado) onActualizado(d);
+      if (onActualizado) onActualizado({ ...d, avatarEn: usuario?.avatarEn ?? null }); // la foto no viene en esta respuesta: se conserva
       telefonoOriginal.current = telefono.replace(/[\s().-]/g, ''); if (cedula.trim()) setCedulaBloqueada(true);
       setPasswordActual(''); setNueva(''); setConfirmar('');
       setExito(cambiaPassword ? 'Cambios guardados. Tu contraseña fue actualizada.' : 'Cambios guardados.');
@@ -146,6 +147,13 @@ export function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesio
         <h2 className="text-lg font-semibold text-[color:var(--c-e0e0ec)]">Mi perfil</h2>
         <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">Administra tus datos de acceso.{creadoEn && ` Cuenta creada el ${creadoEn}.`}</p>
       </div>
+
+      {usuario && (
+        <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)] mb-3">Foto de perfil</p>
+          <EditorAvatar id={usuario.id} version={usuario.avatarEn} nombre={usuario.nombre} onCambio={(v) => onActualizado?.({ ...usuario, avatarEn: v })} />
+        </div>
+      )}
 
       <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-3 flex-wrap">

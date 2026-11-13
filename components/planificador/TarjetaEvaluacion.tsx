@@ -46,6 +46,7 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
     puedeExamen && { icono: FileCheck, titulo: 'Examen en línea', detalle: seccion.examen ? `${seccion.examen.preguntas.length} preguntas · ver entregas` : 'Crear el examen que presentan en su página', hacer: () => onExamen!(seccion) },
     onRecordatorios && seccion.fecha && !['REALIZADA', 'CANCELADA'].includes(String(seccion.estado || '').toUpperCase()) && { icono: Bell, titulo: 'Recordatorios', detalle: 'Cuándo se avisa a los estudiantes · enviar ahora', hacer: () => onRecordatorios(seccion) },
     onEntregas && esIdGuardado(seccion.id) && !cancelada && { icono: Inbox, titulo: 'Entregas y mensajes', detalle: 'Quién entregó, abrir lo entregado y escribirles', hacer: () => onEntregas(seccion) },
+    onNotas && !cancelada && { icono: GraduationCap, titulo: 'Planilla de notas', detalle: 'Calificar a toda la sección (exámenes presenciales, exposiciones…)', hacer: () => { precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`); onNotas(seccion); } },
   ].filter(Boolean) as { icono: any; titulo: string; detalle: string; hacer: () => void }[];
   return (
     <Reorder.Item
@@ -94,12 +95,6 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
         </div>
         <div className="flex items-center gap-1.5 ml-auto" onClick={(e) => e.stopPropagation()}>
           <SelectorEstadoEvaluacion seccion={seccion} onCambiar={onCambiarEstado} alinear="derecha" grande />
-          {onNotas && !cancelada && (
-            <button onMouseEnter={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onTouchStart={() => precargar(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas`)} onClick={() => onNotas(seccion)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors">
-              <GraduationCap className="w-3.5 h-3.5" />Notas
-            </button>
-          )}
           {onRecursos && <Tooltip text={nRecursos ? `Recursos de estudio (${nRecursos})` : 'Recursos de estudio'}><button onClick={() => onRecursos(seccion)} aria-label="Recursos de estudio" className={`relative p-1.5 hover:bg-[color:var(--c-272839)] rounded-lg ${nRecursos ? 'text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)]'}`}><Paperclip className="w-4 h-4" />{nRecursos > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[color:var(--c-818cf8)] text-[9px] font-bold text-white flex items-center justify-center">{nRecursos}</span>}</button></Tooltip>}
           <Tooltip text={expanded ? 'Ocultar detalle' : 'Ver detalle'}><button onClick={onToggleExpand} aria-label={expanded ? 'Ocultar detalle' : 'Ver detalle'} aria-expanded={expanded}
             className={`p-1.5 rounded-lg transition-colors ${expanded ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-272839)]'}`}>

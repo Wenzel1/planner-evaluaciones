@@ -89,6 +89,7 @@ model Usuario {
   codigoExpira       DateTime?
   codigoIntentos     Int       @default(0)
   codigoEnviadoEn    DateTime?
+  avatarEn     DateTime?                  // cuándo subió su foto de perfil (versión de la imagen; null = sin foto)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -98,6 +99,16 @@ model Usuario {
   recuperaciones SolicitudRecuperacion[]
   // Cuenta de estudiante: sus inscripciones (una por profesor/materia en la que está)
   inscripciones  Estudiante[] @relation("CuentaEstudiante")
+  avatar         AvatarUsuario?
+}
+
+// Foto de perfil (ya recortada y comprimida en el navegador, ~15 KB). Aparte de Usuario para no cargarla en cada consulta.
+model AvatarUsuario {
+  usuarioId   String   @id
+  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  imagen      Bytes
+  tipo        String   @default("image/webp")
+  actualizado DateTime @updatedAt
 }
 
 model Materia {
