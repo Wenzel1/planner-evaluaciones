@@ -2,7 +2,7 @@
 
 import { Activity, AlertCircle, BarChart3, CheckCircle, ClipboardList, FileText, Info, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Sparkles, Trash2, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { ConfigChat, ConfigCliente, ConfigCompleta, Estudiante, Mensaje, UsuarioSesion } from '@/components/planificador/tipos';
+import { ConfigChat, ConfigCliente, ConfigCompleta, UsuarioSesion } from '@/components/planificador/tipos';
 import { CONFIG_CLIENTE_DEFECTO, ESTILO_ROL, limpiarTexto } from '@/components/planificador/utilidades';
 
 export const CONFIG_COMPLETA_DEFECTO: ConfigCompleta = { ...CONFIG_CLIENTE_DEFECTO, acceso: { registroAbierto: true, diasPapelera: 30 } };

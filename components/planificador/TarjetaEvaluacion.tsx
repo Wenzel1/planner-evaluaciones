@@ -3,7 +3,7 @@
 import { AnimatePresence, Reorder, motion, useDragControls } from 'framer-motion';
 import { Bell, CalendarDays, ChevronDown, ClipboardCheck, FileCheck, GraduationCap, GripVertical, Inbox, MoreVertical, Paperclip, Pencil, Trash2 } from 'lucide-react';
 import DescripcionOrdenada from '@/components/DescripcionOrdenada';
-import { type Examen, admiteExamenEnLinea } from '@/lib/examen';
+import { admiteExamenEnLinea } from '@/lib/examen';
 import { textoPuntos, totalRubrica } from '@/lib/rubrica';
 import { useEffect, useRef, useState } from 'react';
 import { SeccionExamen } from '@/components/planificador/tipos';

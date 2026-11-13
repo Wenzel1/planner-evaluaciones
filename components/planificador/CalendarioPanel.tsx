@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Bell, Calendar, CalendarDays, Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, Download, X } from 'lucide-react';
+import { AlertCircle, Bell, CalendarDays, Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, Download, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import PanelRecordatorios from '@/components/PanelRecordatorios';
 import { useRef, useState } from 'react';

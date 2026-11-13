@@ -2,7 +2,7 @@
 
 import { Eye, Search, Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Mensaje, SeccionExamen } from '@/components/planificador/tipos';
+import { SeccionExamen } from '@/components/planificador/tipos';
 import { haceCuanto, medioEnvio, pedirConCache, porCorreo } from '@/components/planificador/utilidades';
 
 /** ¿El estudiante puede recibir avisos por el canal activo? (correo válido, o teléfono de 7+ dígitos) */

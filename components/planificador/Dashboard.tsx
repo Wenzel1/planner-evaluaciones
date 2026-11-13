@@ -2,7 +2,6 @@
 
 import { Activity, AlertCircle, Award, BarChart3, BookOpen, Brain, Calendar, CheckCircle, ChevronDown, ChevronUp, Clock, FileText, GraduationCap, Info, MessageSquare, Pencil, PieChart, RefreshCw, Search, ShieldCheck, Trash2, User, Users as UsersIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { type Examen } from '@/lib/examen';
 import { calcularAlertas } from '@/lib/alertas';
 import { useEffect, useState } from 'react';
 import { PlanificacionExamen, SeccionExamen, UsuarioSesion } from '@/components/planificador/tipos';

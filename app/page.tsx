@@ -9,7 +9,6 @@ import { normalizarRubrica } from '@/lib/rubrica';
 import { useEffect, useRef, useState } from 'react';
 import { AgentePanel } from '@/components/planificador/AgentePanel';
 import { CambioPasswordObligatorio } from '@/components/planificador/Cuenta';
-import { Dashboard } from '@/components/planificador/Dashboard';
 import { PanelDerecho } from '@/components/planificador/PanelDerecho';
 import { ConfigCliente, MateriaCorta, PanelDerechoHandle, PlanificacionExamen, PropuestaEvaluacion, SeccionExamen, UsuarioSesion } from '@/components/planificador/tipos';
 import { BandaRol, useAnchoPantalla } from '@/components/planificador/ui';

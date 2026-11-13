@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
-import { Mensaje, TipoNotif } from '@/components/planificador/tipos';
+import { TipoNotif } from '@/components/planificador/tipos';
 import { haceCuanto } from '@/components/planificador/utilidades';
 
 export const ESTILO_NOTIF: Record<TipoNotif, { chip: string; barra: string; borde: string; etiqueta: string }> = {

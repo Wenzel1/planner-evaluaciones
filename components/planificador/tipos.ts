@@ -1,4 +1,3 @@
-import { Dispatch, SetStateAction } from 'react';
 import { type Examen } from '@/lib/examen';
 import { type RubricaEval } from '@/lib/rubrica';
 
