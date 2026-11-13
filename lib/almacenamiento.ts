@@ -3,7 +3,12 @@
 // Sin esas variables las entregas son solo por enlace (GitHub, Drive, Figma…).
 
 // La dirección del proyecto puede estar como SUPABASE_URL o como NEXT_PUBLIC_SUPABASE_URL (la que crea la integración con Vercel)
-const base = () => String(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/\/+$/, '')
+// Solo el origen (https://xxxx.supabase.co): si la variable trae una ruta como /rest/v1, las peticiones de archivos
+// irían a la base de datos y fallarían con "Invalid path specified in request URL".
+const base = () => {
+  const crudo = String(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
+  try { return new URL(crudo).origin } catch { return crudo.replace(/\/+$/, '') }
+}
 const clave = () => String(process.env.SUPABASE_SERVICE_ROLE_KEY || '')
 const bucket = () => String(process.env.SUPABASE_BUCKET_ENTREGAS || 'entregas')
 
