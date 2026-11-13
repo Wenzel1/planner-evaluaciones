@@ -244,7 +244,7 @@ export default function LoginPage() {
         if (!r.ok) throw new Error(d.error || 'No se pudo crear el superadmin.')
       }
 
-      const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, captchaToken: captcha?.token, captchaRespuesta: captchaResp }) })
+      const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, captchaToken: captcha?.token, captchaRespuesta: captchaResp, tipo: modoSetup ? undefined : tipoCuenta }) })
       const d = await r.json().catch(() => ({}))
       if (r.status === 403 && d.codigo === 'VERIFICAR_TELEFONO') { irAVerificar(d.error); return }
       if (!r.ok) throw new Error(d.error || 'No se pudo iniciar sesión.')

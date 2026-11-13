@@ -45,6 +45,18 @@ export async function POST(request: Request) {
     if (usuario.pendiente && !usuario.telefonoVerificado) {
       return NextResponse.json({ error: 'Primero confirma tu WhatsApp con el código de 6 dígitos que te enviamos.', codigo: 'VERIFICAR_TELEFONO' }, { status: 403 })
     }
+    // Entró por la puerta equivocada (eligió "Estudiante" con una cuenta de profesor, o al revés): no se abre la sesión.
+    // Se revisa después de la contraseña, así no se revela qué tipo de cuenta tiene un correo ajeno.
+    const pidio = body.tipo === 'estudiante' ? 'estudiante' : body.tipo === 'profesor' ? 'profesor' : null
+    const es = usuario.rol === 'ESTUDIANTE' ? 'estudiante' : 'profesor'
+    if (pidio && pidio !== es) {
+      return NextResponse.json({
+        error: es === 'profesor'
+          ? 'Esta es una cuenta de profesor. Toca «Profesor(a)» arriba para entrar.'
+          : 'Esta es una cuenta de estudiante. Toca «Estudiante» arriba para entrar.',
+        codigo: 'TIPO_CUENTA', tipo: es,
+      }, { status: 403 })
+    }
     if (usuario.pendiente) {
       // Ya confirmó su WhatsApp: no hace falta aprobación manual, se activa al entrar
       await prisma.usuario.update({ where: { id: usuario.id }, data: { pendiente: false, activo: true } })
