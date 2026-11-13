@@ -9,8 +9,13 @@ import { estiloDe, ESTILO, haceTiempo, iniciales, colorAvatar } from './tiposArc
 import type { EntregaBandeja } from './VisorEntregas';
 import type { RubricaEval } from '@/lib/rubrica';
 import { textoNota } from '@/components/planificador/ModalNotas';
+import { precargarArchivo } from './VistaArchivo';
 
 const VisorEntregas = dynamic(() => import('./VisorEntregas'));
+const cargarVisor = () => import('./VisorEntregas').catch(() => null);
+// Adelanta lo necesario para abrir una entrega: el visor y el enlace de su primer archivo
+const adelantar = (e: EntregaBandeja) => { cargarVisor(); if (e.archivos[0]) precargarArchivo(fuenteDe(e.id, e.archivos[0].id)).catch(() => {}); };
+export const fuenteDe = (entregaId: string, archivoId: string) => `/api/entregas/${encodeURIComponent(entregaId)}?archivoId=${encodeURIComponent(archivoId)}`;
 
 interface ResumenEval { id: string; nombre: string; fecha: string | null; seccion: string; aceptaEntregas: boolean; rubrica: RubricaEval | null; estudiantes: number; entregadas: number; faltan: { id: string; nombre: string }[] }
 interface Datos { archivos: boolean; entregas: EntregaBandeja[]; evaluaciones: ResumenEval[]; contadores: { total: number; sinRevisar: number; revisadas: number; devueltas: number; tarde: number; faltan: number } }
@@ -42,6 +47,8 @@ export default function BandejaEntregas({ materiaId, compacta = false, onVerTodo
     } catch (e: any) { setError(e.message); } finally { setCargando(false); }
   }, [materiaId, clave]);
 
+  // El visor se descarga en segundo plano apenas abre la bandeja (así la primera entrega abre al instante)
+  useEffect(() => { const t = setTimeout(cargarVisor, 1200); return () => clearTimeout(t); }, []);
   useEffect(() => {
     cargar();
     const t = setInterval(cargar, 60000);
@@ -72,7 +79,7 @@ export default function BandejaEntregas({ materiaId, compacta = false, onVerTodo
   });
 
   // El visor recorre la lista tal como estaba al abrirlo (aunque al revisar una deje de cumplir el filtro)
-  const abrir = (id: string) => { const ids = visibles.map(e => e.id); setVisor({ ids, inicio: Math.max(0, ids.indexOf(id)) }); };
+  const abrir = (id: string) => { const ids = visibles.map(e => e.id); const e = porId.get(id); if (e) adelantar(e); setVisor({ ids, inicio: Math.max(0, ids.indexOf(id)) }); };
 
   // Descargar todas las entregas de una evaluación en un .zip (se arma en el navegador)
   const descargarTodas = async (ev: ResumenEval) => {
@@ -194,7 +201,7 @@ function Fila({ e, k, onAbrir }: { e: EntregaBandeja; k: number; onAbrir: () => 
   const IconoEstado = estado.i;
   return (
     <motion.li layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, transition: { delay: Math.min(k, 10) * 0.025 } }} exit={{ opacity: 0 }}>
-      <button type="button" onClick={onAbrir} className="w-full text-left px-4 md:px-5 py-3 flex items-center gap-3 hover:bg-[color:var(--c-818cf8)]/[0.04] transition-colors group">
+      <button type="button" onClick={onAbrir} onMouseEnter={() => adelantar(e)} onTouchStart={() => adelantar(e)} onFocus={() => adelantar(e)} className="w-full text-left px-4 md:px-5 py-3 flex items-center gap-3 hover:bg-[color:var(--c-818cf8)]/[0.04] transition-colors group">
         <span className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${colorAvatar(e.estudiante.nombre)}`}>{iniciales(e.estudiante.nombre)}</span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">

@@ -16,7 +16,9 @@ export async function responderArchivo(request: Request, archivo: { ruta: string
   const q = new URL(request.url).searchParams
   const modo = q.get('modo') || 'redirigir'
   if (modo === 'url') {
-    const [ver, descargar] = await Promise.all([enlaceArchivo(archivo.ruta), enlaceArchivo(archivo.ruta, archivo.nombre)])
+    // Un solo enlace firmado: el de descarga es el mismo con &download=nombre
+    const ver = await enlaceArchivo(archivo.ruta)
+    const descargar = `${ver}&download=${encodeURIComponent(archivo.nombre)}`
     return NextResponse.json({ ver, descargar, nombre: archivo.nombre, tipo: archivo.tipo || null, tamano: archivo.tamano ?? null, extension: extensionDe(archivo.nombre) }, { headers: { 'Cache-Control': 'no-store' } })
   }
   if (modo === 'texto') {

@@ -12,6 +12,34 @@ interface Enlaces { ver: string; descargar: string }
 // fuente: dirección que entrega el archivo (ya con ?archivoId=…); se le agrega &modo=…
 const conModo = (fuente: string, modo: string, extra = '') => `${fuente}${fuente.includes('?') ? '&' : '?'}modo=${modo}${extra}`;
 
+// Enlaces ya pedidos (los firmados duran 10 min; se reusan por 8) y pedidos en curso: abrir un archivo
+// por segunda vez, o uno que se precargó al pasar el mouse, es instantáneo.
+const enlacesGuardados = new Map<string, { enlaces: Enlaces; hasta: number }>();
+const enCurso = new Map<string, Promise<Enlaces>>();
+export function precargarArchivo(fuente: string): Promise<Enlaces> {
+  const g = enlacesGuardados.get(fuente);
+  if (g && g.hasta > Date.now()) return Promise.resolve(g.enlaces);
+  const p0 = enCurso.get(fuente);
+  if (p0) return p0;
+  const p = fetch(conModo(fuente, 'url'), { cache: 'no-store' })
+    .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo abrir el archivo.'); return { ver: d.ver as string, descargar: d.descargar as string }; })
+    .then(enlaces => {
+      enlacesGuardados.set(fuente, { enlaces, hasta: Date.now() + 8 * 60_000 });
+      preconectar(new URL(enlaces.ver).origin);
+      return enlaces;
+    })
+    .finally(() => enCurso.delete(fuente));
+  enCurso.set(fuente, p);
+  return p;
+}
+// Abre la conexión con el servidor de archivos (y con el visor de Office) antes de necesitarla
+const conectados = new Set<string>();
+export function preconectar(origen: string) {
+  if (typeof document === 'undefined' || conectados.has(origen)) return;
+  conectados.add(origen);
+  const l = document.createElement('link'); l.rel = 'preconnect'; l.href = origen; l.crossOrigin = 'anonymous'; document.head.appendChild(l);
+}
+
 export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: string; nombre: string; tamano?: number | null }) {
   const cat = categoria(nombre);
   const [enlaces, setEnlaces] = useState<Enlaces | null>(null);
@@ -19,13 +47,12 @@ export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: strin
 
   useEffect(() => {
     let vivo = true;
-    setEnlaces(null); setError('');
-    fetch(conModo(fuente, 'url'), { cache: 'no-store' })
-      .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo abrir el archivo.'); return d; })
-      .then(d => { if (vivo) setEnlaces({ ver: d.ver, descargar: d.descargar }); })
-      .catch(e => { if (vivo) setError(e.message); });
+    const g = enlacesGuardados.get(fuente);
+    setEnlaces(g && g.hasta > Date.now() ? g.enlaces : null); setError('');
+    if (['word', 'excel', 'powerpoint'].includes(cat)) preconectar('https://view.officeapps.live.com');
+    precargarArchivo(fuente).then(e => { if (vivo) setEnlaces(e); }).catch(e => { if (vivo) setError(e.message); });
     return () => { vivo = false; };
-  }, [fuente]);
+  }, [fuente, cat]);
 
   const est = estiloDe(nombre);
   const Icono = est.icono;
@@ -99,12 +126,15 @@ function VistaImagen({ url, nombre }: { url: string; nombre: string }) {
 }
 
 // ---------- Texto y código ----------
+const textosGuardados = new Map<string, { texto?: string; cortado?: boolean }>();
 function useTexto(url: string | null) {
-  const [estado, setEstado] = useState<{ texto?: string; cortado?: boolean; error?: string } | null>(null);
+  const [estado, setEstado] = useState<{ texto?: string; cortado?: boolean; error?: string } | null>(() => (url && textosGuardados.get(url)) || null);
   useEffect(() => {
     if (!url) return;
+    const g = textosGuardados.get(url);
+    if (g) { setEstado(g); return; }
     let vivo = true; setEstado(null);
-    fetch(url, { cache: 'no-store' }).then(async r => { const d = await r.json().catch(() => ({})); if (!vivo) return; setEstado(r.ok ? { texto: d.texto, cortado: d.cortado } : { error: d.error || 'No se pudo leer el archivo.' }); }).catch(() => vivo && setEstado({ error: 'No se pudo leer el archivo.' }));
+    fetch(url, { cache: 'no-store' }).then(async r => { const d = await r.json().catch(() => ({})); if (r.ok) textosGuardados.set(url, { texto: d.texto, cortado: d.cortado }); if (!vivo) return; setEstado(r.ok ? { texto: d.texto, cortado: d.cortado } : { error: d.error || 'No se pudo leer el archivo.' }); }).catch(() => vivo && setEstado({ error: 'No se pudo leer el archivo.' }));
     return () => { vivo = false; };
   }, [url]);
   return estado;

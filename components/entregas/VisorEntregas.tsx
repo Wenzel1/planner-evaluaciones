@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Send, ExternalLink, MessageSquare, ClipboardCheck, Clock, Link2, Save, Circle } from 'lucide-react';
-import VistaArchivo from './VistaArchivo';
+import VistaArchivo, { precargarArchivo } from './VistaArchivo';
 import { estiloDe, ESTILO, fechaHora, iniciales, colorAvatar, tamanoLegible } from './tiposArchivo';
 import { NIVELES_RUBRICA, type RubricaEval } from '@/lib/rubrica';
 import { notaDesdeRubrica, NIVEL_CORTO, COLOR_BOTON_NIVEL, textoNota } from '@/components/planificador/ModalNotas';
@@ -32,6 +32,15 @@ export default function VisorEntregas({ entregas, inicio, rubricas, onCerrar, on
   const e = entregas[i];
   const [archivoSel, setArchivoSel] = useState(0);
   useEffect(() => { setArchivoSel(0); }, [e?.id]);
+  // Mientras revisa esta entrega, se adelantan sus otros archivos y el primero de la siguiente y la anterior
+  useEffect(() => {
+    const fuente = (x: EntregaBandeja | undefined, k = 0) => x?.archivos[k] ? `/api/entregas/${encodeURIComponent(x.id)}?archivoId=${encodeURIComponent(x.archivos[k].id)}` : null;
+    const t = setTimeout(() => {
+      const lista = [...(e?.archivos.map((_, k) => fuente(e, k)) || []), fuente(entregas[i + 1]), fuente(entregas[i - 1])];
+      for (const f of lista) if (f) precargarArchivo(f).catch(() => {});
+    }, 400);
+    return () => clearTimeout(t);
+  }, [i, e?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Teclado: ← → cambian de estudiante, Esc cierra (no mientras se escribe)
   useEffect(() => {

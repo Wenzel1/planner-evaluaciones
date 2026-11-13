@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Upload, Link2, CheckCircle2, AlertCircle, MessageSquare, Send, FileText, ExternalLink, X, Eye } from 'lucide-react';
-import VistaArchivo from '@/components/entregas/VistaArchivo';
+import VistaArchivo, { precargarArchivo } from '@/components/entregas/VistaArchivo';
 
 export interface ArchivoInfo { id: string; nombre: string; tamano: number | null; tipo: string | null }
 export interface EntregaInfo { tipo: string; url: string | null; archivoNombre: string | null; comentario: string | null; entregadaEn: string; devuelta: boolean; devolucion: string | null; tarde?: boolean; revisada?: boolean; archivos?: ArchivoInfo[] }
@@ -104,7 +104,7 @@ export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEva
             <span>{entrega.devuelta ? 'Tu profesor te la devolvió para corregir.' : `Entregada el ${fecha(entrega.entregadaEn)}${entrega.tarde ? ' (fuera de fecha)' : ''}.`}</span>
           </div>
           {entrega.devuelta && entrega.devolucion && <p className="text-sm text-amber-100/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2">{entrega.devolucion}</p>}
-          <ListaArchivos archivos={entrega.archivos || []} onVer={setViendo} />
+          <ListaArchivos archivos={entrega.archivos || []} onVer={setViendo} fuente={(a) => `${base}?evaluacionId=${encodeURIComponent(evaluacionId)}&archivoId=${encodeURIComponent(a.id)}`} />
           {entrega.url && <a href={entrega.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-[color:var(--c-c7d2fe)] hover:underline break-all"><Link2 className="w-4 h-4 flex-shrink-0" />{entrega.url}</a>}
           {entrega.comentario && <p className="text-xs text-[color:var(--c-8a8b9e)]">Tu comentario: {entrega.comentario}</p>}
           <button type="button" onClick={() => setEditando(true)} className="block text-xs text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] underline">{entrega.devuelta ? 'Entregar la corrección' : 'Cambiar mi entrega'}</button>
@@ -179,13 +179,14 @@ export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEva
   );
 }
 
-function ListaArchivos({ archivos, onVer }: { archivos: ArchivoInfo[]; onVer: (a: ArchivoInfo) => void }) {
+function ListaArchivos({ archivos, onVer, fuente }: { archivos: ArchivoInfo[]; onVer: (a: ArchivoInfo) => void; fuente: (a: ArchivoInfo) => string }) {
+  const adelantar = (a: ArchivoInfo) => { precargarArchivo(fuente(a)).catch(() => {}); };
   if (!archivos.length) return null;
   return (
     <ul className="space-y-1.5">
       {archivos.map(a => (
         <li key={a.id}>
-          <button type="button" onClick={() => onVer(a)} className="w-full flex items-center gap-2 rounded-lg border border-[color:var(--c-313248)] px-3 py-2 text-left hover:border-[color:var(--c-818cf8)]/50">
+          <button type="button" onClick={() => { adelantar(a); onVer(a); }} onMouseEnter={() => adelantar(a)} onTouchStart={() => adelantar(a)} className="w-full flex items-center gap-2 rounded-lg border border-[color:var(--c-313248)] px-3 py-2 text-left hover:border-[color:var(--c-818cf8)]/50">
             <FileText className="w-4 h-4 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
             <span className="text-sm text-[color:var(--c-d0d0da)] truncate flex-1">{a.nombre}</span>
             <span className="text-[11px] text-[color:var(--c-c7d2fe)] flex items-center gap-1"><Eye className="w-3.5 h-3.5" />Ver</span>
