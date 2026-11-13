@@ -1,5 +1,6 @@
 'use client';
 
+import { conMateria, materiaAbierta } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BarChart3, Bell, BellOff, BookOpen, Bot, Brain, CalendarDays, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList, Copy, Download, ExternalLink, FileCheck, FileText, GraduationCap, History, Lightbulb, Lock, LockOpen, MessageCircle, MessageSquare, Mic, PanelLeftClose, Paperclip, Plus, Printer, RotateCcw, Scale, Search, Send, Settings, Sparkle, Sparkles, Square, ThumbsDown, ThumbsUp, Trash2, UserCheck, Users, Volume2, VolumeX, X } from 'lucide-react';
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
@@ -391,7 +392,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
           const fallidos: any[] = []; const errores: string[] = []; let ok = 0; const creados: string[] = [];
           for (const e of filas) {
             try {
-              const r = await fetch('/api/estudiantes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: e.nombre, email: e.email, telefono: String(e.telefono || '').replace(/[\s().-]/g, ''), grupo: sec }) });
+              const r = await fetch('/api/estudiantes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: e.nombre, email: e.email, telefono: String(e.telefono || '').replace(/[\s().-]/g, ''), grupo: sec, materiaId: materiaAbierta.id || undefined }) });
               const d = await r.json().catch(() => ({}));
               if (!r.ok) throw new Error(d.error || 'No se pudo agregar.');
               ok++; if (d.id) creados.push(d.id);
@@ -413,7 +414,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
           break;
         }
         case 'modificar_estudiantes': {
-          const r = await fetch('/api/estudiantes');
+          const r = await fetch(conMateria('/api/estudiantes'));
           const lista: any[] = await r.json().catch(() => []);
           if (!r.ok || !Array.isArray(lista)) throw new Error('No se pudo leer la lista de estudiantes.');
           const encontrados: any[] = []; const faltan: string[] = []; const dudas: string[] = [];
@@ -513,7 +514,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
           break;
         }
         case 'enviar_plan': {
-          const r = await fetch(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}&estado=ACTIVO`);
+          const r = await fetch(conMateria(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}&estado=ACTIVO`));
           let lista: any[] = await r.json().catch(() => []);
           if (!r.ok || !Array.isArray(lista)) throw new Error('No se pudo leer la lista de estudiantes.');
           if (a.datos.soloSinAbrir) lista = lista.filter(e => !(e.portalVisitas > 0));
@@ -868,7 +869,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
     const evs = evaluacionesActivas();
     const s: { texto: string; icono: any; accion?: () => void }[] = [];
     if (totalEstudiantes === 0) s.push({ texto: 'Crear 12 estudiantes de prueba (sin correo) para practicar', icono: Users, accion: async () => {
-      const r = await fetch('/api/estudiantes/prueba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cantidad: 12, grupo: seccionActiva }) }).catch(() => null);
+      const r = await fetch('/api/estudiantes/prueba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ materiaId: materiaAbierta.id || undefined, cantidad: 12, grupo: seccionActiva }) }).catch(() => null);
       const d = await r?.json().catch(() => ({})) ?? {};
       if (!r?.ok) { agregarNotificacion?.(`⚠️ ${d.error || 'No se pudieron crear.'}`); return; }
       window.dispatchEvent(new Event('estudiantes-cambiaron'));

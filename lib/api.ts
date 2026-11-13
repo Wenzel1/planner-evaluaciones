@@ -1,5 +1,10 @@
 const API_BASE = '/api'
 
+// Materia abierta en el Planificador (al cambiar de materia la página se recarga, así que basta con guardarla aquí).
+// Las consultas de estudiantes la envían para mostrar solo los de esa materia (y los cargados sin materia, que valen para todas).
+export const materiaAbierta = { id: '' }
+export const conMateria = (url: string) => materiaAbierta.id ? `${url}${url.includes('?') ? '&' : '?'}materiaId=${encodeURIComponent(materiaAbierta.id)}` : url
+
 async function fetchAPI<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -42,12 +47,13 @@ export const apiEstudiantes = {
     if (params?.grupo) sp.set('grupo', params.grupo)
     if (params?.estado) sp.set('estado', params.estado)
     if (params?.buscar) sp.set('buscar', params.buscar)
+    if (materiaAbierta.id) sp.set('materiaId', materiaAbierta.id)
     const query = sp.toString()
     return fetchAPI<any[]>(`/estudiantes${query ? `?${query}` : ''}`)
   },
 
   crear: (data: { nombre: string; email: string; telefono?: string; grupo?: string }) =>
-    fetchAPI<any>('/estudiantes', { method: 'POST', body: JSON.stringify(data) }),
+    fetchAPI<any>('/estudiantes', { method: 'POST', body: JSON.stringify({ ...data, materiaId: materiaAbierta.id || undefined }) }),
 
   eliminar: (id: string) =>
     fetchAPI<any>(`/estudiantes?id=${id}`, { method: 'DELETE' }), 

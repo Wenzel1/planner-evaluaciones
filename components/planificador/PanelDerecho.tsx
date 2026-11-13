@@ -375,7 +375,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
       }
     };
     cargarTotal();
-  }, [seccionActiva, vista === 'planificacion']); // también al volver al planificador (por si agregó estudiantes)
+  }, [seccionActiva, vista === 'planificacion', materiaActivaId]); // también al volver al planificador (por si agregó estudiantes)
 
   // Estados para el efecto glow
   const [glow1, setGlow1] = useState(false);

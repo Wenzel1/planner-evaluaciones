@@ -58,7 +58,7 @@ export async function ejecutarConsulta(c: ContextoConsulta, a: any): Promise<str
 }
 
 async function consultaEstudiante(c: ContextoConsulta, nombre: string): Promise<string> {
-  const todos = await prisma.estudiante.findMany({ where: { usuarioId: c.usuarioId }, select: { id: true, nombre: true, grupo: true } })
+  const todos = await prisma.estudiante.findMany({ where: { usuarioId: c.usuarioId, estado: { not: 'PENDIENTE' } }, select: { id: true, nombre: true, grupo: true } })
   const hallados = buscar<{ id: string; nombre: string; grupo: string }>(todos, nombre)
   if (hallados.length === 0) return `No hay ningún estudiante llamado «${nombre}».`
   if (hallados.length > 1) return `Hay ${hallados.length} estudiantes con ese nombre: ${hallados.slice(0, 8).map(e => `${e.nombre} (sec. ${e.grupo})`).join(', ')}. Pregunta cuál.`

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import prisma from '@/lib/prisma'
+import { materiaPropia } from '@/lib/clases'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 
@@ -30,7 +31,8 @@ export async function POST(request: Request) {
     const libres = combinaciones.filter(n => !existentes.has(n)).sort(() => crypto.randomInt(3) - 1)
     const elegidos = libres.slice(0, cantidad)
     const datos = elegidos.map(nombre => ({ nombre, email: `${slug(nombre.split(' ')[0])}.${slug(nombre.split(' ')[1])}.${crypto.randomBytes(3).toString('hex')}${DOMINIO}`, grupo, usuarioId: actor.id, estado: 'ACTIVO' as const }))
-    const r = await prisma.estudiante.createMany({ data: datos, skipDuplicates: true })
+    const materiaId = await materiaPropia(actor.id, body.materiaId)
+    const r = await prisma.estudiante.createMany({ data: datos.map(d => ({ ...d, materiaId })), skipDuplicates: true })
     await registrarActividad({ actor, accion: 'CREAR', entidad: 'Estudiante', detalle: `Creó ${r.count} estudiantes de prueba en la sección ${grupo}` })
     return NextResponse.json({ creados: r.count, grupo })
   } catch (e) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { materiaPropia } from '@/lib/clases'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 
@@ -54,8 +55,9 @@ export async function POST(request: Request) {
 
     let creados = 0
     if (nuevos.length > 0) {
+      const materiaId = await materiaPropia(actor.id, body.materiaId)
       const r = await prisma.estudiante.createMany({
-        data: nuevos.map(({ fila, ...d }) => ({ ...d, telefono: d.telefono || null, estado: 'ACTIVO' as const, usuarioId: actor.id })),
+        data: nuevos.map(({ fila, ...d }) => ({ ...d, telefono: d.telefono || null, estado: 'ACTIVO' as const, usuarioId: actor.id, materiaId })),
         skipDuplicates: true,
       })
       creados = r.count

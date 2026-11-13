@@ -1,5 +1,6 @@
 'use client';
 
+import { materiaAbierta } from '@/lib/api';
 import { memoriaPaneles } from '@/components/planificador/utilidades';
 import { AlertCircle, CheckCircle, Copy, Download, ExternalLink, Eye, Filter, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, Upload, User, Users, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -38,7 +39,7 @@ export function EstudiantesPanel() {
   const crearPrueba = async () => {
     setProcesandoPrueba(true);
     try {
-      const r = await fetch('/api/estudiantes/prueba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prueba) });
+      const r = await fetch('/api/estudiantes/prueba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...prueba, materiaId: materiaAbierta.id || undefined }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'No se pudieron crear.');
       await recargarEstudiantes(); window.dispatchEvent(new Event('estudiantes-cambiaron'));
@@ -139,7 +140,7 @@ export function EstudiantesPanel() {
       const { estudiantes: filas, tieneEncabezado } = csvAEstudiantes(await archivo.text());
       if (filas.length === 0) { setErrorImport('El archivo está vacío.'); return; }
       setImportando(true);
-      const r = await fetch('/api/estudiantes/importar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudiantes: filas }) });
+      const r = await fetch('/api/estudiantes/importar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudiantes: filas, materiaId: materiaAbierta.id || undefined }) });
       const d = await r.json();
       if (!r.ok) { setErrorImport(d.error || 'No se pudo importar el archivo.'); return; }
       setResultadoImport({ creados: d.creados, omitidos: d.omitidos, desplazamiento: tieneEncabezado ? 1 : 0 });

@@ -3,7 +3,7 @@
 'use client';
 
 import Tutorial, { marcarTutorialVisto, pasosDeVista, pasosTutorial, tutorialVisto } from '@/components/Tutorial';
-import { apiEstudiantes } from '@/lib/api';
+import { apiEstudiantes, materiaAbierta } from '@/lib/api';
 import { normalizarExamen } from '@/lib/examen';
 import { normalizarRubrica } from '@/lib/rubrica';
 import { useEffect, useRef, useState } from 'react';
@@ -136,7 +136,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
         const actividadDe = (m: any) => Math.max(t(m.updatedAt), t(m.planificaciones?.[0]?.updatedAt), t(m.planificaciones?.[0]?.createdAt), t(m.createdAt));
         const materiaActual = [...materias].sort((a: any, b: any) => actividadDe(b) - actividadDe(a))[0];
         try { localStorage.setItem(CLAVE_MATERIA, materiaActual.id); } catch { /* sin almacenamiento */ }
-        setMateriaActivaId(materiaActual.id);
+        setMateriaActivaId(materiaActual.id); materiaAbierta.id = materiaActual.id;
         // Materia nueva, todavía sin plan: se muestra con su nombre (el primer guardado crea su plan)
         setPlanificacion(prev => ({ ...prev, materia: materiaActual.nombre || prev.materia, secciones: [] }));
         

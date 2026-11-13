@@ -26,6 +26,14 @@ export async function nuevoCodigo(nombreMateria: string): Promise<string> {
   return `CLS-${azar(6)}`
 }
 
+// La materia que manda el navegador, solo si es de ese profesor (si no, null = vale para todas sus materias)
+export async function materiaPropia(usuarioId: string, materiaId: unknown): Promise<string | null> {
+  const id = typeof materiaId === 'string' ? materiaId.trim() : ''
+  if (!id) return null
+  const m = await prisma.materia.findFirst({ where: { id, usuarioId }, select: { id: true } })
+  return m?.id ?? null
+}
+
 // Devuelve la sección (la crea con su código si todavía no existe)
 export async function seccionConCodigo(materiaId: string, letra: string) {
   const l = String(letra || 'A').trim().toUpperCase().slice(0, 1)

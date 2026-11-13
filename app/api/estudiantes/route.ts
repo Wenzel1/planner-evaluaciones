@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor, quiereTodos, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarAPapelera } from '@/lib/papelera'
-import { filtroMateria } from '@/lib/clases'
+import { filtroMateria, materiaPropia } from '@/lib/clases'
 
 // GET /api/estudiantes  (solo los del usuario; ADMIN/SUPERADMIN pueden pedir ?todos=1)
 export async function GET(request: Request) {
@@ -83,6 +83,7 @@ export async function POST(request: Request) {
         grupo,
         estado: (estado as any) || 'ACTIVO',
         usuarioId: actor.id,
+        materiaId: await materiaPropia(actor.id, body.materiaId),
       },
     })
     await registrarActividad({ actor, accion: 'CREAR', entidad: 'Estudiante', detalle: `Agregó a ${estudiante.nombre}` })

@@ -1,5 +1,6 @@
 'use client';
 
+import { conMateria } from '@/lib/api';
 import { AnimatePresence, Reorder, motion } from 'framer-motion';
 import { Download, FileSpreadsheet, FileText, Send, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -127,8 +128,8 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
               {/* ENVIAR — Click simple: nada. Mantener presionado 500ms: muestra ventana */}
               <Tooltip text={`Enviar por ${medioEnvio()}`}>
                 <button
-                  onMouseEnter={() => precargar(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}`)}
-                  onTouchStart={() => precargar(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}`)}
+                  onMouseEnter={() => precargar(conMateria(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}`))}
+                  onTouchStart={() => precargar(conMateria(`/api/estudiantes?grupo=${encodeURIComponent(seccionActiva)}`))}
                   onClick={() => setMostrarMenuEnvio(true)} // abre la ventana flotante de envío (igual que las demás ventanas)
                   aria-label={`Enviar el plan por ${medioEnvio()}`}
                   className={`p-1.5 rounded-lg border transition-all duration-200 active:scale-95 ${

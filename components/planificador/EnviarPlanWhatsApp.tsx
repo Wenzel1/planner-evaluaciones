@@ -1,5 +1,6 @@
 'use client';
 
+import { conMateria } from '@/lib/api';
 import { Eye, Search, Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SeccionExamen } from '@/components/planificador/tipos';
@@ -43,7 +44,7 @@ export function EnviarPlanWhatsApp({ seccion, lista, materia, fechaExamen, onCer
   useEffect(() => {
     let vivo = true;
     setEstudiantes(null); setErrorCarga('');
-    pedirConCache(`/api/estudiantes?grupo=${encodeURIComponent(seccion)}`)
+    pedirConCache(conMateria(`/api/estudiantes?grupo=${encodeURIComponent(seccion)}`))
       .then((d: any) => {
         if (!vivo) return;
         const activos: EstudianteFila[] = (Array.isArray(d) ? d : []).filter((e: any) => String(e.estado || 'ACTIVO').toUpperCase() === 'ACTIVO');
