@@ -3,45 +3,23 @@
 //  PDF, imágenes, video y audio directo · Word/Excel/PowerPoint con el visor de Microsoft Office ·
 //  código y texto con colores y números de línea · CSV como tabla · .zip con su lista de archivos.
 // Lo que no se puede mostrar se abre en otra pestaña o se descarga.
-import { useEffect, useMemo, useState } from 'react';
-import { Download, ExternalLink, Folder, ChevronRight, AlertCircle, ZoomIn, ZoomOut, ArrowLeft } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Download, ExternalLink, Folder, ChevronRight, AlertCircle, ZoomIn, ZoomOut, ArrowLeft, Zap } from 'lucide-react';
 import { categoria, estiloDe, extension, tamanoLegible } from './tiposArchivo';
 
-interface Enlaces { ver: string; descargar: string }
 
-// fuente: dirección que entrega el archivo (ya con ?archivoId=…); se le agrega &modo=…
-const conModo = (fuente: string, modo: string, extra = '') => `${fuente}${fuente.includes('?') ? '&' : '?'}modo=${modo}${extra}`;
-
-// Enlaces ya pedidos (los firmados duran 10 min; se reusan por 8) y pedidos en curso: abrir un archivo
-// por segunda vez, o uno que se precargó al pasar el mouse, es instantáneo.
-const enlacesGuardados = new Map<string, { enlaces: Enlaces; hasta: number }>();
-const enCurso = new Map<string, Promise<Enlaces>>();
-export function precargarArchivo(fuente: string): Promise<Enlaces> {
-  const g = enlacesGuardados.get(fuente);
-  if (g && g.hasta > Date.now()) return Promise.resolve(g.enlaces);
-  const p0 = enCurso.get(fuente);
-  if (p0) return p0;
-  const p = fetch(conModo(fuente, 'url'), { cache: 'no-store' })
-    .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo abrir el archivo.'); return { ver: d.ver as string, descargar: d.descargar as string }; })
-    .then(enlaces => {
-      enlacesGuardados.set(fuente, { enlaces, hasta: Date.now() + 8 * 60_000 });
-      preconectar(new URL(enlaces.ver).origin);
-      return enlaces;
-    })
-    .finally(() => enCurso.delete(fuente));
-  enCurso.set(fuente, p);
-  return p;
-}
-// Abre la conexión con el servidor de archivos (y con el visor de Office) antes de necesitarla
-const conectados = new Set<string>();
-export function preconectar(origen: string) {
-  if (typeof document === 'undefined' || conectados.has(origen)) return;
-  conectados.add(origen);
-  const l = document.createElement('link'); l.rel = 'preconnect'; l.href = origen; l.crossOrigin = 'anonymous'; document.head.appendChild(l);
-}
+import { conModo, enlacesGuardados, precargarArchivo, preconectar, type Enlaces } from './enlaces';
+export { precargarArchivo };
 
 export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: string; nombre: string; tamano?: number | null }) {
   const cat = categoria(nombre);
+  // Word (.docx) y Excel (.xlsx) se dibujan en el navegador (rápido y sin salir del sistema);
+  // los formatos antiguos (.doc, .xls), PowerPoint y OpenDocument usan el visor de Microsoft Office.
+  const ext = extension(nombre);
+  const rapida = (cat === 'word' && ext === 'docx') || (cat === 'excel' && ext === 'xlsx');
+  const [conOffice, setConOffice] = useState(false);
+  useEffect(() => { setConOffice(false); }, [fuente]);
+  const usaOffice = ['word', 'excel', 'powerpoint'].includes(cat) && (!rapida || conOffice);
   const [enlaces, setEnlaces] = useState<Enlaces | null>(null);
   const [error, setError] = useState('');
 
@@ -63,8 +41,13 @@ export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: strin
         <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${est.fondo}`}><Icono className={`w-4 h-4 ${est.color}`} /></span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-[color:var(--c-e0e0ec)] truncate" title={nombre}>{nombre}</p>
-          <p className="text-[10px] text-[color:var(--c-8a8b9e)]">{est.nombre}{tamano ? ` · ${tamanoLegible(tamano)}` : ''}{['word', 'excel', 'powerpoint'].includes(cat) ? ' · vista de Microsoft Office' : ''}</p>
+          <p className="text-[10px] text-[color:var(--c-8a8b9e)]">{est.nombre}{tamano ? ` · ${tamanoLegible(tamano)}` : ''}{usaOffice ? ' · vista de Microsoft Office' : ''}</p>
         </div>
+        {rapida && enlaces && (
+          <button type="button" onClick={() => setConOffice(v => !v)} className="h-8 px-2.5 rounded-lg text-xs font-medium text-[color:var(--c-c7d2fe)] border border-[color:var(--c-313248)] hover:bg-[color:var(--c-818cf8)]/10 flex items-center gap-1.5" title={conOffice ? 'Volver a la vista rápida' : 'Abrir con el visor de Microsoft Office (si algo se ve raro)'}>
+            {conOffice ? <><Zap className="w-3.5 h-3.5" /><span className="hidden sm:inline">Vista rápida</span></> : <><ExternalLink className="w-3.5 h-3.5" /><span className="hidden sm:inline">Ver con Microsoft Office</span><span className="sm:hidden">Office</span></>}
+          </button>
+        )}
         {enlaces && (
           <>
             <a href={enlaces.ver} target="_blank" rel="noopener noreferrer" className="h-8 px-2.5 rounded-lg text-xs font-medium text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10 flex items-center gap-1.5" title="Abrir en otra pestaña"><ExternalLink className="w-3.5 h-3.5" /><span className="hidden sm:inline">Pestaña nueva</span></a>
@@ -78,7 +61,9 @@ export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: strin
         {error ? <Aviso texto={error} />
           : !enlaces ? <Cargando />
           : cat === 'pdf' ? <iframe key={enlaces.ver} src={enlaces.ver} title={nombre} className="absolute inset-0 w-full h-full bg-white" />
-          : ['word', 'excel', 'powerpoint'].includes(cat) ? <iframe key={enlaces.ver} src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(enlaces.ver)}`} title={nombre} className="absolute inset-0 w-full h-full bg-white" />
+          : cat === 'word' && !usaOffice ? <VistaWord key={enlaces.ver} url={enlaces.ver} onFallo={() => setConOffice(true)} />
+          : cat === 'excel' && !usaOffice ? <VistaExcel key={enlaces.ver} url={enlaces.ver} onFallo={() => setConOffice(true)} />
+          : usaOffice ? <iframe key={enlaces.ver} src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(enlaces.ver)}`} title={nombre} className="absolute inset-0 w-full h-full bg-white" />
           : cat === 'imagen' ? <VistaImagen url={enlaces.ver} nombre={nombre} />
           : cat === 'video' ? <div className="absolute inset-0 flex items-center justify-center p-4"><video src={enlaces.ver} controls className="max-w-full max-h-full rounded-lg" /></div>
           : cat === 'audio' ? <div className="absolute inset-0 flex items-center justify-center p-4"><audio src={enlaces.ver} controls className="w-full max-w-lg" /></div>
@@ -263,6 +248,146 @@ function VistaZip({ fuente }: { fuente: string }) {
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+// ---------- Descarga del archivo para dibujarlo en el navegador (se guarda para no bajarlo dos veces) ----------
+const bajados = new Map<string, ArrayBuffer>();
+async function bajar(url: string): Promise<ArrayBuffer> {
+  const g = bajados.get(url);
+  if (g) return g;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('No se pudo descargar.');
+  const b = await r.arrayBuffer();
+  if (bajados.size > 6) bajados.delete(bajados.keys().next().value as string);
+  bajados.set(url, b);
+  return b;
+}
+
+// ---------- Word (.docx) como hoja, dentro del programa ----------
+function VistaWord({ url, onFallo }: { url: string; onFallo: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const caja = useRef<HTMLDivElement>(null);
+  const [listo, setListo] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const [{ renderAsync }, datos] = await Promise.all([import('docx-preview'), bajar(url)]);
+        if (!vivo || !ref.current) return;
+        ref.current.innerHTML = '';
+        await renderAsync(datos, ref.current, ref.current, {
+          className: 'docx', inWrapper: true, breakPages: true, ignoreLastRenderedPageBreak: true, experimental: true,
+          renderHeaders: true, renderFooters: true, renderFootnotes: true, renderEndnotes: true,
+          renderComments: false, renderChanges: false, renderAltChunks: false, useBase64URL: true,
+        });
+        if (!vivo || !ref.current) return;
+        // Seguridad: los enlaces del documento solo abren páginas web, en otra pestaña
+        ref.current.querySelectorAll('a[href]').forEach(a => {
+          const href = a.getAttribute('href') || '';
+          if (/^(https?:|mailto:|#)/i.test(href)) { if (!href.startsWith('#')) { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); } }
+          else a.removeAttribute('href');
+        });
+        ref.current.querySelectorAll('script, iframe, object, embed').forEach(n => n.remove());
+        // En pantallas angostas la hoja se achica para que entre completa
+        const hoja = ref.current.querySelector('section.docx') as HTMLElement | null;
+        const envoltura = ref.current.querySelector('.docx-wrapper') as HTMLElement | null;
+        const ancho = caja.current?.clientWidth || 0;
+        if (hoja && envoltura && ancho && hoja.offsetWidth + 32 > ancho) (envoltura.style as any).zoom = String(Math.max(0.35, (ancho - 24) / (hoja.offsetWidth + 8)));
+        setListo(true);
+      } catch { if (vivo) onFallo(); }
+    })();
+    return () => { vivo = false; };
+  }, [url]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div ref={caja} className="absolute inset-0 overflow-auto vista-docx">
+      <style>{`.vista-docx .docx-wrapper{background:transparent!important;padding:20px 8px 4px!important}.vista-docx .docx-wrapper>section.docx{box-shadow:0 4px 24px rgba(0,0,0,.35)!important;margin-bottom:20px!important;border-radius:4px}`}</style>
+      <div ref={ref} />
+      {!listo && <Cargando />}
+    </div>
+  );
+}
+
+// ---------- Excel (.xlsx) como cuadrícula con pestañas de hojas ----------
+interface Celda { t: string; estilo?: React.CSSProperties; colSpan?: number; rowSpan?: number; oculta?: boolean }
+interface Hoja { nombre: string; columnas: number[]; filas: Celda[][]; recortada: boolean }
+const MAX_FILAS = 1000, MAX_COLUMNAS = 60;
+const letraColumna = (n: number) => { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };
+const colorArgb = (c: any) => (c?.argb && /^[0-9A-F]{8}$/i.test(c.argb) ? `#${c.argb.slice(2)}` : undefined);
+
+function textoCelda(cell: any): string {
+  try {
+    const v = cell.value;
+    if (v instanceof Date) return v.toLocaleDateString('es-VE', { timeZone: 'UTC' });
+    if (v && typeof v === 'object' && 'result' in v) { const r = (v as any).result; return r instanceof Date ? r.toLocaleDateString('es-VE', { timeZone: 'UTC' }) : r == null ? '' : typeof r === 'object' && r.error ? String(r.error) : String(r); }
+    return cell.text ?? (v == null ? '' : String(v));
+  } catch { return ''; }
+}
+
+async function leerExcel(datos: ArrayBuffer): Promise<Hoja[]> {
+  const ExcelJS: any = (await import('exceljs')).default ?? (await import('exceljs'));
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(datos);
+  return libro.worksheets.filter((ws: any) => ws.state !== 'hidden' && ws.state !== 'veryHidden').map((ws: any) => {
+    const totalFilas = Math.min(ws.actualRowCount ? ws.rowCount : 0, MAX_FILAS);
+    const totalCols = Math.min(ws.columnCount || 0, MAX_COLUMNAS);
+    const filas: Celda[][] = [];
+    for (let r = 1; r <= totalFilas; r++) {
+      const fila = ws.getRow(r); const celdas: Celda[] = [];
+      for (let c = 1; c <= totalCols; c++) {
+        const cell = fila.getCell(c);
+        const f = cell.font || {}; const a = cell.alignment || {};
+        const fondo = cell.fill?.type === 'pattern' && cell.fill.pattern === 'solid' ? colorArgb(cell.fill.fgColor) : undefined;
+        celdas.push({ t: textoCelda(cell), estilo: { fontWeight: f.bold ? 700 : undefined, fontStyle: f.italic ? 'italic' : undefined, textDecoration: f.underline ? 'underline' : undefined, color: colorArgb(f.color), background: fondo, textAlign: a.horizontal === 'center' || a.horizontal === 'right' ? a.horizontal : typeof cell.value === 'number' ? 'right' : undefined, whiteSpace: a.wrapText ? 'pre-wrap' : 'nowrap' } });
+      }
+      filas.push(celdas);
+    }
+    // Celdas combinadas
+    for (const rango of (ws.model?.merges || []) as string[]) {
+      const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(rango); if (!m) continue;
+      const col = (l: string) => [...l].reduce((t, ch) => t * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+      const [c1, r1, c2, r2] = [col(m[1]), +m[2] - 1, col(m[3]), +m[4] - 1];
+      if (r1 >= filas.length || c1 >= totalCols) continue;
+      const base = filas[r1][c1]; base.colSpan = Math.min(c2, totalCols - 1) - c1 + 1; base.rowSpan = Math.min(r2, filas.length - 1) - r1 + 1;
+      for (let r = r1; r <= Math.min(r2, filas.length - 1); r++) for (let c = c1; c <= Math.min(c2, totalCols - 1); c++) if (r !== r1 || c !== c1) filas[r][c].oculta = true;
+    }
+    const columnas = Array.from({ length: totalCols }, (_, k) => Math.round(Math.min(400, Math.max(40, ((ws.getColumn(k + 1).width as number) || 9) * 7.5))));
+    return { nombre: ws.name, columnas, filas, recortada: ws.rowCount > MAX_FILAS || ws.columnCount > MAX_COLUMNAS };
+  });
+}
+
+function VistaExcel({ url, onFallo }: { url: string; onFallo: () => void }) {
+  const [hojas, setHojas] = useState<Hoja[] | null>(null);
+  const [activa, setActiva] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    bajar(url).then(leerExcel).then(h => { if (vivo) { if (!h.length) onFallo(); else setHojas(h); } }).catch(() => vivo && onFallo());
+    return () => { vivo = false; };
+  }, [url]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!hojas) return <Cargando />;
+  const h = hojas[Math.min(activa, hojas.length - 1)];
+  return (
+    <div className="absolute inset-0 flex flex-col bg-white">
+      <div className="flex-1 overflow-auto">
+        {h.filas.length === 0 ? <p className="p-6 text-sm text-slate-500">Esta hoja está vacía.</p> : (
+          <table className="border-collapse text-[12px] text-slate-800" style={{ tableLayout: 'fixed' }}>
+            <colgroup><col style={{ width: 44 }} />{h.columnas.map((w, k) => <col key={k} style={{ width: w }} />)}</colgroup>
+            <thead className="sticky top-0 z-10"><tr><th className="bg-slate-100 border border-slate-300 sticky left-0 z-20" />{h.columnas.map((_, k) => <th key={k} className="bg-slate-100 border border-slate-300 font-medium text-slate-500 h-6">{letraColumna(k)}</th>)}</tr></thead>
+            <tbody>{h.filas.map((f, r) => (
+              <tr key={r}>
+                <td className="bg-slate-100 border border-slate-300 text-center text-slate-500 sticky left-0">{r + 1}</td>
+                {f.map((c, k) => (c.oculta ? null : <td key={k} colSpan={c.colSpan} rowSpan={c.rowSpan} style={c.estilo} className="border border-slate-200 px-1.5 h-[22px] overflow-hidden text-ellipsis">{c.t}</td>))}
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+        {h.recortada && <p className="p-2 text-[11px] text-amber-700 bg-amber-50 border-t border-amber-200">Se muestran las primeras {MAX_FILAS} filas y {MAX_COLUMNAS} columnas. Descarga el archivo para verlo completo.</p>}
+      </div>
+      {/* Pestañas de las hojas */}
+      <div className="flex gap-0.5 px-2 pt-1 bg-slate-100 border-t border-slate-300 overflow-x-auto flex-shrink-0">
+        {hojas.map((x, k) => <button key={k} type="button" onClick={() => setActiva(k)} className={`px-3 h-7 text-xs whitespace-nowrap rounded-t-md ${k === activa ? 'bg-white text-emerald-700 font-semibold border border-b-0 border-slate-300' : 'text-slate-600 hover:bg-slate-200'}`}>{x.nombre}</button>)}
+      </div>
     </div>
   );
 }

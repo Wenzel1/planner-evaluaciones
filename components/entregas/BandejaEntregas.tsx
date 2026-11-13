@@ -9,7 +9,7 @@ import { estiloDe, ESTILO, haceTiempo, iniciales, colorAvatar } from './tiposArc
 import type { EntregaBandeja } from './VisorEntregas';
 import type { RubricaEval } from '@/lib/rubrica';
 import { textoNota } from '@/components/planificador/ModalNotas';
-import { precargarArchivo } from './VistaArchivo';
+import { precargarArchivo } from './enlaces';
 
 const VisorEntregas = dynamic(() => import('./VisorEntregas'));
 const cargarVisor = () => import('./VisorEntregas').catch(() => null);
