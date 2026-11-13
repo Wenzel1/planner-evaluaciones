@@ -25,12 +25,14 @@ export async function POST(request: Request) {
     const email = actor.email.toLowerCase()
     const destino = { materia: seccion.materia.nombre, profesor: seccion.materia.usuario?.nombre || 'tu profesor', seccion: seccion.letra }
 
-    const existente = await prisma.estudiante.findUnique({ where: { usuarioId_email: { usuarioId: profesorId, email } } })
+    // Registro de este profesor para ESTA materia (o uno cargado sin materia, que vale para todas). Si está en otra
+    // materia del mismo profesor, no se toca: se crea uno aparte para esta, con su propia sección.
+    const candidatos = await prisma.estudiante.findMany({ where: { usuarioId: profesorId, email, OR: [{ materiaId: seccion.materiaId }, { materiaId: null }] } })
+    const existente = candidatos.find(c => c.materiaId === seccion.materiaId) ?? candidatos[0] ?? null
     if (existente) {
       if (existente.cuentaId && existente.cuentaId !== actor.id) return NextResponse.json({ error: 'Ese estudiante ya está enlazado a otra cuenta. Habla con tu profesor.' }, { status: 409 })
-      // Ya estaba en la lista del profesor: se enlaza a esta cuenta. Si estaba en otra materia del mismo profesor, pasa a valer para todas.
-      const otraMateria = existente.materiaId && existente.materiaId !== seccion.materiaId
-      await prisma.estudiante.update({ where: { id: existente.id }, data: { cuentaId: actor.id, ...(otraMateria ? { materiaId: null } : {}) } })
+      // Ya estaba en la lista del profesor: se enlaza a esta cuenta (conserva sus notas)
+      await prisma.estudiante.update({ where: { id: existente.id }, data: { cuentaId: actor.id } })
       await registrarActividad({ actor, accion: 'EDITAR', entidad: 'Estudiante', detalle: `Enlazó su cuenta a la clase de ${destino.profesor} (${destino.materia})` })
       return NextResponse.json({ estado: existente.estado === 'PENDIENTE' ? 'PENDIENTE' : 'ACTIVO', enlazado: true, ...destino })
     }

@@ -44,8 +44,9 @@ export async function POST(request: Request) {
     })
 
     // Los que el profesor ya tiene registrados
+    const materiaId = await materiaPropia(actor.id, body.materiaId)
     const existentes = validos.length
-      ? await prisma.estudiante.findMany({ where: { usuarioId: actor.id, email: { in: validos.map((v) => v.email) } }, select: { email: true } })
+      ? await prisma.estudiante.findMany({ where: { usuarioId: actor.id, email: { in: validos.map((v) => v.email) }, ...(materiaId ? { OR: [{ materiaId }, { materiaId: null }] } : {}) }, select: { email: true } })
       : []
     const yaTiene = new Set(existentes.map((e) => e.email))
     const nuevos = validos.filter((v) => {
@@ -55,7 +56,6 @@ export async function POST(request: Request) {
 
     let creados = 0
     if (nuevos.length > 0) {
-      const materiaId = await materiaPropia(actor.id, body.materiaId)
       const r = await prisma.estudiante.createMany({
         data: nuevos.map(({ fila, ...d }) => ({ ...d, telefono: d.telefono || null, estado: 'ACTIVO' as const, usuarioId: actor.id, materiaId })),
         skipDuplicates: true,

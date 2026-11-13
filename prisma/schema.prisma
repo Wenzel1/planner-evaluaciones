@@ -246,7 +246,9 @@ model Estudiante {
   solicitadoEn DateTime?     // cuándo pidió unirse con el código de clase
   entregas    Entrega[]
   comentarios ComentarioEvaluacion[]
-  @@unique([usuarioId, email])
+  // Un registro por profesor, materia y correo: el mismo estudiante puede estar en dos materias del mismo profesor
+  // (cada una con su sección). materiaId null = cargado sin materia (vale para todas sus materias).
+  @@unique([usuarioId, materiaId, email])
   @@index([cuentaId])
   @@index([materiaId])
   @@index([usuarioId])

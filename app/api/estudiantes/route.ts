@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma'
 import { requerirActor, quiereTodos, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarAPapelera } from '@/lib/papelera'
-import { filtroMateria, materiaPropia } from '@/lib/clases'
+import { filtroMateria, materiaPropia, correoRepetido } from '@/lib/clases'
 
 // GET /api/estudiantes  (solo los del usuario; ADMIN/SUPERADMIN pueden pedir ?todos=1)
 export async function GET(request: Request) {
@@ -75,6 +75,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'El teléfono debe tener al menos 7 dígitos.' }, { status: 400 })
     }
 
+    const materiaId = await materiaPropia(actor.id, body.materiaId)
+    if (await correoRepetido(actor.id, body.email, materiaId)) return NextResponse.json({ error: 'Ya tienes un estudiante registrado con ese email en esta materia.' }, { status: 409 })
     const estudiante = await prisma.estudiante.create({
       data: {
         nombre: body.nombre.trim(),
@@ -83,7 +85,7 @@ export async function POST(request: Request) {
         grupo,
         estado: (estado as any) || 'ACTIVO',
         usuarioId: actor.id,
-        materiaId: await materiaPropia(actor.id, body.materiaId),
+        materiaId,
       },
     })
     await registrarActividad({ actor, accion: 'CREAR', entidad: 'Estudiante', detalle: `Agregó a ${estudiante.nombre}` })
@@ -108,7 +110,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
     }
 
-    const existente = await prisma.estudiante.findUnique({ where: { id: body.id }, select: { usuarioId: true } })
+    const existente = await prisma.estudiante.findUnique({ where: { id: body.id }, select: { usuarioId: true, materiaId: true } })
     if (!existente) return NextResponse.json({ error: 'Estudiante no encontrado' }, { status: 404 })
     const denegado = verificarAcceso(actor, existente.usuarioId, 'escribir')
     if (denegado) return denegado
@@ -131,6 +133,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'El teléfono debe tener al menos 7 dígitos.' }, { status: 400 })
     }
 
+    if (await correoRepetido(existente.usuarioId ?? actor.id, body.email, existente.materiaId, body.id)) return NextResponse.json({ error: 'Ya tienes otro estudiante con ese email en esta materia.' }, { status: 409 })
     const estudiante = await prisma.estudiante.update({
       where: { id: body.id },
       data: {

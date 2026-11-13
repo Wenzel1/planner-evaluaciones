@@ -34,6 +34,14 @@ export async function materiaPropia(usuarioId: string, materiaId: unknown): Prom
   return m?.id ?? null
 }
 
+// ¿El profesor ya tiene ese correo en esa materia? Un registro sin materia vale para todas, así que choca con cualquiera.
+// (La base no lo puede impedir sola: en Postgres dos materiaId vacíos no cuentan como repetidos.)
+export async function correoRepetido(usuarioId: string, email: string, materiaId: string | null, excluirId?: string): Promise<boolean> {
+  const where: any = { usuarioId, email: email.trim().toLowerCase(), ...(excluirId ? { id: { not: excluirId } } : {}) }
+  if (materiaId) where.OR = [{ materiaId }, { materiaId: null }]
+  return !!(await prisma.estudiante.findFirst({ where, select: { id: true } }))
+}
+
 // Devuelve la sección (la crea con su código si todavía no existe)
 export async function seccionConCodigo(materiaId: string, letra: string) {
   const l = String(letra || 'A').trim().toUpperCase().slice(0, 1)
