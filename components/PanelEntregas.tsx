@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Inbox, X, FileText, ExternalLink, MessageSquare, Send, RotateCcw, ChevronDown } from 'lucide-react';
 
-interface Fila { id: string; nombre: string; conCuenta: boolean; estado: 'PENDIENTE' | 'ENTREGADA' | 'TARDE' | 'DEVUELTA'; entrega: { tipo: string; url: string | null; archivoNombre: string | null; comentario: string | null; entregadaEn: string; devolucion: string | null } | null; mensajes: number; sinLeer: number }
+interface Fila { id: string; nombre: string; conCuenta: boolean; estado: 'PENDIENTE' | 'ENTREGADA' | 'TARDE' | 'DEVUELTA'; entrega: { id: string; archivos?: { id: string; nombre: string; tamano: number | null }[]; tipo: string; url: string | null; archivoNombre: string | null; comentario: string | null; entregadaEn: string; devolucion: string | null } | null; mensajes: number; sinLeer: number }
 interface Datos { evaluacion: { id: string; nombre: string; fecha: string | null; aceptaEntregas: boolean }; filas: Fila[] }
 const ZONA = 'America/Caracas';
 const fecha = (d: string) => new Intl.DateTimeFormat('es-VE', { timeZone: ZONA, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(d));
@@ -67,7 +67,7 @@ export default function PanelEntregas({ evaluacionId, nombre, onCerrar, notifica
                 <button type="button" onClick={() => setAbierta(abierta === f.id ? null : f.id)} className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-[color:var(--c-232438)]">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-[color:var(--c-e0e0ec)] truncate">{f.nombre}{!f.conCuenta && <span className="ml-1.5 text-[10px] text-[color:var(--c-6a6b7e)]">(sin cuenta)</span>}</p>
-                    <p className="text-[11px] text-[color:var(--c-8a8b9e)]">{f.entrega ? `${f.entrega.tipo === 'ARCHIVO' ? '📎 Archivo' : '🔗 Enlace'} · ${fecha(f.entrega.entregadaEn)}` : 'Sin entrega'}</p>
+                    <p className="text-[11px] text-[color:var(--c-8a8b9e)]">{f.entrega ? `${f.entrega.archivos?.length ? `📎 ${f.entrega.archivos.length} archivo${f.entrega.archivos.length === 1 ? '' : 's'}` : ''}${f.entrega.archivos?.length && f.entrega.url ? ' + ' : ''}${f.entrega.url ? '🔗 Enlace' : ''} · ${fecha(f.entrega.entregadaEn)}` : 'Sin entrega'}</p>
                   </div>
                   {f.sinLeer > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[color:var(--c-818cf8)] text-white">💬 {f.sinLeer}</span>}
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${ESTADO[f.estado].clase}`}>{ESTADO[f.estado].texto}</span>
@@ -110,9 +110,11 @@ function DetalleEstudiante({ evaluacionId, fila, onCambio, notificar }: { evalua
     <div className="px-4 pb-4 pt-1 space-y-3 bg-[color:var(--c-191a26)]">
       {fila.entrega && (
         <div className="space-y-2">
-          {fila.entrega.tipo === 'ARCHIVO'
-            ? <a href={`${base}/entregas?archivo=${encodeURIComponent(fila.id)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-[color:var(--c-c7d2fe)] hover:underline"><FileText className="w-4 h-4" />{fila.entrega.archivoNombre}</a>
-            : fila.entrega.url && <a href={fila.entrega.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-[color:var(--c-c7d2fe)] hover:underline break-all"><ExternalLink className="w-4 h-4 flex-shrink-0" />{fila.entrega.url}</a>}
+          {(fila.entrega.archivos || []).map(a => (
+            <a key={a.id} href={`/api/entregas/${encodeURIComponent(fila.entrega!.id)}?archivoId=${encodeURIComponent(a.id)}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-[color:var(--c-c7d2fe)] hover:underline"><FileText className="w-4 h-4 flex-shrink-0" /><span className="truncate">{a.nombre}</span></a>
+          ))}
+          {fila.entrega.url && <a href={fila.entrega.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-[color:var(--c-c7d2fe)] hover:underline break-all"><ExternalLink className="w-4 h-4 flex-shrink-0" />{fila.entrega.url}</a>}
+          <p className="text-[11px] text-[color:var(--c-8a8b9e)]">Para verla en grande, calificarla y pasar al siguiente estudiante, usa la pestaña <b className="text-[color:var(--c-c7d2fe)]">Entregas</b>.</p>
           {fila.entrega.comentario && <p className="text-xs text-[color:var(--c-b0b0c4)]">Comentario: «{fila.entrega.comentario}»</p>}
           {fila.estado !== 'DEVUELTA' && (devolver ? (
             <div className="flex gap-2">

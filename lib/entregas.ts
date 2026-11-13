@@ -27,3 +27,14 @@ export const esTarde = (entregadaEn: Date | string, fecha: Date | string | null)
 export function enlaceValido(u: string): string | null {
   try { const x = new URL(String(u || '').trim()); return x.protocol === 'http:' || x.protocol === 'https:' ? x.toString().slice(0, 600) : null } catch { return null }
 }
+
+// Archivos de una entrega: los de la tabla EntregaArchivo y, si es una entrega antigua, su único archivo (id "principal")
+export interface ArchivoEntrega { id: string; nombre: string; tamano: number | null; tipo: string | null; ruta: string }
+export function archivosDeEntrega(e: { archivoRuta?: string | null; archivoNombre?: string | null; archivoTamano?: number | null; archivos?: { id: string; nombre: string; tamano: number; tipo: string | null; ruta: string }[] }): ArchivoEntrega[] {
+  const lista: ArchivoEntrega[] = []
+  if (e.archivoRuta) lista.push({ id: 'principal', nombre: e.archivoNombre || 'archivo', tamano: e.archivoTamano ?? null, tipo: null, ruta: e.archivoRuta })
+  for (const a of e.archivos || []) lista.push({ id: a.id, nombre: a.nombre, tamano: a.tamano, tipo: a.tipo, ruta: a.ruta })
+  return lista
+}
+// Lo que se envía al navegador (sin la ruta interna del almacenamiento)
+export const archivosPublicos = (lista: ArchivoEntrega[]) => lista.map(({ ruta, ...a }) => a)

@@ -30,8 +30,8 @@ export const ACCIONES_SEGURAS = ['crear_rubrica', 'buscar_recursos', 'reprograma
 export const CLAVE_MODO_AUTO = 'agenteModoAuto';
 // "Aplicar todo" aplica de una vez las tarjetas pendientes de un mensaje, menos las que envían mensajes, borran o recargan
 export const FUERA_DE_APLICAR_TODO = ['recordatorios', 'mensaje_estudiantes', 'enviar_plan', 'eliminar_evaluaciones', 'cambiar_materia', 'generar_preguntas', 'navegar', 'crear_examen'];
-export const VISTA_DE_AGENTE: Record<string, string> = { dashboard: 'estadisticas', planificador: 'planificacion', calendario: 'calendario', estudiantes: 'estudiantes', papelera: 'papelera', perfil: 'perfil' };
-export const NOMBRE_VISTA: Record<string, string> = { dashboard: 'el Dashboard', planificador: 'el Planificador', calendario: 'el Calendario', estudiantes: 'Estudiantes', papelera: 'la Papelera', perfil: 'tu perfil' };
+export const VISTA_DE_AGENTE: Record<string, string> = { dashboard: 'estadisticas', planificador: 'planificacion', calendario: 'calendario', estudiantes: 'estudiantes', entregas: 'entregas', papelera: 'papelera', perfil: 'perfil' };
+export const NOMBRE_VISTA: Record<string, string> = { dashboard: 'el Dashboard', planificador: 'el Planificador', calendario: 'el Calendario', estudiantes: 'Estudiantes', entregas: 'la Bandeja de entregas', papelera: 'la Papelera', perfil: 'tu perfil' };
 export const TIPO_PREGUNTA: Record<string, string> = { seleccion: 'Selección', verdadero_falso: 'V o F', desarrollo: 'Desarrollo', caso: 'Caso', practica: 'Práctica' };
 
 // Texto que ve el profesor cuando el agente (n8n) no pudo responder

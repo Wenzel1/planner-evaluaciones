@@ -111,10 +111,12 @@ export function useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadm
   }, [usuario?.id]);
   // Entregas, mensajes y solicitudes nuevas de los estudiantes (cuentas de estudiante): aviso en la campanita
   const [solicitudesEstudiantes, setSolicitudesEstudiantes] = useState(0);
+  const [entregasSinRevisar, setEntregasSinRevisar] = useState(0); // contador rojo de la pestaña Entregas
   useEffect(() => {
-    const alCambiar = () => fetch('/api/entregas/novedades?desde=' + encodeURIComponent(new Date().toISOString())).then(r => r.ok ? r.json() : null).then(d => { if (d && typeof d.pendientes === 'number') setSolicitudesEstudiantes(d.pendientes); }).catch(() => {});
+    const alCambiar = () => fetch('/api/entregas/novedades?desde=' + encodeURIComponent(new Date().toISOString())).then(r => r.ok ? r.json() : null).then(d => { if (d && typeof d.pendientes === 'number') setSolicitudesEstudiantes(d.pendientes); if (d && typeof d.sinRevisar === 'number') setEntregasSinRevisar(d.sinRevisar); }).catch(() => {});
     window.addEventListener('estudiantes-cambiaron', alCambiar);
-    return () => window.removeEventListener('estudiantes-cambiaron', alCambiar);
+    window.addEventListener('entregas-cambiaron', alCambiar);
+    return () => { window.removeEventListener('estudiantes-cambiaron', alCambiar); window.removeEventListener('entregas-cambiaron', alCambiar); };
   }, []);
   useEffect(() => {
     if (!usuario) return;
@@ -129,6 +131,8 @@ export function useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadm
         (d.mensajes || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`💬 ${x.estudiante} te escribió sobre «${limpiarTexto(x.evaluacion)}»: ${x.texto}`));
         (d.solicitudes || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`🙋 ${x.estudiante} pidió unirse a ${x.materia ? `${x.materia}, ` : ''}Sección ${x.seccion}. Acéptalo en la pestaña Estudiantes.`));
         if (typeof d.pendientes === 'number') setSolicitudesEstudiantes(d.pendientes);
+        if (typeof d.sinRevisar === 'number') setEntregasSinRevisar(d.sinRevisar);
+        if ((d.entregas || []).length) window.dispatchEvent(new Event('entregas-cambiaron')); // la bandeja se actualiza sola
       } catch { /* sin conexión: siguiente ciclo */ }
     };
     revisar();
@@ -145,5 +149,5 @@ export function useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadm
     await fetch('/api/opiniones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id } : { todas: true }) }).catch(() => {});
     await cargarOpiniones();
   };
-  return { borrarOpiniones, marcarObservacionLeida, marcarOpinionesVistas, observaciones, opiniones, solicitudesEstudiantes, solicitudesPendientes };
+  return { borrarOpiniones, marcarObservacionLeida, marcarOpinionesVistas, observaciones, opiniones, solicitudesEstudiantes, solicitudesPendientes, entregasSinRevisar };
 }

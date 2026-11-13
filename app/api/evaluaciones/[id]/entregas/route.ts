@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { filtroMateria } from '@/lib/clases'
-import { esTarde } from '@/lib/entregas'
+import { esTarde, archivosDeEntrega, archivosPublicos } from '@/lib/entregas'
 import { enlaceArchivo, archivosConfigurados } from '@/lib/almacenamiento'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       orderBy: { nombre: 'asc' },
       select: {
         id: true, nombre: true, cuentaId: true,
-        entregas: { where: { evaluacionId: ev.id } },
+        entregas: { where: { evaluacionId: ev.id }, include: { archivos: { orderBy: { createdAt: 'asc' } } } },
         comentarios: { where: { evaluacionId: ev.id }, select: { autor: true, leido: true } },
       },
     })
@@ -44,7 +44,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return {
         id: s.id, nombre: s.nombre, conCuenta: !!s.cuentaId,
         estado: !e ? 'PENDIENTE' : e.devuelta ? 'DEVUELTA' : esTarde(e.entregadaEn, ev.fecha) ? 'TARDE' : 'ENTREGADA',
-        entrega: e ? { tipo: e.tipo, url: e.url, archivoNombre: e.archivoNombre, archivoTamano: e.archivoTamano, comentario: e.comentario, entregadaEn: e.entregadaEn, devolucion: e.devolucion } : null,
+        entrega: e ? { id: e.id, tipo: e.tipo, url: e.url, archivoNombre: e.archivoNombre, archivoTamano: e.archivoTamano, archivos: archivosPublicos(archivosDeEntrega(e)), revisada: e.revisada, comentario: e.comentario, entregadaEn: e.entregadaEn, devolucion: e.devolucion } : null,
         mensajes: s.comentarios.length,
         sinLeer: s.comentarios.filter(c => c.autor === 'ESTUDIANTE' && !c.leido).length,
       }

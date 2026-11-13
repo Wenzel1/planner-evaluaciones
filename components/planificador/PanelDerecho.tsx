@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, BarChart3, BookOpen, CalendarDays, CheckCircle, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Copy, FileText, KeyRound, LogOut, PanelLeftOpen, Pencil, Plus, Sparkles, Trash2, User, UserCog, Users, X } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, CalendarDays, CheckCircle, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Copy, FileText, KeyRound, LogOut, PanelLeftOpen, Pencil, Plus, Sparkles, Trash2, User, UserCog, Users, X , Inbox } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { type Examen } from '@/lib/examen';
 import { type RubricaEval, textoPuntos, totalRubrica } from '@/lib/rubrica';
@@ -15,6 +15,7 @@ import { ErroresEvaluacion, EvaluacionFormulario, MateriaCorta, PanelDerechoHand
 import { BotonTema, Tooltip, VentanaFlotante } from '@/components/planificador/ui';
 import { planAccionHTML } from '@/components/planificador/planAccionHTML';
 import { useAvisosProfesor } from '@/components/planificador/useAvisosProfesor';
+import BandejaEntregas from '@/components/entregas/BandejaEntregas';
 import { EVAL_POR_ABRIR, MATERIA_ACTIVA, calcularFechasEvaluaciones, esIdGuardado, estadoVisibleEvaluacion, heredado, limpiarTexto, pedirSugerenciasRecursos, planVisto, validarContenidoSE, validarEnfoque } from '@/components/planificador/utilidades';
 import { ActividadPanel, ConfigSistemaPanel, PapeleraPanel } from '@/components/planificador/Administracion';
 import { CalendarioPanel } from '@/components/planificador/CalendarioPanel';
@@ -87,7 +88,7 @@ function precargarPaneles() {
 }
 export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId, materias = [], materiaActivaId = null, onAbrirMateria, onNuevaMateria, onTutorial }: PanelDerechoProps, ref) {
   MATERIA_ACTIVA.nombre = planificacion?.materia || ''; // para el validador de temas (perfil de la materia)
-  const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>(vistaInicial);
+  const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'entregas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>(vistaInicial);
   useEffect(() => { precargarPaneles(); }, []);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
@@ -750,13 +751,14 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   useEffect(() => { if (!puedeAdministrar && vista === 'usuarios') { reemplazarHistorial.current = true; setVista('estadisticas'); } }, [puedeAdministrar, vista]);
   useEffect(() => { if (!esSuperadmin && (vista === 'actividad' || vista === 'sistema')) { reemplazarHistorial.current = true; setVista('estadisticas'); } }, [esSuperadmin, vista]);
   // Avisos de la campanita y contadores de las pestañas (useAvisosProfesor.ts)
-  const { borrarOpiniones, marcarObservacionLeida, marcarOpinionesVistas, observaciones, opiniones, solicitudesEstudiantes, solicitudesPendientes } = useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadmin, agregarNotificacion });
+  const { borrarOpiniones, marcarObservacionLeida, marcarOpinionesVistas, observaciones, opiniones, solicitudesEstudiantes, solicitudesPendientes, entregasSinRevisar } = useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadmin, agregarNotificacion });
   // Pestañas ordenadas por rol. 'admin' = supervisión del sistema; 'trabajo' = el espacio propio de la persona.
   // El superadmin no tiene la pestaña Planificador: lo abre desde el ícono del chat, junto a la configuración del agente.
-  type Pestana = { id: 'planificacion' | 'estadisticas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera' | 'calendario'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
+  type Pestana = { id: 'planificacion' | 'estadisticas' | 'entregas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera' | 'calendario'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
   const tabDashboard: Pestana = { id: 'estadisticas', label: 'Dashboard', icon: BarChart3, grupo: puedeAdministrar ? 'admin' : 'trabajo' };
   const tabPlanificador: Pestana = { id: 'planificacion', label: 'Planificador', icon: ClipboardList, grupo: 'trabajo' };
   const tabEstudiantes: Pestana = { id: 'estudiantes', label: 'Estudiantes', icon: Users, grupo: 'trabajo', badge: solicitudesEstudiantes };
+  const tabEntregas: Pestana = { id: 'entregas', label: 'Entregas', icon: Inbox, grupo: 'trabajo', badge: entregasSinRevisar };
   const tabPapelera: Pestana = { id: 'papelera', label: 'Papelera', icon: Trash2, grupo: 'trabajo' };
   const tabUsuarios: Pestana = { id: 'usuarios', label: 'Usuarios', icon: UserCog, grupo: 'admin', badge: solicitudesPendientes };
   const tabActividad: Pestana = { id: 'actividad', label: 'Actividad', icon: Activity, grupo: 'admin' };
@@ -764,8 +766,8 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   const tabs: Pestana[] = esSuperadmin
     ? [tabDashboard, tabUsuarios, tabActividad, tabCalendario, tabEstudiantes, tabPapelera]
     : puedeAdministrar
-      ? [tabDashboard, tabUsuarios, tabPlanificador, tabCalendario, tabEstudiantes, tabPapelera]
-      : [tabDashboard, tabPlanificador, tabCalendario, tabEstudiantes, tabPapelera];
+      ? [tabDashboard, tabUsuarios, tabPlanificador, tabEntregas, tabCalendario, tabEstudiantes, tabPapelera]
+      : [tabDashboard, tabPlanificador, tabEntregas, tabCalendario, tabEstudiantes, tabPapelera];
 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
@@ -1093,9 +1095,11 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                   </motion.div>
                 </AnimatePresence>
               </div>
-              {planificacion.comentariosAgente.length > 0 && (<div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[color:var(--c-818cf8)]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[color:var(--c-9090a4)] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
+              {!esSuperadmin && <div data-tutorial="bandeja"><BandejaEntregas compacta materiaId={materiaActivaId ?? null} onVerTodo={() => setVista('entregas')} /></div>}
+              {false && planificacion.comentariosAgente.length > 0 && (<div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[color:var(--c-818cf8)]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[color:var(--c-9090a4)] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
             </motion.div>
           )}
+          {vista === 'entregas' && (<motion.div key="entregas" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><BandejaEntregas materiaId={materiaActivaId ?? null} /></motion.div>)}
           {vista === 'estudiantes' && (<motion.div key="estudiantes" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><EstudiantesPanel /></motion.div>)}
           {vista === 'papelera' && (<motion.div key="papelera" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-4xl mx-auto"><PapeleraPanel usuario={usuario} /></motion.div>)}
           {vista === 'sistema' && esSuperadmin && (<motion.div key="sistema" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-4xl mx-auto"><ConfigSistemaPanel onGuardada={(c) => onConfigActualizada && onConfigActualizada(c)} /></motion.div>)}

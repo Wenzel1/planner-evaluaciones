@@ -190,7 +190,7 @@ export const HERRAMIENTAS: Herramienta[] = [
     parameters: {
       type: 'object',
       properties: {
-        vista: { type: 'string', enum: ['dashboard', 'planificador', 'calendario', 'estudiantes', 'papelera', 'perfil'] },
+        vista: { type: 'string', enum: ['dashboard', 'planificador', 'calendario', 'estudiantes', 'entregas', 'papelera', 'perfil'] },
         seccion: { type: 'string', description: 'Letra de la sección a activar (opcional)' },
       },
       required: ['vista'],
@@ -379,7 +379,7 @@ export function normalizarAccion(nombre: string, args: any): Accion | null {
       return t.length >= 4 ? { id, tipo: nombre, datos: { texto: t } } : null
     }
     case 'navegar': {
-      const vistas = ['dashboard', 'planificador', 'calendario', 'estudiantes', 'papelera', 'perfil']
+      const vistas = ['dashboard', 'planificador', 'calendario', 'estudiantes', 'entregas', 'papelera', 'perfil']
       const v = String(a.vista ?? '').toLowerCase()
       return vistas.includes(v) ? { id, tipo: nombre, datos: { vista: v, seccion: letra(a.seccion) } } : null
     }

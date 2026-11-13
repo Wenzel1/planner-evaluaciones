@@ -522,9 +522,26 @@ model Entrega {
   actualizadaEn DateTime   @updatedAt
   devuelta      Boolean    @default(false) // el profesor la devolvió para corregir
   devolucion    String?    // comentario del profesor al devolverla
+  revisada      Boolean    @default(false) // el profesor ya la revisó (bandeja de entregas)
+  revisadaEn    DateTime?
+  archivos      EntregaArchivo[] // varios archivos por entrega (archivoRuta queda para las entregas antiguas de un solo archivo)
 
   @@unique([evaluacionId, estudianteId])
   @@index([evaluacionId])
+}
+
+// Cada archivo de una entrega (se sube directo al almacenamiento, hasta 25 MB cada uno)
+model EntregaArchivo {
+  id        String   @id @default(cuid())
+  entregaId String
+  entrega   Entrega  @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  ruta      String   // ruta en el bucket: <evaluacionId>/<estudianteId>/<azar>-<nombre>
+  nombre    String
+  tamano    Int
+  tipo      String?  // tipo de contenido (application/pdf, image/png…)
+  createdAt DateTime @default(now())
+
+  @@index([entregaId])
 }
 
 // Comentarios privados entre el profesor y un estudiante sobre una evaluación.

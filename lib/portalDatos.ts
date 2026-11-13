@@ -1,5 +1,6 @@
 // Arma lo que ve un estudiante en su página personal (solo SUS datos y solo lo de su sección).
 import prisma from '@/lib/prisma'
+import { archivosDeEntrega, archivosPublicos } from '@/lib/entregas'
 import { normalizarRubrica } from '@/lib/rubrica'
 import { estaAbierta, normalizarRecursos, TOKEN_VALIDO } from '@/lib/portal'
 import { promedioPonderado } from '@/lib/notas'
@@ -52,7 +53,7 @@ export async function datosPortal(token: string) {
               examen: true,
               examenes: { where: { estudianteId: est.id }, select: { entregadoEn: true, publicada: true, nota: true, limite: true } },
               aceptaEntregas: true,
-              entregas: { where: { estudianteId: est.id }, select: { tipo: true, url: true, archivoNombre: true, comentario: true, entregadaEn: true, devuelta: true, devolucion: true } },
+              entregas: { where: { estudianteId: est.id }, select: { tipo: true, url: true, archivoRuta: true, archivoNombre: true, archivoTamano: true, comentario: true, entregadaEn: true, devuelta: true, devolucion: true, revisada: true, archivos: { orderBy: { createdAt: 'asc' }, select: { id: true, nombre: true, tamano: true, tipo: true, ruta: true } } } },
               comentarios: { where: { estudianteId: est.id }, select: { autor: true, leido: true } },
             },
           },
@@ -81,7 +82,7 @@ export async function datosPortal(token: string) {
           nota: nota && nota.puntaje != null ? { puntaje: nota.puntaje, observaciones: nota.observaciones, detalle: Array.isArray(nota.detalle) ? nota.detalle : null } : null,
           // Entrega del estudiante y conversación privada con el profesor
           aceptaEntregas: ev.aceptaEntregas && ev.estado !== 'CANCELADA',
-          entrega: ev.entregas[0] ? { ...ev.entregas[0], tarde: !!ev.fecha && ev.entregas[0].entregadaEn.getTime() > ev.fecha.getTime() + 60000 } : null,
+          entrega: ev.entregas[0] ? (({ archivoRuta, archivoTamano, archivos, ...x }) => ({ ...x, archivos: archivosPublicos(archivosDeEntrega({ archivoRuta, archivoNombre: x.archivoNombre, archivoTamano, archivos })), tarde: !!ev.fecha && x.entregadaEn.getTime() > ev.fecha.getTime() + 60000 }))(ev.entregas[0]) : null,
           mensajes: ev.comentarios.length,
           mensajesNuevos: ev.comentarios.filter(c => c.autor === 'PROFESOR' && !c.leido).length,
         }
