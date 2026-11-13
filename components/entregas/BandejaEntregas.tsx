@@ -35,7 +35,7 @@ export default function BandejaEntregas({ materiaId, compacta = false, linea = f
   const [evaluacion, setEvaluacion] = useState('');
   const [seccion, setSeccion] = useState('');
   const [buscar, setBuscar] = useState('');
-  const [visor, setVisor] = useState<{ ids: string[]; inicio: number } | null>(null);
+  const [visor, setVisor] = useState<{ ids: string[]; inicio: number; archivo: number } | null>(null);
   const [descargando, setDescargando] = useState('');
 
   const cargar = useCallback(async () => {
@@ -80,7 +80,7 @@ export default function BandejaEntregas({ materiaId, compacta = false, linea = f
   });
 
   // El visor recorre la lista tal como estaba al abrirlo (aunque al revisar una deje de cumplir el filtro)
-  const abrir = (id: string) => { const ids = visibles.map(e => e.id); const e = porId.get(id); if (e) adelantar(e); setVisor({ ids, inicio: Math.max(0, ids.indexOf(id)) }); };
+  const abrir = (id: string, archivo = 0) => { const ids = visibles.map(e => e.id); const e = porId.get(id); if (e) { adelantar(e); if (e.archivos[archivo]) precargarArchivo(fuenteDe(e.id, e.archivos[archivo].id)).catch(() => {}); } setVisor({ ids, inicio: Math.max(0, ids.indexOf(id)), archivo }); };
 
   // Descargar todas las entregas de una evaluación en un .zip (se arma en el navegador)
   const descargarTodas = async (ev: ResumenEval) => {
@@ -190,7 +190,7 @@ export default function BandejaEntregas({ materiaId, compacta = false, linea = f
           : (
             <ul className="divide-y divide-[color:var(--c-282a3f)]">
               <AnimatePresence initial={false}>
-                {lista.map((e, k) => <Fila key={e.id} e={e} k={k} onAbrir={() => abrir(e.id)} />)}
+                {lista.map((e, k) => <Fila key={e.id} e={e} k={k} onAbrir={(archivo) => abrir(e.id, archivo)} />)}
               </AnimatePresence>
             </ul>
           )}
@@ -201,7 +201,7 @@ export default function BandejaEntregas({ materiaId, compacta = false, linea = f
         {visor && (
           <VisorEntregas
             entregas={visor.ids.map(id => porId.get(id)).filter(Boolean) as EntregaBandeja[]}
-            inicio={visor.inicio} rubricas={rubricas}
+            inicio={visor.inicio} archivoInicial={visor.archivo} rubricas={rubricas}
             onCerrar={() => setVisor(null)} onActualizar={actualizar}
           />
         )}
@@ -210,14 +210,15 @@ export default function BandejaEntregas({ materiaId, compacta = false, linea = f
   );
 }
 
-function Fila({ e, k, onAbrir }: { e: EntregaBandeja; k: number; onAbrir: () => void }) {
+function Fila({ e, k, onAbrir }: { e: EntregaBandeja; k: number; onAbrir: (archivo?: number) => void }) {
   const estado = e.devuelta ? { t: 'Devuelta', c: 'bg-amber-500/10 text-amber-300 border-amber-500/30', i: RotateCcw }
     : e.revisada ? { t: 'Revisada', c: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', i: CheckCircle2 }
     : { t: 'Nueva', c: 'bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)] border-[color:var(--c-818cf8)]/30', i: Sparkles };
   const IconoEstado = estado.i;
   return (
-    <motion.li layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, transition: { delay: Math.min(k, 10) * 0.025 } }} exit={{ opacity: 0 }}>
-      <button type="button" onClick={onAbrir} onMouseEnter={() => adelantar(e)} onTouchStart={() => adelantar(e)} onFocus={() => adelantar(e)} className="w-full text-left px-4 md:px-5 py-3 flex items-center gap-3 hover:bg-[color:var(--c-818cf8)]/[0.04] transition-colors group">
+    <motion.li layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, transition: { delay: Math.min(k, 10) * 0.025 } }} exit={{ opacity: 0 }}
+      onMouseEnter={() => adelantar(e)} className="px-4 md:px-5 py-3.5 hover:bg-[color:var(--c-818cf8)]/[0.03] transition-colors">
+      <button type="button" onClick={() => onAbrir(0)} onTouchStart={() => adelantar(e)} onFocus={() => adelantar(e)} className="w-full text-left flex items-center gap-3 group">
         <Avatar id={e.estudiante.cuentaId} version={e.estudiante.avatarEn} nombre={e.estudiante.nombre} tamano={40} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -227,15 +228,32 @@ function Fila({ e, k, onAbrir }: { e: EntregaBandeja; k: number; onAbrir: () => 
             {e.sinLeer > 0 && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-sky-500/15 text-sky-300 flex items-center gap-1"><MessageSquare className="w-3 h-3" />{e.sinLeer}</span>}
           </div>
           <p className="text-xs text-[color:var(--c-8a8b9e)] truncate">{limpiar(e.evaluacion.nombre)} · Sec. {e.evaluacion.seccion} · {haceTiempo(e.entregadaEn)}</p>
-          <div className="flex gap-1.5 mt-1.5 flex-wrap">
-            {e.archivos.slice(0, 4).map(a => { const est = estiloDe(a.nombre); const I = est.icono; return <span key={a.id} className={`inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[11px] max-w-[190px] ${est.fondo}`}><I className={`w-3 h-3 flex-shrink-0 ${est.color}`} /><span className="truncate text-[color:var(--c-c0c0d0)]">{a.nombre}</span></span>; })}
-            {e.archivos.length > 4 && <span className="h-6 px-2 rounded-md text-[11px] text-[color:var(--c-8a8b9e)] flex items-center">+{e.archivos.length - 4}</span>}
-            {e.url && <span className={`inline-flex items-center gap-1 h-6 px-2 rounded-md border text-[11px] ${ESTILO.enlace.fondo}`}><Link2 className="w-3 h-3 text-indigo-300" /><span className="text-[color:var(--c-c0c0d0)]">Enlace</span></span>}
-          </div>
         </div>
         {e.nota?.puntaje != null && <span className="flex-shrink-0 text-right"><span className="block text-lg font-bold text-[color:var(--c-e0e0ec)] tabular-nums leading-none">{textoNota(e.nota.puntaje)}</span><span className="text-[10px] text-[color:var(--c-6a6b7e)]">/20</span></span>}
         <ChevronRight className="w-4 h-4 text-[color:var(--c-5f6074)] group-hover:text-[color:var(--c-a5b4fc)] flex-shrink-0" />
       </button>
+      {/* Archivos como cuadros: cada uno abre ESE archivo en el visor */}
+      {(e.archivos.length > 0 || e.url) && (
+        <div className="flex gap-2 mt-2.5 pl-[52px] overflow-x-auto pb-1">
+          {e.archivos.map((a, i) => {
+            const est = estiloDe(a.nombre); const I = est.icono;
+            const ext = (a.nombre.match(/\.([a-z0-9]+)$/i)?.[1] || '').toUpperCase();
+            return (
+              <button key={a.id} type="button" onClick={() => onAbrir(i)} onMouseEnter={() => precargarArchivo(fuenteDe(e.id, a.id)).catch(() => {})} title={`Abrir ${a.nombre}`}
+                className={`flex-shrink-0 w-[104px] h-[104px] rounded-xl border p-2.5 flex flex-col text-left hover:-translate-y-0.5 hover:shadow-lg transition-all ${est.fondo}`}>
+                <span className="flex items-start justify-between"><I className={`w-7 h-7 ${est.color}`} /><span className={`text-[9px] font-bold tracking-wider ${est.color}`}>{ext}</span></span>
+                <span className="mt-auto text-[11px] leading-tight text-[color:var(--c-d0d0da)] line-clamp-2 break-all">{a.nombre}</span>
+              </button>
+            );
+          })}
+          {e.url && (
+            <a href={e.url} target="_blank" rel="noopener noreferrer" title={e.url} className={`flex-shrink-0 w-[104px] h-[104px] rounded-xl border p-2.5 flex flex-col hover:-translate-y-0.5 hover:shadow-lg transition-all ${ESTILO.enlace.fondo}`}>
+              <Link2 className="w-7 h-7 text-indigo-300" />
+              <span className="mt-auto text-[11px] leading-tight text-[color:var(--c-d0d0da)] line-clamp-2 break-all">{(() => { try { return new URL(e.url).hostname.replace(/^www\./, ''); } catch { return 'Enlace'; } })()}</span>
+            </a>
+          )}
+        </div>
+      )}
     </motion.li>
   );
 }

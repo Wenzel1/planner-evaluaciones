@@ -892,7 +892,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                 {!esSuperadmin && <div data-tutorial="bandeja"><BandejaEntregas linea materiaId={materiaActivaId ?? null} onVerTodo={() => setVista('entregas')} /></div>}
                 <AnimatePresence>
                   {ventanaFormularios && (
-                    <VentanaFlotante onCerrar={cerrarFormularios} ancho="max-w-4xl">
+                    <VentanaFlotante onCerrar={cerrarFormularios} ancho="max-w-5xl">
                       <div ref={tarjetaRef} className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-4 sm:p-6 space-y-4">
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">

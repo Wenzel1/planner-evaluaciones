@@ -47,29 +47,16 @@ export default function Configuracion({ cuenta, onCuenta, claro, onTema, clases,
   };
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4">
       <div><h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Configuración</h1><p className="text-sm text-[color:var(--c-8a8b9e)]">Tu foto, tus datos y tus clases.</p></div>
 
+      <div className="grid xl:grid-cols-2 gap-4 items-start">
+      <div className="space-y-4">
       <section className={tarjeta}>
         <p className={etiqueta}>Foto de perfil</p>
         <EditorAvatar id={cuenta.id} version={cuenta.avatarEn} nombre={cuenta.nombre} onCambio={(v) => onCuenta({ avatarEn: v })} />
       </section>
 
-      <section className={`${tarjeta} space-y-3`}>
-        <p className={etiqueta}>Mis datos</p>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <label><span className={etiqueta}>Nombre completo</span><input value={nombre} onChange={(e) => setNombre(e.target.value)} className={campo} autoComplete="name" /></label>
-          <label><span className={etiqueta}>Correo</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} autoComplete="email" /></label>
-        </div>
-        <p className={`${etiqueta} pt-2 flex items-center gap-1.5`}><KeyRound className="w-3.5 h-3.5" />Cambiar contraseña (opcional)</p>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <input type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} placeholder="Contraseña nueva" className={campo} autoComplete="new-password" />
-          <input type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} placeholder="Repite la contraseña nueva" className={campo} autoComplete="new-password" />
-        </div>
-        {pideActual && <input type="password" value={actual} onChange={(e) => setActual(e.target.value)} placeholder="Tu contraseña actual (para confirmar el cambio)" className={campo} autoComplete="current-password" />}
-        {aviso && <p className={`text-xs rounded-lg px-3 py-2 border ${aviso.ok ? 'text-emerald-200 bg-emerald-500/10 border-emerald-500/25' : 'text-red-200 bg-red-500/10 border-red-500/25'}`}>{aviso.ok && <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />}{aviso.t}</p>}
-        <button type="button" disabled={guardando || nombre.trim().length < 3 || (pideActual && !actual)} onClick={guardar} className="h-10 px-5 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-semibold disabled:opacity-50">{guardando ? 'Guardando…' : 'Guardar cambios'}</button>
-      </section>
 
       <section className={tarjeta}>
         <p className={etiqueta}>Apariencia</p>
@@ -93,6 +80,23 @@ export default function Configuracion({ cuenta, onCuenta, claro, onTema, clases,
           </ul>
         )}
       </section>
+      </div>
+      <section className={`${tarjeta} space-y-3`}>
+        <p className={etiqueta}>Mis datos</p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label><span className={etiqueta}>Nombre completo</span><input value={nombre} onChange={(e) => setNombre(e.target.value)} className={campo} autoComplete="name" /></label>
+          <label><span className={etiqueta}>Correo</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} autoComplete="email" /></label>
+        </div>
+        <p className={`${etiqueta} pt-2 flex items-center gap-1.5`}><KeyRound className="w-3.5 h-3.5" />Cambiar contraseña (opcional)</p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <input type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} placeholder="Contraseña nueva" className={campo} autoComplete="new-password" />
+          <input type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} placeholder="Repite la contraseña nueva" className={campo} autoComplete="new-password" />
+        </div>
+        {pideActual && <input type="password" value={actual} onChange={(e) => setActual(e.target.value)} placeholder="Tu contraseña actual (para confirmar el cambio)" className={campo} autoComplete="current-password" />}
+        {aviso && <p className={`text-xs rounded-lg px-3 py-2 border ${aviso.ok ? 'text-emerald-200 bg-emerald-500/10 border-emerald-500/25' : 'text-red-200 bg-red-500/10 border-red-500/25'}`}>{aviso.ok && <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />}{aviso.t}</p>}
+        <button type="button" disabled={guardando || nombre.trim().length < 3 || (pideActual && !actual)} onClick={guardar} className="h-10 px-5 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-semibold disabled:opacity-50">{guardando ? 'Guardando…' : 'Guardar cambios'}</button>
+      </section>
+      </div>
     </div>
   );
 }

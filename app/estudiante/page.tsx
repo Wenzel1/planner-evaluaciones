@@ -134,12 +134,12 @@ export default function PanelEstudiante() {
       )}
       {/* Barra superior */}
       <header className="sticky top-0 z-40 bg-[color:var(--c-161722)]/95 backdrop-blur border-b border-[color:var(--c-282a3f)]">
-        <div className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 h-14 flex items-center gap-3">
-          {datos ? <button type="button" onClick={() => setPestana('config')} title="Mi perfil y configuración" className="rounded-full ring-2 ring-transparent hover:ring-[color:var(--c-818cf8)]/50 transition"><Avatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={datos.cuenta.nombre} tamano={34} /></button>
+        <div className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 h-16 flex items-center gap-3">
+          {datos ? <button type="button" onClick={() => setPestana('config')} title="Mi perfil y configuración" className="rounded-full ring-2 ring-transparent hover:ring-[color:var(--c-818cf8)]/50 transition"><Avatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={datos.cuenta.nombre} tamano={44} /></button>
             : <div className="w-8 h-8 rounded-lg bg-[color:var(--c-272839)] flex items-center justify-center"><GraduationCap className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></div>}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[color:var(--c-e0e0ec)] truncate">{datos?.cuenta.nombre || 'Mi panel'}</p>
-            <p className="text-[10px] uppercase tracking-wider text-emerald-300">Estudiante</p>
+            <p className="text-base font-semibold text-[color:var(--c-e0e0ec)] truncate">{datos?.cuenta.nombre || 'Mi panel'}</p>
+            <p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">Estudiante · {datos?.cuenta.email}</p>
           </div>
           <button onClick={() => { setVerUnirse(true); setAviso(null); }} className="hidden sm:flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/35 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/25"><Plus className="w-4 h-4" />Unirme a una clase</button>
           <button onClick={() => { setVerUnirse(true); setAviso(null); }} aria-label="Unirme a una clase" className="sm:hidden w-9 h-9 flex items-center justify-center rounded-xl text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/15"><Plus className="w-4 h-4" /></button>

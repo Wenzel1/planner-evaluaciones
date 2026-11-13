@@ -26,14 +26,16 @@ export interface EntregaBandeja {
 
 const limpiar = (t: string) => String(t || '').replace(/^Evaluaci[oó]n\s*\d+\s*:\s*/i, '');
 
-export default function VisorEntregas({ entregas, inicio, rubricas, onCerrar, onActualizar }: {
-  entregas: EntregaBandeja[]; inicio: number; rubricas: Record<string, RubricaEval | null>;
+export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, rubricas, onCerrar, onActualizar }: {
+  entregas: EntregaBandeja[]; inicio: number; archivoInicial?: number; rubricas: Record<string, RubricaEval | null>;
   onCerrar: () => void; onActualizar: (id: string, cambios: Partial<EntregaBandeja>) => void;
 }) {
   const [i, setI] = useState(Math.min(Math.max(0, inicio), entregas.length - 1));
   const e = entregas[i];
-  const [archivoSel, setArchivoSel] = useState(0);
-  useEffect(() => { setArchivoSel(0); }, [e?.id]);
+  // Abre el archivo que se tocó en la bandeja; al pasar a otro estudiante, su primer archivo
+  const [archivoSel, setArchivoSel] = useState(archivoInicial);
+  const primeraEntrega = useRef(e?.id);
+  useEffect(() => { if (e?.id !== primeraEntrega.current) { primeraEntrega.current = e?.id; setArchivoSel(0); } }, [e?.id]);
   // Mientras revisa esta entrega, se adelantan sus otros archivos y el primero de la siguiente y la anterior
   useEffect(() => {
     const fuente = (x: EntregaBandeja | undefined, k = 0) => x?.archivos[k] ? `/api/entregas/${encodeURIComponent(x.id)}?archivoId=${encodeURIComponent(x.archivos[k].id)}` : null;

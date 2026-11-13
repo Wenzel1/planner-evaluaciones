@@ -9,7 +9,7 @@ export default function Calificaciones({ datos, onAbrir }: { datos: Resumen; onA
     <div className="space-y-4">
       <div><h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Mis calificaciones</h1><p className="text-sm text-[color:var(--c-8a8b9e)]">Notas sobre 20. Se aprueba con 10.</p></div>
       {datos.grupos.length === 0 && <p className="text-sm text-[color:var(--c-8a8b9e)]">Todavía no estás en ninguna clase.</p>}
-      <div className="grid xl:grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${datos.grupos.length > 1 ? 'xl:grid-cols-2' : ''}`}>
         {datos.grupos.map(g => {
           const evs = datos.evaluaciones.filter(e => e.grupo === g.clave && e.estado !== 'CANCELADA').sort((a, b) => new Date(a.fecha || 0).getTime() - new Date(b.fecha || 0).getTime());
           const meta = paraAprobar(g);
@@ -38,7 +38,7 @@ export default function Calificaciones({ datos, onAbrir }: { datos: Resumen; onA
                 <tbody className="divide-y divide-[color:var(--c-282a3f)]">
                   {evs.map(e => (
                     <tr key={e.id} className="hover:bg-[color:var(--c-818cf8)]/[0.04] cursor-pointer" onClick={() => onAbrir({ claseId: e.claseId, materiaId: g.materiaId, evaluacionId: e.id })}>
-                      <td className="px-4 py-2.5"><span className="block text-[color:var(--c-d0d0da)] truncate max-w-[280px]">{limpiar(e.nombre)}</span><span className="block text-[11px] text-[color:var(--c-6a6b7e)]">{e.fecha ? fechaCorta(e.fecha) : 'Sin fecha'}{e.nota?.observaciones ? ` · «${e.nota.observaciones}»` : ''}</span></td>
+                      <td className="px-4 py-2.5"><span className="block text-[color:var(--c-d0d0da)] truncate max-w-[520px]">{limpiar(e.nombre)}</span><span className="block text-[11px] text-[color:var(--c-6a6b7e)]">{e.fecha ? fechaCorta(e.fecha) : 'Sin fecha'}{e.nota?.observaciones ? ` · «${e.nota.observaciones}»` : ''}</span></td>
                       <td className="px-2 py-2.5 text-right text-[color:var(--c-8a8b9e)]">{e.peso ?? '—'}%</td>
                       <td className="px-4 py-2.5 text-right">{e.nota ? <b className={e.nota.puntaje >= 10 ? 'text-emerald-300' : 'text-red-300'}>{textoNota(e.nota.puntaje)}</b> : <span className="text-[color:var(--c-6a6b7e)]">—</span>}</td>
                     </tr>

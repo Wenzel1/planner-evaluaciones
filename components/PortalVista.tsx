@@ -206,8 +206,19 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
       </AnimatePresence>
       {/* Celular: una sola columna. Computadora (lg): panel fijo a la izquierda con el estudiante y su resumen, evaluaciones a la derecha ocupando todo el ancho */}
       <div className="max-w-3xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-10 2xl:px-16 pb-16 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] lg:gap-10 xl:gap-14">
-        <aside className="lg:sticky lg:top-0 lg:self-start lg:max-h-screen lg:overflow-y-auto lg:pb-10 [scrollbar-width:none]">
-          {/* Encabezado: el estudiante es el protagonista */}
+        <aside className={`lg:sticky lg:self-start lg:overflow-y-auto lg:pb-10 [scrollbar-width:none] ${embebido ? 'lg:top-[112px] lg:max-h-[calc(100vh-112px)]' : 'lg:top-0 lg:max-h-screen'}`}>
+          {embebido ? (
+            /* En el panel del estudiante: encabezado compacto de la clase (su nombre y su foto ya están arriba) */
+            <header className="pt-6 pb-4">
+              <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" />Mi plan de evaluación</p>
+              <h1 className="mt-1.5 text-2xl font-semibold text-[color:var(--c-e0e0ec)] leading-tight">{materia?.nombre || 'Mi clase'}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span className="px-2.5 py-1 rounded-full bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/35 text-[color:var(--c-c7d2fe)] font-semibold">Sección {datos.estudiante.seccion}</span>
+                <span className="text-[color:var(--c-8a8b9e)]">Prof. {datos.profesor}</span>
+              </div>
+            </header>
+          ) : (
+          /* Encabezado: el estudiante es el protagonista */
           <header className="pt-8 sm:pt-12 pb-6">
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-[color:var(--c-818cf8)] font-semibold">
               <GraduationCap className="w-4 h-4" />Mi plan de evaluación
@@ -219,6 +230,7 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
               <span className="text-[color:var(--c-8a8b9e)]">Prof. {datos.profesor}</span>
             </div>
           </header>
+          )}
 
           {datos.materias.length > 1 && (
             <div className="flex lg:flex-col gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
@@ -275,7 +287,7 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
               <div className="hidden lg:flex flex-col gap-3">
                 <a href={pdfHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)] font-medium hover:border-[color:var(--c-818cf8)]/50"><Download className="w-4 h-4" />Descargar en PDF</a>
                 <a href={calHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)] font-medium hover:border-[color:var(--c-818cf8)]/50"><CalendarPlus className="w-4 h-4" />Agregar a mi calendario</a>
-                <p className="text-xs text-[color:var(--c-6a6b7e)] text-center">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>
+                {!embebido && <p className="text-xs text-[color:var(--c-6a6b7e)] text-center">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>}
               </div>
             </>
           )}
@@ -319,7 +331,7 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
                 <a href={calHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)] font-medium hover:border-[color:var(--c-818cf8)]/50">
                   <CalendarPlus className="w-4 h-4" />Agregar a mi calendario
                 </a>
-                <p className="text-xs text-[color:var(--c-6a6b7e)] sm:ml-auto">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>
+                {!embebido && <p className="text-xs text-[color:var(--c-6a6b7e)] sm:ml-auto">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>}
               </div>
             </>
           )}
