@@ -26,7 +26,7 @@ const limpiar = (t: string) => String(t || '').replace(/^Evaluaci[oó]n\s*\d+\s*
 // Memoria de la última carga (al volver a la pestaña se ve al instante y se actualiza por detrás)
 const memoria: { clave?: string; datos?: Datos } = {};
 
-export default function BandejaEntregas({ materiaId, compacta = false, onVerTodo }: { materiaId: string | null; compacta?: boolean; onVerTodo?: () => void }) {
+export default function BandejaEntregas({ materiaId, compacta = false, linea = false, onVerTodo }: { materiaId: string | null; compacta?: boolean; linea?: boolean; onVerTodo?: () => void }) {
   const clave = materiaId || 'todas';
   const [datos, setDatos] = useState<Datos | null>(() => (memoria.clave === clave ? memoria.datos ?? null : null));
   const [error, setError] = useState('');
@@ -119,6 +119,21 @@ export default function BandejaEntregas({ materiaId, compacta = false, onVerTodo
   ];
   const evSel = (datos?.evaluaciones || []).find(e => e.id === evaluacion);
   const lista = compacta ? visibles.slice(0, 5) : visibles;
+
+  // Versión de una línea (Planificador): solo los números y el acceso a la bandeja
+  if (linea) {
+    if (!datos || (c!.total === 0 && c!.faltan === 0)) return null;
+    return (
+      <button type="button" onClick={onVerTodo} className="w-full flex items-center gap-3 rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] px-4 py-2.5 text-left hover:border-[color:var(--c-818cf8)]/40 transition-colors group">
+        <Inbox className="w-4 h-4 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
+        <span className="text-sm text-[color:var(--c-c0c0d0)] min-w-0 truncate">
+          {c!.sinRevisar > 0 ? <><b className="text-[color:var(--c-e0e0ec)]">{c!.sinRevisar}</b> entrega{c!.sinRevisar === 1 ? '' : 's'} sin revisar</> : 'Todas las entregas revisadas'}
+          {c!.faltan > 0 && <span className="text-[color:var(--c-8a8b9e)]"> · {c!.faltan} por entregar</span>}
+        </span>
+        <span className="ml-auto text-xs font-medium text-[color:var(--c-c7d2fe)] flex items-center gap-1 flex-shrink-0">Abrir bandeja<ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" /></span>
+      </button>
+    );
+  }
 
   return (
     <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl shadow-xl overflow-hidden">

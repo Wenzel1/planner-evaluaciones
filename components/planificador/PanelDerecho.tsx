@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, BarChart3, BookOpen, CalendarDays, CheckCircle, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Copy, FileText, KeyRound, LogOut, PanelLeftOpen, Pencil, Plus, Sparkles, Trash2, User, UserCog, Users, X , Inbox } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, CalendarDays, CheckCircle, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Copy, FileText, KeyRound, LogOut, PanelLeftOpen, Pencil, Plus, Sparkles, Trash2, User, UserCog, Users, X , Inbox, Settings2, FileSpreadsheet, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { type Examen } from '@/lib/examen';
 import { type RubricaEval, textoPuntos, totalRubrica } from '@/lib/rubrica';
@@ -426,6 +426,18 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   const [evaluacion4, setEvaluacion4] = useState<EvaluacionFormulario>({...evalInit});
   const formulariosConContenido = [evaluacion1, evaluacion2, evaluacion3, evaluacion4].some(f => !!f.editandoId || !!String(f.materia || '').trim() || !!String(f.descripcion || '').trim() || !!String(f.tipoActividad || '').trim());
   const mostrarFormularios = seccionesFiltradas.length === 0 || formulariosConContenido || verFormularios;
+  // Planificador ordenado: los formularios se abren en una ventana ("+ Nueva evaluación" o cuando el asistente propone/edita)
+  const [formsCerrados, setFormsCerrados] = useState(false);
+  const habiaContenido = useRef(false);
+  useEffect(() => { if (formulariosConContenido && !habiaContenido.current) setFormsCerrados(false); habiaContenido.current = formulariosConContenido; }, [formulariosConContenido]);
+  const ventanaFormularios = verFormularios || (formulariosConContenido && !formsCerrados);
+  const cerrarFormularios = () => { setVerFormularios(false); if (formulariosConContenido) setFormsCerrados(true); };
+  const abrirFormularios = () => { setFormsCerrados(false); setVerFormularios(true); };
+  const [modoPlan, setModoPlan] = useState(false); // armar el Plan de Acción: aparecen los círculos para elegir
+  const [menuSeccion, setMenuSeccion] = useState(false);
+  const [menuCuenta, setMenuCuenta] = useState(false);
+  const accionesSeccion = useRef<{ acta: () => void; excel: () => void } | null>(null);
+  const sumaPesos = seccionesFiltradas.reduce((t: number, x: SeccionExamen) => t + (x.peso ?? 0), 0);
 
   const limpiarYScroll = () => { setEvaluacion1({...evalInit}); setEvaluacion2({...evalInit}); setEvaluacion3({...evalInit}); setEvaluacion4({...evalInit}); setNumEvaluaciones(1); setScrollToSections(true); setVista('planificacion'); setGlow1(false); setGlow2(false); setGlow3(false); setGlow4(false); };
   useImperativeHandle(ref, () => ({
@@ -765,10 +777,10 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   const tabActividad: Pestana = { id: 'actividad', label: 'Actividad', icon: Activity, grupo: 'admin' };
   const tabCalendario: Pestana = { id: 'calendario', label: 'Calendario', icon: CalendarDays, grupo: 'trabajo' };
   const tabs: Pestana[] = esSuperadmin
-    ? [tabDashboard, tabUsuarios, tabActividad, tabCalendario, tabEstudiantes, tabPapelera]
+    ? [tabDashboard, tabUsuarios, tabActividad, tabCalendario, tabEstudiantes]
     : puedeAdministrar
-      ? [tabDashboard, tabUsuarios, tabPlanificador, tabEntregas, tabCalendario, tabEstudiantes, tabPapelera]
-      : [tabDashboard, tabPlanificador, tabEntregas, tabCalendario, tabEstudiantes, tabPapelera];
+      ? [tabDashboard, tabUsuarios, tabPlanificador, tabEntregas, tabCalendario, tabEstudiantes]
+      : [tabDashboard, tabPlanificador, tabEntregas, tabCalendario, tabEstudiantes];
 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
@@ -805,18 +817,31 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
           <CampanitaNotificacionesFlotante notificaciones={notificaciones} setNotificaciones={setNotificaciones} campanaActiva={campanaActiva} setCampanaActiva={setCampanaActiva} />
           {usuario && (
             <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[color:var(--c-282a3f)]">
-              <Tooltip text="Mi perfil">
-                <button onClick={() => setVista('perfil')} className={`flex items-center gap-2 px-2 py-1 rounded-xl transition-colors ${vista === 'perfil' ? 'bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20' : 'hover:bg-[color:var(--c-1d1e2e)] border border-transparent'}`}>
+              {/* Menú de la cuenta: Mi perfil, Papelera y Cerrar sesión */}
+              <div className="relative">
+                <button onClick={() => setMenuCuenta(v => !v)} aria-expanded={menuCuenta} title="Mi cuenta" className={`flex items-center gap-2 px-1.5 py-1 rounded-xl transition-colors ${menuCuenta || vista === 'perfil' || vista === 'papelera' ? 'bg-[color:var(--c-818cf8)]/10' : 'hover:bg-[color:var(--c-1d1e2e)]'}`}>
                   <Avatar id={usuario.id} version={usuario.avatarEn} nombre={usuario.nombre} tamano={30} />
-                  <div className="hidden md:flex flex-col items-end leading-tight">
+                  <div className="hidden md:flex flex-col items-start leading-tight">
                     <span className="text-xs font-medium text-[color:var(--c-d0d0da)] max-w-[140px] truncate">{usuario.nombre}</span>
                     <span className={`text-[10px] uppercase tracking-wider ${COLOR_TEXTO_ROL[usuario.rol] || 'text-[color:var(--c-818cf8)]'}`}>{usuario.rol}</span>
                   </div>
+                  <ChevronDown className={`hidden md:block w-3.5 h-3.5 text-[color:var(--c-8a8b9e)] transition-transform ${menuCuenta ? 'rotate-180' : ''}`} />
                 </button>
-              </Tooltip>
-              <Tooltip text="Cerrar sesión">
-                <button onClick={() => onLogout && onLogout()} className="p-2 text-[color:var(--c-8a8b9e)] hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"><LogOut className="w-4 h-4" /></button>
-              </Tooltip>
+                <AnimatePresence>
+                  {menuCuenta && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setMenuCuenta(false)} aria-hidden="true" />
+                      <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }} role="menu" className="absolute right-0 top-12 z-50 w-56 bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-1.5">
+                        <div className="px-3 py-2 border-b border-[color:var(--c-282a3f)] mb-1"><p className="text-sm font-medium text-[color:var(--c-e0e0ec)] truncate">{usuario.nombre}</p><p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">{usuario.email}</p></div>
+                        <button type="button" role="menuitem" onClick={() => { setMenuCuenta(false); setVista('perfil'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)]"><User className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Mi perfil</button>
+                        <button type="button" role="menuitem" onClick={() => { setMenuCuenta(false); setVista('papelera'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)]"><Trash2 className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Papelera</button>
+                        <div className="h-px bg-[color:var(--c-282a3f)] my-1" />
+                        <button type="button" role="menuitem" onClick={() => { setMenuCuenta(false); onLogout && onLogout(); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-red-300 hover:bg-red-500/10"><LogOut className="w-4 h-4" />Cerrar sesión</button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           )}
         </div>
@@ -849,7 +874,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                       {[
                         { hecho: (estudiantesSeccion ?? 0) > 0, titulo: 'Agrega tus estudiantes', texto: (estudiantesSeccion ?? 0) > 0 ? `${estudiantesSeccion} en la sección` : 'Uno por uno o desde Excel', boton: 'Ir a Estudiantes', hacer: () => setVista('estudiantes') },
                         { hecho: seccionesFiltradas.length > 0, titulo: 'Crea tu plan', texto: seccionesFiltradas.length > 0 ? `${seccionesFiltradas.length} evaluación(es)` : 'Pídeselo a EvaPlanner: «Hazme un plan de 4 evaluaciones»', boton: 'Abrir el chat', hacer: () => onAbrirChat?.() },
-                        { hecho: false, titulo: 'Envíales el plan', texto: 'Genera el Plan de Acción y pulsa enviar: cada estudiante recibe el enlace a su página personal.', boton: '', hacer: () => {} },
+                        { hecho: false, titulo: 'Envíales el plan', texto: 'Con «Plan de Acción» generas el PDF y lo envías: cada estudiante lo ve en su cuenta.', boton: '', hacer: () => {} },
                       ].map((paso, i) => (
                         <li key={paso.titulo} className={`rounded-xl border p-3 flex flex-col gap-2 ${paso.hecho ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)]'}`}>
                           <div className="flex items-center gap-2">
@@ -863,18 +888,20 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                     </ol>
                   </div>
                 )}
-                <div ref={tarjetaRef} data-tutorial="formularios">
-                {!mostrarFormularios ? (
-                  <button type="button" onClick={() => setVerFormularios(true)} className="w-full flex items-center gap-3 rounded-2xl border border-dashed border-[color:var(--c-3a3b52)] bg-[color:var(--c-1b1c2b)]/60 px-5 py-4 text-left hover:border-[color:var(--c-818cf8)]/50 hover:bg-[color:var(--c-1f2035)] transition-colors">
-                    <span className="w-9 h-9 rounded-xl bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/25 flex items-center justify-center"><Pencil className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></span>
-                    <span className="flex-1 min-w-0"><span className="block text-sm font-medium text-[color:var(--c-e0e0ec)]">Crear o editar evaluaciones a mano</span><span className="block text-xs text-[color:var(--c-8a8b9e)]">O pídeselo a EvaPlanner en el chat: las propuestas aparecen aquí solas.</span></span>
-                    <ChevronDown className="w-4 h-4 text-[color:var(--c-8a8b9e)]" />
-                  </button>
-                ) : (<>
-                {seccionesFiltradas.length > 0 && !formulariosConContenido && (
-                  <div className="flex justify-end mb-1"><button type="button" onClick={() => setVerFormularios(false)} className="text-xs text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] flex items-center gap-1"><ChevronUp className="w-3.5 h-3.5" />Ocultar formularios</button></div>
-                )}
-                <EvaluacionesApiladas 
+                {/* Entregas: una línea con lo pendiente (la bandeja completa está en la pestaña Entregas) */}
+                {!esSuperadmin && <div data-tutorial="bandeja"><BandejaEntregas linea materiaId={materiaActivaId ?? null} onVerTodo={() => setVista('entregas')} /></div>}
+                <AnimatePresence>
+                  {ventanaFormularios && (
+                    <VentanaFlotante onCerrar={cerrarFormularios} ancho="max-w-4xl">
+                      <div ref={tarjetaRef} className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-4 sm:p-6 space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-semibold text-[color:var(--c-e0e0ec)]">{formulariosConContenido && [evaluacion1, evaluacion2, evaluacion3, evaluacion4].some(f => !!f.editandoId) ? 'Editar evaluación' : 'Nueva evaluación'} · Sección {seccionActiva}</h3>
+                            <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">Llénala a mano y guárdala, o <button type="button" onClick={() => { cerrarFormularios(); onAbrirChat?.(); }} className="text-[color:var(--c-c7d2fe)] hover:underline">pídesela a EvaPlanner en el chat</button>: sus propuestas aparecen aquí para que las revises.</p>
+                          </div>
+                          <button type="button" onClick={cerrarFormularios} aria-label="Cerrar" className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]"><X className="w-4 h-4" /></button>
+                        </div>
+                        <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
                 evaluacion2={evaluacion2} setEvaluacion2={setEvaluacion2} guardarEvaluacion2={guardarEvaluacion2} limpiarEvaluacion2={limpiarEvaluacion2}
                 evaluacion3={evaluacion3} setEvaluacion3={setEvaluacion3} guardarEvaluacion3={guardarEvaluacion3} limpiarEvaluacion3={limpiarEvaluacion3}
@@ -883,28 +910,15 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                 justFilled1={glow1} justFilled2={glow2} justFilled3={glow3} justFilled4={glow4}
                 totalEstudiantes={totalEstudiantes}
               />
-                </>)}
-                </div>
+                        {formulariosConContenido && <p className="text-[11px] text-[color:var(--c-6a6b7e)]">Si la cierras sin guardar, lo que escribiste queda como borrador (botón «Borrador sin guardar» en la barra de la sección).</p>}
+                      </div>
+                    </VentanaFlotante>
+                  )}
+                </AnimatePresence>
               <div ref={seccionesGuardadasRef} data-tutorial="guardadas" className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider font-['Inter']">
-                      Evaluaciones guardadas (
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={`${seccionActiva}-${seccionesFiltradas.length}`}
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 4 }}
-                          transition={{ duration: 0.15 }}
-                          className="inline-block"
-                        >
-                          {seccionesFiltradas.length}
-                        </motion.span>
-                      </AnimatePresence>
-                      )
-                    </h2>
-                    {/* Pestañas de Sección/Paralelo (grupos de estudiantes que ven la materia en común) */}
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-4">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap mr-auto min-w-0">
+                    <h2 className="text-sm font-semibold text-[color:var(--c-e0e0ec)] font-['Inter']">Evaluaciones <span className="text-[color:var(--c-6a6b7e)] font-normal">({seccionesFiltradas.length})</span></h2>
                     <div data-tutorial="secciones" className="flex items-center gap-1 bg-[color:var(--c-161722)] border border-[color:var(--c-313248)] rounded-lg p-1">
                       {seccionesDisponibles.map((letra) => (
                         <Tooltip key={letra} text={`Sección ${letra}`}>
@@ -933,25 +947,52 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                       </Tooltip>
-                      <Tooltip text={seccionesDisponibles.length <= 1 ? 'Debe existir al menos una sección' : `Eliminar Sección ${seccionActiva}`}>
-                        <button
-                          type="button"
-                          onClick={eliminarSeccionActiva}
-                          disabled={seccionesDisponibles.length <= 1}
-                          className="w-7 h-7 rounded-md text-[color:var(--c-8a8b9e)] hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[color:var(--c-8a8b9e)]"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </Tooltip>
                     </div>
-                    {materiaActivaId && (
-                      <Tooltip text={`Código para que los estudiantes se unan a la Sección ${seccionActiva}`}>
-                        <button type="button" data-tutorial="codigo-clase" onClick={() => setVerCodigo(true)} className="relative h-8 px-2.5 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/20">
-                          <KeyRound className="w-3.5 h-3.5" />Código de clase
-                          {(solicitudesSeccion[seccionActiva] || 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center" title="Solicitudes por aceptar en Estudiantes">{solicitudesSeccion[seccionActiva]}</span>}
-                        </button>
-                      </Tooltip>
+                    {seccionesFiltradas.length > 0 && (sumaPesos === 100
+                      ? <span className="text-[11px] px-2 py-1 rounded-full font-medium text-emerald-300 bg-emerald-500/10" title="Los pesos de esta sección suman 100%">✓ Pesos 100%</span>
+                      : <span className={`text-[11px] px-2 py-1 rounded-full border font-medium ${sumaPesos < 100 ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-red-500/10 text-red-300 border-red-500/30'}`}>Pesos {sumaPesos}%</span>)}
+                    {seccionesFiltradas.filter((s: SeccionExamen) => estadoVisibleEvaluacion(s).porConfirmar).length > 0 && (
+                      <span className="text-[11px] px-2 py-1 rounded-full border font-medium bg-amber-500/10 text-amber-300 border-amber-500/30" title="Su fecha ya pasó: indica si se realizó, se reprogramó o se canceló (clic en la etiqueta de la tarjeta)">
+                        ⚠ {seccionesFiltradas.filter((s: SeccionExamen) => estadoVisibleEvaluacion(s).porConfirmar).length} por confirmar
+                      </span>
                     )}
+                    {llenandoRecursos && <span className="text-[11px] px-2 py-1 rounded-full font-medium text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10 flex items-center gap-1.5"><span className="w-3 h-3 border-2 border-[color:var(--c-818cf8)]/40 border-t-[color:var(--c-818cf8)] rounded-full animate-spin" />Buscando recursos {llenandoRecursos.hechas}/{llenandoRecursos.total}…</span>}
+                    {formulariosConContenido && !ventanaFormularios && <button type="button" onClick={abrirFormularios} className="text-[11px] px-2 py-1 rounded-full font-medium text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20">✎ Borrador sin guardar · Continuar</button>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Acciones ocasionales de la sección */}
+                    <div className="relative">
+                      <button type="button" data-tutorial="codigo-clase" onClick={() => setMenuSeccion(v => !v)} aria-expanded={menuSeccion} className={`relative h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${menuSeccion ? 'bg-[color:var(--c-272839)] border-[color:var(--c-414258)] text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-414258)]'}`}>
+                        <Settings2 className="w-3.5 h-3.5" />Sección {seccionActiva}<ChevronDown className={`w-3.5 h-3.5 transition-transform ${menuSeccion ? 'rotate-180' : ''}`} />
+                        {(solicitudesSeccion[seccionActiva] || 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center" title="Solicitudes por aceptar en Estudiantes">{solicitudesSeccion[seccionActiva]}</span>}
+                      </button>
+                      <AnimatePresence>
+                        {menuSeccion && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setMenuSeccion(false)} aria-hidden="true" />
+                            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }} role="menu" className="absolute right-0 top-11 z-40 w-[270px] bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-1.5">
+                              {materiaActivaId && <button type="button" role="menuitem" onClick={() => { setMenuSeccion(false); setVerCodigo(true); }} className={'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)] disabled:opacity-40 disabled:hover:bg-transparent'}><KeyRound className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /><span className="flex-1">Código de clase y QR</span>{(solicitudesSeccion[seccionActiva] || 0) > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full bg-amber-500 text-white">{solicitudesSeccion[seccionActiva]}</span>}</button>}
+                              <button type="button" role="menuitem" disabled={seccionesParaPlan.length === 0} onClick={() => { setMenuSeccion(false); abrirCopia(); }} className={'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)] disabled:opacity-40 disabled:hover:bg-transparent'}><Copy className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Copiar el plan a otra sección</button>
+                              <button type="button" role="menuitem" disabled={seccionesFiltradas.length === 0 || !!llenandoRecursos} onClick={() => { setMenuSeccion(false); recursosParaTodas(); }} className={'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)] disabled:opacity-40 disabled:hover:bg-transparent'}><Sparkles className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Buscar recursos para todas</button>
+                              <div className="h-px bg-[color:var(--c-282a3f)] my-1" />
+                              <button type="button" role="menuitem" disabled={seccionesFiltradas.length === 0} onClick={() => { setMenuSeccion(false); accionesSeccion.current?.acta(); }} className={'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)] disabled:opacity-40 disabled:hover:bg-transparent'}><Download className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Acta de notas (Excel)</button>
+                              <button type="button" role="menuitem" disabled={seccionesFiltradas.length === 0} onClick={() => { setMenuSeccion(false); accionesSeccion.current?.excel(); }} className={'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)] disabled:opacity-40 disabled:hover:bg-transparent'}><FileSpreadsheet className="w-4 h-4 text-emerald-400" />Exportar evaluaciones a Excel</button>
+                              <div className="h-px bg-[color:var(--c-282a3f)] my-1" />
+                              <button type="button" role="menuitem" disabled={seccionesDisponibles.length <= 1} title={seccionesDisponibles.length <= 1 ? 'Debe existir al menos una sección' : undefined} onClick={() => { setMenuSeccion(false); eliminarSeccionActiva(); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-red-300 hover:bg-red-500/10 disabled:opacity-40 disabled:hover:bg-transparent"><Trash2 className="w-4 h-4" />Eliminar la Sección {seccionActiva}</button>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    {seccionesFiltradas.length > 0 && (
+                      <button type="button" data-tutorial="plan-accion" onClick={() => setModoPlan(v => !v)} className={`h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${modoPlan ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/50 text-[color:var(--c-c7d2fe)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-414258)]'}`}>
+                        <FileText className="w-3.5 h-3.5" />Plan de Acción
+                      </button>
+                    )}
+                    <button type="button" data-tutorial="formularios" onClick={abrirFormularios} className="h-9 px-3.5 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                      <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nueva evaluación</span><span className="sm:hidden">Nueva</span>
+                    </button>
+                  </div>
                     <AnimatePresence>
                       {verCodigo && materiaActivaId && (
                         <VentanaFlotante onCerrar={() => setVerCodigo(false)} ancho="max-w-xl">
@@ -959,27 +1000,10 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                         </VentanaFlotante>
                       )}
                     </AnimatePresence>
-                    {seccionesFiltradas.length > 0 && (
-                      <Tooltip text={`Buscar videos y páginas para las evaluaciones de la Sección ${seccionActiva} que aún no tienen recursos`}>
-                        <button type="button" onClick={recursosParaTodas} disabled={!!llenandoRecursos}
-                          className="h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors bg-[color:var(--c-161722)] border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)] hover:border-[color:var(--c-818cf8)]/50 disabled:opacity-80">
-                          {llenandoRecursos ? <span className="w-3.5 h-3.5 border-2 border-[color:var(--c-818cf8)]/40 border-t-[color:var(--c-818cf8)] rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-[color:var(--c-a5b4fc)]" />}
-                          {llenandoRecursos ? `Buscando ${llenandoRecursos.hechas}/${llenandoRecursos.total}…` : 'Recursos para todas'}
-                        </button>
-                      </Tooltip>
-                    )}
-                    {seccionesParaPlan.length > 0 && (
-                      <div className="relative">
-                        <Tooltip text={`Copiar el plan de la Sección ${seccionActiva} a otra sección`}>
-                          <button type="button" onClick={() => (copiaAbierta ? setCopiaAbierta(false) : abrirCopia())}
-                            className={`h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${copiaAbierta ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/50 text-[color:var(--c-c7d2fe)]' : 'bg-[color:var(--c-161722)] border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)] hover:border-[color:var(--c-818cf8)]/50'}`}>
-                            <Copy className="w-3.5 h-3.5" />Copiar a…
-                          </button>
-                        </Tooltip>
-                        <AnimatePresence>
-                          {copiaAbierta && (
-                            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }}
-                              className="absolute left-0 top-11 z-40 w-[290px] max-w-[calc(100vw-32px)] bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-4 space-y-3">
+                  <AnimatePresence>
+                    {copiaAbierta && (
+                      <VentanaFlotante onCerrar={() => setCopiaAbierta(false)} ancho="max-w-sm">
+                        <div className="bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl p-5 space-y-3">
                               <div className="flex items-start justify-between gap-2">
                                 <div>
                                   <p className="text-sm font-semibold text-[color:var(--c-blanco)]">Copiar plan de la Sección {seccionActiva}</p>
@@ -1025,48 +1049,38 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                                 className="w-full h-9 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40 transition-colors">
                                 <Copy className="w-3.5 h-3.5" />Copiar a la Sección {copiaDestino || '…'}
                               </button>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                        </div>
+                      </VentanaFlotante>
                     )}
-                    {seccionesFiltradas.length > 0 && (
-                      <span className={`text-[11px] px-2 py-1 rounded-full border font-medium ${seccionesParaPlan.length === seccionesFiltradas.length ? 'bg-[color:var(--c-a855f7)]/10 text-[color:var(--c-c084fc)] border-[color:var(--c-a855f7)]/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`} title="Las tarjetas con el círculo morado entran en el Plan de Acción">
-                        {seccionesParaPlan.length} de {seccionesFiltradas.length} en el plan
-                      </span>
-                    )}
-                    {seccionesFiltradas.filter((s: SeccionExamen) => estadoVisibleEvaluacion(s).porConfirmar).length > 0 && (
-                      <span className="text-[11px] px-2 py-1 rounded-full border font-medium bg-amber-500/10 text-amber-300 border-amber-500/30" title="Su fecha ya pasó: indica si se realizó, se reprogramó o se canceló (clic en la etiqueta de la tarjeta)">
-                        ⚠ {seccionesFiltradas.filter((s: SeccionExamen) => estadoVisibleEvaluacion(s).porConfirmar).length} por confirmar
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2" data-tutorial="plan-accion">
-                    <motion.button 
-                        whileHover={{ scale: 1.02 }} 
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => generarPlanAccion(seccionesParaPlan)}
-                        disabled={seccionesParaPlan.length === 0 || cargandoPdf} 
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          seccionesParaPlan.length === 0 || cargandoPdf 
-                            ? 'bg-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)] cursor-not-allowed' 
-                            : 'bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white shadow-md'
-                        }`}
-                      >
-                        {cargandoPdf ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-t-white rounded-full animate-spin"></div>
-                            Generando...
-                          </>
-                        ) : (
-                          <>
-                            <FileText className="w-3.5 h-3.5" />
-                            Generar Plan de Acción
-                          </>
-                        )}
-                      </motion.button>
-                  </div>
+                  </AnimatePresence>
                 </div>
+                {/* Armar el Plan de Acción: se eligen las evaluaciones y se genera el PDF */}
+                <AnimatePresence>
+                  {modoPlan && seccionesFiltradas.length > 0 && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      <div className="mb-4 flex items-center gap-3 flex-wrap rounded-xl border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 px-4 py-3">
+                        <FileText className="w-4 h-4 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
+                        <p className="text-sm text-[color:var(--c-d0d0da)] flex-1 min-w-[200px]"><b className="text-[color:var(--c-e0e0ec)]">Plan de Acción:</b> toca el número de cada evaluación para incluirla o quitarla <span className="text-[color:var(--c-8a8b9e)]">({seccionesParaPlan.length} de {seccionesFiltradas.length})</span>.</p>
+                        {seccionesParaPlan.length < seccionesFiltradas.length && <button type="button" onClick={() => setTarjetasExcluidas(prev => prev.filter(id => !seccionesFiltradas.some((x: SeccionExamen) => x.id === id)))} className="h-8 px-3 rounded-lg text-xs font-medium text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10">Incluir todas</button>}
+                        <button type="button" disabled={seccionesParaPlan.length === 0 || cargandoPdf} onClick={async () => { await generarPlanAccion(seccionesParaPlan); setModoPlan(false); }} className="h-8 px-3.5 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40">
+                          {cargandoPdf ? <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />Generando…</> : <><FileText className="w-3.5 h-3.5" />Generar PDF</>}
+                        </button>
+                        <button type="button" onClick={() => setModoPlan(false)} className="h-8 px-2.5 rounded-lg text-xs text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)]">Cerrar</button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                {/* Sección sin evaluaciones: qué hacer */}
+                {seccionesFiltradas.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-[color:var(--c-3a3b52)] px-6 py-10 flex flex-col items-center text-center gap-3 mb-2">
+                    <ClipboardList className="w-8 h-8 text-[color:var(--c-5f6074)]" />
+                    <div><p className="text-sm font-medium text-[color:var(--c-d0d0da)]">La Sección {seccionActiva} todavía no tiene evaluaciones</p><p className="text-xs text-[color:var(--c-8a8b9e)] mt-1">Créalas a mano o pídele a EvaPlanner un plan completo.</p></div>
+                    <div className="flex gap-2 flex-wrap justify-center">
+                      <button type="button" onClick={abrirFormularios} className="h-9 px-4 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5"><Plus className="w-4 h-4" />Nueva evaluación</button>
+                      <button type="button" onClick={() => onAbrirChat?.()} className="h-9 px-4 rounded-lg border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] text-xs font-medium hover:border-[color:var(--c-414258)] flex items-center gap-1.5"><Sparkles className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Pedírselo a EvaPlanner</button>
+                    </div>
+                  </div>
+                )}
                 <AlertasPlan secciones={seccionesFiltradas} />
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -1084,6 +1098,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   setTarjetasExcluidas(prev => prev.filter(x => x !== id));
   agregarNotificacion(`🗑️ Evaluación eliminada de la BD.`); 
 }}
+                      modoPlan={modoPlan} accionesRef={accionesSeccion}
                       selectedIds={idsSeleccionados} onToggleSelect={toggleTarjetaSeleccionada} seccionesPlan={seccionesParaPlan} profesor={usuario?.nombre} seccionActiva={seccionActiva} onCambiarEstado={cambiarEstadoEvaluacion} onGuardarRubrica={guardarRubricaEvaluacion} onGuardarRecursos={guardarRecursosEvaluacion} onEstadoLocal={(id: string, estado: string) => setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === id ? { ...s, estado } : s) }))} onExamenLocal={(id: string, examen: Examen | null) => setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === id ? { ...s, examen } : s) }))}
                       mostrarMenuEnvio={mostrarMenuEnvio} setMostrarMenuEnvio={setMostrarMenuEnvio} scrollToTarjeta={scrollToTarjeta} planificacion={planificacion} 
                       mensajeWhatsApp={mensajeWhatsApp} setMensajeWhatsApp={setMensajeWhatsApp} enviarA={enviarA} setEnviarA={setEnviarA} filtroEnvio={filtroEnvio} setFiltroEnvio={setFiltroEnvio} pdfUrl={pdfUrlLocal}
@@ -1096,7 +1111,6 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                   </motion.div>
                 </AnimatePresence>
               </div>
-              {!esSuperadmin && <div data-tutorial="bandeja"><BandejaEntregas compacta materiaId={materiaActivaId ?? null} onVerTodo={() => setVista('entregas')} /></div>}
               {false && planificacion.comentariosAgente.length > 0 && (<div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[color:var(--c-818cf8)]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[color:var(--c-9090a4)] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
             </motion.div>
           )}

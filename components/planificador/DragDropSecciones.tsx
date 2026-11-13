@@ -20,7 +20,7 @@ const PanelEntregas = dynamic(() => import('@/components/PanelEntregas'));
 const PanelRecordatorios = dynamic(() => import('@/components/PanelRecordatorios'));
 
 
-export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica, onEstadoLocal, onGuardarRecursos, onExamenLocal }: any) {
+export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agregarNotificacion, pdfUrl, pdfAbierto, setPdfAbierto, mostrarMenuEnvio, setMostrarMenuEnvio, scrollToTarjeta, planificacion, setPdfUrl, mensajeWhatsApp, setMensajeWhatsApp, enviarA, setEnviarA, filtroEnvio, setFiltroEnvio, generarPDF, selectedIds, onToggleSelect, seccionesPlan, profesor, seccionActiva = 'A', onCambiarEstado, onGuardarRubrica, onEstadoLocal, onGuardarRecursos, onExamenLocal, modoPlan = false, accionesRef }: any) {
   const [recursosDe, setRecursosDe] = useState<SeccionExamen | null>(null);
   const [rubricaDe, setRubricaDe] = useState<SeccionExamen | null>(null);
   const [notasDe, setNotasDe] = useState<SeccionExamen | null>(null);
@@ -68,6 +68,8 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
 
   // Acta de notas de la sección activa (lo arma el servidor con las notas guardadas)
   const [descargandoActa, setDescargandoActa] = useState(false);
+  // El menú «Sección ▾» del Planificador usa estas acciones
+  if (accionesRef) accionesRef.current = { acta: () => descargarActa(), excel: () => exportarExcel() };
   const descargarActa = async () => {
     const ids = secciones.map((s: SeccionExamen) => s.id).filter(esIdGuardado); // las que aún no se guardan no tienen notas
     if (!ids.length || descargandoActa) return;
@@ -182,7 +184,7 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
               seccion={seccion}
               index={index}
               isSelected={isSelected}
-              onToggleSelect={onToggleSelect}
+              onToggleSelect={modoPlan ? onToggleSelect : undefined}
               expanded={expandedId === seccion.id}
               onToggleExpand={() => handleCardClick(seccion.id)}
               onEdit={onEdit}
@@ -237,10 +239,10 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
         )}
       </AnimatePresence>
       <div className="space-y-2">
-        {secciones.length === 0 && (<div className="text-center py-8 text-[color:var(--c-8a8b9e)] border border-dashed border-[color:var(--c-313248)] rounded-xl"><p className="text-sm">No hay evaluaciones</p></div>)}
+        {/* Sin evaluaciones: el Planificador muestra su propio aviso con «Nueva evaluación» */}
       </div>
       
-      <div className="flex justify-end gap-2 mt-4">
+      <div className="hidden">
         <Tooltip text={`Acta de notas de la sección ${seccionActiva} en Excel`}>
           <button data-tutorial="acta" onClick={descargarActa} disabled={descargandoActa || !secciones.some((s: SeccionExamen) => esIdGuardado(s.id))} className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-medium rounded-lg transition-all border border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
             {descargandoActa ? <div className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />} Acta de notas

@@ -499,11 +499,11 @@ export function AlertasPlan({ secciones }: { secciones: SeccionExamen[] }) {
   const choques = [...porDia.values()].filter(lista => lista.length > 1);
 
   const chip = 'flex items-start gap-2 text-xs rounded-lg px-3 py-2 border';
+  if (suma === 100 && choques.length === 0) return null;
   return (
     <div className="space-y-2 mb-4">
-      {suma === 100 ? (
-        <div className={`${chip} bg-emerald-500/10 border-emerald-500/30 text-emerald-300`}><CheckCircle className="w-4 h-4 flex-shrink-0" /><span>Los pesos de esta sección suman 100%.</span></div>
-      ) : suma < 100 ? (
+      {/* Si suman 100% no se dice nada aquí (se ve como ✓ en la barra de la sección); solo se avisa si hay un problema */}
+      {suma === 100 ? null : suma < 100 ? (
         <div className={`${chip} bg-amber-500/10 border-amber-500/30 text-amber-300`}><AlertCircle className="w-4 h-4 flex-shrink-0" /><span>Los pesos suman {suma}%: faltan {100 - suma}% para llegar a 100%.</span></div>
       ) : (
         <div className={`${chip} bg-red-500/10 border-red-500/30 text-red-300`}><AlertCircle className="w-4 h-4 flex-shrink-0" /><span>Los pesos suman {suma}%: sobran {suma - 100}% sobre el 100%.</span></div>

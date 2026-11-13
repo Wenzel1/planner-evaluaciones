@@ -57,25 +57,29 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
       whileDrag={{ scale: 1.03, boxShadow: '0 18px 40px rgba(0,0,0,0.45)', zIndex: 50, cursor: 'grabbing' }}
       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
       data-eval={seccion.id}
-      className={`bg-[color:var(--c-1f2035)] rounded-xl border border-[color:var(--c-313248)] hover:border-[color:var(--c-414258)] select-none relative ${menu ? 'z-30' : ''}`}
+      className={`group bg-[color:var(--c-1f2035)] rounded-xl border border-[color:var(--c-313248)] hover:border-[color:var(--c-414258)] select-none relative ${menu ? 'z-30' : ''}`}
     >
       <div className="p-3 flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
         <div
           onPointerDown={(e) => dragControls.start(e)}
-          className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[color:var(--c-272839)] transition-colors text-[color:var(--c-6a6b7e)] touch-none"
+          className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-[color:var(--c-272839)] transition-all text-[color:var(--c-6a6b7e)] touch-none md:opacity-0 md:group-hover:opacity-100"
           title="Arrastra para reordenar"
         >
           <GripVertical className="w-4 h-4" />
         </div>
-        <Tooltip text={isSelected ? 'Incluida en el Plan de Acción (clic para quitarla)' : 'Fuera del Plan de Acción (clic para incluirla)'}>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); if (onToggleSelect) onToggleSelect(seccion.id); }}
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 border transition-all duration-150 ${isSelected ? 'bg-[color:var(--c-a855f7)] border-[color:var(--c-a855f7)] text-white shadow-[0_0_10px_rgba(168,85,247,0.6)] scale-110' : 'bg-[color:var(--c-272839)] border-transparent text-[color:var(--c-8a8b9e)] hover:border-[color:var(--c-a855f7)]/50 hover:text-[color:var(--c-c084fc)]'}`}
-          >
-            {index + 1}
-          </button>
-        </Tooltip>
+        {onToggleSelect ? (
+          <Tooltip text={isSelected ? 'Incluida en el Plan de Acción (clic para quitarla)' : 'Fuera del Plan de Acción (clic para incluirla)'}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleSelect(seccion.id); }}
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 border-2 transition-colors duration-150 ${isSelected ? 'bg-[color:var(--c-818cf8)] border-[color:var(--c-818cf8)] text-white' : 'bg-transparent border-[color:var(--c-4a4b5e)] text-[color:var(--c-8a8b9e)] hover:border-[color:var(--c-818cf8)]'}`}
+            >
+              {isSelected ? '✓' : index + 1}
+            </button>
+          </Tooltip>
+        ) : (
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 bg-[color:var(--c-272839)] ${isSelected ? 'text-[color:var(--c-c0c0d0)]' : 'text-[color:var(--c-5f6074)] line-through'}`} title={isSelected ? undefined : 'Fuera del Plan de Acción'}>{index + 1}</span>
+        )}
         <div className="flex-1 min-w-[140px] cursor-pointer" onClick={onToggleExpand} title={expanded ? 'Ocultar detalle' : 'Ver detalle'}>
           <div className="flex items-center gap-2 min-w-0"><h4 className="text-sm text-[color:var(--c-e0e0ec)] font-medium truncate">{nombreLimpio}</h4></div>
           {/* Lo esencial a la vista: peso, fecha y estrategia. Lo demás, al expandir. */}
@@ -95,7 +99,7 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
         </div>
         <div className="flex items-center gap-1.5 ml-auto" onClick={(e) => e.stopPropagation()}>
           <SelectorEstadoEvaluacion seccion={seccion} onCambiar={onCambiarEstado} alinear="derecha" grande />
-          {onRecursos && <Tooltip text={nRecursos ? `Recursos de estudio (${nRecursos})` : 'Recursos de estudio'}><button onClick={() => onRecursos(seccion)} aria-label="Recursos de estudio" className={`relative p-1.5 hover:bg-[color:var(--c-272839)] rounded-lg ${nRecursos ? 'text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)]'}`}><Paperclip className="w-4 h-4" />{nRecursos > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[color:var(--c-818cf8)] text-[9px] font-bold text-white flex items-center justify-center">{nRecursos}</span>}</button></Tooltip>}
+          {onRecursos && <Tooltip text={nRecursos ? `Recursos de estudio (${nRecursos})` : 'Recursos de estudio'}><button onClick={() => onRecursos(seccion)} aria-label="Recursos de estudio" className={`relative p-1.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-[color:var(--c-272839)] rounded-lg ${nRecursos ? 'text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)]'}`}><Paperclip className="w-4 h-4" />{nRecursos > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[color:var(--c-818cf8)] text-[9px] font-bold text-white flex items-center justify-center">{nRecursos}</span>}</button></Tooltip>}
           <Tooltip text={expanded ? 'Ocultar detalle' : 'Ver detalle'}><button onClick={onToggleExpand} aria-label={expanded ? 'Ocultar detalle' : 'Ver detalle'} aria-expanded={expanded}
             className={`p-1.5 rounded-lg transition-colors ${expanded ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-272839)]'}`}>
             <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
