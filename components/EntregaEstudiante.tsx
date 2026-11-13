@@ -198,8 +198,8 @@ function ListaArchivos({ archivos, onVer, fuente }: { archivos: ArchivoInfo[]; o
 }
 
 interface Mensaje { id: string; autor: string; texto: string; createdAt: string }
-export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos }: { token: string; evaluacionId: string; nuevos: number; onLeidos: () => void }) {
-  const [abierto, setAbierto] = useState(nuevos > 0);
+export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreAbierto = false }: { token: string; evaluacionId: string; nuevos: number; onLeidos: () => void; siempreAbierto?: boolean }) {
+  const [abierto, setAbierto] = useState(nuevos > 0 || siempreAbierto);
   const [lista, setLista] = useState<Mensaje[] | null>(null);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -222,14 +222,14 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos }: { toke
   };
   return (
     <div className="rounded-xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)]">
-      <button type="button" onClick={() => setAbierto(v => !v)} className="w-full px-4 py-3 flex items-center gap-2 text-left">
+      <button type="button" onClick={() => { if (!siempreAbierto) setAbierto(v => !v); }} className="w-full px-4 py-3 flex items-center gap-2 text-left">
         <MessageSquare className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />
         <span className="text-sm font-medium text-[color:var(--c-d0d0da)] flex-1">Mensajes privados con tu profesor</span>
         {nuevos > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[color:var(--c-818cf8)] text-white">{nuevos} nuevo{nuevos === 1 ? '' : 's'}</span>}
       </button>
       {abierto && (
         <div className="px-4 pb-4 space-y-2.5">
-          <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+          <div className={`${siempreAbierto ? 'max-h-[50vh]' : 'max-h-64'} overflow-y-auto space-y-2 pr-1`}>
             {lista === null && <p className="text-xs text-[color:var(--c-8a8b9e)]">Cargando…</p>}
             {lista?.length === 0 && <p className="text-xs text-[color:var(--c-8a8b9e)]">¿Tienes una duda sobre esta evaluación? Escríbele: solo la ve tu profesor.</p>}
             {lista?.map(m => (

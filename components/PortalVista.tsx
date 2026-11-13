@@ -1,7 +1,7 @@
 'use client';
 // Página personal del estudiante: /e/<token>
 // Muestra SU plan de evaluación, los recursos de lo que ya está abierto, la rúbrica y sus notas.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap, Lock, Calendar, Clock, Users, Target, ChevronDown, Download, PlayCircle, ExternalLink,
@@ -98,7 +98,7 @@ const FONDO_NIVEL = ['bg-emerald-500/15 border-emerald-500/40', 'bg-sky-500/15 b
 
 // Vista del estudiante: su plan, recursos, rúbricas, notas, exámenes y entregas.
 // La usan la página con enlace (/e/<token>) y el panel de su cuenta (/estudiante), con el token de cada inscripción.
-export default function PortalVista({ token, embebido = false }: { token: string; embebido?: boolean }) {
+export default function PortalVista({ token, embebido = false, abrir = null }: { token: string; embebido?: boolean; abrir?: { materiaId?: string; evaluacionId: string } | null }) {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [error, setError] = useState('');
   const [materiaId, setMateriaId] = useState<string | null>(null);
@@ -153,6 +153,16 @@ export default function PortalVista({ token, embebido = false }: { token: string
 
   // Abre por defecto la próxima evaluación
   useEffect(() => { if (materia) setAbierta(lista.find(x => x.s === 'proxima')?.e.id ?? null); }, [materia?.id]);
+
+  // Abrir una evaluación concreta (cuando el estudiante la eligió desde Inicio, Calendario o Entregas)
+  const abiertaPedida = useRef<string | null>(null);
+  useEffect(() => {
+    if (!abrir || !datos || abiertaPedida.current === abrir.evaluacionId) return;
+    if (abrir.materiaId && materia?.id !== abrir.materiaId && datos.materias.some(m => m.id === abrir.materiaId)) { setMateriaId(abrir.materiaId); return; }
+    abiertaPedida.current = abrir.evaluacionId;
+    const id = abrir.evaluacionId;
+    setTimeout(() => { setAbierta(id); setTimeout(() => document.getElementById(`ev-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); }, 60);
+  }, [abrir?.evaluacionId, datos, materia?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) return (
     <Pantalla>
