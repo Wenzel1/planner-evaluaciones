@@ -19,6 +19,10 @@ function conCabeceras(res: NextResponse): NextResponse {
   return res
 }
 
+// Ruta exacta o sus subrutas: '/api/estudiante' NO debe abarcar '/api/estudiantes' (la lista del profesor)
+const bajo = (ruta: string, base: string) => ruta === base || ruta.startsWith(base + '/')
+const esRutaEstudiante = (ruta: string) => bajo(ruta, '/estudiante') || bajo(ruta, '/api/estudiante')
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const esApi = pathname.startsWith('/api/')
@@ -38,12 +42,12 @@ export async function proxy(request: NextRequest) {
 
   // Cuenta de estudiante: solo su panel y sus rutas; nada de lo del profesor
   if (sesion.rol === 'ESTUDIANTE') {
-    const permitido = pathname.startsWith('/estudiante') || pathname.startsWith('/api/estudiante') || pathname.startsWith('/api/perfil') || pathname.startsWith('/api/auth/')
+    const permitido = esRutaEstudiante(pathname) || bajo(pathname, '/api/perfil') || pathname.startsWith('/api/auth/')
     if (!permitido) {
       if (esApi) return conCabeceras(NextResponse.json({ error: 'Esta sección es solo para profesores.' }, { status: 403 }))
       return conCabeceras(NextResponse.redirect(new URL('/estudiante', request.url)))
     }
-  } else if (pathname.startsWith('/estudiante') || pathname.startsWith('/api/estudiante')) {
+  } else if (esRutaEstudiante(pathname)) {
     // Un profesor o administrador no usa el panel del estudiante
     if (esApi) return conCabeceras(NextResponse.json({ error: 'Esta sección es solo para estudiantes.' }, { status: 403 }))
     return conCabeceras(NextResponse.redirect(new URL('/', request.url)))
