@@ -1,8 +1,9 @@
 // Archivos de las entregas en Supabase Storage (bucket privado).
-// Variables (solo servidor): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY y opcional SUPABASE_BUCKET_ENTREGAS (por defecto "entregas").
+// Variables (solo servidor): SUPABASE_URL (o NEXT_PUBLIC_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY y opcional SUPABASE_BUCKET_ENTREGAS (por defecto "entregas").
 // Sin esas variables las entregas son solo por enlace (GitHub, Drive, Figma…).
 
-const base = () => String(process.env.SUPABASE_URL || '').replace(/\/+$/, '')
+// La dirección del proyecto puede estar como SUPABASE_URL o como NEXT_PUBLIC_SUPABASE_URL (la que crea la integración con Vercel)
+const base = () => String(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/\/+$/, '')
 const clave = () => String(process.env.SUPABASE_SERVICE_ROLE_KEY || '')
 const bucket = () => String(process.env.SUPABASE_BUCKET_ENTREGAS || 'entregas')
 
