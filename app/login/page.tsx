@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Lock, Mail, User, LogIn, ShieldCheck, AlertCircle, CheckCircle, UserPlus, Eye, EyeOff,
   Phone, KeyRound, ArrowLeft, Sparkles, FileText, Users, Info, MessageCircle, RotateCw,
+  GraduationCap, Upload, Bot, CalendarDays,
 } from 'lucide-react'
 import { validarNombre, validarEmail, validarPassword, validarTelefono } from '@/lib/validacionesUsuario'
 
@@ -44,6 +45,7 @@ export default function LoginPage() {
       const c = (q.get('clase') || '').trim().toUpperCase()
       if (c) { setCodigoClase(c); setTipoCuenta('estudiante'); setModo('registro'); localStorage.setItem('codigoClasePendiente', c) }
       else if (q.get('estudiante') === '1') setTipoCuenta('estudiante') // viene de un correo de su profesor
+      else if (localStorage.getItem('tipoCuentaLogin') === 'estudiante') setTipoCuenta('estudiante') // la última vez entró como estudiante
     } catch { /* sin almacenamiento */ }
   }, [])
   const [cargando, setCargando] = useState(true)
@@ -147,6 +149,11 @@ export default function LoginPage() {
   useEffect(() => { if (pideCaptcha) cargarCaptcha() }, [pideCaptcha, modo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fallar = (msg: string) => { setError(msg); setSacudir((n) => n + 1) }
+
+  const elegirTipo = (t: 'profesor' | 'estudiante') => {
+    setTipoCuenta(t)
+    try { localStorage.setItem('tipoCuentaLogin', t) } catch { /* sin almacenamiento */ }
+  }
 
   const cambiarModo = (nuevo: Modo) => {
     setModo(nuevo)
@@ -257,42 +264,57 @@ export default function LoginPage() {
   const pideRegistro = modo === 'registro'
   const f = fuerza(password)
 
-  const titulo = modoSetup ? 'Configuración inicial' : modo === 'registro' ? 'Crea tu cuenta de profesor' : modo === 'recuperar' ? 'Recuperar contraseña' : modo === 'verificar' ? (porCorreo ? 'Confirma tu correo' : 'Confirma tu WhatsApp') : 'Bienvenido de nuevo'
+  const titulo = modoSetup ? 'Configuración inicial' : modo === 'registro' ? (tipoCuenta === 'estudiante' ? 'Crea tu cuenta de estudiante' : 'Crea tu cuenta de profesor') : modo === 'recuperar' ? 'Recuperar contraseña' : modo === 'verificar' ? (porCorreo ? 'Confirma tu correo' : 'Confirma tu WhatsApp') : 'Bienvenido de nuevo'
   const subtitulo = modoSetup
     ? 'Crea la cuenta del superadmin para comenzar.'
     : modo === 'registro' ? `Solo necesitas tu nombre, tu correo y una contraseña. Te enviaremos un código por ${medio} para activar tu cuenta.`
     : modo === 'recuperar' ? (recPaso === 'telefono' ? (porCorreo ? 'Escribe el correo con el que te registraste. Te enviaremos un código para crear una contraseña nueva.' : 'Escribe el número de WhatsApp con el que te registraste. Te enviaremos un código para crear una contraseña nueva.') : `Escribe el código que te llegó por ${medio} y elige tu contraseña nueva.`)
     : modo === 'verificar' ? `Escribe el código de 6 dígitos que enviamos a tu ${medio}${destino ? ` (${destino})` : ''}. Vence en 10 minutos.`
-    : 'Inicia sesión para continuar con tu planificación.'
+    : tipoCuenta === 'estudiante' ? 'Inicia sesión para ver tus evaluaciones, entregar tus trabajos y hablar con tu profesor.' : 'Inicia sesión para continuar con tu planificación.'
 
   return (
     <div className="min-h-screen bg-[color:var(--c-12131d)] flex">
       {/* ---------- Panel de marca (solo en pantallas grandes) ---------- */}
       <div className="hidden lg:flex lg:w-[46%] relative overflow-hidden flex-col justify-between p-12 bg-gradient-to-br from-[color:var(--c-1a1b3a)] via-[color:var(--c-1d1e2e)] to-[color:var(--c-14151f)]">
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[color:var(--c-818cf8)]/20 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-fuchsia-500/10 blur-3xl" />
+        <div className={`absolute bottom-0 right-0 w-96 h-96 rounded-full blur-3xl transition-colors duration-500 ${tipoCuenta === 'estudiante' ? 'bg-emerald-500/15' : 'bg-fuchsia-500/10'}`} />
         <div className="relative flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/30 flex items-center justify-center"><ShieldCheck className="w-6 h-6 text-[color:var(--c-a5b4fc)]" /></div>
           <span className="text-lg font-semibold text-[color:var(--c-e0e0ec)]">Planificador de Evaluaciones</span>
         </div>
-        <div className="relative space-y-8">
-          <div>
-            <h2 className="text-3xl font-bold text-[color:var(--c-blanco)] leading-tight">Planifica, evalúa y organiza tus cursos en un solo lugar.</h2>
-            <p className="text-[color:var(--c-9a9bb0)] mt-3">Una herramienta pensada para profesores, con apoyo de un agente de inteligencia artificial.</p>
-          </div>
-          <ul className="space-y-4">
-            {[
-              { i: Sparkles, t: 'Un agente de IA que propone y organiza tus evaluaciones.' },
-              { i: FileText, t: 'Planes de acción listos para compartir en PDF.' },
-              { i: Users, t: 'Tus secciones y estudiantes, ordenados y separados de los de otros profesores.' },
-            ].map(({ i: Icono, t }) => (
-              <li key={t} className="flex items-start gap-3 text-sm text-[color:var(--c-c0c0d0)]">
-                <span className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0"><Icono className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></span>
-                <span className="pt-1">{t}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div key={tipoCuenta} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} transition={{ duration: 0.3 }} className="relative space-y-8">
+            <div>
+              <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[color:var(--c-c7d2fe)] mb-4">
+                {tipoCuenta === 'estudiante' ? <><GraduationCap className="w-3.5 h-3.5" />Para estudiantes</> : <><Users className="w-3.5 h-3.5" />Para profesores</>}
+              </span>
+              <h2 className="text-3xl font-bold text-[color:var(--c-blanco)] leading-tight">
+                {tipoCuenta === 'estudiante' ? 'Tus evaluaciones, tus entregas y tu profesor en un solo lugar.' : 'Planifica, evalúa y organiza tus cursos en un solo lugar.'}
+              </h2>
+              <p className="text-[color:var(--c-9a9bb0)] mt-3">
+                {tipoCuenta === 'estudiante' ? 'Únete a tu clase con el código que te da tu profesor y no se te pasa ninguna fecha.' : 'Una herramienta pensada para profesores, con apoyo de un agente de inteligencia artificial.'}
+              </p>
+            </div>
+            <ul className="space-y-4">
+              {(tipoCuenta === 'estudiante' ? [
+                { i: CalendarDays, t: 'Mira tus evaluaciones, fechas, rúbricas y notas de cada materia.' },
+                { i: Upload, t: 'Entrega tus trabajos con un archivo o un enlace, y sabe si llegaron a tiempo.' },
+                { i: MessageCircle, t: 'Escríbele a tu profesor en privado sobre cada evaluación.' },
+                { i: Bot, t: 'Un asistente de estudio con IA que te explica y te hace preguntas de práctica.' },
+              ] : [
+                { i: Sparkles, t: 'Un agente de IA que propone y organiza tus evaluaciones.' },
+                { i: FileText, t: 'Planes de acción listos para compartir en PDF.' },
+                { i: Users, t: 'Tus secciones y estudiantes, ordenados y separados de los de otros profesores.' },
+                { i: Upload, t: 'Recibe las entregas de tus estudiantes y respóndeles en privado.' },
+              ]).map(({ i: Icono, t }) => (
+                <li key={t} className="flex items-start gap-3 text-sm text-[color:var(--c-c0c0d0)]">
+                  <span className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0"><Icono className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></span>
+                  <span className="pt-1">{t}</span>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        </AnimatePresence>
         <p className="relative text-xs text-[color:var(--c-6a6b7e)]">Acceso protegido: contraseñas cifradas, sesiones firmadas y registro de actividad.</p>
       </div>
 
@@ -317,6 +339,18 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Soy profesor(a) / estudiante: cambia los textos y el panel de la izquierda (al iniciar sesión y al crear cuenta) */}
+            {!cargando && !modoSetup && (modo === 'login' || modo === 'registro') && (
+              <div className="grid grid-cols-2 gap-2 mb-5">
+                {([['profesor', '👩‍🏫 Profesor(a)', 'Planifico y evalúo'], ['estudiante', '🎓 Estudiante', 'Veo mis evaluaciones y entrego']] as const).map(([id, tit, sub]) => (
+                  <button key={id} type="button" onClick={() => elegirTipo(id)} className={`text-left px-3 py-2.5 rounded-xl border transition-colors ${tipoCuenta === id ? (id === 'estudiante' ? 'border-emerald-400/60 bg-emerald-500/10' : 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10') : 'border-[color:var(--c-313248)] hover:border-[color:var(--c-818cf8)]/40'}`}>
+                    <span className="block text-sm font-semibold text-[color:var(--c-e0e0ec)]">{tit}</span>
+                    <span className="block text-[11px] text-[color:var(--c-8a8b9e)]">{sub}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className="mb-6">
               <h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">{titulo}</h1>
               <p className="text-sm text-[color:var(--c-8a8b9e)] mt-1">{subtitulo}</p>
@@ -334,24 +368,11 @@ export default function LoginPage() {
               </div>
             ) : (
               <motion.form key={`${modo}-${sacudir}`} animate={sacudir ? { x: [0, -8, 8, -6, 6, 0] } : {}} transition={{ duration: 0.35 }} onSubmit={enviar} className="space-y-4" noValidate>
-                {pideRegistro && !modoSetup && (
+                {pideRegistro && !modoSetup && tipoCuenta === 'estudiante' && (
                   <div>
-                    <label className={etiqueta}>Soy…</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {([['profesor', '👩‍🏫 Profesor(a)', 'Planifico y evalúo'], ['estudiante', '🎓 Estudiante', 'Veo mis evaluaciones y entrego']] as const).map(([id, titulo, sub]) => (
-                        <button key={id} type="button" onClick={() => setTipoCuenta(id)} className={`text-left px-3 py-2.5 rounded-xl border transition-colors ${tipoCuenta === id ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-313248)] hover:border-[color:var(--c-818cf8)]/40'}`}>
-                          <span className="block text-sm font-semibold text-[color:var(--c-e0e0ec)]">{titulo}</span>
-                          <span className="block text-[11px] text-[color:var(--c-8a8b9e)]">{sub}</span>
-                        </button>
-                      ))}
-                    </div>
-                    {tipoCuenta === 'estudiante' && (
-                      <div className="mt-3">
-                        <label className={etiqueta}>Código de clase (opcional)</label>
-                        <input value={codigoClase} onChange={(e) => { const v = e.target.value.toUpperCase().slice(0, 12); setCodigoClase(v); try { if (v) localStorage.setItem('codigoClasePendiente', v); else localStorage.removeItem('codigoClasePendiente'); } catch { /* sin almacenamiento */ } }} placeholder="Ej: ISW-A7K2 (te lo da tu profesor)" className={`${campo} !pl-3 uppercase tracking-wider`} />
-                        <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">También puedes unirte después, desde tu panel. Si tu profesor ya te registró, usa <strong>ese mismo correo</strong> y verás tus clases sin código.</p>
-                      </div>
-                    )}
+                    <label className={etiqueta}>Código de clase (opcional)</label>
+                    <input value={codigoClase} onChange={(e) => { const v = e.target.value.toUpperCase().slice(0, 12); setCodigoClase(v); try { if (v) localStorage.setItem('codigoClasePendiente', v); else localStorage.removeItem('codigoClasePendiente'); } catch { /* sin almacenamiento */ } }} placeholder="Ej: ISW-A7K2 (te lo da tu profesor)" className={`${campo} !pl-3 uppercase tracking-wider`} />
+                    <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">También puedes unirte después, desde tu panel. Si tu profesor ya te registró, usa <strong>ese mismo correo</strong> y verás tus clases sin código.</p>
                   </div>
                 )}
                 {(pideRegistro || modoSetup) && (

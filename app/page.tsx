@@ -7323,7 +7323,13 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
     const t = setInterval(cargarOpiniones, 60000);
     return () => clearInterval(t);
   }, [usuario?.id]);
-  // Entregas y mensajes nuevos de los estudiantes (cuentas de estudiante): aviso en la campanita
+  // Entregas, mensajes y solicitudes nuevas de los estudiantes (cuentas de estudiante): aviso en la campanita
+  const [solicitudesEstudiantes, setSolicitudesEstudiantes] = useState(0);
+  useEffect(() => {
+    const alCambiar = () => fetch('/api/entregas/novedades?desde=' + encodeURIComponent(new Date().toISOString())).then(r => r.ok ? r.json() : null).then(d => { if (d && typeof d.pendientes === 'number') setSolicitudesEstudiantes(d.pendientes); }).catch(() => {});
+    window.addEventListener('estudiantes-cambiaron', alCambiar);
+    return () => window.removeEventListener('estudiantes-cambiaron', alCambiar);
+  }, []);
   useEffect(() => {
     if (!usuario) return;
     let desde = new Date().toISOString();
@@ -7335,8 +7341,11 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
         desde = d.ahora || new Date().toISOString();
         (d.entregas || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`📥 ${x.estudiante} entregó «${limpiarTexto(x.evaluacion)}».`));
         (d.mensajes || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`💬 ${x.estudiante} te escribió sobre «${limpiarTexto(x.evaluacion)}»: ${x.texto}`));
+        (d.solicitudes || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`🙋 ${x.estudiante} pidió unirse a ${x.materia ? `${x.materia}, ` : ''}Sección ${x.seccion}. Acéptalo en la pestaña Estudiantes.`));
+        if (typeof d.pendientes === 'number') setSolicitudesEstudiantes(d.pendientes);
       } catch { /* sin conexión: siguiente ciclo */ }
     };
+    revisar();
     const t = setInterval(revisar, 60000);
     return () => clearInterval(t);
   }, [usuario?.id]);
@@ -7355,7 +7364,7 @@ const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function 
   type Pestana = { id: 'planificacion' | 'estadisticas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera' | 'calendario'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
   const tabDashboard: Pestana = { id: 'estadisticas', label: 'Dashboard', icon: BarChart3, grupo: puedeAdministrar ? 'admin' : 'trabajo' };
   const tabPlanificador: Pestana = { id: 'planificacion', label: 'Planificador', icon: ClipboardList, grupo: 'trabajo' };
-  const tabEstudiantes: Pestana = { id: 'estudiantes', label: 'Estudiantes', icon: Users, grupo: 'trabajo' };
+  const tabEstudiantes: Pestana = { id: 'estudiantes', label: 'Estudiantes', icon: Users, grupo: 'trabajo', badge: solicitudesEstudiantes };
   const tabPapelera: Pestana = { id: 'papelera', label: 'Papelera', icon: Trash2, grupo: 'trabajo' };
   const tabUsuarios: Pestana = { id: 'usuarios', label: 'Usuarios', icon: UserCog, grupo: 'admin', badge: solicitudesPendientes };
   const tabActividad: Pestana = { id: 'actividad', label: 'Actividad', icon: Activity, grupo: 'admin' };
