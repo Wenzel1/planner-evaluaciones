@@ -77,41 +77,30 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
   return createPortal(
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] bg-[color:var(--c-12131d)] flex items-stretch justify-center" onMouseDown={(ev) => { if (ev.target === ev.currentTarget) onCerrar(); }}>
       <motion.div initial={{ y: 10 }} animate={{ y: 0 }} transition={{ duration: 0.15 }} className="w-full h-full bg-[color:var(--c-1d1e2e)] flex flex-col overflow-hidden">
-        {/* Encabezado */}
-        <div className="flex items-center gap-3 px-3 md:px-4 py-2.5 border-b border-[color:var(--c-282a3f)] flex-shrink-0">
-          <Avatar id={e.estudiante.cuentaId} version={e.estudiante.avatarEn} nombre={e.estudiante.nombre} tamano={36} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm md:text-base font-semibold text-[color:var(--c-e0e0ec)] truncate">{e.estudiante.nombre}</p>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${estado.c}`}>{estado.t}</span>
-              {e.tarde && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-500/10 text-red-300 border-red-500/30 flex items-center gap-1"><Clock className="w-3 h-3" />Tarde</span>}
-            </div>
-            <p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">{limpiar(e.evaluacion.nombre)} · Sección {e.evaluacion.seccion} · entregó el {fechaHora(e.entregadaEn)}</p>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button type="button" disabled={i === 0} onClick={() => setI(i - 1)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30" title="Anterior (←)"><ChevronLeft className="w-5 h-5" /></button>
-            <span className="text-xs tabular-nums text-[color:var(--c-8a8b9e)] w-14 text-center">{i + 1} de {entregas.length}</span>
-            <button type="button" disabled={i === entregas.length - 1} onClick={() => setI(i + 1)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30" title="Siguiente (→)"><ChevronRight className="w-5 h-5" /></button>
-            <button type="button" onClick={onCerrar} className="w-9 h-9 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-white/5 ml-1" title="Cerrar (Esc)"><X className="w-5 h-5" /></button>
-          </div>
-        </div>
-
         <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
           {/* Documento */}
           <div className="flex-1 min-h-[55vh] lg:min-h-0 flex flex-col min-w-0 border-b lg:border-b-0 lg:border-r border-[color:var(--c-282a3f)]">
-            {(e.archivos.length > 1 || (e.archivos.length > 0 && e.url)) && (
-              <div className="flex gap-1.5 px-3 py-2 overflow-x-auto border-b border-[color:var(--c-282a3f)] flex-shrink-0">
+            {/* Una sola fila: quién entregó y sus archivos (el documento ocupa todo lo demás) */}
+            <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[color:var(--c-282a3f)] flex-shrink-0 min-w-0">
+              <div className="flex items-center gap-2 flex-shrink-0 max-w-[45%] pr-2 border-r border-[color:var(--c-282a3f)]" title={`${limpiar(e.evaluacion.nombre)} · Sección ${e.evaluacion.seccion} · entregó el ${fechaHora(e.entregadaEn)}`}>
+                <Avatar id={e.estudiante.cuentaId} version={e.estudiante.avatarEn} nombre={e.estudiante.nombre} tamano={28} />
+                <span className="text-sm font-semibold text-[color:var(--c-e0e0ec)] truncate">{e.estudiante.nombre}</span>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border flex-shrink-0 ${estado.c}`}>{estado.t}</span>
+                {e.tarde && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border bg-red-500/10 text-red-300 border-red-500/30 flex items-center gap-1 flex-shrink-0"><Clock className="w-3 h-3" />Tarde</span>}
+              </div>
+              <div className="flex-1 min-w-0 flex gap-1.5 overflow-x-auto sin-barra">
                 {e.archivos.map((a, k) => {
                   const est = estiloDe(a.nombre); const Icono = est.icono;
                   return (
-                    <button key={a.id} type="button" onClick={() => setArchivoSel(k)} className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs whitespace-nowrap transition-colors ${k === archivoSel ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-b0b0c4)] hover:border-[color:var(--c-818cf8)]/40'}`}>
-                      <Icono className={`w-3.5 h-3.5 ${est.color}`} /><span className="max-w-[180px] truncate">{a.nombre}</span>{a.tamano ? <span className="text-[10px] text-[color:var(--c-6a6b7e)]">{tamanoLegible(a.tamano)}</span> : null}
+                    <button key={a.id} type="button" onClick={() => setArchivoSel(k)} className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs whitespace-nowrap transition-colors flex-shrink-0 ${k === archivoSel ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-b0b0c4)] hover:border-[color:var(--c-818cf8)]/40'}`}>
+                      <Icono className={`w-3.5 h-3.5 ${est.color}`} /><span className="max-w-[170px] truncate">{a.nombre}</span>{a.tamano ? <span className="text-[10px] text-[color:var(--c-6a6b7e)]">{tamanoLegible(a.tamano)}</span> : null}
                     </button>
                   );
                 })}
-                {e.url && <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 text-xs text-indigo-200 whitespace-nowrap"><Link2 className="w-3.5 h-3.5" />Enlace<ExternalLink className="w-3 h-3" /></a>}
+                {e.url && <a href={e.url} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs whitespace-nowrap flex-shrink-0 ${ESTILO.enlace.fondo} ${ESTILO.enlace.color}`}><Link2 className="w-3.5 h-3.5" />Enlace<ExternalLink className="w-3 h-3" /></a>}
               </div>
-            )}
+              <button type="button" onClick={onCerrar} className="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] flex-shrink-0" title="Cerrar"><X className="w-4 h-4" /></button>
+            </div>
             <div className="flex-1 min-h-0 relative">
               {archivo ? <VistaArchivo key={`${e.id}:${archivo.id}`} fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} nombre={archivo.nombre} tamano={archivo.tamano} compacta />
                 : e.url ? <TarjetaEnlace url={e.url} />
@@ -124,12 +113,18 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
             {/* Revisión (nota, estado, mensajes) o Corrección con IA */}
             <div className="flex border-b border-[color:var(--c-282a3f)] flex-shrink-0">
               {([['revision', 'Revisión', ClipboardCheck], ['ia', 'Corrección IA', Sparkles]] as const).map(([id, txt, I]) => (
-                <button key={id} type="button" onClick={() => setPestanaPanel(id)} className={`relative flex-1 h-11 flex items-center justify-center gap-1.5 text-[13px] font-medium transition-colors ${pestanaPanel === id ? 'text-[color:var(--c-e0e0ec)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
+                <button key={id} type="button" onClick={() => setPestanaPanel(id)} className={`relative flex-1 min-w-0 h-11 flex items-center justify-center gap-1.5 text-[13px] font-medium transition-colors ${pestanaPanel === id ? 'text-[color:var(--c-e0e0ec)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
                   <I className={`w-4 h-4 ${pestanaPanel === id ? 'text-[color:var(--c-818cf8)]' : ''}`} />{txt}
                   {id === 'ia' && analisisIA[e.id]?.nota != null && <span className="text-[10px] font-bold px-1.5 rounded bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)]">{String(analisisIA[e.id]!.nota).replace('.', ',')}</span>}
                   {pestanaPanel === id && <span className="absolute left-4 right-4 bottom-0 h-0.5 rounded-full bg-[color:var(--c-818cf8)]" />}
                 </button>
               ))}
+              <div className="flex items-center gap-0.5 px-1.5 border-l border-[color:var(--c-282a3f)] flex-shrink-0">
+                <button type="button" disabled={i === 0} onClick={() => setI(i - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30" title="Anterior (←)"><ChevronLeft className="w-4 h-4" /></button>
+                <span className="text-[11px] tabular-nums text-[color:var(--c-8a8b9e)] min-w-[38px] text-center">{i + 1}/{entregas.length}</span>
+                <button type="button" disabled={i === entregas.length - 1} onClick={() => setI(i + 1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30" title="Siguiente (→)"><ChevronRight className="w-4 h-4" /></button>
+                <button type="button" onClick={onCerrar} className="hidden lg:flex w-8 h-8 rounded-lg items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-white/5" title="Cerrar (Esc)"><X className="w-4 h-4" /></button>
+              </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
               <div className={pestanaPanel === 'revision' ? 'flex flex-col flex-1' : 'hidden'}>

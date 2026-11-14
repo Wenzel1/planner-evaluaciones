@@ -163,7 +163,7 @@ export default function PanelEstudiante() {
               {menuCuenta && datos && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setMenuCuenta(false)} aria-hidden="true" />
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} role="menu" className="absolute right-0 top-12 z-50 w-60 bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-1.5">
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }} role="menu" className="absolute right-0 top-12 z-50 w-60 bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-1.5">
                     <div className="px-3 py-2.5 border-b border-[color:var(--c-282a3f)] mb-1 flex items-center gap-3">
                       <Avatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={nombre} tamano={40} />
                       <div className="min-w-0"><p className="text-sm font-medium text-[color:var(--c-e0e0ec)] truncate">{nombre}</p><p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">{datos.cuenta.email}</p></div>
@@ -244,7 +244,7 @@ export default function PanelEstudiante() {
       )}
       <AnimatePresence>
         {asistenteMovil && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="fixed inset-0 z-[150] flex flex-col bg-[color:var(--c-161722)]">
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }} transition={{ duration: 0.18 }} className="fixed inset-0 z-[150] flex flex-col bg-[color:var(--c-161722)]">
             <div className="flex-1 min-h-0"><Asistente datos={resumen} nombre={nombre} onOcultar={() => setAsistenteMovil(false)} /></div>
           </motion.div>
         )}

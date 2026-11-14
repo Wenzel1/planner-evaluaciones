@@ -2,7 +2,7 @@
 // Chat de la sección: profesor y estudiantes de una materia y sección. Sobrio, con archivos y notas de voz.
 // En la vista del profesor también aparecen (solo para él) las observaciones de los administradores y las opiniones del plan.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Sparkles, Trash2, ShieldCheck, ThumbsUp, Lightbulb, X, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, Sparkles, Trash2, ShieldCheck, ThumbsUp, Lightbulb, X, Loader2, CheckCheck } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { VerAdjunto, BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
 
@@ -13,6 +13,9 @@ interface Item {
 }
 
 const qs = (p: Record<string, string>) => new URLSearchParams(p).toString();
+// Color fijo (pastel) para el nombre de cada persona dentro de su burbuja, como en los grupos de WhatsApp
+const NOMBRES = ['#8fb8e8', '#9fd0b0', '#e6b48e', '#d6a8c4', '#b9b2df', '#9cd3cb', '#dfcb8f', '#e3a3a3'];
+const colorNombre = (n: string) => NOMBRES[[...String(n || '')].reduce((t, c) => t + c.charCodeAt(0), 0) % NOMBRES.length];
 const hora = (d: string) => new Intl.DateTimeFormat('es-VE', { timeZone: 'America/Caracas', hour: 'numeric', minute: '2-digit' }).format(new Date(d));
 const dia = (d: string) => new Intl.DateTimeFormat('es-VE', { timeZone: 'America/Caracas', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(d));
 
@@ -111,59 +114,83 @@ export default function ChatSeccion({ modo, api, params, titulo }: { modo: 'prof
         </div>
       )}
 
-      {/* Mensajes */}
-      <div ref={lista} onScroll={(e) => { const el = e.currentTarget; pegadoAbajo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} className="max-h-[440px] min-h-[160px] overflow-y-auto px-4 py-3">
+      {/* Mensajes (estilo WhatsApp: los tuyos a la derecha, los demás a la izquierda) */}
+      <div ref={lista} onScroll={(e) => { const el = e.currentTarget; pegadoAbajo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} className="max-h-[460px] min-h-[180px] overflow-y-auto px-3 sm:px-5 py-3 bg-[color:var(--c-161722)]">
         {items === null ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-8">Cargando…</p>
           : items.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-8">{modo === 'profesor' ? 'Aún no hay mensajes. Escribe un aviso para toda la sección.' : 'Aún no hay mensajes. Escribe tu duda: la ve tu profesor y tus compañeros.'}</p>
           : items.map((m, i) => {
             const prev = items[i - 1];
             const nuevoDia = !prev || dia(prev.createdAt) !== dia(m.createdAt);
-            const seguido = !!prev && !nuevoDia && prev.tipo === 'MENSAJE' && m.tipo === 'MENSAJE' && prev.autorNombre === m.autorNombre && prev.autorTipo === m.autorTipo && new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60000;
+            const seguido = !!prev && !nuevoDia && prev.tipo === 'MENSAJE' && m.tipo === 'MENSAJE' && prev.autorNombre === m.autorNombre && prev.autorTipo === m.autorTipo && prev.mio === m.mio && new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60000;
             const especial = m.tipo !== 'MENSAJE';
+            const burbuja = m.mio
+              ? 'bg-[#22406a] text-[#e9edf5]'
+              : m.tipo === 'OBSERVACION' ? 'bg-[color:var(--c-232430)] text-[color:var(--c-d0d0da)] border border-amber-500/30'
+              : m.tipo === 'OPINION' ? `bg-[color:var(--c-232430)] text-[color:var(--c-d0d0da)] border ${m.deAcuerdo ? 'border-emerald-500/25' : 'border-amber-500/25'}`
+              : 'bg-[color:var(--c-232430)] text-[color:var(--c-d0d0da)]';
             return (
               <div key={m.id}>
-                {nuevoDia && <div className="flex items-center gap-3 my-3"><span className="flex-1 h-px bg-[color:var(--c-282a3f)]" /><span className="text-[10px] uppercase tracking-wider text-[color:var(--c-6a6b7e)]">{dia(m.createdAt)}</span><span className="flex-1 h-px bg-[color:var(--c-282a3f)]" /></div>}
-                <div className={`group flex gap-3 rounded-lg px-2 -mx-2 ${seguido ? 'py-0.5' : 'pt-2.5 pb-1'} ${especial ? (m.tipo === 'OBSERVACION' ? 'bg-amber-500/[0.05]' : 'bg-[color:var(--c-818cf8)]/[0.04]') : 'hover:bg-white/[0.02]'}`}>
-                  <div className="w-8 flex-shrink-0">
-                    {!seguido && (m.tipo === 'OBSERVACION'
-                      ? <span className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center"><ShieldCheck className="w-4 h-4 text-amber-300" /></span>
-                      : <Avatar id={m.avatar?.id} version={m.avatar?.v} nombre={m.autorNombre} tamano={32} />)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    {!seguido && (
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="text-[13px] font-semibold text-[color:var(--c-e0e0ec)]">{m.mio ? 'Tú' : m.autorNombre}</span>
-                        {m.autorTipo === 'PROFESOR' && <span className="text-[10px] font-medium px-1.5 py-px rounded bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)]">Profesor(a)</span>}
-                        {m.tipo === 'OBSERVACION' && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-amber-500/15 text-amber-300 flex items-center gap-1"><ShieldCheck className="w-3 h-3" />{m.autorTipo === 'SUPERADMIN' ? 'Superadmin' : 'Administrador'}</span>}
-                        {m.tipo === 'OPINION' && <span className={`text-[10px] font-medium px-1.5 py-px rounded flex items-center gap-1 ${m.deAcuerdo ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300'}`}>{m.deAcuerdo ? <ThumbsUp className="w-3 h-3" /> : <Lightbulb className="w-3 h-3" />}{m.deAcuerdo ? 'De acuerdo con el plan' : 'Sugerencia sobre el plan'}</span>}
-                        <span className="text-[10px] text-[color:var(--c-6a6b7e)]">{hora(m.createdAt)}</span>
-                        {especial && modo === 'profesor' && <span className="text-[10px] text-[color:var(--c-6a6b7e)]">· solo tú lo ves</span>}
+                {nuevoDia && <div className="flex justify-center my-3"><span className="text-[11px] px-3 py-1 rounded-lg bg-[color:var(--c-232430)] text-[color:var(--c-8a8b9e)] shadow-sm first-letter:uppercase">{dia(m.createdAt)}</span></div>}
+                <div className={`group flex items-end gap-2 ${m.mio ? 'justify-end' : 'justify-start'} ${seguido ? 'mt-0.5' : 'mt-2.5'}`}>
+                  {/* Foto (solo de los demás y en el primer mensaje del grupo) */}
+                  {!m.mio && (
+                    <div className="w-7 flex-shrink-0 self-start">
+                      {!seguido && (m.tipo === 'OBSERVACION'
+                        ? <span className="w-7 h-7 rounded-full bg-amber-500/15 flex items-center justify-center"><ShieldCheck className="w-3.5 h-3.5 text-amber-300" /></span>
+                        : <Avatar id={m.avatar?.id} version={m.avatar?.v} nombre={m.autorNombre} tamano={28} />)}
+                    </div>
+                  )}
+                  {modo === 'profesor' && m.tipo === 'MENSAJE' && m.mio && (
+                    <button type="button" onClick={() => borrar(m.id)} title="Borrar mensaje" aria-label="Borrar mensaje" className="w-7 h-7 rounded-full flex items-center justify-center text-[color:var(--c-6a6b7e)] hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                  )}
+                  <div className={`relative max-w-[78%] sm:max-w-[68%] rounded-xl px-2.5 pt-1.5 pb-1 shadow-sm ${burbuja} ${!seguido ? (m.mio ? 'rounded-tr-sm' : 'rounded-tl-sm') : ''}`}>
+                    {/* Nombre (de los demás) y distintivos, dentro de la burbuja */}
+                    {!m.mio && !seguido && (
+                      <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                        <span className="text-[12px] font-semibold" style={{ color: colorNombre(m.autorNombre) }}>{m.autorNombre}</span>
+                        {m.autorTipo === 'PROFESOR' && <span className="text-[9px] font-semibold px-1.5 rounded bg-[color:var(--c-818cf8)]/20 text-[color:var(--c-c7d2fe)]">Profesor(a)</span>}
+                        {m.tipo === 'OBSERVACION' && <span className="text-[9px] font-semibold px-1.5 rounded bg-amber-500/15 text-amber-300 flex items-center gap-0.5"><ShieldCheck className="w-2.5 h-2.5" />{m.autorTipo === 'SUPERADMIN' ? 'Superadmin' : 'Administrador'}</span>}
+                        {m.tipo === 'OPINION' && <span className={`text-[9px] font-semibold px-1.5 rounded flex items-center gap-0.5 ${m.deAcuerdo ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>{m.deAcuerdo ? <ThumbsUp className="w-2.5 h-2.5" /> : <Lightbulb className="w-2.5 h-2.5" />}{m.deAcuerdo ? 'De acuerdo con el plan' : 'Sugerencia sobre el plan'}</span>}
                       </div>
                     )}
-                    {m.referencia && <p className="text-[11px] text-[color:var(--c-8a8b9e)]">Sobre «{m.referencia}»</p>}
-                    {m.adjunto && <div className="mt-1"><VerAdjunto adjunto={m.adjunto} mio={false} url={urlAdjunto(m.id)} /></div>}
-                    {m.texto && <p className="text-[13px] text-[color:var(--c-c0c0d0)] whitespace-pre-wrap break-words leading-relaxed">{m.texto}</p>}
+                    {m.referencia && <p className="text-[11px] opacity-70 mb-0.5">Sobre «{m.referencia}»</p>}
+                    {m.adjunto && <div className="my-1"><VerAdjunto adjunto={m.adjunto} mio={m.mio} url={urlAdjunto(m.id)} /></div>}
+                    {/* Texto con la hora abajo a la derecha (como en WhatsApp) */}
+                    <p className="text-[13.5px] leading-snug whitespace-pre-wrap break-words">
+                      {m.texto}
+                      <span className={`float-right ml-2.5 mt-1.5 text-[10px] leading-none flex items-center gap-0.5 ${m.mio ? 'text-[#e9edf5]/60' : 'text-[color:var(--c-6a6b7e)]'}`}>
+                        {especial && modo === 'profesor' && <span className="mr-1">solo tú lo ves ·</span>}{hora(m.createdAt)}{m.mio && <CheckCheck className="w-3.5 h-3.5 ml-0.5" />}
+                      </span>
+                    </p>
                   </div>
-                  {modo === 'profesor' && m.tipo === 'MENSAJE' && (
-                    <button type="button" onClick={() => borrar(m.id)} title="Borrar mensaje" aria-label="Borrar mensaje" className="self-start mt-1 w-7 h-7 rounded-lg flex items-center justify-center text-[color:var(--c-6a6b7e)] hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3.5 h-3.5" /></button>
+                  {modo === 'profesor' && m.tipo === 'MENSAJE' && !m.mio && (
+                    <button type="button" onClick={() => borrar(m.id)} title="Borrar mensaje" aria-label="Borrar mensaje" className="w-7 h-7 rounded-full flex items-center justify-center text-[color:var(--c-6a6b7e)] hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
                   )}
                 </div>
               </div>
             );
           })}
-        {progreso && <div className="ml-11 mt-2 w-56"><p className="text-[11px] text-[color:var(--c-c7d2fe)] truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-[color:var(--c-282a3f)] overflow-hidden"><div className="h-full bg-[color:var(--c-818cf8)] transition-all" style={{ width: `${progreso.p}%` }} /></div></div>}
+        {progreso && <div className="flex justify-end mt-2"><div className="w-56 rounded-xl rounded-tr-sm bg-[#22406a] px-3 py-2"><p className="text-[11px] text-[#e9edf5]/80 truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-white/70 transition-all" style={{ width: `${progreso.p}%` }} /></div></div></div>}
       </div>
 
-      {/* Escribir */}
-      <div className="px-3 py-2.5 border-t border-[color:var(--c-282a3f)]">
-        <form onSubmit={(e) => { e.preventDefault(); enviar(); }} className="flex gap-1.5 items-center flex-wrap">
-          {!grabando && <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />}
-          {!grabando && <input value={texto} onChange={(e) => setTexto(e.target.value.slice(0, 2000))} placeholder={modo === 'profesor' ? 'Escribe a toda la sección…' : 'Escribe a tu sección…'} className="flex-1 min-w-0 h-10 px-3 rounded-xl bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />}
-          {texto.trim() && !grabando
-            ? <button type="submit" disabled={enviando} aria-label="Enviar" className="w-10 h-10 rounded-xl bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0"><Send className="w-4 h-4" /></button>
-            : <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />}
+      {/* Escribir (barra redondeada como en WhatsApp) */}
+      <div className="px-2.5 sm:px-3 py-2 border-t border-[color:var(--c-282a3f)] bg-[color:var(--c-1d1e2e)]">
+        <form onSubmit={(e) => { e.preventDefault(); enviar(); }} className="flex gap-1.5 items-center">
+          {grabando ? (
+            <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />
+          ) : (
+            <>
+              <div className="flex-1 min-w-0 flex items-center gap-1 h-11 pl-1 pr-3 rounded-full bg-[color:var(--c-232430)] border border-transparent focus-within:border-[color:var(--c-818cf8)]/50">
+                <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />
+                <input value={texto} onChange={(e) => setTexto(e.target.value.slice(0, 2000))} placeholder={modo === 'profesor' ? 'Escribe a toda la sección' : 'Escribe un mensaje'} className="flex-1 min-w-0 h-full bg-transparent text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none" />
+              </div>
+              {texto.trim()
+                ? <button type="submit" disabled={enviando} aria-label="Enviar" className="w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0"><Send className="w-[18px] h-[18px]" /></button>
+                : <div className="w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] flex items-center justify-center flex-shrink-0 [&_button]:!text-white [&_button:hover]:!bg-transparent"><Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} /></div>}
+            </>
+          )}
         </form>
-        {error && <p className="text-[11px] text-red-300 mt-1.5">{error}</p>}
+        {error && <p className="text-[11px] text-red-300 mt-1.5 px-2">{error}</p>}
       </div>
     </section>
   );

@@ -80,7 +80,7 @@ export function AvisoEmergente({ mensaje, onCerrar, onLeer }: { id: string; mens
     return () => clearTimeout(t);
   }, [pausado]);
   return (
-    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: 40, scale: 0.96, transition: { duration: 0.18 } }} transition={{ duration: 0.16, ease: 'easeOut' }}
+    <motion.div layout initial={{ opacity: 0, x: 40, scale: 0.96 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 40, scale: 0.96, transition: { duration: 0.18 } }} transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       onMouseEnter={() => setPausado(true)} onMouseLeave={() => setPausado(false)}
       className={`pointer-events-auto relative overflow-hidden rounded-xl border ${est.borde} bg-[color:var(--c-1c1d2a)]/95 backdrop-blur-md shadow-2xl shadow-black/50`}>
       <div className="flex items-start gap-3 p-3 pr-2">
@@ -115,7 +115,7 @@ export function CampanitaNotificacionesFlotante({ notificaciones, setNotificacio
     const { emoji, texto, tipo } = analizarNotificacion(notif.mensaje);
     const est = ESTILO_NOTIF[tipo];
     return (
-      <motion.div layout key={notif.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      <motion.div layout key={notif.id} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 20 }}
         onClick={() => setNotificaciones((prev: any) => prev.map((n: any) => (n.id === notif.id ? { ...n, leido: true } : n)))}
         className={`group relative flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-colors ${notif.leido ? 'hover:bg-[color:var(--c-232438)]' : 'bg-[color:var(--c-272839)]/70 hover:bg-[color:var(--c-2e2f42)]'}`}>
         <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${est.chip} ${notif.leido ? 'opacity-60' : ''}`}>{emoji}</span>

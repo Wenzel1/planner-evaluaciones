@@ -200,7 +200,7 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
     <Pantalla>
       <AnimatePresence>
         {actualizado && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-[color:var(--c-818cf8)] text-white text-xs font-semibold shadow-lg shadow-[color:var(--c-818cf8)]/30">
+          <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="fixed top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-[color:var(--c-818cf8)] text-white text-xs font-semibold shadow-lg shadow-[color:var(--c-818cf8)]/30">
             <Sparkles className="w-3.5 h-3.5" />Tu plan se actualizó
           </motion.div>
         )}

@@ -3,7 +3,7 @@
 import { conMateria, materiaAbierta } from '@/lib/api';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BarChart3, Bell, BellOff, BookOpen, Bot, Brain, CalendarDays, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList, Copy, Download, ExternalLink, FileCheck, FileText, GraduationCap, History, Lightbulb, Lock, LockOpen, MessageCircle, MessageSquare, Mic, PanelLeftClose, Paperclip, Plus, Printer, RotateCcw, Scale, Search, Send, Settings, Sparkle, Sparkles, Square, ThumbsDown, ThumbsUp, Trash2, UserCheck, Users, Volume2, VolumeX, X } from 'lucide-react';
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import DescripcionOrdenada from '@/components/DescripcionOrdenada';
 import { type Examen, TIPOS_PREGUNTA, admiteExamenEnLinea } from '@/lib/examen';
 import { aWav16k } from '@/lib/audioWav';
@@ -28,6 +28,14 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
   const [pensando, setPensando] = useState(false); 
   const [escribiendo, setEscribiendo] = useState(false); 
   const [historial, setHistorial] = useState<Mensaje[]>([]);
+  // Mensajes que entran con su pequeña animación: solo los que llegan de a uno durante la conversación.
+  // Los que se cargan de golpe (al cambiar de sección o abrir una conversación guardada) aparecen quietos.
+  const mensajesVistos = useRef<Set<string>>(new Set());
+  const mensajesAnimables = useMemo(() => {
+    const nuevos = historial.filter(m => !mensajesVistos.current.has(m.id));
+    nuevos.forEach(m => mensajesVistos.current.add(m.id));
+    return new Set(nuevos.length <= 2 ? nuevos.map(m => m.id) : []);
+  }, [historial]);
   const chatEndRef = useRef<HTMLDivElement>(null); 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
@@ -1288,7 +1296,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
         {/* Historial de conversaciones */}
         <AnimatePresence>
           {verHistorial && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="absolute right-3 top-full mt-2 z-30 w-[320px] max-w-[calc(100%-24px)] max-h-[60vh] overflow-y-auto custom-scrollbar bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl p-2">
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="absolute right-3 top-full mt-2 z-30 w-[320px] max-w-[calc(100%-24px)] max-h-[60vh] overflow-y-auto custom-scrollbar bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl p-2">
               <button type="button" onClick={nuevaConversacion} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10"><Plus className="w-4 h-4" />Nueva conversación</button>
               {memorias && memorias.length > 0 && (
                 <div className="mb-1">
@@ -1319,7 +1327,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
       {/* Mensajes */}
       {!isChatStarted ? (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-5 py-6 custom-scrollbar">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="flex flex-col items-center text-center w-full max-w-md">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }} className="flex flex-col items-center text-center w-full max-w-md">
             <div className="w-20 h-20 rounded-full bg-[color:var(--c-818cf8)]/15 flex items-center justify-center border-2 border-[color:var(--c-818cf8)]/30 mb-5 shadow-2xl shadow-[color:var(--c-818cf8)]/20"><Sparkle className="w-9 h-9 text-[color:var(--c-818cf8)]" /></div>
             {avisos && avisos.length > 0 && (
               <div className="w-full mb-6 text-left">
@@ -1348,7 +1356,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
       ) : (
         <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-5 space-y-5 custom-scrollbar">
           {historial.map((msg) => (
-            <motion.div key={msg.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <motion.div key={msg.id} initial={mensajesAnimables.has(msg.id) ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.rol === 'agent' ? (
                 <div className="group/msg flex items-start gap-3 w-full max-w-[94%]">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.streaming ? 'eva-anillo' : ''} ${msg.error ? 'bg-amber-500/20' : 'bg-[color:var(--c-818cf8)] shadow-[color:var(--c-818cf8)]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-[color:var(--c-blanco)]'}`} /></div>

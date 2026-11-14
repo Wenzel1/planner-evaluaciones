@@ -216,7 +216,7 @@ function Fila({ e, k, onAbrir }: { e: EntregaBandeja; k: number; onAbrir: (archi
     : { t: 'Nueva', c: 'bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)] border-[color:var(--c-818cf8)]/30', i: Sparkles };
   const IconoEstado = estado.i;
   return (
-    <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: Math.min(k, 10) * 0.025 } }} exit={{ opacity: 0 }}
+    <motion.li initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0, transition: { delay: Math.min(k, 10) * 0.025 } }} exit={{ opacity: 0 }}
       onMouseEnter={() => adelantar(e)} className="px-4 md:px-5 py-3.5 hover:bg-[color:var(--c-818cf8)]/[0.03] transition-colors">
       <button type="button" onClick={() => onAbrir(0)} onTouchStart={() => adelantar(e)} onFocus={() => adelantar(e)} className="w-full text-left flex items-center gap-3 group">
         <Avatar id={e.estudiante.cuentaId} version={e.estudiante.avatarEn} nombre={e.estudiante.nombre} tamano={40} />

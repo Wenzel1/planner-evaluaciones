@@ -155,11 +155,11 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
               </Tooltip>
             </div>
           </div>
-          <motion.div initial={false} animate={{ height: pdfAbierto ? "auto" : "0px", opacity: pdfAbierto ? 1 : 0 }} transition={{ duration: 0.16, ease: 'easeOut' }} className="overflow-hidden bg-[color:var(--c-191a26)]">
+          <motion.div initial={false} animate={{ height: pdfAbierto ? "auto" : "0px", opacity: pdfAbierto ? 1 : 0 }} transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.6 }} className="overflow-hidden bg-[color:var(--c-191a26)]">
             <div className="p-4">
               <AnimatePresence mode="wait">
                 {(
-                  <motion.div key="pdf" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-[600px] overflow-y-auto border border-slate-200 rounded-xl bg-white text-slate-800 font-sans shadow-lg custom-scrollbar">
+                  <motion.div key="pdf" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="w-full h-[600px] overflow-y-auto border border-slate-200 rounded-xl bg-white text-slate-800 font-sans shadow-lg custom-scrollbar">
                     <div className="p-10 relative">
                       <div className="absolute top-10 right-10 text-[10px] uppercase tracking-widest font-bold text-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 px-3 py-1 rounded-md">Plan v1.0</div>
                       <div className="mb-8 border-b-2 border-[color:var(--c-1e3a8a)] pb-6"><span className="text-[11px] font-bold text-[color:var(--c-60a5fa)] uppercase tracking-widest">Plan de Acción</span><h2 className="text-3xl font-black text-[color:var(--c-1e3a8a)] mt-1">{planificacion.materia || 'Asignatura'}</h2><div className="flex gap-6 mt-3 text-xs text-slate-500"><p>👤 {profesor ? `Prof. ${profesor}` : 'Docente'}</p><p>📅 {planificacion.fechaExamen ? new Date(planificacion.fechaExamen).toLocaleDateString() : 'Por definir'}</p></div></div>

@@ -39,7 +39,7 @@ export function CambioPasswordObligatorio({ usuario, onLogout }: { usuario: Usua
 
   return (
     <div className="min-h-screen bg-[color:var(--c-12131d)] flex items-center justify-center p-5">
-      <motion.form onSubmit={guardar} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-8 shadow-2xl space-y-5" noValidate>
+      <motion.form onSubmit={guardar} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-8 shadow-2xl space-y-5" noValidate>
         <div className="flex flex-col items-center text-center">
           <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3"><ShieldCheck className="w-7 h-7 text-amber-300" /></div>
           <h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Elige tu nueva contraseña</h1>

@@ -226,11 +226,11 @@ export function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvalu
             )}
           </div>
         </div>
-        <div className="flex-shrink-0 w-[272px] max-w-full">
+        <div className="flex-1 min-w-[290px] max-w-full">
           <label className={labelBase}>Fecha y hora</label>
           <div className="flex gap-2">
-            <div className="w-[152px]"><DatePicker value={ev.fecha} minimo={new Date()} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
-            <div className="w-[112px]"><TimePicker value={ev.fecha} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
+            <div className="flex-1 min-w-[148px]"><DatePicker value={ev.fecha} minimo={new Date()} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
+            <div className="w-[134px] flex-shrink-0"><TimePicker value={ev.fecha} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
           </div>
         </div>
       </div>
