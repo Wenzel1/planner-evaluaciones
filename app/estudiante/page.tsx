@@ -156,11 +156,11 @@ export default function PanelEstudiante() {
           {/* Pestañas (mismo estilo que las del profesor) */}
           <nav className="flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra">
             {conClases && PESTANAS.map(t => (
-              <button key={t.id} type="button" onClick={() => setPestana(t.id)} aria-current={pestana === t.id ? 'page' : undefined}
+              <button key={t.id} type="button" onClick={() => setPestana(t.id)} title={t.texto} aria-label={t.texto} aria-current={pestana === t.id ? 'page' : undefined}
                 className={`relative flex-shrink-0 flex items-center gap-1.5 px-2.5 xl:px-3.5 py-2 rounded-xl text-[13px] xl:text-sm font-medium whitespace-nowrap transition-colors duration-300 ${pestana === t.id ? 'text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-1d1e2e)]'}`}>
                 {pestana === t.id && <motion.span layoutId="pestanaEstudiante" className="absolute inset-0 bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />}
                 <t.icono className={`relative z-10 w-4 h-4 ${pestana === t.id ? 'text-[color:var(--c-818cf8)]' : ''}`} />
-                <span className="relative z-10">{t.texto}</span>
+                <span className={`relative z-10 ${pestana === t.id ? '' : 'hidden md:inline'}`}>{t.texto}</span>
                 {(contador[t.id] ?? 0) > 0 && <span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{contador[t.id]}</span>}
               </button>
             ))}
