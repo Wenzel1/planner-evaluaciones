@@ -1,13 +1,14 @@
 'use client';
 
 import { AnimatePresence, Reorder, motion, useDragControls } from 'framer-motion';
-import { Bell, CalendarDays, ChevronDown, ClipboardCheck, FileCheck, GraduationCap, GripVertical, Inbox, MoreVertical, Paperclip, Pencil, Trash2 } from 'lucide-react';
+import { Bell, CalendarDays, ChevronDown, ClipboardCheck, Clock, FileCheck, GraduationCap, GripVertical, Inbox, Maximize2, MoreVertical, Paperclip, Pencil, Target, Trash2, Users, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import DescripcionOrdenada from '@/components/DescripcionOrdenada';
 import { admiteExamenEnLinea } from '@/lib/examen';
 import { textoPuntos, totalRubrica } from '@/lib/rubrica';
 import { useEffect, useRef, useState } from 'react';
 import { SeccionExamen } from '@/components/planificador/tipos';
-import { SelectorEstadoEvaluacion, Tooltip } from '@/components/planificador/ui';
+import { SelectorEstadoEvaluacion, Tooltip, VentanaFlotante } from '@/components/planificador/ui';
 import { esIdGuardado, limpiarTexto, precargar } from '@/components/planificador/utilidades';
 
 // ============================================
@@ -28,14 +29,18 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
   const nombreLimpio = limpiarTexto(seccion.nombre);
   // Menú "⋯": las acciones menos frecuentes quedan aquí para que la tarjeta se vea limpia
   const [menu, setMenu] = useState(false);
-  const [menuArriba, setMenuArriba] = useState(false); // si la tarjeta está cerca del borde de abajo de la lista, el menú se abre hacia arriba
+  // El menú flota sobre todo (fuera de la lista con scroll) y se abre hacia arriba si no cabe abajo
+  const [posMenu, setPosMenu] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuLista = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menu) return;
-    const fuera = (e: MouseEvent | TouchEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false); };
+    const fuera = (e: MouseEvent | TouchEvent) => { const t = e.target as Node; if (!menuRef.current?.contains(t) && !menuLista.current?.contains(t)) setMenu(false); };
+    const mover = (e: Event) => { if (e.target instanceof Node && menuLista.current?.contains(e.target)) return; setMenu(false); };
+    window.addEventListener('scroll', mover, true); window.addEventListener('resize', mover);
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(false); };
     document.addEventListener('mousedown', fuera); document.addEventListener('touchstart', fuera); document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('touchstart', fuera); document.removeEventListener('keydown', esc); };
+    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('touchstart', fuera); document.removeEventListener('keydown', esc); window.removeEventListener('scroll', mover, true); window.removeEventListener('resize', mover); };
   }, [menu]);
   const cancelada = String(seccion.estado || '').toUpperCase() === 'CANCELADA';
   const tieneRubrica = !!seccion.rubrica?.criterios?.length;
@@ -84,7 +89,7 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
         ) : (
           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 bg-[color:var(--c-272839)] ${isSelected ? 'text-[color:var(--c-c0c0d0)]' : 'text-[color:var(--c-5f6074)] line-through'}`} title={isSelected ? undefined : 'Fuera del Plan de Acción'}>{index + 1}</span>
         )}
-        <div className="flex-1 min-w-[140px] cursor-pointer" onClick={onToggleExpand} title={expanded ? 'Ocultar detalle' : 'Ver detalle'}>
+        <div className="flex-1 min-w-[140px] cursor-pointer" onClick={onToggleExpand} title="Ver detalle">
           <div className="flex items-center gap-2 min-w-0"><h4 className="text-sm text-[color:var(--c-e0e0ec)] font-medium truncate">{nombreLimpio}</h4></div>
           {/* Lo esencial a la vista: peso, fecha y estrategia. Lo demás, al expandir. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-[color:var(--c-a0a1b5)]">
@@ -104,19 +109,19 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
         <div className="flex items-center gap-1.5 ml-auto" onClick={(e) => e.stopPropagation()}>
           <SelectorEstadoEvaluacion seccion={seccion} onCambiar={onCambiarEstado} alinear="derecha" grande />
           {onRecursos && <Tooltip text={nRecursos ? `Recursos de estudio (${nRecursos})` : 'Recursos de estudio'}><button onClick={() => onRecursos(seccion)} aria-label="Recursos de estudio" className={`relative p-1.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-[color:var(--c-272839)] rounded-lg ${nRecursos ? 'text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-818cf8)]'}`}><Paperclip className="w-4 h-4" />{nRecursos > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[color:var(--c-818cf8)] text-[9px] font-bold text-white flex items-center justify-center">{nRecursos}</span>}</button></Tooltip>}
-          <Tooltip text={expanded ? 'Ocultar detalle' : 'Ver detalle'}><button onClick={onToggleExpand} aria-label={expanded ? 'Ocultar detalle' : 'Ver detalle'} aria-expanded={expanded}
+          <Tooltip text="Ver detalle"><button onClick={onToggleExpand} aria-label="Ver detalle" aria-haspopup="dialog"
             className={`p-1.5 rounded-lg transition-colors ${expanded ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-272839)]'}`}>
-            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+            <Maximize2 className="w-4 h-4" />
           </button></Tooltip>
           <div className="relative" ref={menuRef}>
-            <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); let caja: HTMLElement | null = e.currentTarget.parentElement; while (caja && !/(auto|scroll)/.test(getComputedStyle(caja).overflowY)) caja = caja.parentElement; const limite = caja ? caja.getBoundingClientRect().bottom : window.innerHeight; setMenuArriba(limite - r.bottom < 340 && r.top > 340); setMenu(v => !v); }} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
+            <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const arriba = window.innerHeight - r.bottom < 380 && r.top > 380; setPosMenu(arriba ? { bottom: window.innerHeight - r.top + 6, right: window.innerWidth - r.right } : { top: r.bottom + 6, right: window.innerWidth - r.right }); setMenu(v => !v); }} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
               className={`p-1.5 rounded-lg transition-colors ${menu ? 'text-[color:var(--c-e0e0ec)] bg-[color:var(--c-2c2d42)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]'}`}>
               <MoreVertical className="w-4 h-4" />
             </button>
-            <AnimatePresence>
+            {typeof document !== 'undefined' && createPortal(<AnimatePresence>
               {menu && (
-                <motion.div initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }} transition={{ duration: 0.12 }}
-                  className={`absolute right-0 ${menuArriba ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} w-64 z-40 rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)] shadow-2xl shadow-black/50 p-1.5`} role="menu">
+                <motion.div ref={menuLista} style={{ position: 'fixed', top: posMenu.top, bottom: posMenu.bottom, right: posMenu.right }} initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }} transition={{ duration: 0.12 }}
+                  className={`w-64 z-[300] rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)] shadow-2xl shadow-black/50 p-1.5`} role="menu">
                   {opciones.map(o => (
                     <button key={o.titulo} role="menuitem" onClick={() => { setMenu(false); o.hacer(); }} className="w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left hover:bg-[color:var(--c-272839)] transition-colors">
                       <o.icono className="w-4 h-4 mt-0.5 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
@@ -129,25 +134,48 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
                   </button>
                 </motion.div>
               )}
-            </AnimatePresence>
+            </AnimatePresence>, document.body)}
           </div>
         </div>
       </div>
+      {/* Detalle en una ventana grande aparte (se lee cómodo y la lista no se estira) */}
       <AnimatePresence>{expanded && (
-        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-[color:var(--c-313248)]">
-          <div className="p-3 sm:pl-14 space-y-3">
-            {/* Detalle que no hace falta ver siempre */}
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[color:var(--c-a0a1b5)]">
-              {seccion.enfoque && <span>📌 {seccion.enfoque}</span>}
-              {seccion.tiempoEstimadoMinutos && <span>⏱️ {seccion.tiempoEstimadoMinutos} min</span>}
-              {seccion.cantidadGrupos && <span>👥 {seccion.cantidadGrupos} grupos{seccion.personasPorGrupo ? ` de ${seccion.personasPorGrupo}` : ''}</span>}
-              {seccion.fecha && <span>🕗 {new Date(seccion.fecha).toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}</span>}
-              {tieneRubrica && <span className="text-[color:var(--c-a5b4fc)]">📋 Rúbrica de {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
+        <VentanaFlotante onCerrar={onToggleExpand} ancho="max-w-3xl">
+          <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl overflow-hidden" onPointerDown={(e) => e.stopPropagation()}>
+            <div className="relative p-5 sm:p-6 border-b border-[color:var(--c-282a3f)] bg-[radial-gradient(ellipse_at_top_left,rgba(129,140,248,0.12),transparent_60%)]">
+              <button type="button" onClick={onToggleExpand} aria-label="Cerrar" className="absolute top-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]"><X className="w-4 h-4" /></button>
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-[color:var(--c-a5b4fc)]">Evaluación {index + 1}{seccion.grupoSeccion ? ` · Sección ${seccion.grupoSeccion}` : ''}</p>
+              <h3 className="mt-1 pr-10 text-xl font-semibold text-[color:var(--c-e0e0ec)] leading-snug">{nombreLimpio}</h3>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                {seccion.peso != null && <span className="px-2.5 py-1 rounded-lg bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)] font-semibold">{seccion.peso}%</span>}
+                {seccion.fecha && <span className="px-2.5 py-1 rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c0c0d0)] flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" />{new Date(seccion.fecha).toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })} · {new Date(seccion.fecha).toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}</span>}
+                {seccion.tipoActividad && <span className="px-2.5 py-1 rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c0c0d0)]">{seccion.tipoActividad}</span>}
+                {seccion.enfoque && <span className="px-2.5 py-1 rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c0c0d0)] flex items-center gap-1.5"><Target className="w-3.5 h-3.5" />{seccion.enfoque}</span>}
+                {seccion.tiempoEstimadoMinutos && <span className="px-2.5 py-1 rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c0c0d0)] flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />{seccion.tiempoEstimadoMinutos} min</span>}
+                {seccion.cantidadGrupos && <span className="px-2.5 py-1 rounded-lg bg-[color:var(--c-272839)] text-[color:var(--c-c0c0d0)] flex items-center gap-1.5"><Users className="w-3.5 h-3.5" />{seccion.cantidadGrupos} grupos{seccion.personasPorGrupo ? ` de ${seccion.personasPorGrupo}` : ''}</span>}
+                {tieneRubrica && <span className="px-2.5 py-1 rounded-lg bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-a5b4fc)] flex items-center gap-1.5"><ClipboardCheck className="w-3.5 h-3.5" />Rúbrica de {textoPuntos(totalRubrica(seccion.rubrica))} pts</span>}
+              </div>
             </div>
-            {seccion.descripcion ? <DescripcionOrdenada texto={seccion.descripcion} /> : <p className="text-xs text-[color:var(--c-6a6b7e)]">Sin descripción. Puedes agregarla con «Editar evaluación» en el menú ⋯.</p>}
+            <div className="p-5 sm:p-6">
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-[color:var(--c-8a8b9e)] mb-2">Descripción</p>
+              {seccion.descripcion ? <div className="text-sm"><DescripcionOrdenada texto={seccion.descripcion} /></div> : <p className="text-sm text-[color:var(--c-6a6b7e)]">Sin descripción. Puedes agregarla con «Editar evaluación».</p>}
+            </div>
+            {/* Acciones a la mano */}
+            <div className="px-5 sm:px-6 pb-5 sm:pb-6">
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-[color:var(--c-8a8b9e)] mb-2">Acciones</p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {opciones.map(o => (
+                  <button key={o.titulo} type="button" onClick={() => { onToggleExpand(); o.hacer(); }} className="flex items-start gap-3 px-3 py-2.5 rounded-xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-191a26)] text-left hover:border-[color:var(--c-818cf8)]/40 transition-colors">
+                    <o.icono className="w-4 h-4 mt-0.5 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
+                    <span className="min-w-0"><span className="block text-[13px] text-[color:var(--c-e0e0ec)]">{o.titulo}</span><span className="block text-[11px] text-[color:var(--c-8a8b9e)] truncate">{o.detalle}</span></span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </motion.div>
+        </VentanaFlotante>
       )}</AnimatePresence>
+
     </Reorder.Item>
   );
 }

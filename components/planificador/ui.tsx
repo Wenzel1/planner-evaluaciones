@@ -13,7 +13,7 @@ export function Tooltip({ text, children, lado = 'arriba', alinear = 'centro' }:
   return (
     <div className="relative group inline-flex items-center">
       {children}
-      <div role="tooltip" className={`absolute ${vertical} ${horizontal} px-2 py-1 bg-[color:var(--c-0d0e14)] text-[color:var(--c-d8d8e2)] text-[10px] rounded-md opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-[color:var(--c-313248)]`}>{text}</div>
+      <div role="tooltip" className={`absolute ${vertical} ${horizontal} px-2 py-1 bg-[color:var(--c-0d0e14)] text-[color:var(--c-d8d8e2)] text-[10px] rounded-md opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-[color:var(--c-313248)]`}>{text}</div>
     </div>
   );
 }

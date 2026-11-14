@@ -2,7 +2,7 @@
 
 import { conMateria } from '@/lib/api';
 import { AnimatePresence, Reorder, motion } from 'framer-motion';
-import { Download, FileSpreadsheet, FileText, Send, Trash2 } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Send, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { TarjetaEvaluacion } from '@/components/planificador/TarjetaEvaluacion';
 import { SeccionExamen } from '@/components/planificador/tipos';
@@ -111,7 +111,7 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
     <div className="space-y-2">
       {pdfUrl && (
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="border border-[color:var(--c-818cf8)]/20 rounded-xl bg-[color:var(--c-1f2035)] overflow-hidden">
-          <div onClick={() => setPdfAbierto(!pdfAbierto)} className="flex items-center justify-between p-4 bg-[color:var(--c-272839)]/80 border-b border-[color:var(--c-818cf8)]/10 cursor-pointer hover:bg-[color:var(--c-2e2f42)]/60 transition-colors select-none">
+          <div onClick={() => setPdfAbierto(true)} className="flex items-center justify-between p-4 bg-[color:var(--c-272839)]/80 cursor-pointer hover:bg-[color:var(--c-2e2f42)]/60 transition-colors select-none">
             <div className="flex items-center gap-3">
               <div className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[color:var(--c-818cf8)] opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-[color:var(--c-818cf8)]"></span></div>
               <FileText className="w-5 h-5 text-[color:var(--c-818cf8)]" />
@@ -155,11 +155,19 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
               </Tooltip>
             </div>
           </div>
-          <motion.div initial={false} animate={{ height: pdfAbierto ? "auto" : "0px", opacity: pdfAbierto ? 1 : 0 }} transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.6 }} className="overflow-hidden bg-[color:var(--c-191a26)]">
-            <div className="p-4">
+          <AnimatePresence>
+            {pdfAbierto && (
+              <VentanaFlotante onCerrar={() => setPdfAbierto(false)} ancho="max-w-5xl">
+                <div className="bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-[color:var(--c-818cf8)]" />
+                    <h3 className="flex-1 text-sm font-semibold text-[color:var(--c-e0e0ec)]">Plan de Acción · Sección {seccionActiva}</h3>
+                    <a href={pdfUrl} download={`plan_evaluacion_${planificacion.materia || 'examen'}.pdf`} className="flex items-center gap-1.5 px-3 py-1.5 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white font-medium text-xs rounded-lg"><Download className="w-3.5 h-3.5" />Descargar</a>
+                    <button type="button" onClick={() => setPdfAbierto(false)} aria-label="Cerrar" className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]"><X className="w-4 h-4" /></button>
+                  </div>
               <AnimatePresence mode="wait">
                 {(
-                  <motion.div key="pdf" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="w-full h-[600px] overflow-y-auto border border-slate-200 rounded-xl bg-white text-slate-800 font-sans shadow-lg custom-scrollbar">
+                  <motion.div key="pdf" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="w-full h-[calc(92vh-90px)] overflow-y-auto border border-slate-200 rounded-xl bg-white text-slate-800 font-sans shadow-lg custom-scrollbar">
                     <div className="p-10 relative">
                       <div className="absolute top-10 right-10 text-[10px] uppercase tracking-widest font-bold text-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 px-3 py-1 rounded-md">Plan v1.0</div>
                       <div className="mb-8 border-b-2 border-[color:var(--c-1e3a8a)] pb-6"><span className="text-[11px] font-bold text-[color:var(--c-60a5fa)] uppercase tracking-widest">Plan de Acción</span><h2 className="text-3xl font-black text-[color:var(--c-1e3a8a)] mt-1">{planificacion.materia || 'Asignatura'}</h2><div className="flex gap-6 mt-3 text-xs text-slate-500"><p>👤 {profesor ? `Prof. ${profesor}` : 'Docente'}</p><p>📅 {planificacion.fechaExamen ? new Date(planificacion.fechaExamen).toLocaleDateString() : 'Por definir'}</p></div></div>
@@ -170,8 +178,10 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-          </motion.div>
+                </div>
+              </VentanaFlotante>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
 
