@@ -26,6 +26,7 @@ import { EstudiantesPanel } from '@/components/planificador/EstudiantesPanel';
 import { ObservacionesRecibidas, OpinionesEstudiantes } from '@/components/planificador/Opiniones';
 import dynamic from 'next/dynamic';
 import { CargandoPanel } from '@/components/planificador/ui';
+import { confirmar } from '@/components/Confirmar';
 
 // Solo para administradores o de uso ocasional: se descargan aparte (en segundo plano, poco después de abrir la página)
 const UsuariosPanel = dynamic(() => import('@/components/planificador/UsuariosPanel').then(m => m.UsuariosPanel), { loading: CargandoPanel });
@@ -177,7 +178,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
     if (llenandoRecursosRef.current) return;
     const pendientes = planificacion.secciones.filter((s: SeccionExamen) => (ids ? ids.includes(s.id) : (s.grupoSeccion || 'A') === seccionActiva) && !(s.recursos?.length) && !['CANCELADA', 'REALIZADA'].includes(String(s.estado || '').toUpperCase()));
     if (pendientes.length === 0) { if (!auto) agregarNotificacion(`📎 Todas las evaluaciones de la Sección ${seccionActiva} ya tienen recursos.`); return; }
-    if (!auto && !window.confirm(`Se buscarán videos y páginas para ${pendientes.length} evaluación(es) de la Sección ${seccionActiva} que no tienen recursos, y se asignarán 2 videos y 2 páginas a cada una. Luego puedes revisarlos en el botón 📎 de cada tarjeta. ¿Continuar?`)) return;
+    if (!auto && !(await confirmar(`Se buscarán videos y páginas para ${pendientes.length} evaluación(es) de la Sección ${seccionActiva} que no tienen recursos, y se asignarán 2 videos y 2 páginas a cada una. Luego puedes revisarlos en el botón 📎 de cada tarjeta. ¿Continuar?`))) return;
     llenandoRecursosRef.current = true;
     setLlenandoRecursos({ hechas: 0, total: pendientes.length });
     const resumen: string[] = [];
@@ -224,7 +225,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   // la versión más reciente de la función (ve el plan actualizado cuando se dispara el temporizador)
   const recursosParaTodasRef = useRef(recursosParaTodas);
   recursosParaTodasRef.current = recursosParaTodas;
-  const copiarPlanASeccion = () => {
+  const copiarPlanASeccion = async () => {
     const destino = copiaDestino;
     const origen = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva && !tarjetasExcluidas.includes(s.id));
     if (!destino || destino === seccionActiva || origen.length === 0) return;
@@ -232,7 +233,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
     if (copiaModo === 'reemplazar' && enDestino.length > 0) {
       const realizadas = enDestino.filter((s: SeccionExamen) => String(s.estado || '').toUpperCase() === 'REALIZADA').length;
       const aviso = `Se borrarán las ${enDestino.length} evaluación(es) que ya tiene la Sección ${destino}${realizadas ? ` (incluidas ${realizadas} ya realizada(s))` : ''} y se pondrán las copias. ¿Continuar?`;
-      if (!window.confirm(aviso)) return;
+      if (!(await confirmar(aviso))) return;
     }
     const dias = Math.max(-365, Math.min(365, parseInt(copiaDias, 10) || 0));
     const base = Date.now();
@@ -324,7 +325,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
     const realmenteCambio = !anterior || Math.abs(anterior.getTime() - fecha.getTime()) > 60_000;
     if (esIdGuardado(sec.id) && realmenteCambio && fecha.getTime() > Date.now() && !['REALIZADA', 'CANCELADA'].includes(String(sec.estado || '').toUpperCase())) {
       setTimeout(async () => {
-        if (!window.confirm(`¿Avisar a los estudiantes de la Sección ${(sec.grupoSeccion || 'A').toUpperCase()} que «${limpiarTexto(sec.nombre)}» cambió de fecha?`)) return;
+        if (!(await confirmar(`¿Avisar a los estudiantes de la Sección ${(sec.grupoSeccion || 'A').toUpperCase()} que «${limpiarTexto(sec.nombre)}» cambió de fecha?`))) return;
         const r = await fetch('/api/recordatorios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'avisar_cambio', evaluacionId: sec.id, fecha: fecha.toISOString(), fechaAnterior: anterior?.toISOString() }) }).catch(() => null);
         const d = await r?.json().catch(() => ({})) ?? {};
         if (!r?.ok) agregarNotificacion(`⚠️ ${d.error || 'No se pudo avisar a los estudiantes.'}`);
@@ -733,7 +734,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
       agregarNotificacion('❌ Corrige los campos marcados en rojo antes de guardar.');
       return;
     }
-    if (advertencias.length > 0 && !window.confirm(`Esto no parece del todo un tema de Ingeniería de Software:\n\n${advertencias.join('\n')}\n\n¿Quieres guardarla igual?`)) {
+    if (advertencias.length > 0 && !(await confirmar(`Esto no parece del todo un tema de Ingeniería de Software:\n\n${advertencias.join('\n')}\n\n¿Quieres guardarla igual?`))) {
       return;
     }
     // === FIN VALIDACIÓN ===
@@ -1115,7 +1116,9 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                     transition={{ duration: 0.18, ease: 'easeOut' }}
                   >
                     <DragDropSecciones
-                      secciones={seccionesFiltradas} onReorder={(nuevoOrden: SeccionExamen[]) => setPlanificacion(prev => { let i = 0; const nuevasSecciones = prev.secciones.map(s => (s.grupoSeccion || 'A') === seccionActiva ? nuevoOrden[i++] : s); return { ...prev, secciones: nuevasSecciones }; })} onEdit={cargarSeccionParaEditar} onDelete={(id: string) => { 
+                      secciones={seccionesFiltradas} onReorder={(nuevoOrden: SeccionExamen[]) => setPlanificacion(prev => { let i = 0; const nuevasSecciones = prev.secciones.map(s => (s.grupoSeccion || 'A') === seccionActiva ? nuevoOrden[i++] : s); return { ...prev, secciones: nuevasSecciones }; })} onEdit={cargarSeccionParaEditar} onDelete={async (id: string) => { 
+  const ev = planificacion.secciones.find(s => s.id === id);
+  if (!(await confirmar({ titulo: 'Eliminar evaluación', mensaje: `¿Eliminar «${limpiarTexto(ev?.nombre || 'esta evaluación')}»? Podrás recuperarla desde la Papelera.`, boton: 'Eliminar' }))) return;
   const estadoActualizado = { ...planificacion, secciones: planificacion.secciones.filter(s => s.id !== id) };
   setPlanificacion(estadoActualizado);
   sincronizarConBD(estadoActualizado);

@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileCheck, Lock, Clock, CheckCircle2, AlertCircle, X, Send, Loader2, ChevronRight } from 'lucide-react';
+import { confirmar } from '@/components/Confirmar';
 
 export interface InfoExamen { tipo: string; duracionMin: number; preguntas: number; abre: string | null; cierra: string | null; estado: string; nota: number | null }
 interface PreguntaEst { id: string; tipo: 'seleccion' | 'vf' | 'desarrollo' | 'informe'; enunciado: string; opciones?: string[]; puntos: number }
@@ -104,7 +105,7 @@ function VentanaExamen({ token, evaluacionId, nombre, info, onCerrar }: { token:
     if (entregado.current) return;
     if (!porTiempo) {
       const faltan = (examen?.preguntas || []).filter(p => respRef.current[p.id] == null || respRef.current[p.id] === '').length;
-      if (!window.confirm(faltan ? `Te faltan ${faltan} pregunta(s) por responder. ¿Entregar de todas formas?` : '¿Entregar el examen? Ya no podrás cambiar tus respuestas.')) return;
+      if (!(await confirmar(faltan ? `Te faltan ${faltan} pregunta(s) por responder. ¿Entregar de todas formas?` : '¿Entregar el examen? Ya no podrás cambiar tus respuestas.'))) return;
     }
     entregado.current = true; setFase('entregando');
     for (let intento = 0; intento < 4; intento++) {

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, CheckCircle, Sparkles, Send, RotateCcw, Lock, LockOpen, FileCheck, Clock, AlertCircle, ChevronLeft, Save } from 'lucide-react';
 import { normalizarExamen, notaDe, esObjetiva, TIPOS_PREGUNTA, type Examen, type Pregunta, type TipoPregunta, type Correccion } from '@/lib/examen';
+import { confirmar } from '@/components/Confirmar';
 
 export interface EvalExamen { id: string; nombre: string; fecha?: Date | string | null; tiempoEstimadoMinutos?: number | null; grupoSeccion?: string }
 interface Entrega {
@@ -140,7 +141,7 @@ export default function ModalExamen({ evaluacion, inicial, onCerrar, onGuardado,
     if (d) { setGuardado(d.examen); setExamen(d.examen); onGuardado?.(d.examen); notificar?.(`📝 Examen de «${limpiar(evaluacion.nombre)}» guardado (${d.examen.preguntas.length} preguntas).`); }
   };
   const quitar = async () => {
-    if (!window.confirm('¿Quitar el examen de esta evaluación? Los estudiantes ya no podrán presentarlo.')) return;
+    if (!(await confirmar('¿Quitar el examen de esta evaluación? Los estudiantes ya no podrán presentarlo.'))) return;
     const d = await accion({ accion: 'guardar', examen: null }, 'quitar');
     if (d) { setGuardado(null); setExamen(null); onGuardado?.(null); }
   };
@@ -199,7 +200,7 @@ export default function ModalExamen({ evaluacion, inicial, onCerrar, onGuardado,
                 if (d) { await cargar(); notificar?.(publicarYa ? `✅ Nota de ${sel.nombre} publicada.` : `💾 Corrección de ${sel.nombre} guardada.`); }
               }}
               onSugerir={async () => { const d = await accion({ accion: 'sugerir', estudianteId: sel.estudianteId }, 'sugerir'); if (d) { await cargar(); if (d.error) setError(d.error); } }}
-              onReabrir={async () => { if (!window.confirm(`¿Borrar el intento de ${sel.nombre} para que presente el examen de nuevo?`)) return; const d = await accion({ accion: 'reabrir', estudianteId: sel.estudianteId }, 'reabrir'); if (d) { setViendo(null); await cargar(); } }}
+              onReabrir={async () => { if (!(await confirmar(`¿Borrar el intento de ${sel.nombre} para que presente el examen de nuevo?`))) return; const d = await accion({ accion: 'reabrir', estudianteId: sel.estudianteId }, 'reabrir'); if (d) { setViendo(null); await cargar(); } }}
             />
           ) : (
             <div className="space-y-3">

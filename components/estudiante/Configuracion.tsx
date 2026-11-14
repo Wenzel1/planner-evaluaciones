@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { LogOut, Plus, KeyRound, CheckCircle2 } from 'lucide-react';
 import { EditorAvatar } from '@/components/Avatar';
+import { confirmar as confirmarDialogo } from '@/components/Confirmar';
 
 interface Cuenta { id: string; nombre: string; email: string; avatarEn?: string | null }
 interface Clase { id: string; estado: string; profesor: string; materia: string | null; seccion: string }
@@ -41,7 +42,7 @@ export default function Configuracion({ cuenta, onCuenta, clases, onSalir, onUni
   };
   const salir = async (c: Clase) => {
     const pendiente = c.estado === 'PENDIENTE';
-    if (!window.confirm(pendiente ? `¿Cancelar tu solicitud a la clase de ${c.profesor}?` : `¿Salir de la clase de ${c.profesor}${c.materia ? ` (${c.materia})` : ''}? Tu profesor conserva tus notas y puedes volver a unirte con su código.`)) return;
+    if (!(await confirmarDialogo(pendiente ? `¿Cancelar tu solicitud a la clase de ${c.profesor}?` : `¿Salir de la clase de ${c.profesor}${c.materia ? ` (${c.materia})` : ''}? Tu profesor conserva tus notas y puedes volver a unirte con su código.`))) return;
     setSaliendo(c.id);
     try { await onSalir(c.id); } finally { setSaliendo(null); }
   };

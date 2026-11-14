@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { validarCedula, validarEmail, validarNombre, validarPassword, validarTelefono } from '@/lib/validacionesUsuario';
 import { Tooltip } from '@/components/planificador/ui';
+import { confirmar } from '@/components/Confirmar';
 
 // ============================================
 // PANEL DE USUARIOS (solo ADMIN y SUPERADMIN)
@@ -84,7 +85,7 @@ export function UsuariosPanel() {
 
   const eliminar = async (u: UsuarioFila) => {
     // Confirmación en dos pasos sin cuadros de diálogo: primer clic arma, segundo clic elimina
-    if (confirmandoId !== u.id) { setConfirmandoId(u.id); setTimeout(() => setConfirmandoId(prev => (prev === u.id ? null : prev)), 3000); return; }
+    if (!(await confirmar({ titulo: 'Eliminar cuenta', mensaje: `¿Eliminar la cuenta de ${u.nombre}? Esta acción no se puede deshacer.`, boton: 'Eliminar' }))) return;
     setConfirmandoId(null);
     const r = await fetch(`/api/usuarios?id=${u.id}`, { method: 'DELETE' });
     const d = await r.json();

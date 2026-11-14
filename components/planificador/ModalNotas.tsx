@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
 import { FilaNota, SeccionExamen } from '@/components/planificador/tipos';
 import { limpiarTexto, medioEnvio, olvidarCache, pedirConCache } from '@/components/planificador/utilidades';
+import { confirmar } from '@/components/Confirmar';
 
 export const NIVEL_CORTO = ['Exc.', 'Bueno', 'Reg.', 'Def.'];
 export const COLOR_BOTON_NIVEL = ['bg-emerald-500/20 border-emerald-500/50 text-emerald-200', 'bg-sky-500/20 border-sky-500/50 text-sky-200', 'bg-amber-500/20 border-amber-500/50 text-amber-200', 'bg-red-500/20 border-red-500/50 text-red-200'];
@@ -97,7 +98,7 @@ export function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCam
   const enviar = async () => {
     if (cambiadas.length > 0) { alert('Primero guarda las notas.'); return; }
     if (destinatarios.length === 0) { alert('Nadie con nota guardada tiene teléfono.'); return; }
-    if (!window.confirm(`Se enviará por ${medioEnvio()} su nota a ${destinatarios.length} estudiante(s). Cada uno recibe solo la suya. ¿Continuar?`)) return;
+    if (!(await confirmar(`Se enviará por ${medioEnvio()} su nota a ${destinatarios.length} estudiante(s). Cada uno recibe solo la suya. ¿Continuar?`))) return;
     setEnviando(true); setEnvio(null);
     try {
       const r = await fetch(`/api/evaluaciones/${encodeURIComponent(seccion.id)}/notas/enviar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteIds: destinatarios.map(f => f.id) }) });
@@ -118,7 +119,7 @@ export function ModalNotas({ seccion, onCerrar, agregarNotificacion, onEstadoCam
     } catch (e: any) { alert(e.message); } finally { setEnviando(false); }
   };
 
-  const cerrar = () => { if (cambiadas.length > 0 && !window.confirm('Hay notas sin guardar. ¿Cerrar de todas formas?')) return; onCerrar(); };
+  const cerrar = async () => { if (cambiadas.length > 0 && !(await confirmar('Hay notas sin guardar. ¿Cerrar de todas formas?'))) return; onCerrar(); };
   const campo = 'bg-[color:var(--c-272839)] border rounded-lg px-2.5 py-1.5 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none';
 
   return createPortal(

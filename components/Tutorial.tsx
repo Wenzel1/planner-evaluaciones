@@ -58,7 +58,6 @@ export function pasosDeVista(vista: string | null): PasoTutorial[] {
     case 'estudiantes': return [
       { objetivo: 'est-agregar', titulo: 'Tus estudiantes', texto: 'Agrégalos uno a uno con su correo y su sección. A ese correo les llegan el plan, los recordatorios y sus notas.' },
       { objetivo: 'est-importar', titulo: 'Desde Excel', texto: 'Descarga la plantilla, llénala y súbela para cargar toda la lista de una vez.', opcional: true },
-      { objetivo: 'est-prueba', titulo: 'Estudiantes de prueba', texto: 'Crea estudiantes de ejemplo sin correo real para probar evaluaciones en grupo, notas y su página. No reciben mensajes; para probar los correos, agrégate tú con tu correo.' },
     ];
     case 'estadisticas': return [
       { objetivo: 'dash-titulo', titulo: 'Dashboard', texto: 'El resumen de la materia: evaluaciones realizadas y pendientes, promedio, estudiantes en riesgo y cómo se reparten las estrategias. Se actualiza solo con tus cambios.' },

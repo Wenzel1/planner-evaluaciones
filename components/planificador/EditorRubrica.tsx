@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
 import { SeccionExamen } from '@/components/planificador/tipos';
 import { limpiarTexto } from '@/components/planificador/utilidades';
+import { confirmar } from '@/components/Confirmar';
 
 // ============================================
 // EDITOR DE RÚBRICA (por evaluación)
@@ -28,8 +29,8 @@ export function EditorRubrica({ seccion, onGuardar, onCerrar }: { seccion: Secci
     setEditado(true);
     setCriterios(prev => prev.map((c, k) => (k === i ? { ...c, ...cambio } : c)));
   };
-  const sugerir = () => {
-    if (editado && !window.confirm('Se reemplazará lo que escribiste por una rúbrica sugerida. ¿Continuar?')) return;
+  const sugerir = async () => {
+    if (editado && !(await confirmar('Se reemplazará lo que escribiste por una rúbrica sugerida. ¿Continuar?'))) return;
     setCriterios(rubricaSugerida(seccion).criterios.map(c => ({ ...c, puntos: String(c.puntos), descripciones: [...c.descripciones] })));
     setEditado(false); setAbierto(0);
   };
@@ -106,7 +107,7 @@ export function EditorRubrica({ seccion, onGuardar, onCerrar }: { seccion: Secci
         </div>
 
         <div className="px-5 py-3 border-t border-[color:var(--c-313248)] flex flex-wrap items-center gap-2">
-          {existente && <button type="button" onClick={() => { if (window.confirm('¿Quitar la rúbrica de esta evaluación?')) onGuardar(null); }} className="h-9 px-3 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/10">Quitar rúbrica</button>}
+          {existente && <button type="button" onClick={async () => { if ((await confirmar('¿Quitar la rúbrica de esta evaluación?'))) onGuardar(null); }} className="h-9 px-3 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/10">Quitar rúbrica</button>}
           <span className="text-[11px] text-[color:var(--c-6a6b7e)] hidden sm:inline">Sale en el PDF del plan de acción.</span>
           <div className="ml-auto flex gap-2">
             <button type="button" onClick={onCerrar} className="h-9 px-4 rounded-lg bg-[color:var(--c-232430)] border border-[color:var(--c-313248)] text-[color:var(--c-a0a0b8)] text-xs font-medium hover:text-[color:var(--c-blanco)]">Cancelar</button>

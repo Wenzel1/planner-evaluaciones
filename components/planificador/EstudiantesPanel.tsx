@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Estudiante } from '@/components/planificador/tipos';
 import { Tooltip, VentanaFlotante } from '@/components/planificador/ui';
 import { haceCuanto, inputBase, labelBase, olvidarCache, opcionesSeccion } from '@/components/planificador/utilidades';
+import { confirmar } from '@/components/Confirmar';
 
 export function EstudiantesPanel() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,10 +25,7 @@ export function EstudiantesPanel() {
   const [resultadoImport, setResultadoImport] = useState<{ creados: number; omitidos: { fila: number; motivo: string }[]; desplazamiento: number } | null>(null);
   const [errorImport, setErrorImport] = useState('');
   const inputArchivoRef = useRef<HTMLInputElement>(null);
-  // Estudiantes de prueba (correos @demo.planificador: la app nunca les envía nada)
-  const [verPrueba, setVerPrueba] = useState(false);
-  const [prueba, setPrueba] = useState({ cantidad: 12, grupo: 'A' });
-  const [procesandoPrueba, setProcesandoPrueba] = useState(false);
+  // Estudiantes de prueba antiguos (correos @demo.planificador): solo se marcan en la tabla
   const esDePrueba = (e: { email?: string }) => String(e.email || '').toLowerCase().endsWith('@demo.planificador');
   // Solicitudes de estudiantes que se unieron con el código de clase (si la sección pide aprobación)
   const [solicitudes, setSolicitudes] = useState<{ id: string; nombre: string; email: string; grupo: string; solicitadoEn: string | null; materia?: { nombre: string } | null }[]>([]);
@@ -37,26 +35,6 @@ export function EstudiantesPanel() {
     const r = await fetch('/api/estudiantes/solicitudes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
     if (!r.ok) { alert('No se pudo procesar la solicitud.'); return; }
     await Promise.all([cargarSolicitudes(), recargarEstudiantes()]); window.dispatchEvent(new Event('estudiantes-cambiaron'));
-  };
-  const crearPrueba = async () => {
-    setProcesandoPrueba(true);
-    try {
-      const r = await fetch('/api/estudiantes/prueba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...prueba, materiaId: materiaAbierta.id || undefined }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || 'No se pudieron crear.');
-      await recargarEstudiantes(); window.dispatchEvent(new Event('estudiantes-cambiaron'));
-      setVerPrueba(false);
-    } catch (e: any) { alert(e.message); } finally { setProcesandoPrueba(false); }
-  };
-  const borrarPrueba = async () => {
-    if (!window.confirm('¿Borrar todos los estudiantes de prueba (y sus notas de prueba)?')) return;
-    setProcesandoPrueba(true);
-    try {
-      const r = await fetch('/api/estudiantes/prueba', { method: 'DELETE' });
-      if (!r.ok) throw new Error('No se pudieron borrar.');
-      await recargarEstudiantes(); window.dispatchEvent(new Event('estudiantes-cambiaron'));
-      setVerPrueba(false);
-    } catch (e: any) { alert(e.message); } finally { setProcesandoPrueba(false); }
   };
 
   // Estados para Agregar
@@ -222,7 +200,7 @@ export function EstudiantesPanel() {
     catch (e: any) { ventana?.close(); alert(e.message); }
   };
   const copiarEnlace = async (est: Estudiante, nuevo = false) => {
-    if (nuevo && !window.confirm(`Se creará un enlace nuevo para ${est.nombre} y el anterior dejará de funcionar. ¿Continuar?`)) return;
+    if (nuevo && !(await confirmar(`Se creará un enlace nuevo para ${est.nombre} y el anterior dejará de funcionar. ¿Continuar?`))) return;
     try {
       const url = await pedirEnlace(est.id, nuevo);
       try { await navigator.clipboard.writeText(url); } catch { window.prompt('Copia el enlace:', url); }
@@ -255,26 +233,7 @@ export function EstudiantesPanel() {
           <input ref={inputArchivoRef} type="file" accept=".csv,.txt" className="hidden" onChange={(e) => importarArchivo(e.target.files?.[0])} />
           <button onClick={descargarPlantilla} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 transition-colors"><Download className="w-4 h-4" />Plantilla</button>
           <button data-tutorial="est-importar" onClick={() => inputArchivoRef.current?.click()} disabled={importando} className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-xl hover:border-[color:var(--c-818cf8)]/40 transition-colors disabled:opacity-60"><Upload className="w-4 h-4" />{importando ? 'Importando...' : 'Importar CSV'}</button>
-          <button data-tutorial="est-prueba" onClick={() => setVerPrueba(true)} title="Crea estudiantes de ejemplo sin correo real para probar grupos, notas y la página del estudiante" className="flex items-center gap-2 px-3 py-2 text-sm text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/30 rounded-xl hover:bg-[color:var(--c-818cf8)]/20 transition-colors"><Sparkles className="w-4 h-4" />Estudiantes de prueba</button>
           <motion.button data-tutorial="est-agregar" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-medium rounded-xl transition-all shadow-md"><Plus className="w-4 h-4" /> Agregar estudiante</motion.button>
-          <AnimatePresence>
-            {verPrueba && (
-              <VentanaFlotante onCerrar={() => setVerPrueba(false)} ancho="max-w-md">
-                <div className="bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl p-6 space-y-4">
-                  <div className="flex items-center justify-between"><h3 className="text-lg font-semibold text-[color:var(--c-d0d0da)] flex items-center gap-2"><Sparkles className="w-5 h-5 text-[color:var(--c-818cf8)]" />Estudiantes de prueba</h3><button onClick={() => setVerPrueba(false)} className="p-1.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)] rounded-lg"><X className="w-5 h-5" /></button></div>
-                  <p className="text-sm text-[color:var(--c-9a9bb0)] leading-relaxed">Crea estudiantes de ejemplo para probar evaluaciones en grupo, notas y su página personal. <strong className="text-[color:var(--c-c7d2fe)]">No tienen correo real: nunca se les envía nada.</strong> Para probar los correos, agrégate tú con tu propio correo.</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className={labelBase}>Cantidad</label><Selector value={prueba.cantidad} onChange={(e) => setPrueba({ ...prueba, cantidad: Number(e.target.value) })} className={inputBase}>{[4, 6, 8, 12, 16, 20, 30].map(n => <option key={n} value={n}>{n} estudiantes</option>)}</Selector></div>
-                    <div><label className={labelBase}>Sección</label><Selector value={prueba.grupo} onChange={(e) => setPrueba({ ...prueba, grupo: e.target.value })} className={inputBase}>{opcionesSeccion(prueba.grupo, grupos as string[]).map(g => <option key={g} value={g}>Sección {g}</option>)}</Selector></div>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 pt-1">
-                    {estudiantes.some(esDePrueba) ? <button type="button" disabled={procesandoPrueba} onClick={borrarPrueba} className="text-xs text-red-300/80 hover:text-red-200 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />Borrar los de prueba ({estudiantes.filter(esDePrueba).length})</button> : <span />}
-                    <button type="button" disabled={procesandoPrueba} onClick={crearPrueba} className="px-4 py-2 bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-medium rounded-xl flex items-center gap-2 disabled:opacity-60">{procesandoPrueba ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Plus className="w-4 h-4" />}Crear</button>
-                  </div>
-                </div>
-              </VentanaFlotante>
-            )}
-          </AnimatePresence>
         </div>
       </div>
 
@@ -293,7 +252,7 @@ export function EstudiantesPanel() {
                   <p className="text-xs text-[color:var(--c-8a8b9e)]">{sol.email} · {sol.materia?.nombre ? `${sol.materia.nombre} · ` : ''}Sección {sol.grupo}{sol.solicitadoEn ? ` · ${new Date(sol.solicitadoEn).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}` : ''}</p>
                 </div>
                 <button type="button" onClick={() => responderSolicitud({ id: sol.id, accion: 'aceptar' })} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/35 text-emerald-200 hover:bg-emerald-500/25">Aceptar</button>
-                <button type="button" onClick={() => { if (window.confirm(`¿Rechazar la solicitud de ${sol.nombre}?`)) responderSolicitud({ id: sol.id, accion: 'rechazar' }); }} className="text-xs px-3 py-1.5 rounded-lg text-red-300/80 hover:text-red-200 hover:bg-red-500/10">Rechazar</button>
+                <button type="button" onClick={async () => { if ((await confirmar(`¿Rechazar la solicitud de ${sol.nombre}?`))) responderSolicitud({ id: sol.id, accion: 'rechazar' }); }} className="text-xs px-3 py-1.5 rounded-lg text-red-300/80 hover:text-red-200 hover:bg-red-500/10">Rechazar</button>
               </div>
             ))}
           </div>

@@ -1,9 +1,9 @@
 'use client';
 import Selector from '@/components/Selector';
-// Asistente de estudio del estudiante (panel grande a la izquierda, como el chat del profesor):
+// Asistente de estudio del estudiante (arriba a la derecha, junto al chat de la sección):
 // explica los temas, hace preguntas de práctica y ayuda a organizar el estudio. No hace la tarea.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Send, Sparkles, PanelLeftClose, RotateCcw } from 'lucide-react';
+import { Bot, Send, Sparkles, X, RotateCcw } from 'lucide-react';
 import { type Resumen, limpiar, cuandoTexto } from './comun';
 import { useBajarAlFinal } from '@/components/Burbuja';
 
@@ -65,7 +65,7 @@ export default function Asistente({ datos, nombre, onOcultar }: { datos: Resumen
         <span className="w-8 h-8 rounded-xl bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/30 flex items-center justify-center"><Bot className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></span>
         <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Asistente de estudio</p><p className="text-[10px] text-[color:var(--c-8a8b9e)]">Te explica y te pone a prueba. No hace la tarea por ti.</p></div>
         {msgs.length > 0 && <button type="button" onClick={() => setConversaciones(c => ({ ...c, [clave]: [] }))} title="Nueva conversación" aria-label="Nueva conversación" className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10"><RotateCcw className="w-4 h-4" /></button>}
-        {onOcultar && <button type="button" onClick={onOcultar} title="Ocultar el asistente" aria-label="Ocultar el asistente" className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10"><PanelLeftClose className="w-4 h-4" /></button>}
+        {onOcultar && <button type="button" onClick={onOcultar} title="Cerrar el asistente" aria-label="Cerrar el asistente" className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10"><X className="w-4 h-4" /></button>}
       </div>
 
       {/* Sobre qué estudiar */}

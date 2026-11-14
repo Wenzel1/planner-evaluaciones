@@ -230,7 +230,6 @@ function PanelRevision({ e, rubrica, onActualizar, onSiguiente, sugerencia, vers
   const etiqueta = 'text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)]';
   return (
     <div className="p-4 space-y-5 flex flex-col flex-1 min-h-full">
-      {e.comentario && <p className="text-xs text-[color:var(--c-c0c0d0)] rounded-xl bg-[color:var(--c-161722)] border border-[color:var(--c-282a3f)] px-3 py-2.5"><MessageSquare className="w-3.5 h-3.5 inline mr-1.5 text-[color:var(--c-a5b4fc)]" /><b className="text-[color:var(--c-d0d0da)]">Comentario del estudiante:</b> {e.comentario}</p>}
       {/* Nota */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -336,10 +335,10 @@ function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos, version = 0 }
     } catch (e: any) { setError(e.message); } finally { setEnviando(false); setProgreso(null); }
   };
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex-1 min-h-[320px] flex flex-col gap-2">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)] flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" />Mensajes privados</p>
       {/* Alto fijo: los mensajes se desplazan por dentro (estilo WhatsApp) */}
-      <div ref={desplazar.caja} onScroll={desplazar.onScroll} className="h-[340px] overscroll-contain rounded-xl border border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] px-2.5 py-2 overflow-y-auto custom-scrollbar">
+      <div ref={desplazar.caja} onScroll={desplazar.onScroll} className="flex-1 min-h-0 overscroll-contain rounded-xl border border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] px-2.5 py-2 overflow-y-auto custom-scrollbar">
         {lista === null ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-3">Cargando…</p>
           : lista.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-6">Sin mensajes. Escríbele, envíale un archivo o una nota de voz.</p>
           : lista.map((m, k) => {

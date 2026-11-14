@@ -6,6 +6,7 @@ import { Activity, AlertCircle, BarChart3, CheckCircle, ClipboardList, FileText,
 import { useEffect, useRef, useState } from 'react';
 import { ConfigChat, ConfigCliente, ConfigCompleta, UsuarioSesion } from '@/components/planificador/tipos';
 import { CONFIG_CLIENTE_DEFECTO, ESTILO_ROL, limpiarTexto } from '@/components/planificador/utilidades';
+import { confirmar } from '@/components/Confirmar';
 
 export const CONFIG_COMPLETA_DEFECTO: ConfigCompleta = { ...CONFIG_CLIENTE_DEFECTO, acceso: { registroAbierto: true, diasPapelera: 30 } };
 
@@ -19,7 +20,7 @@ export function DatosDemostracion() {
     const aviso = a === 'crear'
       ? 'Se creará la materia «Ingeniería de Software (Demo)» con secciones A y B, 14 estudiantes de ejemplo, notas, rúbricas, recursos y opiniones. Mientras exista, la app abrirá esa materia. Los estudiantes de ejemplo no tienen teléfono ni correo real: nunca se les envía nada. ¿Crear?'
       : 'Se borrará la materia de demostración y sus 14 estudiantes de ejemplo. Tus materias y estudiantes reales no se tocan. ¿Borrar?';
-    if (!window.confirm(aviso)) return;
+    if (!(await confirmar(aviso))) return;
     setTrabajando(a); setError('');
     try {
       const r = await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: a }) });
@@ -204,7 +205,7 @@ export function PapeleraPanel({ usuario }: { usuario?: UsuarioSesion | null }) {
   };
 
   const eliminarDefinitivo = async (it: ItemPapelera) => {
-    if (confirmandoId !== it.id) { setConfirmandoId(it.id); setTimeout(() => setConfirmandoId(prev => (prev === it.id ? null : prev)), 3000); return; }
+    if (!(await confirmar({ titulo: 'Eliminar definitivamente', mensaje: 'Se borrará para siempre y ya no se podrá restaurar.', boton: 'Eliminar' }))) return;
     setConfirmandoId(null);
     const r = await fetch(`/api/papelera/${it.id}`, { method: 'DELETE' });
     if (!r.ok) { const d = await r.json().catch(() => ({})); setError(d.error || 'No se pudo eliminar.'); return; }

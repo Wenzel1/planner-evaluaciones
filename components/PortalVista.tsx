@@ -12,7 +12,6 @@ import { FranjaExamen, type InfoExamen } from '@/components/ExamenEstudiante';
 import { DescripcionEstudiante } from '@/components/DescripcionOrdenada';
 import { BloqueEntrega, BloqueMensajes, type EntregaInfo } from '@/components/EntregaEstudiante';
 import TutorEstudio from '@/components/TutorEstudio';
-import ChatSeccion from '@/components/ChatSeccion';
 
 interface Recurso { titulo: string; url: string }
 interface Nota { puntaje: number; observaciones: string | null; detalle: (number | null)[] | null }
@@ -325,8 +324,6 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
                 ))}
               </ol>
 
-              {/* Chat de la sección: con el profesor y los compañeros (solo en la cuenta del estudiante) */}
-              {embebido && <div className="mt-8"><ChatSeccion modo="estudiante" api={`/api/portal/${encodeURIComponent(token)}/chat`} params={{ materiaId: materia.id }} titulo={`Chat de la Sección ${datos.estudiante.seccion}`} /></div>}
 
               <div className="mt-8 flex flex-col sm:flex-row sm:items-center gap-3 lg:hidden">
                 <a href={pdfHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)] font-medium hover:border-[color:var(--c-818cf8)]/50">

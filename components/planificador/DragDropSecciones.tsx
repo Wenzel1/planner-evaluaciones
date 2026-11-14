@@ -176,6 +176,7 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
       )}
 
       <Reorder.Group as="div" axis="y" values={secciones} onReorder={(nuevoOrden: SeccionExamen[]) => { onReorder(nuevoOrden); agregarNotificacion('🔄 Evaluaciones reordenadas.'); }} className="space-y-2">
+        <AnimatePresence initial={false}>
         {secciones.map((seccion: SeccionExamen, index: number) => {
           const isSelected = Array.isArray(selectedIds) && selectedIds.includes(seccion.id);
           return (
@@ -201,6 +202,7 @@ export function DragDropSecciones({ secciones, onReorder, onEdit, onDelete, agre
             />
           );
         })}
+        </AnimatePresence>
       </Reorder.Group>
       <AnimatePresence>
         {rubricaDe && onGuardarRubrica && (

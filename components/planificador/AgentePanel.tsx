@@ -14,6 +14,7 @@ import { FrasePensando, Tooltip } from '@/components/planificador/ui';
 import { buscarPorNombre, calcularFechasEvaluaciones, esIdGuardado, haceCuanto, heredado, limpiarTexto, medioEnvio, olvidarCache, pedirSugerenciasRecursos, porCorreo } from '@/components/planificador/utilidades';
 import { TITULO_ACCION, textoVisible, ACCIONES_AUTOMATICAS, ACCIONES_SEGURAS, CLAVE_MODO_AUTO, FUERA_DE_APLICAR_TODO, VISTA_DE_AGENTE, NOMBRE_VISTA, TIPO_PREGUNTA, mensajeErrorAgente, formatMessage } from '@/components/planificador/agenteTextos';
 import dynamic from 'next/dynamic';
+import { confirmar } from '@/components/Confirmar';
 
 // Se descargan solo cuando se abren (la primera carga del Planificador queda mas liviana)
 const ModalExamen = dynamic(() => import('@/components/ModalExamen'));
@@ -345,7 +346,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
           const origen = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A').toUpperCase() === desde);
           if (!origen.length) throw new Error(`La Sección ${desde} no tiene evaluaciones.`);
           const enDestino = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A').toUpperCase() === hacia);
-          if (reemplazar && enDestino.length && !window.confirm(`Se borrarán las ${enDestino.length} evaluación(es) de la Sección ${hacia} y se pondrán las copias. ¿Continuar?`)) throw new Error('Cancelado.');
+          if (reemplazar && enDestino.length && !(await confirmar(`Se borrarán las ${enDestino.length} evaluación(es) de la Sección ${hacia} y se pondrán las copias. ¿Continuar?`))) throw new Error('Cancelado.');
           const base = Date.now();
           const copias: SeccionExamen[] = origen.map((s: SeccionExamen, i: number) => {
             const { estado: _e, preparados: _p, ...resto } = s;
@@ -857,10 +858,8 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
     const previa = leerChats()[seccionActiva];
     if (previa && previa !== conversacionId) {
       abrirConversacion(previa);
-      agregarNotificacion?.(`💬 Volviste a la conversación de la Sección ${seccionActiva}.`);
     } else if (!previa && historial.length) {
       nuevaConversacion();
-      agregarNotificacion?.(`💬 Nueva conversación para la Sección ${seccionActiva}.`);
     }
   }, [seccionActiva]);
   const borrarConversacion = async (id: string) => {
@@ -875,13 +874,6 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
   const sugerencias = (() => {
     const evs = evaluacionesActivas();
     const s: { texto: string; icono: any; accion?: () => void }[] = [];
-    if (totalEstudiantes === 0) s.push({ texto: 'Crear 12 estudiantes de prueba (sin correo) para practicar', icono: Users, accion: async () => {
-      const r = await fetch('/api/estudiantes/prueba', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ materiaId: materiaAbierta.id || undefined, cantidad: 12, grupo: seccionActiva }) }).catch(() => null);
-      const d = await r?.json().catch(() => ({})) ?? {};
-      if (!r?.ok) { agregarNotificacion?.(`⚠️ ${d.error || 'No se pudieron crear.'}`); return; }
-      window.dispatchEvent(new Event('estudiantes-cambiaron'));
-      agregarNotificacion?.(`🧪 ${d.creados} estudiantes de prueba creados en la Sección ${seccionActiva}. No reciben correos; para probarlos, agrégate tú con tu correo.`);
-    } });
     if (evs.length === 0) {
       s.push({ texto: 'Crea un plan completo de 4 evaluaciones', icono: Sparkles });
       s.push({ texto: 'Propón una evaluación práctica en grupos', icono: Users });

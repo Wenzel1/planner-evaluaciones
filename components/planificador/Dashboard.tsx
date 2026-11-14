@@ -7,6 +7,7 @@ import { calcularAlertas } from '@/lib/alertas';
 import { useEffect, useState } from 'react';
 import { PlanificacionExamen, SeccionExamen, UsuarioSesion } from '@/components/planificador/tipos';
 import { ESTILO_ROL, limpiarTexto, opcionesSeccion } from '@/components/planificador/utilidades';
+import { confirmar } from '@/components/Confirmar';
 
 // ============================================
 // DASHBOARD
@@ -154,7 +155,7 @@ export function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
     } catch { setEstudiantesDe(prev => ({ ...prev, [duenoId]: 'error' })); }
   };
   const eliminarEstudiante = async (est: EstudianteSup, duenoId: string) => {
-    if (confirmandoEst !== est.id) { setConfirmandoEst(est.id); setTimeout(() => setConfirmandoEst(prev => (prev === est.id ? null : prev)), 3000); return; }
+    if (!(await confirmar({ titulo: 'Eliminar estudiante', mensaje: `¿Eliminar a ${est.nombre}? Queda registrado en la Actividad.`, boton: 'Eliminar' }))) return;
     setConfirmandoEst(null);
     const r = await fetch(`/api/estudiantes?id=${est.id}`, { method: 'DELETE' });
     if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || 'No se pudo eliminar al estudiante.'); return; }
@@ -225,7 +226,7 @@ export function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
 
   // Moderación: elimina una evaluación (confirmación en dos pasos). Queda registrada en la Actividad.
   const eliminarEvaluacion = async (idEval: string) => {
-    if (confirmandoEval !== idEval) { setConfirmandoEval(idEval); setTimeout(() => setConfirmandoEval(prev => (prev === idEval ? null : prev)), 3000); return; }
+    if (!(await confirmar({ titulo: 'Eliminar evaluación', mensaje: '¿Eliminar esta evaluación? Queda registrado en la Actividad.', boton: 'Eliminar' }))) return;
     setConfirmandoEval(null);
     const r = await fetch(`/api/evaluaciones/${idEval}`, { method: 'DELETE' });
     const d = await r.json().catch(() => ({}));

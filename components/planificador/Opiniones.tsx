@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ObservacionRecibida, OpinionEstudiante } from '@/components/planificador/tipos';
 import { Tooltip } from '@/components/planificador/ui';
 import { ESTILO_ROL, limpiarTexto } from '@/components/planificador/utilidades';
+import { confirmar as confirmarDialogo } from '@/components/Confirmar';
 
 export function OpinionesEstudiantes({ items, onVistas, onBorrar }: { items: OpinionEstudiante[]; onVistas: (id?: string) => void; onBorrar: (ids: string[]) => Promise<void> }) {
   const [abierto, setAbierto] = useState(false);
@@ -52,7 +53,7 @@ export function OpinionesEstudiantes({ items, onVistas, onBorrar }: { items: Opi
                   {nuevas > 0 && <button type="button" onClick={() => onVistas()} className="text-xs text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-blanco)] underline">Marcar todas como vistas</button>}
                   {visibles.length > 0 && (confirmar === 'todas'
                     ? <span className="flex items-center gap-1.5 text-xs"><span className="text-red-200">¿Borrar {visibles.length}?</span><button type="button" disabled={borrando} onClick={() => borrar(visibles.map(o => o.id))} className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/40 text-red-200 font-semibold hover:bg-red-500/30 disabled:opacity-50">{borrando ? 'Borrando…' : 'Sí, borrar'}</button><button type="button" onClick={() => setConfirmar(null)} className="px-2 py-1 rounded-md text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]">No</button></span>
-                    : <button type="button" onClick={() => setConfirmar('todas')} className="flex items-center gap-1 text-xs text-red-300/80 hover:text-red-200"><Trash2 className="w-3.5 h-3.5" />Borrar {filtro === 'sugerencias' ? 'sugerencias' : 'opiniones'}{seccion !== 'todas' ? ` de Sec. ${seccion}` : ''}</button>)}
+                    : <button type="button" onClick={async () => { if (await confirmarDialogo({ titulo: 'Borrar opiniones', mensaje: `¿Borrar ${visibles.length} ${visibles.length === 1 ? 'opinión' : 'opiniones'}?`, boton: 'Borrar' })) borrar(visibles.map(o => o.id)); }} className="flex items-center gap-1 text-xs text-red-300/80 hover:text-red-200"><Trash2 className="w-3.5 h-3.5" />Borrar {filtro === 'sugerencias' ? 'sugerencias' : 'opiniones'}{seccion !== 'todas' ? ` de Sec. ${seccion}` : ''}</button>)}
                 </div>
               </div>
               <div>
@@ -75,7 +76,7 @@ export function OpinionesEstudiantes({ items, onVistas, onBorrar }: { items: Opi
                     {!o.leida && <button type="button" onClick={() => onVistas(o.id)} className="shrink-0 text-[11px] text-[color:var(--c-a5b4fc)] hover:text-[color:var(--c-blanco)]">Visto</button>}
                     {confirmar === o.id
                       ? <span className="shrink-0 flex items-center gap-1"><button type="button" disabled={borrando} onClick={() => borrar([o.id])} className="text-[11px] px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-200 font-semibold disabled:opacity-50">¿Borrar?</button><button type="button" onClick={() => setConfirmar(null)} className="p-0.5 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)]" aria-label="No borrar"><X className="w-3.5 h-3.5" /></button></span>
-                      : <Tooltip text="Borrar esta opinión"><button type="button" onClick={() => setConfirmar(o.id)} aria-label="Borrar opinión" className="shrink-0 p-1 rounded-md text-[color:var(--c-6a6b7e)] hover:text-red-300 hover:bg-red-500/10"><Trash2 className="w-3.5 h-3.5" /></button></Tooltip>}
+                      : <Tooltip text="Borrar esta opinión"><button type="button" onClick={async () => { if (await confirmarDialogo({ titulo: 'Borrar opinión', mensaje: '¿Borrar esta opinión?', boton: 'Borrar' })) borrar([o.id]); }} aria-label="Borrar opinión" className="shrink-0 p-1 rounded-md text-[color:var(--c-6a6b7e)] hover:text-red-300 hover:bg-red-500/10"><Trash2 className="w-3.5 h-3.5" /></button></Tooltip>}
                   </div>
                 ))}
               </div>

@@ -55,6 +55,9 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
       dragListener={false}
       dragControls={dragControls}
       whileDrag={{ scale: 1.03, boxShadow: '0 18px 40px rgba(0,0,0,0.45)', zIndex: 50, cursor: 'grabbing' }}
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96, x: -24, transition: { duration: 0.16, ease: 'easeIn' } }}
       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
       data-eval={seccion.id}
       className={`group bg-[color:var(--c-1f2035)] rounded-xl border border-[color:var(--c-313248)] hover:border-[color:var(--c-414258)] select-none relative ${menu ? 'z-30' : ''}`}

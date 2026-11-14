@@ -2,6 +2,20 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* PALETA SOBRIA: los amarillos, verdes y rojos de Tailwind pasan a tonos pastel apagados
+   (arena, salvia y rosa empolvado) para que los avisos encajen con el tono serio de la app */
+@theme {
+  --color-amber-50: #faf6ee; --color-amber-100: #f2e9d6; --color-amber-200: #e6d6b5; --color-amber-300: #d9c397; --color-amber-400: #c9ad7a; --color-amber-500: #b49663; --color-amber-600: #977d52; --color-amber-700: #796443; --color-amber-800: #5e4e36; --color-amber-900: #4a3e2c;
+  --color-emerald-50: #f1f7f4; --color-emerald-100: #dceee5; --color-emerald-200: #bfdfcf; --color-emerald-300: #a0cdb7; --color-emerald-400: #86b9a0; --color-emerald-500: #6ca38a; --color-emerald-600: #588872; --color-emerald-700: #466c5b; --color-emerald-800: #375548; --color-emerald-900: #2c443a;
+  --color-red-50: #fbf3f3; --color-red-100: #f5e1e1; --color-red-200: #ebc6c6; --color-red-300: #dfa9a9; --color-red-400: #d28f8f; --color-red-500: #c27777; --color-red-600: #a66262; --color-red-700: #864f4f; --color-red-800: #6a3f3f; --color-red-900: #553333;
+  --color-orange-50: #fbf5f0; --color-orange-100: #f4e4d6; --color-orange-200: #e9cdb6; --color-orange-300: #ddb595; --color-orange-400: #cf9d79; --color-orange-500: #bc8662; --color-orange-600: #9e6f51; --color-orange-700: #7f5942; --color-orange-800: #644635; --color-orange-900: #50392b;
+  --color-teal-50: #f0f7f7; --color-teal-100: #d9edec; --color-teal-200: #b9dcda; --color-teal-300: #98c8c5; --color-teal-400: #7cb3b0; --color-teal-500: #64999a; --color-teal-600: #517e7f; --color-teal-700: #416566; --color-teal-800: #344f50; --color-teal-900: #2a4041;
+  --color-yellow-50: #faf6ee; --color-yellow-100: #f2e9d6; --color-yellow-200: #e6d6b5; --color-yellow-300: #d9c397; --color-yellow-400: #c9ad7a; --color-yellow-500: #b49663; --color-yellow-600: #977d52; --color-yellow-700: #796443; --color-yellow-800: #5e4e36; --color-yellow-900: #4a3e2c;
+  --color-green-50: #f1f7f4; --color-green-100: #dceee5; --color-green-200: #bfdfcf; --color-green-300: #a0cdb7; --color-green-400: #86b9a0; --color-green-500: #6ca38a; --color-green-600: #588872; --color-green-700: #466c5b; --color-green-800: #375548; --color-green-900: #2c443a;
+  --color-lime-50: #f1f7f4; --color-lime-100: #dceee5; --color-lime-200: #bfdfcf; --color-lime-300: #a0cdb7; --color-lime-400: #86b9a0; --color-lime-500: #6ca38a; --color-lime-600: #588872; --color-lime-700: #466c5b; --color-lime-800: #375548; --color-lime-900: #2c443a;
+  --color-rose-50: #fbf3f3; --color-rose-100: #f5e1e1; --color-rose-200: #ebc6c6; --color-rose-300: #dfa9a9; --color-rose-400: #d28f8f; --color-rose-500: #c27777; --color-rose-600: #a66262; --color-rose-700: #864f4f; --color-rose-800: #6a3f3f; --color-rose-900: #553333;
+}
+
 /* ============================================
    TEMA OSCURO PERSONALIZADO
    (reemplaza las variables de shadcn por tus colores)

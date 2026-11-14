@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { KeyRound, Copy, Check, RefreshCw, X, Link2 } from 'lucide-react';
+import { confirmar } from '@/components/Confirmar';
 
 interface Seccion { letra: string; codigo: string; requiereAprobacion: boolean; activo: boolean }
 
@@ -23,7 +24,7 @@ export default function CodigoClase({ materiaId, materia, letra, onCerrar, notif
   useEffect(() => { if (enlace) QRCode.toDataURL(enlace, { margin: 1, width: 360, color: { dark: '#1e1b4b', light: '#ffffff' } }).then(setQr).catch(() => setQr('')); }, [enlace]);
 
   const cambiar = async (cambio: Partial<Seccion> & { nuevoCodigo?: boolean }) => {
-    if (cambio.nuevoCodigo && !window.confirm('Se creará un código nuevo y el actual dejará de funcionar. Los estudiantes que ya se unieron no se ven afectados. ¿Continuar?')) return;
+    if (cambio.nuevoCodigo && !(await confirmar('Se creará un código nuevo y el actual dejará de funcionar. Los estudiantes que ya se unieron no se ven afectados. ¿Continuar?'))) return;
     setGuardando(true);
     try {
       const r = await fetch('/api/materias/secciones', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ materiaId, letra, ...cambio }) });
