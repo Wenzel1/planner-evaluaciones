@@ -5,10 +5,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Send, ExternalLink, MessageSquare, ClipboardCheck, Clock, Link2, Save, Circle } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Send, ExternalLink, MessageSquare, ClipboardCheck, Clock, Link2, Save, Circle, Sparkles } from 'lucide-react';
 import VistaArchivo from './VistaArchivo';
 import Avatar from '@/components/Avatar';
 import { precargarArchivo } from './enlaces';
+import CorreccionIA, { type Analisis } from './CorreccionIA';
+
+// Nota que propone la IA, para pasarla a la pestaña Revisión
+interface Sugerencia { id: string; nota: number | null; detalle: (number | null)[] | null; obs: string; n: number }
 import { VerAdjunto, BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
 import { estiloDe, ESTILO, fechaHora, tamanoLegible } from './tiposArchivo';
 import { NIVELES_RUBRICA, type RubricaEval } from '@/lib/rubrica';
@@ -33,6 +37,11 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
 }) {
   const [i, setI] = useState(Math.min(Math.max(0, inicio), entregas.length - 1));
   const e = entregas[i];
+  // Panel derecho: Revisión o Corrección con IA (el análisis de cada entrega se guarda mientras el visor está abierto)
+  const [pestanaPanel, setPestanaPanel] = useState<'revision' | 'ia'>('revision');
+  const [analisisIA, setAnalisisIA] = useState<Record<string, Analisis | undefined>>({});
+  const [sugerencia, setSugerencia] = useState<Sugerencia | null>(null);
+  const [versionChat, setVersionChat] = useState(0);
   // Abre el archivo que se tocó en la bandeja; al pasar a otro estudiante, su primer archivo
   const [archivoSel, setArchivoSel] = useState(archivoInicial);
   const primeraEntrega = useRef(e?.id);
@@ -111,9 +120,34 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
           </div>
 
           {/* Revisión */}
-          <div className="lg:w-[420px] flex-shrink-0 overflow-y-auto flex flex-col">
-            <PanelRevision key={e.id} e={e} rubrica={rubricas[e.evaluacion.id] ?? null} onActualizar={(c) => onActualizar(e.id, c)}
-              onSiguiente={i < entregas.length - 1 ? () => setI(i + 1) : undefined} />
+          <div className="lg:w-[420px] flex-shrink-0 flex flex-col min-h-0">
+            {/* Revisión (nota, estado, mensajes) o Corrección con IA */}
+            <div className="flex border-b border-[color:var(--c-282a3f)] flex-shrink-0">
+              {([['revision', 'Revisión', ClipboardCheck], ['ia', 'Corrección IA', Sparkles]] as const).map(([id, txt, I]) => (
+                <button key={id} type="button" onClick={() => setPestanaPanel(id)} className={`relative flex-1 h-11 flex items-center justify-center gap-1.5 text-[13px] font-medium transition-colors ${pestanaPanel === id ? 'text-[color:var(--c-e0e0ec)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
+                  <I className={`w-4 h-4 ${pestanaPanel === id ? 'text-[color:var(--c-818cf8)]' : ''}`} />{txt}
+                  {id === 'ia' && analisisIA[e.id]?.nota != null && <span className="text-[10px] font-bold px-1.5 rounded bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)]">{String(analisisIA[e.id]!.nota).replace('.', ',')}</span>}
+                  {pestanaPanel === id && <span className="absolute left-4 right-4 bottom-0 h-0.5 rounded-full bg-[color:var(--c-818cf8)]" />}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+              <div className={pestanaPanel === 'revision' ? 'flex flex-col flex-1' : 'hidden'}>
+                <PanelRevision key={e.id} e={e} rubrica={rubricas[e.evaluacion.id] ?? null} onActualizar={(c) => onActualizar(e.id, c)}
+                  onSiguiente={i < entregas.length - 1 ? () => setI(i + 1) : undefined}
+                  sugerencia={sugerencia?.id === e.id ? sugerencia : null} versionChat={versionChat} />
+              </div>
+              {pestanaPanel === 'ia' && (
+                <CorreccionIA key={e.id} entregaId={e.id} analisis={analisisIA[e.id] ?? null}
+                  onAnalisis={(a) => setAnalisisIA(m => ({ ...m, [e.id]: a }))}
+                  onUsarNota={(a) => { setSugerencia({ id: e.id, nota: a.nota, detalle: a.criterios.length ? a.criterios.map(c => c.nivel) : null, obs: a.resumen.slice(0, 500), n: Date.now() }); setPestanaPanel('revision'); }}
+                  onEnviar={async (texto) => {
+                    const r = await fetch(`/api/evaluaciones/${encodeURIComponent(e.evaluacion.id)}/comentarios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteId: e.estudiante.id, texto }) });
+                    if (!r.ok) throw new Error('No se pudo enviar.');
+                    setVersionChat(v => v + 1);
+                  }} />
+              )}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -135,7 +169,7 @@ function TarjetaEnlace({ url }: { url: string }) {
 }
 
 // ---------- Panel derecho: nota, revisión, devolución y mensajes ----------
-function PanelRevision({ e, rubrica, onActualizar, onSiguiente }: { e: EntregaBandeja; rubrica: RubricaEval | null; onActualizar: (c: Partial<EntregaBandeja>) => void; onSiguiente?: () => void }) {
+function PanelRevision({ e, rubrica, onActualizar, onSiguiente, sugerencia, versionChat = 0 }: { e: EntregaBandeja; rubrica: RubricaEval | null; onActualizar: (c: Partial<EntregaBandeja>) => void; onSiguiente?: () => void; sugerencia?: Sugerencia | null; versionChat?: number }) {
   const conRubrica = !!rubrica?.criterios?.length;
   const [usarRubrica, setUsarRubrica] = useState(conRubrica);
   const [detalle, setDetalle] = useState<(number | null)[]>(() => rubrica?.criterios.map((_, k) => e.nota?.detalle?.[k] ?? null) ?? []);
@@ -146,6 +180,14 @@ function PanelRevision({ e, rubrica, onActualizar, onSiguiente }: { e: EntregaBa
   const [devolviendo, setDevolviendo] = useState(false);
   const [textoDevolucion, setTextoDevolucion] = useState('');
 
+  // «Usar esta nota» de la IA: llena la calificación (el profesor la revisa y la guarda)
+  useEffect(() => {
+    if (!sugerencia) return;
+    if (sugerencia.detalle && conRubrica && sugerencia.detalle.some(x => x != null)) { setUsarRubrica(true); setDetalle(rubrica!.criterios.map((_, k) => sugerencia.detalle![k] ?? null)); }
+    else { setUsarRubrica(false); setPuntaje(sugerencia.nota == null ? '' : String(sugerencia.nota).replace('.', ',')); }
+    if (sugerencia.obs) setObs(sugerencia.obs);
+    setAviso({ t: 'Nota sugerida por la IA cargada. Revísala y pulsa «Guardar nota».', ok: true });
+  }, [sugerencia?.n]); // eslint-disable-line react-hooks/exhaustive-deps
   const notaRubrica = useMemo(() => (rubrica && usarRubrica ? notaDesdeRubrica(rubrica, detalle) : null), [rubrica, usarRubrica, detalle]);
   const notaFinal = usarRubrica && conRubrica ? notaRubrica : (puntaje.trim() ? Number(puntaje.replace(',', '.')) : null);
   const notaValida = notaFinal == null || (Number.isFinite(notaFinal) && notaFinal >= 0 && notaFinal <= 20);
@@ -253,12 +295,12 @@ function PanelRevision({ e, rubrica, onActualizar, onSiguiente }: { e: EntregaBa
       </section>
 
       {/* Mensajes privados */}
-      <Mensajes evaluacionId={e.evaluacion.id} estudianteId={e.estudiante.id} sinLeer={e.sinLeer} onLeidos={() => e.sinLeer && onActualizar({ sinLeer: 0 })} />
+      <Mensajes version={versionChat} evaluacionId={e.evaluacion.id} estudianteId={e.estudiante.id} sinLeer={e.sinLeer} onLeidos={() => e.sinLeer && onActualizar({ sinLeer: 0 })} />
     </div>
   );
 }
 
-function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos }: { evaluacionId: string; estudianteId: string; sinLeer: number; onLeidos: () => void }) {
+function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos, version = 0 }: { evaluacionId: string; estudianteId: string; sinLeer: number; onLeidos: () => void; version?: number }) {
   const [lista, setLista] = useState<{ id: string; autor: string; texto: string; createdAt: string; adjunto?: Adjunto | null }[] | null>(null);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -271,7 +313,7 @@ function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos }: { evaluacio
     let vivo = true;
     fetch(`${base}?estudianteId=${encodeURIComponent(estudianteId)}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : [])).then(d => { if (vivo) { setLista(Array.isArray(d) ? d : []); if (sinLeer) onLeidos(); } }).catch(() => vivo && setLista([]));
     return () => { vivo = false; };
-  }, [base, estudianteId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [base, estudianteId, version]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fin.current?.scrollIntoView({ block: 'nearest' }); }, [lista?.length]);
   const publicar = async (cuerpo: Record<string, unknown>) => {
     const r = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteId, ...cuerpo }) }).catch(() => null);
