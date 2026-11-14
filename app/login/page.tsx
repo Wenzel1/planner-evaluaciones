@@ -281,7 +281,7 @@ export default function LoginPage() {
           <span className="text-lg font-semibold text-[color:var(--c-e0e0ec)]">Planificador de Evaluaciones</span>
         </div>
         <AnimatePresence mode="wait">
-          <motion.div key={tipoCuenta} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} transition={{ duration: 0.3 }} className="relative space-y-8">
+          <motion.div key={tipoCuenta} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="relative space-y-8">
             <div>
               <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[color:var(--c-c7d2fe)] mb-4">
                 {tipoCuenta === 'estudiante' ? <><GraduationCap className="w-3.5 h-3.5" />Para estudiantes</> : <><Users className="w-3.5 h-3.5" />Para profesores</>}
@@ -318,7 +318,7 @@ export default function LoginPage() {
 
       {/* ---------- Formulario ---------- */}
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="w-full max-w-md">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2 justify-center mb-6">
             <div className="w-9 h-9 rounded-lg bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/30 flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-[color:var(--c-a5b4fc)]" /></div>
             <span className="font-semibold text-[color:var(--c-e0e0ec)]">Planificador de Evaluaciones</span>
@@ -330,7 +330,7 @@ export default function LoginPage() {
               <div className="grid grid-cols-2 gap-1 p-1 mb-6 bg-[color:var(--c-161722)] border border-[color:var(--c-282a3f)] rounded-xl">
                 {([['login', 'Iniciar sesión', LogIn], ['registro', 'Crear cuenta', UserPlus]] as const).map(([id, texto, Icono]) => (
                   <button key={id} type="button" onClick={() => cambiarModo(id)} className={`relative flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${modo === id ? 'text-[color:var(--c-blanco)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)]'}`}>
-                    {modo === id && <motion.span layoutId="pill-login-modo" className="absolute inset-0 bg-[color:var(--c-818cf8)]/20 border border-[color:var(--c-818cf8)]/30 rounded-lg" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />}
+                    {modo === id && <motion.span layoutId="pill-login-modo" className="absolute inset-0 bg-[color:var(--c-818cf8)]/20 border border-[color:var(--c-818cf8)]/30 rounded-lg" transition={{ duration: 0.16, ease: 'easeOut' }} />}
                     <Icono className="relative z-10 w-4 h-4" /><span className="relative z-10">{texto}</span>
                   </button>
                 ))}

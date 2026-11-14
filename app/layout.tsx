@@ -1,5 +1,6 @@
 // app/layout.tsx
 import type { Metadata } from 'next';
+import MovimientoSuave from '@/components/MovimientoSuave'
 import { Providers } from './providers';
 import './globals.css'; // Asegúrate de que este archivo exista con las directivas de Tailwind v3
 
@@ -20,7 +21,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: "try{localStorage.removeItem('tema');document.documentElement.classList.remove('claro')}catch(e){}" }} />
       </head>
       <body className="font-sans antialiased">
-        <Providers>{children}</Providers>
+        <Providers><MovimientoSuave>{children}</MovimientoSuave></Providers>
       </body>
     </html>
   );

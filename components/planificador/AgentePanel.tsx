@@ -1288,7 +1288,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
         {/* Historial de conversaciones */}
         <AnimatePresence>
           {verHistorial && (
-            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15 }} className="absolute right-3 top-full mt-2 z-30 w-[320px] max-w-[calc(100%-24px)] max-h-[60vh] overflow-y-auto custom-scrollbar bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl p-2">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="absolute right-3 top-full mt-2 z-30 w-[320px] max-w-[calc(100%-24px)] max-h-[60vh] overflow-y-auto custom-scrollbar bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-2xl shadow-2xl p-2">
               <button type="button" onClick={nuevaConversacion} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10"><Plus className="w-4 h-4" />Nueva conversación</button>
               {memorias && memorias.length > 0 && (
                 <div className="mb-1">
@@ -1319,7 +1319,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
       {/* Mensajes */}
       {!isChatStarted ? (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-5 py-6 custom-scrollbar">
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="flex flex-col items-center text-center w-full max-w-md">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="flex flex-col items-center text-center w-full max-w-md">
             <div className="w-20 h-20 rounded-full bg-[color:var(--c-818cf8)]/15 flex items-center justify-center border-2 border-[color:var(--c-818cf8)]/30 mb-5 shadow-2xl shadow-[color:var(--c-818cf8)]/20"><Sparkle className="w-9 h-9 text-[color:var(--c-818cf8)]" /></div>
             {avisos && avisos.length > 0 && (
               <div className="w-full mb-6 text-left">
@@ -1348,7 +1348,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
       ) : (
         <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-5 space-y-5 custom-scrollbar">
           {historial.map((msg) => (
-            <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <motion.div key={msg.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.rol === 'agent' ? (
                 <div className="group/msg flex items-start gap-3 w-full max-w-[94%]">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md ${msg.streaming ? 'eva-anillo' : ''} ${msg.error ? 'bg-amber-500/20' : 'bg-[color:var(--c-818cf8)] shadow-[color:var(--c-818cf8)]/20'}`}><Bot className={`w-4 h-4 ${msg.error ? 'text-amber-300' : 'text-[color:var(--c-blanco)]'}`} /></div>

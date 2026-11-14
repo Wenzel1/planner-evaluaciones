@@ -31,6 +31,17 @@ export function analizarNotificacion(mensaje: string): { emoji: string; texto: s
   return { emoji: emoji || '🔔', texto, tipo };
 }
 
+// Solo lo importante llega a la campanita: lo que hacen otros (entregas, mensajes, solicitudes, observaciones,
+// opiniones), los pendientes del día y los errores. Las confirmaciones de lo que uno mismo hizo ("guardado",
+// "reordenado", "descargado"…) ya se ven en pantalla y no se notifican.
+export function esImportante(mensaje: string): boolean {
+  const t = String(mensaje || '').trim();
+  if (/^(📥|💬|🙋|🔑|🗳|👍|📋|⚠|❌|🚫|⛔)/u.test(t)) return true;
+  if (/^📎 Busqué recursos/u.test(t)) return true; // lo hizo la app sola, en segundo plano
+  if (/no se pudo|^error|falló|se acabó el cupo/i.test(t)) return true;
+  return false;
+}
+
 // Avisos emergentes: aparecen arriba a la derecha y se van solos a los 5 s (al pasar el mouse se quedan)
 export function AvisosEmergentes({ notificaciones, setNotificaciones }: { notificaciones: { id: string; mensaje: string; timestamp: Date; leido: boolean }[]; setNotificaciones: any }) {
   const vistos = useRef<Set<string> | null>(null);
@@ -69,7 +80,7 @@ export function AvisoEmergente({ mensaje, onCerrar, onLeer }: { id: string; mens
     return () => clearTimeout(t);
   }, [pausado]);
   return (
-    <motion.div layout initial={{ opacity: 0, x: 40, scale: 0.96 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 40, scale: 0.96, transition: { duration: 0.18 } }} transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, x: 40, scale: 0.96, transition: { duration: 0.18 } }} transition={{ duration: 0.16, ease: 'easeOut' }}
       onMouseEnter={() => setPausado(true)} onMouseLeave={() => setPausado(false)}
       className={`pointer-events-auto relative overflow-hidden rounded-xl border ${est.borde} bg-[color:var(--c-1c1d2a)]/95 backdrop-blur-md shadow-2xl shadow-black/50`}>
       <div className="flex items-start gap-3 p-3 pr-2">
@@ -104,7 +115,7 @@ export function CampanitaNotificacionesFlotante({ notificaciones, setNotificacio
     const { emoji, texto, tipo } = analizarNotificacion(notif.mensaje);
     const est = ESTILO_NOTIF[tipo];
     return (
-      <motion.div layout key={notif.id} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 20 }}
+      <motion.div layout key={notif.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={() => setNotificaciones((prev: any) => prev.map((n: any) => (n.id === notif.id ? { ...n, leido: true } : n)))}
         className={`group relative flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-colors ${notif.leido ? 'hover:bg-[color:var(--c-232438)]' : 'bg-[color:var(--c-272839)]/70 hover:bg-[color:var(--c-2e2f42)]'}`}>
         <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 ${est.chip} ${notif.leido ? 'opacity-60' : ''}`}>{emoji}</span>

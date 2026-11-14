@@ -102,8 +102,7 @@ export function useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadm
       const d = await r.json().catch(() => ({}));
       const lista: { tipo: string; texto: string }[] = Array.isArray(d.alertas) ? d.alertas : [];
       const ICONO: Record<string, string> = { rubrica: '📋', recursos: '📚', notas: '📝', pesos: '⚖️', portal: '👀' };
-      lista.slice(0, 6).forEach(a => agregarNotificacion(`${ICONO[a.tipo] || '🔔'} ${a.texto}`));
-      if (lista.length > 6) agregarNotificacion(`🔔 Y ${lista.length - 6} pendiente(s) más.`);
+      if (lista.length) agregarNotificacion(`📋 Pendientes de hoy (${lista.length}): ${lista.slice(0, 2).map(a => `${ICONO[a.tipo] || '•'} ${a.texto}`).join(' · ')}${lista.length > 2 ? ' · y más en el Dashboard.' : ''}`);
       try { localStorage.setItem(clave, '1'); } catch { /* sin almacenamiento */ }
     })();
     const t = setInterval(cargarOpiniones, 60000);
@@ -127,12 +126,17 @@ export function useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadm
         if (!r.ok) return;
         const d = await r.json();
         desde = d.ahora || new Date().toISOString();
-        (d.entregas || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`📥 ${x.estudiante} entregó «${limpiarTexto(x.evaluacion)}».`));
-        (d.mensajes || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`💬 ${x.estudiante} te escribió sobre «${limpiarTexto(x.evaluacion)}»: ${x.texto}`));
+        const ent: any[] = d.entregas || [], msj: any[] = d.mensajes || [];
+        if (ent.length > 2) agregarNotificacion(`📥 ${ent.length} entregas nuevas (${ent.slice(0, 2).map(x => x.estudiante).join(', ')}…). Míralas en Entregas.`);
+        else ent.forEach((x: any) => agregarNotificacion(`📥 ${x.estudiante} entregó «${limpiarTexto(x.evaluacion)}».`));
+        if (msj.length > 2) agregarNotificacion(`💬 ${msj.length} mensajes privados nuevos de tus estudiantes.`);
+        else msj.forEach((x: any) => agregarNotificacion(`💬 ${x.estudiante} te escribió sobre «${limpiarTexto(x.evaluacion)}»: ${x.texto}`));
         (d.solicitudes || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`🙋 ${x.estudiante} pidió unirse a ${x.materia ? `${x.materia}, ` : ''}Sección ${x.seccion}. Acéptalo en la pestaña Estudiantes.`));
         if (typeof d.pendientes === 'number') setSolicitudesEstudiantes(d.pendientes);
         if (typeof d.sinRevisar === 'number') setEntregasSinRevisar(d.sinRevisar);
-        (d.chat || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`💬 ${x.estudiante} escribió en el chat de la Sección ${x.seccion}: ${x.texto}`));
+        const chat: any[] = d.chat || [];
+        if (chat.length > 1) agregarNotificacion(`💬 ${chat.length} mensajes nuevos en el chat de ${[...new Set(chat.map(x => `la Sección ${x.seccion}`))].join(' y ')}.`);
+        else chat.forEach((x: any) => agregarNotificacion(`💬 ${x.estudiante} escribió en el chat de la Sección ${x.seccion}: ${x.texto}`));
         if ((d.entregas || []).length) window.dispatchEvent(new Event('entregas-cambiaron')); // la bandeja se actualiza sola
       } catch { /* sin conexión: siguiente ciclo */ }
     };
