@@ -35,7 +35,8 @@ function Texto({ t }: { t: string }) {
 //            en el teléfono se comporta como 'pantalla'
 export default function ChatSeccion({ modo, api, params, titulo, alto: altoPedido = 'pantalla', plegable = true, tutorial }: { modo: 'profesor' | 'estudiante'; api: string; params: Record<string, string>; titulo?: string; alto?: 'pantalla' | 'contenedor' | 'llenar'; plegable?: boolean; tutorial?: string }) {
   const [grande, setGrande] = useState(false);
-  useEffect(() => {
+  // Se decide antes de pintar (si no, arranca un instante en modo teléfono y queda mal medido)
+  useLayoutEffect(() => {
     if (altoPedido !== 'llenar') return;
     const mq = window.matchMedia('(min-width: 1024px)');
     const f = () => setGrande(mq.matches);
@@ -138,10 +139,10 @@ export default function ChatSeccion({ modo, api, params, titulo, alto: altoPedid
   const mensajesEst = (items || []).filter(m => m.autorTipo === 'ESTUDIANTE').length;
 
   return (
-    <motion.section ref={seccionRef} data-tutorial={tutorial} initial={false}
-      animate={alto === 'llenar' ? { flexGrow: abierto ? 1 : 0, minHeight: abierto ? 360 : altoCabeza } : undefined}
-      transition={{ type: 'spring', stiffness: 260, damping: 32 }}
-      style={alto === 'llenar' ? { flexBasis: 0, flexShrink: 0 } : undefined}
+    <section ref={seccionRef} data-tutorial={tutorial}
+      // 'llenar': ocupa lo que sobra de la columna (nunca menos de 360 px abierto, ni menos que su encabezado cerrado);
+      // la transición es de CSS (framer no puede animar el alto mínimo desde 'auto')
+      style={alto === 'llenar' ? { flex: abierto ? '1 0 0px' : '0 0 0px', minHeight: abierto ? 360 : altoCabeza, transition: 'flex-grow 300ms ease, min-height 300ms ease' } : undefined}
       className={`rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] overflow-hidden flex flex-col ${alto === 'contenedor' ? 'h-full' : ''}`}>
       {/* Encabezado */}
       <div ref={cabeza} className={`px-4 py-3 flex items-center gap-3 flex-shrink-0 border-b transition-colors ${abierto ? 'border-[color:var(--c-282a3f)]' : 'border-transparent'}`}>
@@ -164,7 +165,7 @@ export default function ChatSeccion({ modo, api, params, titulo, alto: altoPedid
       </div>
 
       {/* Cuerpo: se pliega y despliega con una animación suave (sin desmontarse, para no recargar) */}
-      <motion.div initial={false} animate={alto !== 'pantalla' ? { opacity: abierto ? 1 : 0 } : { height: abierto ? altoCuerpo : 0, opacity: abierto ? 1 : 0 }}
+      <motion.div key={alto} initial={false} animate={alto !== 'pantalla' ? { opacity: abierto ? 1 : 0 } : { height: abierto ? altoCuerpo : 0, opacity: abierto ? 1 : 0 }}
         transition={{ height: { type: 'spring', stiffness: 260, damping: 32 }, opacity: { duration: 0.2 } }}
         className={`flex flex-col overflow-hidden ${alto === 'contenedor' ? (abierto ? 'flex-1 min-h-0' : 'hidden') : alto === 'llenar' ? 'flex-1 min-h-0' : ''}`}>
       {/* Resumen de la IA */}
@@ -256,6 +257,6 @@ export default function ChatSeccion({ modo, api, params, titulo, alto: altoPedid
         {error && <p className="text-[11px] text-red-300 mt-1.5 px-2">{error}</p>}
       </div>
       </motion.div>
-    </motion.section>
+    </section>
   );
 }
