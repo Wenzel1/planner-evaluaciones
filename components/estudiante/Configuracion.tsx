@@ -49,7 +49,7 @@ export default function Configuracion({ cuenta, onCuenta, clases, onSalir, onUni
 
   return (
     <div className="space-y-4">
-      <div><h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Configuración</h1><p className="text-sm text-[color:var(--c-8a8b9e)]">Tu foto, tus datos y tus clases.</p></div>
+      <p className="text-sm text-[color:var(--c-8a8b9e)]">Tu foto, tus datos y tus clases.</p>
 
       <div className="grid xl:grid-cols-2 gap-4 items-start">
       <div className="space-y-4">

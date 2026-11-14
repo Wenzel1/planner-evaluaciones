@@ -41,7 +41,7 @@ export default function Asistente({ datos, nombre, onOcultar }: { datos: Resumen
   const ev = evaluaciones.find(e => e.id === evId);
   const clave = `${g?.clave || ''}:${evId}`;
   const msgs = conversaciones[clave] || [];
-  const desplazar = useBajarAlFinal([msgs.length, pensando, clave]);
+  const desplazar = useBajarAlFinal([msgs.length, pensando, clave], msgs.length > 0);
 
   const preguntar = async (t: string) => {
     if (!g || !t.trim()) return;
@@ -80,16 +80,18 @@ export default function Asistente({ datos, nombre, onOcultar }: { datos: Resumen
       </div>
 
       {/* Conversación */}
-      <div ref={desplazar.caja} onScroll={desplazar.onScroll} className="flex-1 overflow-y-auto overscroll-contain custom-scrollbar px-4 py-4 space-y-3">
+      <div ref={desplazar.caja} onScroll={desplazar.onScroll} className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar px-4 py-4 space-y-3">
         {!datos ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-8">Cargando tus materias…</p> : msgs.length === 0 ? (
-          <div className="space-y-4 pt-4">
-            <div className="text-center">
-              <span className="w-12 h-12 mx-auto rounded-2xl bg-[color:var(--c-818cf8)]/15 flex items-center justify-center"><Sparkles className="w-6 h-6 text-[color:var(--c-a5b4fc)]" /></span>
-              <p className="text-sm font-semibold text-[color:var(--c-e0e0ec)] mt-3">Hola, {nombre.split(' ')[0]}. ¿Qué estudiamos?</p>
-              <p className="text-xs text-[color:var(--c-8a8b9e)] mt-1">{ev ? <>Sobre «{limpiar(ev.nombre)}»{ev.fecha ? ` · ${cuandoTexto(ev.fecha)}` : ''}</> : g ? `Sobre ${g.materia}` : 'Únete a una clase para empezar.'}</p>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <span className="w-9 h-9 rounded-xl bg-[color:var(--c-818cf8)]/15 flex items-center justify-center flex-shrink-0"><Sparkles className="w-[18px] h-[18px] text-[color:var(--c-a5b4fc)]" /></span>
+              <div className="min-w-0">
+              <p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Hola, {nombre.split(' ')[0]}. ¿Qué estudiamos?</p>
+              <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5 line-clamp-2">{ev ? <>Sobre «{limpiar(ev.nombre)}»{ev.fecha ? ` · ${cuandoTexto(ev.fecha)}` : ''}</> : g ? `Sobre ${g.materia}` : 'Únete a una clase para empezar.'}</p>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              {sugerencias.map(s => <button key={s} type="button" onClick={() => preguntar(s)} className="w-full text-left text-xs px-3 py-2.5 rounded-xl border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-818cf8)]/50 hover:text-[color:var(--c-e0e0ec)] transition-colors">{s}</button>)}
+            <div className="flex flex-wrap gap-1.5">
+              {sugerencias.map(s => <button key={s} type="button" onClick={() => preguntar(s)} className="max-w-full text-left text-xs px-3 py-2 rounded-xl border border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-818cf8)]/50 hover:text-[color:var(--c-e0e0ec)] transition-colors">{s}</button>)}
             </div>
           </div>
         ) : msgs.map((m, i) => (

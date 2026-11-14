@@ -52,7 +52,7 @@ export default function Entregas({ datos, onCambio }: { datos: Resumen; onCambio
 
   return (
     <div ref={ref} className="space-y-5">
-      <div><h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Mis entregas</h1><p className="text-sm text-[color:var(--c-8a8b9e)]">Los trabajos que debes entregar en todas tus materias.</p></div>
+      <p className="text-sm text-[color:var(--c-8a8b9e)]">Los trabajos que debes entregar en todas tus materias.</p>
 
       {/* Resumen por estado (también filtra) */}
       <div className={`grid gap-2 ${ancho >= 640 ? 'grid-cols-6' : 'grid-cols-3'}`}>
@@ -83,13 +83,13 @@ export default function Entregas({ datos, onCambio }: { datos: Resumen; onCambio
                     className={`w-full rounded-xl border px-3.5 py-3 flex items-center gap-3 text-left transition-colors ${activa ? 'border-[color:var(--c-818cf8)]/40 bg-[color:var(--c-818cf8)]/[0.07]' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] hover:border-[color:var(--c-3a3b52)]'}`}>
                     <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-[13px] font-bold" style={{ background: colorDe(datos.grupos, e.grupo) + '33', color: colorDe(datos.grupos, e.grupo) }}>{(e.materia || '?').charAt(0).toUpperCase()}</span>
                     <span className="flex-1 min-w-0">
-                      <span className="block text-[13px] font-medium text-[color:var(--c-e0e0ec)] truncate">{limpiar(e.nombre)}</span>
-                      <span className="flex items-center gap-1.5 mt-0.5 text-[11px] text-[color:var(--c-8a8b9e)] min-w-0">
+                      <span className="block text-[13px] font-medium text-[color:var(--c-e0e0ec)] leading-snug line-clamp-2">{limpiar(e.nombre)}</span>
+                      <span className="flex items-center flex-wrap gap-x-1.5 gap-y-1 mt-1 text-[11px] text-[color:var(--c-8a8b9e)] min-w-0">
+                        <span className={`text-[10px] font-semibold px-1.5 py-px rounded-full border whitespace-nowrap ${ESTADO_ENTREGA[s].clase}`}>{s === 'entregada' ? 'Entregada' : ESTADO_ENTREGA[s].texto}</span>
                         <span className="truncate">{e.materia}</span>
                         {e.fecha && <><span>·</span><span className={`whitespace-nowrap ${s === 'atrasada' ? 'text-red-300' : ''}`}>{cuandoTexto(e.fecha)}</span></>}
                       </span>
                     </span>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${ESTADO_ENTREGA[s].clase}`}>{s === 'entregada' ? 'Entregada' : ESTADO_ENTREGA[s].texto}</span>
                     {dosColumnas ? <ChevronRight className={`w-4 h-4 flex-shrink-0 ${activa ? 'text-[color:var(--c-a5b4fc)]' : 'text-[color:var(--c-5f6074)]'}`} /> : <ChevronDown className={`w-4 h-4 text-[color:var(--c-8a8b9e)] transition-transform flex-shrink-0 ${activa ? 'rotate-180' : ''}`} />}
                   </button>
                   {/* Angosto: el detalle se abre debajo */}

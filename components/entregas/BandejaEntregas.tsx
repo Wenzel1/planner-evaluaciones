@@ -250,7 +250,7 @@ function Fila({ e, k, onAbrir }: { e: EntregaBandeja; k: number; onAbrir: (archi
           {e.url && (
             <a href={e.url} target="_blank" rel="noopener noreferrer" title={e.url} className={`flex-shrink-0 w-[104px] h-[104px] rounded-xl border p-2.5 flex flex-col hover:-translate-y-0.5 hover:shadow-lg transition-all ${ESTILO.enlace.fondo}`}>
               <Link2 className={`w-7 h-7 ${ESTILO.enlace.color}`} />
-              <span className="mt-auto text-[11px] leading-tight text-[color:var(--c-d0d0da)] line-clamp-2 break-all">{(() => { try { return new URL(e.url).hostname.replace(/^www\./, ''); } catch { return 'Enlace'; } })()}</span>
+              <span className="mt-auto w-full text-[11px] leading-tight text-[color:var(--c-d0d0da)] truncate">{(() => { try { return new URL(e.url).hostname.replace(/^www\./, ''); } catch { return 'Enlace'; } })()}</span>
             </a>
           )}
         </div>

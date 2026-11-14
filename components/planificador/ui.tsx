@@ -11,9 +11,9 @@ export function Tooltip({ text, children, lado = 'arriba', alinear = 'centro' }:
   const vertical = lado === 'abajo' ? 'top-full mt-2' : 'bottom-full mb-2';
   const horizontal = alinear === 'derecha' ? 'right-0' : 'left-1/2 -translate-x-1/2';
   return (
-    <div className="relative group inline-flex items-center">
+    <div className="relative group/ayuda inline-flex items-center">
       {children}
-      <div role="tooltip" className={`absolute ${vertical} ${horizontal} px-2 py-1 bg-[color:var(--c-0d0e14)] text-[color:var(--c-d8d8e2)] text-[10px] rounded-md opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-[color:var(--c-313248)]`}>{text}</div>
+      <div role="tooltip" className={`absolute ${vertical} ${horizontal} px-2 py-1 bg-[color:var(--c-0d0e14)] text-[color:var(--c-d8d8e2)] text-[10px] rounded-md opacity-0 group-hover/ayuda:opacity-100 group-has-[:focus-visible]/ayuda:opacity-100 transition-opacity duration-150 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-[color:var(--c-313248)]`}>{text}</div>
     </div>
   );
 }

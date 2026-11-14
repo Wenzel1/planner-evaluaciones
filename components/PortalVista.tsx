@@ -238,14 +238,14 @@ export default function PortalVista({ token, embebido = false, abrir = null, cue
                 </div>
                 {/* Lo importante de un vistazo */}
                 {materia && (
-                  <div className="relative grid grid-cols-3 border-t border-[color:var(--c-282a3f)] divide-x divide-[color:var(--c-282a3f)] bg-[color:var(--c-191a26)]/60">
-                    <button type="button" disabled={!proxima} onClick={() => proxima && irA(proxima.id)} className="px-4 sm:px-5 py-3.5 text-left min-w-0 enabled:hover:bg-[color:var(--c-818cf8)]/[0.06] transition-colors">
+                  <div className="relative grid grid-cols-2 sm:grid-cols-3 border-t border-[color:var(--c-282a3f)] bg-[color:var(--c-191a26)]/60">
+                    <button type="button" disabled={!proxima} onClick={() => proxima && irA(proxima.id)} className="col-span-2 sm:col-span-1 px-4 sm:px-5 py-3.5 text-left min-w-0 border-b sm:border-b-0 sm:border-r border-[color:var(--c-282a3f)] enabled:hover:bg-[color:var(--c-818cf8)]/[0.06] transition-colors">
                       <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-a5b4fc)] font-semibold">Próxima</p>
                       {proxima && proxima.fecha
                         ? <><p className="mt-1 text-[13px] font-semibold text-[color:var(--c-e0e0ec)] truncate">{proxima.nombre}</p><p className="text-[11px] text-[color:var(--c-9a9bb0)] truncate">{cuandoFalta(proxima.fecha, ahora)}</p></>
                         : <p className="mt-1 text-[13px] text-[color:var(--c-9a9bb0)]">{total > 0 && realizadas === total ? '¡Terminaste todas!' : 'Sin fecha'}</p>}
                     </button>
-                    <div className="px-4 sm:px-5 py-3.5 min-w-0">
+                    <div className="px-4 sm:px-5 py-3.5 min-w-0 border-r border-[color:var(--c-282a3f)]">
                       <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold">Avance</p>
                       <p className="mt-1 text-lg font-bold text-[color:var(--c-e0e0ec)] leading-none">{realizadas}<span className="text-xs text-[color:var(--c-8a8b9e)] font-medium"> / {total}</span></p>
                       <div className="mt-2 h-1.5 rounded-full bg-[color:var(--c-272839)] overflow-hidden"><div className="h-full rounded-full bg-[color:var(--c-818cf8)]" style={{ width: `${total ? (realizadas / total) * 100 : 0}%` }} /></div>

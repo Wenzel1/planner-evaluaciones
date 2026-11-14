@@ -987,7 +987,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                   <div className="flex items-center gap-2">
                     {/* Acciones ocasionales de la sección */}
                     <div className="relative">
-                      <button type="button" data-tutorial="codigo-clase" onClick={() => setMenuSeccion(v => !v)} aria-expanded={menuSeccion} className={`relative h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${menuSeccion ? 'bg-[color:var(--c-272839)] border-[color:var(--c-414258)] text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-414258)]'}`}>
+                      <button type="button" data-tutorial="codigo-clase" onClick={() => setMenuSeccion(v => !v)} aria-expanded={menuSeccion} className={`whitespace-nowrap relative h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${menuSeccion ? 'bg-[color:var(--c-272839)] border-[color:var(--c-414258)] text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-414258)]'}`}>
                         <Settings2 className="w-3.5 h-3.5" />Sección {seccionActiva}<ChevronDown className={`w-3.5 h-3.5 transition-transform ${menuSeccion ? 'rotate-180' : ''}`} />
                         {(solicitudesSeccion[seccionActiva] || 0) > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center" title="Solicitudes por aceptar en Estudiantes">{solicitudesSeccion[seccionActiva]}</span>}
                       </button>
@@ -1010,11 +1010,11 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                       </AnimatePresence>
                     </div>
                     {seccionesFiltradas.length > 0 && (
-                      <button type="button" data-tutorial="plan-accion" onClick={() => setModoPlan(v => !v)} className={`h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${modoPlan ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/50 text-[color:var(--c-c7d2fe)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-414258)]'}`}>
+                      <button type="button" data-tutorial="plan-accion" onClick={() => setModoPlan(v => !v)} className={`whitespace-nowrap h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${modoPlan ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/50 text-[color:var(--c-c7d2fe)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-414258)]'}`}>
                         <FileText className="w-3.5 h-3.5" />Plan de Acción
                       </button>
                     )}
-                    <button type="button" data-tutorial="formularios" onClick={abrirFormularios} className="h-9 px-3.5 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                    <button type="button" data-tutorial="formularios" onClick={abrirFormularios} className="whitespace-nowrap h-9 px-3.5 rounded-lg bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors">
                       <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nueva evaluación</span><span className="sm:hidden">Nueva</span>
                     </button>
                   </div>

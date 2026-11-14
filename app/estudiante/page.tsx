@@ -175,6 +175,7 @@ export default function PanelEstudiante() {
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto sin-barra p-3 space-y-1">
             {itemsMenu.map(t => botonMenu(t, menuAbierto))}
+            {conClases && <button type="button" onClick={() => { setMenuAbierto(false); setAsistenteMovil(true); }} title={menuAbierto ? undefined : 'Asistente de estudio'} aria-label="Asistente de estudio" className="xl:hidden w-full h-11 flex items-center gap-3 px-3 rounded-xl text-sm font-medium text-[color:var(--c-8a8b9e)] border border-transparent hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-1d1e2e)]"><Bot className="w-[18px] h-[18px] flex-shrink-0" /><span className={`whitespace-nowrap transition-opacity duration-150 ${menuAbierto ? 'opacity-100' : 'opacity-0'}`}>Asistente de estudio</span></button>}
           </div>
           <div className="p-3 border-t border-[color:var(--c-282a3f)] space-y-1">
             <button type="button" onClick={() => { setVerUnirse(true); setAviso(null); setMenuAbierto(false); }} title={menuAbierto ? undefined : 'Unirme a una clase'} aria-label="Unirme a una clase" className="w-full h-11 flex items-center gap-3 px-3 rounded-xl text-sm font-medium text-[color:var(--c-8a8b9e)] border border-transparent hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-1d1e2e)]">
@@ -196,7 +197,10 @@ export default function PanelEstudiante() {
                 <span className="flex-1 text-sm font-semibold text-[color:var(--c-e0e0ec)]">EvaPlanner</span>
                 <button type="button" onClick={() => setMenuMovil(false)} aria-label="Cerrar el menú" className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)]"><X className="w-4 h-4" /></button>
               </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-1">{itemsMenu.map(t => botonMenu(t, true))}</div>
+              <div className="flex-1 overflow-y-auto p-3 space-y-1">
+                {itemsMenu.map(t => botonMenu(t, true))}
+                {conClases && <button type="button" onClick={() => { setMenuMovil(false); setAsistenteMovil(true); }} className="w-full h-11 flex items-center gap-3 px-3 rounded-xl text-sm font-medium text-[color:var(--c-8a8b9e)] border border-transparent hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-1d1e2e)]"><Bot className="w-[18px] h-[18px] flex-shrink-0" />Asistente de estudio</button>}
+              </div>
               <div className="p-3 border-t border-[color:var(--c-282a3f)]">{botonMenu({ id: 'config', texto: 'Configuración', icono: Settings }, true)}</div>
             </motion.nav>
           </>
@@ -280,7 +284,8 @@ export default function PanelEstudiante() {
 
           {/* Las demás pestañas: todas sus clases juntas */}
           {datos && pestana !== 'clases' && (conClases || pestana === 'config') && (
-            <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24">
+            <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24 xl:pb-6">
+              <motion.div key={pestana} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, ease: 'easeOut' }}>
               {pestana === 'config' ? (
                 <Configuracion cuenta={datos.cuenta} onCuenta={(c) => setDatos(d => (d ? { ...d, cuenta: { ...d.cuenta, ...c } } : d))}
                   clases={clases} onSalir={salirDeClase} onUnirse={() => { setVerUnirse(true); setAviso(null); }} />
@@ -291,8 +296,9 @@ export default function PanelEstudiante() {
               : pestana === 'notas' ? <Calificaciones datos={resumen} onAbrir={abrirEnClase} />
               : pestana === 'mensajes' ? <Mensajes datos={resumen} onLeidos={(id) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.id === id ? { ...e, mensajesNuevos: 0 } : e)) } : r))} />
               : pestana === 'chat' ? (
-                <div className="flex flex-col gap-2 h-[calc(100dvh-56px-48px-96px)] min-h-[420px]">{elegirChat}<div className="flex-1 min-h-0">{chat || <p className="text-sm text-[color:var(--c-8a8b9e)]">Aún no tienes un chat de sección.</p>}</div></div>
+                <div className="flex flex-col gap-2 h-[calc(100dvh-56px-48px-96px)] xl:h-[calc(100dvh-56px-48px)] min-h-[420px]">{elegirChat}<div className="flex-1 min-h-0">{chat || <p className="text-sm text-[color:var(--c-8a8b9e)]">Aún no tienes un chat de sección.</p>}</div></div>
               ) : null}
+              </motion.div>
             </main>
           )}
         </div>
@@ -309,7 +315,7 @@ export default function PanelEstudiante() {
 
       {/* ---------- Asistente en pantallas medianas y pequeñas ---------- */}
       {conClases && (
-        <button type="button" onClick={() => setAsistenteMovil(true)} className="xl:hidden fixed bottom-5 right-5 z-40 h-12 pl-4 pr-5 rounded-full bg-[color:var(--c-818cf8)] text-white text-sm font-semibold shadow-xl flex items-center gap-2"><Bot className="w-5 h-5" />Asistente</button>
+        <button type="button" onClick={() => setAsistenteMovil(true)} className={`xl:hidden fixed bottom-5 right-5 z-40 ${pestana === 'mensajes' || pestana === 'chat' ? 'hidden' : ''} h-12 pl-4 pr-5 rounded-full bg-[color:var(--c-818cf8)] text-white text-sm font-semibold shadow-xl flex items-center gap-2`}><Bot className="w-5 h-5" />Asistente</button>
       )}
       <AnimatePresence>
         {asistenteMovil && (

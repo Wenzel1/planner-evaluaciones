@@ -7,7 +7,7 @@ const TONO = { ok: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25', a
 export default function Calificaciones({ datos, onAbrir }: { datos: Resumen; onAbrir: AbrirEvaluacion }) {
   return (
     <div className="space-y-4">
-      <div><h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Mis calificaciones</h1><p className="text-sm text-[color:var(--c-8a8b9e)]">Notas sobre 20. Se aprueba con 10.</p></div>
+      <p className="text-sm text-[color:var(--c-8a8b9e)]">Notas sobre 20. Se aprueba con 10.</p>
       {datos.grupos.length === 0 && <p className="text-sm text-[color:var(--c-8a8b9e)]">Todavía no estás en ninguna clase.</p>}
       <div className={`grid gap-4 ${datos.grupos.length > 1 ? 'xl:grid-cols-2' : ''}`}>
         {datos.grupos.map(g => {
@@ -33,12 +33,12 @@ export default function Calificaciones({ datos, onAbrir }: { datos: Resumen; onA
                 </div>
                 <p className={`text-xs rounded-lg border px-3 py-2 ${TONO[meta.tono]}`}>{meta.texto}</p>
               </div>
-              <table className="w-full text-sm">
-                <thead><tr className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] border-y border-[color:var(--c-282a3f)]"><th className="text-left font-semibold px-4 py-2">Evaluación</th><th className="text-right font-semibold px-2 py-2">Peso</th><th className="text-right font-semibold px-4 py-2">Nota</th></tr></thead>
+              <table className="w-full text-sm table-fixed">
+                <thead><tr className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] border-y border-[color:var(--c-282a3f)]"><th className="text-left font-semibold px-4 py-2">Evaluación</th><th className="text-right font-semibold px-2 py-2 w-16">Peso</th><th className="text-right font-semibold px-4 py-2 w-20">Nota</th></tr></thead>
                 <tbody className="divide-y divide-[color:var(--c-282a3f)]">
                   {evs.map(e => (
                     <tr key={e.id} className="hover:bg-[color:var(--c-818cf8)]/[0.04] cursor-pointer" onClick={() => onAbrir({ claseId: e.claseId, materiaId: g.materiaId, evaluacionId: e.id })}>
-                      <td className="px-4 py-2.5"><span className="block text-[color:var(--c-d0d0da)] truncate max-w-[520px]">{limpiar(e.nombre)}</span><span className="block text-[11px] text-[color:var(--c-6a6b7e)]">{e.fecha ? fechaCorta(e.fecha) : 'Sin fecha'}{e.nota?.observaciones ? ` · «${e.nota.observaciones}»` : ''}</span></td>
+                      <td className="px-4 py-2.5"><span className="block text-[color:var(--c-d0d0da)] truncate">{limpiar(e.nombre)}</span><span className="block text-[11px] text-[color:var(--c-6a6b7e)] truncate">{e.fecha ? fechaCorta(e.fecha) : 'Sin fecha'}{e.nota?.observaciones ? ` · «${e.nota.observaciones}»` : ''}</span></td>
                       <td className="px-2 py-2.5 text-right text-[color:var(--c-8a8b9e)]">{e.peso ?? '—'}%</td>
                       <td className="px-4 py-2.5 text-right">{e.nota ? <b className={e.nota.puntaje >= 10 ? 'text-emerald-300' : 'text-red-300'}>{textoNota(e.nota.puntaje)}</b> : <span className="text-[color:var(--c-6a6b7e)]">—</span>}</td>
                     </tr>

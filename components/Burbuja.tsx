@@ -37,15 +37,17 @@ export function SeparadorDia({ fecha }: { fecha: string }) {
 }
 
 // Baja al último mensaje SOLO dentro de la caja del chat (sin mover la página), si ya estaba abajo o si lo pide
-export function useBajarAlFinal(deps: unknown[]) {
+export function useBajarAlFinal(deps: unknown[], activo = true) {
   const caja = useRef<HTMLDivElement>(null);
   const abajo = useRef(true);
   const onScroll = () => { const el = caja.current; if (el) abajo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; };
   useEffect(() => {
-    const el = caja.current; if (!el || !abajo.current) return;
+    const el = caja.current; if (!el) return;
+    if (!activo) { el.scrollTop = 0; return; }
+    if (!abajo.current) return;
     el.scrollTop = el.scrollHeight;
     const t = setTimeout(() => { if (abajo.current) el.scrollTop = el.scrollHeight; }, 250); // por si cargan imágenes o audios
     return () => clearTimeout(t);
-  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [...deps, activo]); // eslint-disable-line react-hooks/exhaustive-deps
   return { caja, onScroll, forzar: () => { abajo.current = true; } };
 }
