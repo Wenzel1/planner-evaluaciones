@@ -11,6 +11,9 @@ import { SeccionExamen } from '@/components/planificador/tipos';
 import { SelectorEstadoEvaluacion, Tooltip, VentanaFlotante } from '@/components/planificador/ui';
 import { esIdGuardado, limpiarTexto, precargar } from '@/components/planificador/utilidades';
 
+// Acciones que el menú ⋯ muestra de entrada (las demás quedan en «Más opciones»)
+const PRINCIPALES = ['Editar evaluación', 'Entregas y mensajes', 'Planilla de notas'];
+
 // ============================================
 // TARJETA DE EVALUACIÓN (draggable individual, fluida con Framer Motion)
 // ============================================
@@ -33,6 +36,7 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
   const [posMenu, setPosMenu] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuLista = useRef<HTMLDivElement>(null);
+  const [masOpciones, setMasOpciones] = useState(false);
   useEffect(() => {
     if (!menu) return;
     const fuera = (e: MouseEvent | TouchEvent) => { const t = e.target as Node; if (!menuRef.current?.contains(t) && !menuLista.current?.contains(t)) setMenu(false); };
@@ -114,7 +118,7 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
             <Maximize2 className="w-4 h-4" />
           </button></Tooltip>
           <div className="relative" ref={menuRef}>
-            <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const arriba = window.innerHeight - r.bottom < 380 && r.top > 380; setPosMenu(arriba ? { bottom: window.innerHeight - r.top + 6, right: window.innerWidth - r.right } : { top: r.bottom + 6, right: window.innerWidth - r.right }); setMenu(v => !v); }} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
+            <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const arriba = window.innerHeight - r.bottom < 380 && r.top > 380; setPosMenu(arriba ? { bottom: window.innerHeight - r.top + 6, right: window.innerWidth - r.right } : { top: r.bottom + 6, right: window.innerWidth - r.right }); setMasOpciones(false); setMenu(v => !v); }} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
               className={`p-1.5 rounded-lg transition-colors ${menu ? 'text-[color:var(--c-e0e0ec)] bg-[color:var(--c-2c2d42)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]'}`}>
               <MoreVertical className="w-4 h-4" />
             </button>
@@ -122,12 +126,15 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
               {menu && (
                 <motion.div ref={menuLista} style={{ position: 'fixed', top: posMenu.top, bottom: posMenu.bottom, right: posMenu.right }} initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }} transition={{ duration: 0.12 }}
                   className={`w-64 z-[300] rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)] shadow-2xl shadow-black/50 p-1.5`} role="menu">
-                  {opciones.map(o => (
+                  {opciones.filter(o => masOpciones || PRINCIPALES.includes(o.titulo)).map(o => (
                     <button key={o.titulo} role="menuitem" onClick={() => { setMenu(false); o.hacer(); }} className="w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left hover:bg-[color:var(--c-272839)] transition-colors">
                       <o.icono className="w-4 h-4 mt-0.5 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
                       <span className="min-w-0"><span className="block text-[13px] text-[color:var(--c-e0e0ec)]">{o.titulo}</span><span className="block text-[11px] text-[color:var(--c-8a8b9e)] truncate">{o.detalle}</span></span>
                     </button>
                   ))}
+                  {!masOpciones && opciones.some(o => !PRINCIPALES.includes(o.titulo)) && (
+                    <button type="button" onClick={() => setMasOpciones(true)} className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left text-[12px] text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)] transition-colors"><ChevronDown className="w-4 h-4" />Más opciones</button>
+                  )}
                   <div className="my-1 border-t border-[color:var(--c-2a2b3d)]" />
                   <button role="menuitem" onClick={() => { setMenu(false); onDelete(seccion.id); }} className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left text-[13px] text-red-300 hover:bg-red-500/10 transition-colors">
                     <Trash2 className="w-4 h-4" />Eliminar evaluación
