@@ -314,7 +314,6 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <OpinionPlan token={token} materia={materia} onGuardada={(op) => setDatos(prev => prev ? { ...prev, materias: prev.materias.map(m => m.id === materia.id ? { ...m, opinion: op } : m) } : prev)} />
               </section>
 
               <h2 className="text-sm font-semibold text-[color:var(--c-9a9bb0)] uppercase tracking-wider mb-3">Mis evaluaciones</h2>
@@ -381,7 +380,8 @@ function PlanDeAccion({ materia, profesor, seccion }: { materia: Materia; profes
 }
 
 // ¿Está de acuerdo con el plan? Le llega al profesor en el Planificador. Se puede cambiar después.
-function OpinionPlan({ token, materia, onGuardada }: { token: string; materia: Materia; onGuardada: (o: Opinion) => void }) {
+// (Ya no se muestra: el estudiante comenta en el chat de la sección)
+export function OpinionPlan({ token, materia, onGuardada }: { token: string; materia: Materia; onGuardada: (o: Opinion) => void }) {
   const op = materia.opinion;
   const [modo, setModo] = useState<'ver' | 'sugerir'>('ver');
   const [texto, setTexto] = useState(op?.comentario || '');

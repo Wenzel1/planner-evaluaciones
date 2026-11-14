@@ -30,8 +30,20 @@ function Texto({ t }: { t: string }) {
 }
 
 // Alto del chat: 'pantalla' = ocupa lo que queda de pantalla debajo de lo que tenga encima (se reajusta al crear o borrar evaluaciones);
-// 'contenedor' = llena el alto de su contenedor (lo decide quien lo usa)
-export default function ChatSeccion({ modo, api, params, titulo, alto = 'pantalla', plegable = true }: { modo: 'profesor' | 'estudiante'; api: string; params: Record<string, string>; titulo?: string; alto?: 'pantalla' | 'contenedor'; plegable?: boolean }) {
+// 'contenedor' = llena el alto de su contenedor (lo decide quien lo usa);
+// 'llenar' = en computadora ocupa lo que sobra de su columna (flex) y queda fijo abajo: lo de arriba se desplaza por dentro;
+//            en el teléfono se comporta como 'pantalla'
+export default function ChatSeccion({ modo, api, params, titulo, alto: altoPedido = 'pantalla', plegable = true, tutorial }: { modo: 'profesor' | 'estudiante'; api: string; params: Record<string, string>; titulo?: string; alto?: 'pantalla' | 'contenedor' | 'llenar'; plegable?: boolean; tutorial?: string }) {
+  const [grande, setGrande] = useState(false);
+  useEffect(() => {
+    if (altoPedido !== 'llenar') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const f = () => setGrande(mq.matches);
+    f(); mq.addEventListener('change', f);
+    return () => mq.removeEventListener('change', f);
+  }, [altoPedido]);
+  const alto = altoPedido === 'llenar' ? (grande ? 'llenar' : 'pantalla') : altoPedido;
+  const [altoCabeza, setAltoCabeza] = useState(58);
   const [items, setItems] = useState<Item[] | null>(null);
   const [estudiantes, setEstudiantes] = useState<number | null>(null);
   const [texto, setTexto] = useState('');
@@ -64,6 +76,7 @@ export default function ChatSeccion({ modo, api, params, titulo, alto = 'pantall
     window.addEventListener('resize', medir);
     return () => { ro.disconnect(); window.removeEventListener('resize', medir); };
   }, [alto]);
+  useLayoutEffect(() => { if (cabeza.current) setAltoCabeza(cabeza.current.offsetHeight + 2); }, [abierto, alto]);
   const claveVisto = `chat-visto:${api}?${qs(params)}`;
   const [vistoHasta, setVistoHasta] = useState(0);
   useEffect(() => { try { setVistoHasta(Number(localStorage.getItem(claveVisto) || 0)); } catch { /* sin almacenamiento */ } }, [claveVisto]);
@@ -125,7 +138,11 @@ export default function ChatSeccion({ modo, api, params, titulo, alto = 'pantall
   const mensajesEst = (items || []).filter(m => m.autorTipo === 'ESTUDIANTE').length;
 
   return (
-    <section ref={seccionRef} className={`rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] overflow-hidden flex flex-col ${alto === 'contenedor' ? 'h-full' : ''}`}>
+    <motion.section ref={seccionRef} data-tutorial={tutorial} initial={false}
+      animate={alto === 'llenar' ? { flexGrow: abierto ? 1 : 0, minHeight: abierto ? 360 : altoCabeza } : undefined}
+      transition={{ type: 'spring', stiffness: 260, damping: 32 }}
+      style={alto === 'llenar' ? { flexBasis: 0, flexShrink: 0 } : undefined}
+      className={`rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] overflow-hidden flex flex-col ${alto === 'contenedor' ? 'h-full' : ''}`}>
       {/* Encabezado */}
       <div ref={cabeza} className={`px-4 py-3 flex items-center gap-3 flex-shrink-0 border-b transition-colors ${abierto ? 'border-[color:var(--c-282a3f)]' : 'border-transparent'}`}>
         <button type="button" disabled={!plegable} onClick={() => { pegadoAbajo.current = true; setAbierto(v => !v); }} aria-expanded={abierto} className="min-w-0 flex-1 flex items-center gap-3 text-left disabled:cursor-default">
@@ -147,9 +164,9 @@ export default function ChatSeccion({ modo, api, params, titulo, alto = 'pantall
       </div>
 
       {/* Cuerpo: se pliega y despliega con una animación suave (sin desmontarse, para no recargar) */}
-      <motion.div initial={false} animate={alto === 'contenedor' ? { opacity: abierto ? 1 : 0 } : { height: abierto ? altoCuerpo : 0, opacity: abierto ? 1 : 0 }}
+      <motion.div initial={false} animate={alto !== 'pantalla' ? { opacity: abierto ? 1 : 0 } : { height: abierto ? altoCuerpo : 0, opacity: abierto ? 1 : 0 }}
         transition={{ height: { type: 'spring', stiffness: 260, damping: 32 }, opacity: { duration: 0.2 } }}
-        className={`flex flex-col overflow-hidden ${alto === 'contenedor' ? (abierto ? 'flex-1 min-h-0' : 'hidden') : ''}`}>
+        className={`flex flex-col overflow-hidden ${alto === 'contenedor' ? (abierto ? 'flex-1 min-h-0' : 'hidden') : alto === 'llenar' ? 'flex-1 min-h-0' : ''}`}>
       {/* Resumen de la IA */}
       {resumen && !resumen.cargando && (
         <div className="flex-shrink-0 max-h-[45%] overflow-y-auto mx-4 mt-3 rounded-xl border border-[color:var(--c-818cf8)]/25 bg-[color:var(--c-818cf8)]/[0.06] px-4 py-3 text-[13px] text-[color:var(--c-c0c0d0)] leading-relaxed relative">
@@ -239,6 +256,6 @@ export default function ChatSeccion({ modo, api, params, titulo, alto = 'pantall
         {error && <p className="text-[11px] text-red-300 mt-1.5 px-2">{error}</p>}
       </div>
       </motion.div>
-    </section>
+    </motion.section>
   );
 }

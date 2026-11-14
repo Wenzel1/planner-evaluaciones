@@ -28,6 +28,7 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
   const nombreLimpio = limpiarTexto(seccion.nombre);
   // Menú "⋯": las acciones menos frecuentes quedan aquí para que la tarjeta se vea limpia
   const [menu, setMenu] = useState(false);
+  const [menuArriba, setMenuArriba] = useState(false); // si la tarjeta está cerca del borde de abajo de la lista, el menú se abre hacia arriba
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menu) return;
@@ -108,14 +109,14 @@ export function TarjetaEvaluacion({ seccion, index, isSelected, onToggleSelect, 
             <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
           </button></Tooltip>
           <div className="relative" ref={menuRef}>
-            <button onClick={() => setMenu(v => !v)} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
+            <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); let caja: HTMLElement | null = e.currentTarget.parentElement; while (caja && !/(auto|scroll)/.test(getComputedStyle(caja).overflowY)) caja = caja.parentElement; const limite = caja ? caja.getBoundingClientRect().bottom : window.innerHeight; setMenuArriba(limite - r.bottom < 340 && r.top > 340); setMenu(v => !v); }} aria-label="Más opciones" aria-expanded={menu} title="Más opciones"
               className={`p-1.5 rounded-lg transition-colors ${menu ? 'text-[color:var(--c-e0e0ec)] bg-[color:var(--c-2c2d42)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]'}`}>
               <MoreVertical className="w-4 h-4" />
             </button>
             <AnimatePresence>
               {menu && (
                 <motion.div initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }} transition={{ duration: 0.12 }}
-                  className="absolute right-0 top-full mt-1.5 w-64 z-40 rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)] shadow-2xl shadow-black/50 p-1.5" role="menu">
+                  className={`absolute right-0 ${menuArriba ? 'bottom-full mb-1.5' : 'top-full mt-1.5'} w-64 z-40 rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)] shadow-2xl shadow-black/50 p-1.5`} role="menu">
                   {opciones.map(o => (
                     <button key={o.titulo} role="menuitem" onClick={() => { setMenu(false); o.hacer(); }} className="w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left hover:bg-[color:var(--c-272839)] transition-colors">
                       <o.icono className="w-4 h-4 mt-0.5 text-[color:var(--c-a5b4fc)] flex-shrink-0" />

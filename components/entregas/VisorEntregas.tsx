@@ -128,7 +128,7 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-              <div className={pestanaPanel === 'revision' ? 'flex flex-col flex-1' : 'hidden'}>
+              <div className={pestanaPanel === 'revision' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
                 <PanelRevision key={e.id} e={e} rubrica={rubricas[e.evaluacion.id] ?? null} onActualizar={(c) => onActualizar(e.id, c)}
                   onSiguiente={i < entregas.length - 1 ? () => setI(i + 1) : undefined}
                   sugerencia={sugerencia?.id === e.id ? sugerencia : null} versionChat={versionChat} />
@@ -229,7 +229,7 @@ function PanelRevision({ e, rubrica, onActualizar, onSiguiente, sugerencia, vers
 
   const etiqueta = 'text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)]';
   return (
-    <div className="p-4 space-y-5 flex flex-col flex-1 min-h-full">
+    <div className="p-4 space-y-5 flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar">
       {/* Nota */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">

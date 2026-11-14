@@ -889,7 +889,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
           )}
           {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><DashboardPorRol planificacion={planificacion} usuario={usuario} onMiTrabajo={() => { if (typeof window !== 'undefined' && window.innerWidth >= 768) onAbrirChat?.(); }} /></motion.div>)}
           {vista === 'planificacion' && (
-            <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
+            <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto lg:h-full lg:flex lg:flex-col lg:space-y-0 lg:gap-5">
                 {/* Guía de primeros pasos: solo mientras falten estudiantes o evaluaciones en la sección */}
                 {datosCargados && estudiantesMateria !== null && (estudiantesMateria === 0 || planificacion.secciones.length === 0) && guiasCerradas.length === 0 && (
                   <div className="rounded-2xl border border-[color:var(--c-818cf8)]/25 bg-gradient-to-br from-[color:var(--c-22234a)]/70 to-[color:var(--c-1d1e2e)] p-5">
@@ -940,7 +940,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                     </VentanaFlotante>
                   )}
                 </AnimatePresence>
-              <div ref={seccionesGuardadasRef} data-tutorial="guardadas" className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl">
+              <div ref={seccionesGuardadasRef} data-tutorial="guardadas" className="lg:flex lg:flex-col lg:min-h-[240px] bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl">
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-4">
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap mr-auto min-w-0">
                     <h2 className="text-sm font-semibold text-[color:var(--c-e0e0ec)] font-['Inter']">Evaluaciones <span className="text-[color:var(--c-6a6b7e)] font-normal">({seccionesFiltradas.length})</span></h2>
@@ -1079,6 +1079,8 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                     )}
                   </AnimatePresence>
                 </div>
+                {/* En computadora la lista se desplaza por dentro, para que el chat quede fijo abajo */}
+                <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto custom-scrollbar lg:-mr-4 lg:pr-4 lg:pb-1">
                 {/* Armar el Plan de Acción: se eligen las evaluaciones y se genera el PDF */}
                 <AnimatePresence>
                   {modoPlan && seccionesFiltradas.length > 0 && (
@@ -1137,9 +1139,10 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                     />
                   </motion.div>
                 </>
+                </div>
               </div>
               {/* Chat de la sección (con las observaciones de los administradores y las opiniones del plan) */}
-              {materiaActivaId && !esSuperadmin && <div data-tutorial="chat-seccion"><ChatSeccion modo="profesor" api="/api/secciones/chat" params={{ materiaId: materiaActivaId, seccion: seccionActiva }} /></div>}
+              {materiaActivaId && !esSuperadmin && <ChatSeccion tutorial="chat-seccion" alto="llenar" modo="profesor" api="/api/secciones/chat" params={{ materiaId: materiaActivaId, seccion: seccionActiva }} />}
               {false && planificacion.comentariosAgente.length > 0 && (<div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[color:var(--c-818cf8)]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[color:var(--c-9090a4)] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
             </motion.div>
           )}

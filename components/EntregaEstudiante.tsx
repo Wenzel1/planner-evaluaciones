@@ -32,7 +32,7 @@ function subirConProgreso(url: string, archivo: File, tipo: string, onProgreso: 
   });
 }
 
-export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEval, onCambio }: { token: string; evaluacionId: string; entrega: EntregaInfo | null; archivos: boolean; fechaEval: string | null; onCambio: (e: EntregaInfo) => void }) {
+export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEval, onCambio, sinMarco = false }: { token: string; evaluacionId: string; entrega: EntregaInfo | null; archivos: boolean; fechaEval: string | null; onCambio: (e: EntregaInfo) => void ; sinMarco?: boolean }) {
   const [editando, setEditando] = useState(!entrega || entrega.devuelta);
   const [subidas, setSubidas] = useState<Subida[]>([]);
   const [quitar, setQuitar] = useState<string[]>([]);
@@ -89,7 +89,7 @@ export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEva
 
   const hayAlgo = actuales.length + subidas.length > 0 || url.trim().length >= 8;
   return (
-    <div className="rounded-xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-4 space-y-3">
+    <div className={sinMarco ? 'space-y-3' : 'rounded-xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-4 space-y-3'}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-a5b4fc)] flex items-center gap-1.5"><Upload className="w-3.5 h-3.5" />Tu entrega</p>
         {entrega && !editando && (
@@ -200,8 +200,9 @@ function ListaArchivos({ archivos, onVer, fuente }: { archivos: ArchivoInfo[]; o
 }
 
 interface Mensaje { id: string; autor: string; texto: string; createdAt: string; adjunto?: Adjunto | null }
-export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreAbierto = false }: { token: string; evaluacionId: string; nuevos: number; onLeidos: () => void; siempreAbierto?: boolean }) {
-  const [abierto, setAbierto] = useState(nuevos > 0 || siempreAbierto);
+// panel = la conversación ocupa todo el alto de su contenedor (pestaña Mensajes, estilo WhatsApp de escritorio)
+export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreAbierto = false, panel = false }: { token: string; evaluacionId: string; nuevos: number; onLeidos: () => void; siempreAbierto?: boolean; panel?: boolean }) {
+  const [abierto, setAbierto] = useState(nuevos > 0 || siempreAbierto || panel);
   const [lista, setLista] = useState<Mensaje[] | null>(null);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -237,16 +238,16 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreA
     } catch (e: any) { setError(e.message); } finally { setEnviando(false); }
   };
   return (
-    <div className="rounded-xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)]">
-      <button type="button" onClick={() => { if (!siempreAbierto) setAbierto(v => !v); }} className="w-full px-4 py-3 flex items-center gap-2 text-left">
+    <div className={panel ? 'h-full flex flex-col' : 'rounded-xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)]'}>
+      {!panel && <button type="button" onClick={() => { if (!siempreAbierto) setAbierto(v => !v); }} className="w-full px-4 py-3 flex items-center gap-2 text-left">
         <MessageSquare className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />
         <span className="text-sm font-medium text-[color:var(--c-d0d0da)] flex-1">Mensajes privados con tu profesor</span>
         {nuevos > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[color:var(--c-818cf8)] text-white">{nuevos} nuevo{nuevos === 1 ? '' : 's'}</span>}
-      </button>
+      </button>}
       {abierto && (
-        <div className="px-4 pb-4 space-y-2.5">
+        <div className={panel ? 'flex-1 min-h-0 flex flex-col' : 'px-4 pb-4 space-y-2.5'}>
           {/* Alto fijo: los mensajes se desplazan por dentro (estilo WhatsApp) */}
-          <div ref={desplazar.caja} onScroll={desplazar.onScroll} className={`${siempreAbierto ? 'h-[50vh]' : 'h-72'} overflow-y-auto overscroll-contain custom-scrollbar rounded-xl bg-[color:var(--c-161722)] px-2.5 py-2`}>
+          <div ref={desplazar.caja} onScroll={desplazar.onScroll} className={panel ? 'flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar bg-[color:var(--c-161722)] px-4 sm:px-8 py-3' : `${siempreAbierto ? 'h-[50vh]' : 'h-72'} overflow-y-auto overscroll-contain custom-scrollbar rounded-xl bg-[color:var(--c-161722)] px-2.5 py-2`}>
             {lista === null && <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-3">Cargando…</p>}
             {lista?.length === 0 && <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-6">¿Tienes una duda sobre esta evaluación? Escríbele: solo la ve tu profesor.</p>}
             {lista?.map((m, k) => {
@@ -256,7 +257,7 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreA
               return (
                 <div key={m.id}>
                   {nuevoDia && <SeparadorDia fecha={m.createdAt} />}
-                  <Burbuja mio={m.autor === 'ESTUDIANTE'} seguido={seguido} nombre="Profesor(a)" colorNombre="#8fb8e8" texto={m.texto} createdAt={m.createdAt}
+                  <Burbuja mio={m.autor === 'ESTUDIANTE'} seguido={seguido} nombre={panel ? undefined : 'Profesor(a)'} colorNombre="#8fb8e8" texto={m.texto} createdAt={m.createdAt}
                     adjunto={m.adjunto} urlAdjunto={`${baseMsj}?evaluacionId=${encodeURIComponent(evaluacionId)}&adjunto=${encodeURIComponent(m.id)}`} />
                 </div>
               );
@@ -264,7 +265,7 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreA
             {progreso && <div className="flex justify-end mt-2"><div className="w-48 rounded-xl rounded-tr-sm bg-[#22406a] px-3 py-2"><p className="text-[11px] text-[#e9edf5]/80 truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-white/70 transition-all" style={{ width: `${progreso.p}%` }} /></div></div></div>}
           </div>
           {/* Escribir (una sola grabadora, que no se reemplaza al grabar) */}
-          <form onSubmit={(ev) => { ev.preventDefault(); if (texto.trim().length >= 2) enviar(); }} className="flex gap-1.5 items-center">
+          <form onSubmit={(ev) => { ev.preventDefault(); if (texto.trim().length >= 2) enviar(); }} className={`flex gap-1.5 items-center ${panel ? 'px-3 py-2.5 border-t border-[color:var(--c-282a3f)] bg-[color:var(--c-1d1e2e)]' : ''}`}>
             {!grabando && (
               <div className="flex-1 min-w-0 flex items-center gap-1 h-11 pl-1 pr-3 rounded-full bg-[color:var(--c-232430)] border border-transparent focus-within:border-[color:var(--c-818cf8)]/50">
                 <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />
@@ -279,7 +280,7 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreA
                 </div>
               )}
           </form>
-          {error && <p className="text-xs text-red-300">{error}</p>}
+          {error && <p className={`text-xs text-red-300 ${panel ? 'px-4 pb-2' : ''}`}>{error}</p>}
         </div>
       )}
     </div>
