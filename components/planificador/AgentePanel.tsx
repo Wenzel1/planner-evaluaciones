@@ -1354,7 +1354,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
           </motion.div>
         </div>
       ) : (
-        <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-5 space-y-5 custom-scrollbar">
+        <div ref={chatContainerRef} onScroll={handleChatScroll} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-5 py-5 space-y-5 custom-scrollbar">
           {historial.map((msg) => (
             <motion.div key={msg.id} initial={mensajesAnimables.has(msg.id) ? { opacity: 0, y: 8 } : false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={`flex ${msg.rol === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.rol === 'agent' ? (

@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Upload, Link2, CheckCircle2, AlertCircle, MessageSquare, Send, FileText, ExternalLink, X, Eye } from 'lucide-react';
 import VistaArchivo, { precargarArchivo } from '@/components/entregas/VistaArchivo';
-import { VerAdjunto, BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
+import { BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
+import { Burbuja, SeparadorDia, diaChat, useBajarAlFinal } from '@/components/Burbuja';
 
 export interface ArchivoInfo { id: string; nombre: string; tamano: number | null; tipo: string | null }
 export interface EntregaInfo { tipo: string; url: string | null; archivoNombre: string | null; comentario: string | null; entregadaEn: string; devuelta: boolean; devolucion: string | null; tarde?: boolean; revisada?: boolean; archivos?: ArchivoInfo[] }
@@ -217,7 +218,7 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreA
       const r = await fetch(baseMsj, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evaluacionId, texto: texto.trim(), adjunto }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'No se pudo enviar.');
-      setLista(prev => [...(prev || []), d]); setTexto('');
+      desplazar.forzar(); setLista(prev => [...(prev || []), d]); setTexto('');
     } catch (e: any) { setError(e.message); } finally { setEnviando(false); setProgreso(null); }
   };
   const cargar = async () => {
@@ -225,14 +226,14 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreA
     if (r?.ok) { setLista(await r.json()); onLeidos(); }
   };
   useEffect(() => { if (abierto) cargar(); }, [abierto]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { fin.current?.scrollIntoView({ block: 'nearest' }); }, [lista?.length]);
+  const desplazar = useBajarAlFinal([lista?.length, progreso?.nombre, abierto]);
   const enviar = async () => {
     setEnviando(true); setError('');
     try {
       const r = await fetch(`/api/portal/${encodeURIComponent(token)}/comentarios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evaluacionId, texto }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'No se pudo enviar.');
-      setLista(prev => [...(prev || []), d]); setTexto('');
+      desplazar.forzar(); setLista(prev => [...(prev || []), d]); setTexto('');
     } catch (e: any) { setError(e.message); } finally { setEnviando(false); }
   };
   return (
@@ -244,25 +245,39 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreA
       </button>
       {abierto && (
         <div className="px-4 pb-4 space-y-2.5">
-          <div className={`${siempreAbierto ? 'max-h-[50vh]' : 'max-h-64'} overflow-y-auto space-y-2 pr-1`}>
-            {lista === null && <p className="text-xs text-[color:var(--c-8a8b9e)]">Cargando…</p>}
-            {lista?.length === 0 && <p className="text-xs text-[color:var(--c-8a8b9e)]">¿Tienes una duda sobre esta evaluación? Escríbele: solo la ve tu profesor.</p>}
-            {lista?.map(m => (
-              <div key={m.id} className={`max-w-[85%] px-3 py-2 rounded-xl text-sm space-y-1.5 ${m.autor === 'ESTUDIANTE' ? 'ml-auto bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-e0e0ec)]' : 'bg-[color:var(--c-272839)] text-[color:var(--c-d0d0da)]'}`}>
-                {m.adjunto && <VerAdjunto adjunto={m.adjunto} mio={false} url={`${baseMsj}?evaluacionId=${encodeURIComponent(evaluacionId)}&adjunto=${encodeURIComponent(m.id)}`} />}
-                {m.texto && <p className="whitespace-pre-wrap break-words">{m.texto}</p>}
-                <p className="text-[10px] text-[color:var(--c-8a8b9e)]">{m.autor === 'ESTUDIANTE' ? 'Tú' : 'Profesor'} · {fecha(m.createdAt)}</p>
-              </div>
-            ))}
-            {progreso && <div className="ml-auto w-48 rounded-xl bg-[color:var(--c-818cf8)]/10 px-3 py-2"><p className="text-[11px] text-[color:var(--c-c7d2fe)] truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-[color:var(--c-282a3f)] overflow-hidden"><div className="h-full bg-[color:var(--c-818cf8)] transition-all" style={{ width: `${progreso.p}%` }} /></div></div>}
-            <div ref={fin} />
+          {/* Alto fijo: los mensajes se desplazan por dentro (estilo WhatsApp) */}
+          <div ref={desplazar.caja} onScroll={desplazar.onScroll} className={`${siempreAbierto ? 'h-[50vh]' : 'h-72'} overflow-y-auto overscroll-contain custom-scrollbar rounded-xl bg-[color:var(--c-161722)] px-2.5 py-2`}>
+            {lista === null && <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-3">Cargando…</p>}
+            {lista?.length === 0 && <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-6">¿Tienes una duda sobre esta evaluación? Escríbele: solo la ve tu profesor.</p>}
+            {lista?.map((m, k) => {
+              const prev = lista[k - 1];
+              const nuevoDia = !prev || diaChat(prev.createdAt) !== diaChat(m.createdAt);
+              const seguido = !!prev && !nuevoDia && prev.autor === m.autor && new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60000;
+              return (
+                <div key={m.id}>
+                  {nuevoDia && <SeparadorDia fecha={m.createdAt} />}
+                  <Burbuja mio={m.autor === 'ESTUDIANTE'} seguido={seguido} nombre="Profesor(a)" colorNombre="#8fb8e8" texto={m.texto} createdAt={m.createdAt}
+                    adjunto={m.adjunto} urlAdjunto={`${baseMsj}?evaluacionId=${encodeURIComponent(evaluacionId)}&adjunto=${encodeURIComponent(m.id)}`} />
+                </div>
+              );
+            })}
+            {progreso && <div className="flex justify-end mt-2"><div className="w-48 rounded-xl rounded-tr-sm bg-[#22406a] px-3 py-2"><p className="text-[11px] text-[#e9edf5]/80 truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-white/70 transition-all" style={{ width: `${progreso.p}%` }} /></div></div></div>}
           </div>
-          <form onSubmit={(ev) => { ev.preventDefault(); if (texto.trim().length >= 2) enviar(); }} className="flex gap-1.5 items-center flex-wrap">
-            {!grabando && <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />}
-            {!grabando && <input value={texto} onChange={(ev) => setTexto(ev.target.value)} maxLength={1000} placeholder="Escribe tu mensaje…" className="flex-1 min-w-0 h-10 px-3 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />}
+          {/* Escribir (una sola grabadora, que no se reemplaza al grabar) */}
+          <form onSubmit={(ev) => { ev.preventDefault(); if (texto.trim().length >= 2) enviar(); }} className="flex gap-1.5 items-center">
+            {!grabando && (
+              <div className="flex-1 min-w-0 flex items-center gap-1 h-11 pl-1 pr-3 rounded-full bg-[color:var(--c-232430)] border border-transparent focus-within:border-[color:var(--c-818cf8)]/50">
+                <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />
+                <input value={texto} onChange={(ev) => setTexto(ev.target.value)} maxLength={1000} placeholder="Escribe un mensaje" className="flex-1 min-w-0 h-full bg-transparent text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none" />
+              </div>
+            )}
             {texto.trim().length >= 2 && !grabando
-              ? <button type="submit" disabled={enviando} aria-label="Enviar" className="w-10 h-10 rounded-lg bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-50 flex-shrink-0"><Send className="w-4 h-4" /></button>
-              : <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />}
+              ? <button type="submit" disabled={enviando} aria-label="Enviar" className="w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-50 flex-shrink-0"><Send className="w-4 h-4" /></button>
+              : (
+                <div className={grabando ? 'flex-1 min-w-0 flex items-center' : 'w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] flex items-center justify-center flex-shrink-0 [&_button]:!text-white [&_button:hover]:!bg-transparent'}>
+                  <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />
+                </div>
+              )}
           </form>
           {error && <p className="text-xs text-red-300">{error}</p>}
         </div>

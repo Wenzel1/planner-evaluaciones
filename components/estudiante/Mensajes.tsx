@@ -1,4 +1,5 @@
 'use client';
+import Selector from '@/components/Selector';
 // Mensajes del estudiante: todas sus conversaciones privadas con sus profesores (una por evaluación)
 import { useState } from 'react';
 import { MessageSquare, Plus } from 'lucide-react';
@@ -21,10 +22,10 @@ export default function Mensajes({ datos, onLeidos }: { datos: Resumen; onLeidos
       {nueva && (
         <div className="rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] p-3 flex flex-wrap items-center gap-2">
           <span className="text-xs text-[color:var(--c-8a8b9e)]">¿Sobre qué evaluación?</span>
-          <select defaultValue="" onChange={(e) => { if (e.target.value) { setSel(e.target.value); setNueva(false); } }} className="flex-1 min-w-[220px] h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)]">
+          <Selector defaultValue="" onChange={(e) => { if (e.target.value) { setSel(e.target.value); setNueva(false); } }} className="flex-1 min-w-[220px] h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)]">
             <option value="" disabled>Elige una evaluación…</option>
             {todas.map(e => <option key={e.id} value={e.id}>{limpiar(e.nombre)} · {e.materia}</option>)}
-          </select>
+          </Selector>
         </div>
       )}
       <div className="grid md:grid-cols-[300px_minmax(0,1fr)] gap-4">

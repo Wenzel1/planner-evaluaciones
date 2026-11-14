@@ -13,7 +13,8 @@ import CorreccionIA, { type Analisis } from './CorreccionIA';
 
 // Nota que propone la IA, para pasarla a la pestaña Revisión
 interface Sugerencia { id: string; nota: number | null; detalle: (number | null)[] | null; obs: string; n: number }
-import { VerAdjunto, BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
+import { BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
+import { Burbuja, SeparadorDia, diaChat, useBajarAlFinal } from '@/components/Burbuja';
 import { estiloDe, ESTILO, fechaHora, tamanoLegible } from './tiposArchivo';
 import { NIVELES_RUBRICA, type RubricaEval } from '@/lib/rubrica';
 import { notaDesdeRubrica, NIVEL_CORTO, COLOR_BOTON_NIVEL, textoNota } from '@/components/planificador/ModalNotas';
@@ -109,7 +110,7 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
           </div>
 
           {/* Revisión */}
-          <div className="lg:w-[420px] flex-shrink-0 flex flex-col min-h-0">
+          <div className="lg:w-[480px] flex-shrink-0 flex flex-col min-h-0">
             {/* Revisión (nota, estado, mensajes) o Corrección con IA */}
             <div className="flex border-b border-[color:var(--c-282a3f)] flex-shrink-0">
               {([['revision', 'Revisión', ClipboardCheck], ['ia', 'Corrección IA', Sparkles]] as const).map(([id, txt, I]) => (
@@ -302,19 +303,18 @@ function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos, version = 0 }
   const [progreso, setProgreso] = useState<{ nombre: string; p: number } | null>(null);
   const [grabando, setGrabando] = useState(false);
   const [error, setError] = useState('');
-  const fin = useRef<HTMLDivElement>(null);
   const base = `/api/evaluaciones/${encodeURIComponent(evaluacionId)}/comentarios`;
   useEffect(() => {
     let vivo = true;
     fetch(`${base}?estudianteId=${encodeURIComponent(estudianteId)}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : [])).then(d => { if (vivo) { setLista(Array.isArray(d) ? d : []); if (sinLeer) onLeidos(); } }).catch(() => vivo && setLista([]));
     return () => { vivo = false; };
   }, [base, estudianteId, version]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { fin.current?.scrollIntoView({ block: 'nearest' }); }, [lista?.length]);
+  const desplazar = useBajarAlFinal([lista?.length, progreso?.nombre]);
   const publicar = async (cuerpo: Record<string, unknown>) => {
     const r = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteId, ...cuerpo }) }).catch(() => null);
     const d = r ? await r.json().catch(() => ({})) : {};
     if (!r?.ok) throw new Error(d.error || 'No se pudo enviar.');
-    setLista(l => [...(l || []), d]);
+    desplazar.forzar(); setLista(l => [...(l || []), d]);
   };
   const enviar = async () => {
     const t = texto.trim(); if (t.length < 2) return;
@@ -330,34 +330,43 @@ function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos, version = 0 }
     } catch (e: any) { setError(e.message); } finally { setEnviando(false); setProgreso(null); }
   };
   return (
-    <section className="flex-1 flex flex-col gap-2 min-h-[340px]">
+    <section className="flex flex-col gap-2">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)] flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" />Mensajes privados</p>
-      <div className="flex-1 min-h-[220px] rounded-xl border border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] p-2.5 overflow-y-auto space-y-2">
+      {/* Alto fijo: los mensajes se desplazan por dentro (estilo WhatsApp) */}
+      <div ref={desplazar.caja} onScroll={desplazar.onScroll} className="h-[340px] overscroll-contain rounded-xl border border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] px-2.5 py-2 overflow-y-auto custom-scrollbar">
         {lista === null ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-3">Cargando…</p>
-          : lista.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-3">Sin mensajes. Escríbele, envíale un archivo o una nota de voz.</p>
-          : lista.map(m => {
-            const mio = m.autor === 'PROFESOR';
+          : lista.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-6">Sin mensajes. Escríbele, envíale un archivo o una nota de voz.</p>
+          : lista.map((m, k) => {
+            const prev = lista[k - 1];
+            const nuevoDia = !prev || diaChat(prev.createdAt) !== diaChat(m.createdAt);
+            const seguido = !!prev && !nuevoDia && prev.autor === m.autor && new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 5 * 60000;
             return (
-              <div key={m.id} className={`flex ${mio ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] text-xs rounded-2xl px-3 py-2 space-y-1.5 ${mio ? 'bg-[color:var(--c-818cf8)] text-white rounded-br-md' : 'bg-[color:var(--c-232430)] text-[color:var(--c-d0d0da)] rounded-bl-md'}`}>
-                  {m.adjunto && <VerAdjunto adjunto={m.adjunto} mio={mio} url={`${base}?estudianteId=${encodeURIComponent(estudianteId)}&adjunto=${encodeURIComponent(m.id)}`} />}
-                  {m.texto && <p className="whitespace-pre-wrap break-words">{m.texto}</p>}
-                  <span className="block text-[9px] opacity-60">{fechaHora(m.createdAt)}</span>
-                </div>
+              <div key={m.id}>
+                {nuevoDia && <SeparadorDia fecha={m.createdAt} />}
+                <Burbuja mio={m.autor === 'PROFESOR'} seguido={seguido} texto={m.texto} createdAt={m.createdAt}
+                  adjunto={m.adjunto} urlAdjunto={`${base}?estudianteId=${encodeURIComponent(estudianteId)}&adjunto=${encodeURIComponent(m.id)}`} />
               </div>
             );
           })}
         {progreso && (
-          <div className="flex justify-end"><div className="w-48 rounded-2xl rounded-br-md bg-[color:var(--c-818cf8)]/20 px-3 py-2"><p className="text-[11px] text-[color:var(--c-c7d2fe)] truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-[color:var(--c-818cf8)] transition-all" style={{ width: `${progreso.p}%` }} /></div></div></div>
+          <div className="flex justify-end mt-2"><div className="w-48 rounded-xl rounded-tr-sm bg-[#22406a] px-3 py-2"><p className="text-[11px] text-[#e9edf5]/80 truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-white/70 transition-all" style={{ width: `${progreso.p}%` }} /></div></div></div>
         )}
-        <div ref={fin} />
       </div>
-      <div className="flex gap-1.5 items-center flex-wrap">
-        {!grabando && <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />}
-        {!grabando && <input value={texto} onChange={(ev) => setTexto(ev.target.value.slice(0, 1000))} onKeyDown={(ev) => { if (ev.key === 'Enter') enviar(); }} placeholder="Escribe un mensaje…" className="flex-1 min-w-0 h-10 px-3 rounded-xl bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />}
+      {/* Escribir (una sola grabadora, que no se reemplaza al grabar) */}
+      <div className="flex gap-1.5 items-center">
+        {!grabando && (
+          <div className="flex-1 min-w-0 flex items-center gap-1 h-11 pl-1 pr-3 rounded-full bg-[color:var(--c-232430)] border border-transparent focus-within:border-[color:var(--c-818cf8)]/50">
+            <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />
+            <input value={texto} onChange={(ev) => setTexto(ev.target.value.slice(0, 1000))} onKeyDown={(ev) => { if (ev.key === 'Enter') enviar(); }} placeholder="Escribe un mensaje" className="flex-1 min-w-0 h-full bg-transparent text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none" />
+          </div>
+        )}
         {texto.trim().length >= 2 && !grabando
-          ? <button type="button" disabled={enviando} onClick={enviar} className="w-10 h-10 rounded-xl bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0"><Send className="w-4 h-4" /></button>
-          : <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />}
+          ? <button type="button" disabled={enviando} onClick={enviar} aria-label="Enviar" className="w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0"><Send className="w-4 h-4" /></button>
+          : (
+            <div className={grabando ? 'flex-1 min-w-0 flex items-center' : 'w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] flex items-center justify-center flex-shrink-0 [&_button]:!text-white [&_button:hover]:!bg-transparent'}>
+              <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />
+            </div>
+          )}
       </div>
       {error && <p className="text-[11px] text-red-300">{error}</p>}
     </section>

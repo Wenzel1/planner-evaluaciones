@@ -1,4 +1,5 @@
 'use client';
+import Selector from '@/components/Selector';
 // Panel de recordatorios del profesor: estado del envío automático, cuándo se envían, próximas evaluaciones
 // (con interruptor, nota y "Enviar ahora"), mensajes programados e historial de envíos con sus fallas.
 import { useEffect, useState } from 'react';
@@ -147,9 +148,9 @@ export default function PanelRecordatorios({ onCerrar, notificar, enfoque, secci
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-[color:var(--c-b0b0c4)]">
               <span>Solo entre</span>
-              <select value={datos.pref.horaDesde} onChange={(e) => cambiarPref({ horaDesde: Number(e.target.value) })} className={campo}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hora12(h)}</option>)}</select>
+              <Selector value={datos.pref.horaDesde} onChange={(e) => cambiarPref({ horaDesde: Number(e.target.value) })} className={campo}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hora12(h)}</option>)}</Selector>
               <span>y</span>
-              <select value={datos.pref.horaHasta} onChange={(e) => cambiarPref({ horaHasta: Number(e.target.value) })} className={campo}>{Array.from({ length: 24 }, (_, h) => h + 1).filter(h => h > datos.pref.horaDesde).map(h => <option key={h} value={h}>{hora12(h)}</option>)}</select>
+              <Selector value={datos.pref.horaHasta} onChange={(e) => cambiarPref({ horaHasta: Number(e.target.value) })} className={campo}>{Array.from({ length: 24 }, (_, h) => h + 1).filter(h => h > datos.pref.horaDesde).map(h => <option key={h} value={h}>{hora12(h)}</option>)}</Selector>
               <span className="text-xs text-[color:var(--c-6a6b7e)]">(el de 2 horas antes sale siempre)</span>
             </div>
             <input defaultValue={datos.pref.nota} onBlur={(e) => { if (e.target.value.trim() !== datos.pref.nota) cambiarPref({ nota: e.target.value.trim() }); }} maxLength={300} placeholder="Nota para todos los recordatorios (opcional). Ej.: Lleguen 10 minutos antes." className={`${campo} w-full`} />
@@ -208,7 +209,7 @@ export default function PanelRecordatorios({ onCerrar, notificar, enfoque, secci
             <p className={titulo}><Clock className="w-3.5 h-3.5" />Mensaje programado</p>
             <textarea value={prog.texto} onChange={(e) => setProg({ ...prog, texto: e.target.value })} rows={2} maxLength={1000} placeholder="Ej.: Mañana traigan el diagrama impreso. Usa {nombre} para personalizar." className={`${campo} w-full resize-none`} />
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <select value={prog.seccion} onChange={(e) => setProg({ ...prog, seccion: e.target.value })} className={campo}>{secciones.map(s => <option key={s} value={s}>Sección {s}</option>)}</select>
+              <Selector value={prog.seccion} onChange={(e) => setProg({ ...prog, seccion: e.target.value })} className={campo}>{secciones.map(s => <option key={s} value={s}>Sección {s}</option>)}</Selector>
               <input type="datetime-local" value={prog.enviarEn} min={aLocal(new Date())} onChange={(e) => setProg({ ...prog, enviarEn: e.target.value })} className={campo} />
               <label className="flex items-center gap-1.5 text-xs text-[color:var(--c-b0b0c4)] cursor-pointer"><input type="checkbox" checked={prog.incluirEnlace} onChange={(e) => setProg({ ...prog, incluirEnlace: e.target.checked })} className="accent-[color:var(--c-818cf8)]" />Con enlace a su página</label>
               <button type="button" disabled={programando || prog.texto.trim().length < 3 || !prog.enviarEn} onClick={programar} className="ml-auto h-8 px-3 rounded-lg text-xs font-semibold bg-[color:var(--c-818cf8)] text-white disabled:opacity-40 flex items-center gap-1.5">

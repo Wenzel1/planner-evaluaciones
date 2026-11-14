@@ -115,7 +115,7 @@ export default function ChatSeccion({ modo, api, params, titulo }: { modo: 'prof
       )}
 
       {/* Mensajes (estilo WhatsApp: los tuyos a la derecha, los demás a la izquierda) */}
-      <div ref={lista} onScroll={(e) => { const el = e.currentTarget; pegadoAbajo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} className="max-h-[460px] min-h-[180px] overflow-y-auto px-3 sm:px-5 py-3 bg-[color:var(--c-161722)]">
+      <div ref={lista} onScroll={(e) => { const el = e.currentTarget; pegadoAbajo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} className="max-h-[460px] min-h-[180px] overflow-y-auto overscroll-contain px-3 sm:px-5 py-3 bg-[color:var(--c-161722)]">
         {items === null ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-8">Cargando…</p>
           : items.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-8">{modo === 'profesor' ? 'Aún no hay mensajes. Escribe un aviso para toda la sección.' : 'Aún no hay mensajes. Escribe tu duda: la ve tu profesor y tus compañeros.'}</p>
           : items.map((m, i) => {
@@ -175,20 +175,21 @@ export default function ChatSeccion({ modo, api, params, titulo }: { modo: 'prof
 
       {/* Escribir (barra redondeada como en WhatsApp) */}
       <div className="px-2.5 sm:px-3 py-2 border-t border-[color:var(--c-282a3f)] bg-[color:var(--c-1d1e2e)]">
+        {/* Una sola grabadora que no se reemplaza al grabar (si se reemplazara, se perdería el audio) */}
         <form onSubmit={(e) => { e.preventDefault(); enviar(); }} className="flex gap-1.5 items-center">
-          {grabando ? (
-            <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />
-          ) : (
-            <>
-              <div className="flex-1 min-w-0 flex items-center gap-1 h-11 pl-1 pr-3 rounded-full bg-[color:var(--c-232430)] border border-transparent focus-within:border-[color:var(--c-818cf8)]/50">
-                <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />
-                <input value={texto} onChange={(e) => setTexto(e.target.value.slice(0, 2000))} placeholder={modo === 'profesor' ? 'Escribe a toda la sección' : 'Escribe un mensaje'} className="flex-1 min-w-0 h-full bg-transparent text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none" />
-              </div>
-              {texto.trim()
-                ? <button type="submit" disabled={enviando} aria-label="Enviar" className="w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0"><Send className="w-[18px] h-[18px]" /></button>
-                : <div className="w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] flex items-center justify-center flex-shrink-0 [&_button]:!text-white [&_button:hover]:!bg-transparent"><Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} /></div>}
-            </>
+          {!grabando && (
+            <div className="flex-1 min-w-0 flex items-center gap-1 h-11 pl-1 pr-3 rounded-full bg-[color:var(--c-232430)] border border-transparent focus-within:border-[color:var(--c-818cf8)]/50">
+              <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />
+              <input value={texto} onChange={(e) => setTexto(e.target.value.slice(0, 2000))} placeholder={modo === 'profesor' ? 'Escribe a toda la sección' : 'Escribe un mensaje'} className="flex-1 min-w-0 h-full bg-transparent text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none" />
+            </div>
           )}
+          {texto.trim() && !grabando
+            ? <button type="submit" disabled={enviando} aria-label="Enviar" className="w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0"><Send className="w-[18px] h-[18px]" /></button>
+            : (
+              <div className={grabando ? 'flex-1 min-w-0 flex items-center' : 'w-11 h-11 rounded-full bg-[color:var(--c-818cf8)] flex items-center justify-center flex-shrink-0 [&_button]:!text-white [&_button:hover]:!bg-transparent'}>
+                <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />
+              </div>
+            )}
         </form>
         {error && <p className="text-[11px] text-red-300 mt-1.5 px-2">{error}</p>}
       </div>

@@ -1,4 +1,5 @@
 'use client';
+import Selector from '@/components/Selector';
 // Asistente de estudio del estudiante: explica los temas de su evaluación y le hace preguntas de práctica (no hace la tarea).
 import { useEffect, useRef, useState } from 'react';
 import { Bot, X, Send, Sparkles } from 'lucide-react';
@@ -55,10 +56,10 @@ export default function TutorEstudio({ token, evaluaciones, inicial }: { token: 
           </div>
           {evaluaciones.length > 0 && (
             <div className="px-4 py-2 border-b border-[color:var(--c-2a2b3d)]">
-              <select value={evId} onChange={(e) => { setEvId(e.target.value); setMsgs([]); }} className="w-full h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-xs text-[color:var(--c-d8d8e2)] outline-none">
+              <Selector value={evId} onChange={(e) => { setEvId(e.target.value); setMsgs([]); }} className="w-full h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-xs text-[color:var(--c-d8d8e2)] outline-none">
                 <option value="">Mis evaluaciones en general</option>
                 {evaluaciones.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-              </select>
+              </Selector>
             </div>
           )}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">

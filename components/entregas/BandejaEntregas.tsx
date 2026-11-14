@@ -1,4 +1,5 @@
 'use client';
+import Selector from '@/components/Selector';
 // Bandeja de entregas del profesor: todo lo que entregan sus estudiantes en la materia abierta, con filtros,
 // buscador, contadores y el visor de revisión. En el Planificador se muestra en versión resumida (compacta).
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -165,11 +166,11 @@ export default function BandejaEntregas({ materiaId, compacta = false, linea = f
         {!compacta && (
           <div className="flex gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[180px]"><Search className="w-4 h-4 text-[color:var(--c-5f6074)] absolute left-3 top-1/2 -translate-y-1/2" /><input value={buscar} onChange={(ev) => setBuscar(ev.target.value)} placeholder="Buscar estudiante, evaluación o archivo…" className="w-full h-9 pl-9 pr-3 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]" /></div>
-            <select value={evaluacion} onChange={(ev) => setEvaluacion(ev.target.value)} className="h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)] max-w-[260px]">
+            <Selector value={evaluacion} onChange={(ev) => setEvaluacion(ev.target.value)} className="h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)] max-w-[260px]">
               <option value="">Todas las evaluaciones</option>
               {(datos?.evaluaciones || []).map(ev => <option key={ev.id} value={ev.id}>{limpiar(ev.nombre)} · Sec. {ev.seccion} ({ev.entregadas}/{ev.estudiantes})</option>)}
-            </select>
-            {secciones.length > 1 && <select value={seccion} onChange={(ev) => setSeccion(ev.target.value)} className="h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)]"><option value="">Todas las secciones</option>{secciones.map(s => <option key={s} value={s}>Sección {s}</option>)}</select>}
+            </Selector>
+            {secciones.length > 1 && <Selector value={seccion} onChange={(ev) => setSeccion(ev.target.value)} className="h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)]"><option value="">Todas las secciones</option>{secciones.map(s => <option key={s} value={s}>Sección {s}</option>)}</Selector>}
             {evSel && evSel.entregadas > 0 && datos?.archivos && <button type="button" disabled={!!descargando} onClick={() => descargarTodas(evSel)} className="h-9 px-3 rounded-lg border border-[color:var(--c-313248)] text-xs font-medium text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10 flex items-center gap-1.5 disabled:opacity-60">{descargando ? <span className="w-3.5 h-3.5 border-2 border-[color:var(--c-818cf8)]/30 border-t-[color:var(--c-818cf8)] rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}Descargar todas (.zip)</button>}
           </div>
         )}

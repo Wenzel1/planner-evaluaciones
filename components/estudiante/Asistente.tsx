@@ -1,9 +1,11 @@
 'use client';
+import Selector from '@/components/Selector';
 // Asistente de estudio del estudiante (panel grande a la izquierda, como el chat del profesor):
 // explica los temas, hace preguntas de práctica y ayuda a organizar el estudio. No hace la tarea.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Send, Sparkles, PanelLeftClose, RotateCcw } from 'lucide-react';
 import { type Resumen, limpiar, cuandoTexto } from './comun';
+import { useBajarAlFinal } from '@/components/Burbuja';
 
 interface Msg { rol: 'user' | 'assistant'; texto: string }
 
@@ -39,12 +41,12 @@ export default function Asistente({ datos, nombre, onOcultar }: { datos: Resumen
   const ev = evaluaciones.find(e => e.id === evId);
   const clave = `${g?.clave || ''}:${evId}`;
   const msgs = conversaciones[clave] || [];
-  useEffect(() => { fin.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [msgs.length, pensando]);
+  const desplazar = useBajarAlFinal([msgs.length, pensando, clave]);
 
   const preguntar = async (t: string) => {
     if (!g || !t.trim()) return;
     const nuevos = [...msgs, { rol: 'user' as const, texto: t.trim() }];
-    setConversaciones(c => ({ ...c, [clave]: nuevos })); setTexto(''); setPensando(true); setError('');
+    desplazar.forzar(); setConversaciones(c => ({ ...c, [clave]: nuevos })); setTexto(''); setPensando(true); setError('');
     try {
       const r = await fetch(`/api/portal/${encodeURIComponent(g.token)}/tutor`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evaluacionId: evId || undefined, mensajes: nuevos }) });
       const d = await r.json().catch(() => ({}));
@@ -68,17 +70,17 @@ export default function Asistente({ datos, nombre, onOcultar }: { datos: Resumen
 
       {/* Sobre qué estudiar */}
       <div className="px-4 py-3 border-b border-[color:var(--c-282a3f)] grid grid-cols-2 gap-2 flex-shrink-0">
-        <select value={g?.clave || ''} onChange={(e) => { setGrupo(e.target.value); setEvId(''); }} className="h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-xs text-[color:var(--c-d0d0da)] min-w-0">
+        <Selector value={g?.clave || ''} onChange={(e) => { setGrupo(e.target.value); setEvId(''); }} className="h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-xs text-[color:var(--c-d0d0da)] min-w-0">
           {grupos.map(x => <option key={x.clave} value={x.clave}>{x.materia}</option>)}
-        </select>
-        <select value={evId} onChange={(e) => setEvId(e.target.value)} className="h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-xs text-[color:var(--c-d0d0da)] min-w-0">
+        </Selector>
+        <Selector value={evId} onChange={(e) => setEvId(e.target.value)} className="h-9 px-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-xs text-[color:var(--c-d0d0da)] min-w-0">
           <option value="">Toda la materia</option>
           {evaluaciones.map(e => <option key={e.id} value={e.id}>{limpiar(e.nombre)}</option>)}
-        </select>
+        </Selector>
       </div>
 
       {/* Conversación */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={desplazar.caja} onScroll={desplazar.onScroll} className="flex-1 overflow-y-auto overscroll-contain custom-scrollbar px-4 py-4 space-y-3">
         {!datos ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-8">Cargando tus materias…</p> : msgs.length === 0 ? (
           <div className="space-y-4 pt-4">
             <div className="text-center">

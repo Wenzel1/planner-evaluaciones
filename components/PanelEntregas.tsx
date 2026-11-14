@@ -93,7 +93,8 @@ function DetalleEstudiante({ evaluacionId, fila, onCambio, notificar }: { evalua
   const fin = useRef<HTMLDivElement>(null);
   const base = `/api/evaluaciones/${encodeURIComponent(evaluacionId)}`;
   useEffect(() => { fetch(`${base}/comentarios?estudianteId=${encodeURIComponent(fila.id)}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : [])).then(setMensajes).catch(() => setMensajes([])); }, [fila.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { fin.current?.scrollIntoView({ block: 'nearest' }); }, [mensajes?.length]);
+  // Baja al último mensaje dentro de su caja (sin mover la ventana)
+  useEffect(() => { const caja = fin.current?.parentElement; if (caja) caja.scrollTop = caja.scrollHeight; }, [mensajes?.length]);
   const enviar = async () => {
     const r = await fetch(`${base}/comentarios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteId: fila.id, texto }) });
     const d = await r.json().catch(() => ({}));

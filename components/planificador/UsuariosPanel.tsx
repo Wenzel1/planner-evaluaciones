@@ -1,4 +1,5 @@
 'use client';
+import Selector from '@/components/Selector';
 
 import { memoriaPaneles } from '@/components/planificador/utilidades';
 import { AlertCircle, CheckCircle, Pencil, Phone, Plus, Search, Trash2, User, X } from 'lucide-react';
@@ -313,9 +314,9 @@ export function UsuariosPanel() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-[color:var(--c-8a8b9e)] uppercase tracking-wider block mb-1.5">Rol</label>
-                <select value={form.rol} disabled={!esSuper || editandoSelf} onChange={(e) => setForm({ ...form, rol: e.target.value as RolU })} className={`${inputCls} disabled:opacity-60`}>
+                <Selector value={form.rol} disabled={!esSuper || editandoSelf} onChange={(e) => setForm({ ...form, rol: e.target.value as RolU })} className={`${inputCls} disabled:opacity-60`}>
                   {(esSuper ? rolesDisponibles : [form.rol]).map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+                </Selector>
               </div>
               {modal !== 'nuevo' && !editandoSelf && (
                 <label className="flex items-center gap-2 text-sm text-[color:var(--c-b0b0c4)] cursor-pointer">

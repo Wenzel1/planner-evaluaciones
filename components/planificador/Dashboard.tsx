@@ -1,4 +1,5 @@
 'use client';
+import Selector from '@/components/Selector';
 
 import { Activity, AlertCircle, Award, BarChart3, BookOpen, Brain, Calendar, CheckCircle, ChevronDown, ChevronUp, Clock, FileText, GraduationCap, Info, MessageSquare, Pencil, PieChart, RefreshCw, Search, ShieldCheck, Trash2, User, Users as UsersIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -266,9 +267,9 @@ export function DashboardEquipo({ esSuper }: { esSuper: boolean }) {
               {([['nombre', 'Nombre completo'], ['email', 'Correo'], ['telefono', 'Teléfono']] as const).map(([k, et]) => (
                 <input key={k} value={edicionEst.campos[k]} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, [k]: e.target.value } })} placeholder={et} className="w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-6a6b7e)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />
               ))}
-              <select value={edicionEst.campos.grupo} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, grupo: e.target.value } })} className="w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--c-e0e0ec)]">
+              <Selector value={edicionEst.campos.grupo} onChange={(e) => setEdicionEst({ ...edicionEst, campos: { ...edicionEst.campos, grupo: e.target.value } })} className="w-full bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--c-e0e0ec)]">
                 {opcionesSeccion(edicionEst.campos.grupo).map(g => <option key={g} value={g}>Grupo {g}</option>)}
-              </select>
+              </Selector>
               {edicionEst.error && <p className="text-red-400 text-xs flex items-start gap-1.5"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{edicionEst.error}</span></p>}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setEdicionEst(null)} className="flex-1 py-2.5 text-sm text-[color:var(--c-b0b0c4)] bg-[color:var(--c-272839)] border border-[color:var(--c-313248)] rounded-xl">Cancelar</button>

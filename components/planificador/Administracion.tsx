@@ -1,4 +1,5 @@
 'use client';
+import Selector from '@/components/Selector';
 
 import { memoriaPaneles } from '@/components/planificador/utilidades';
 import { Activity, AlertCircle, BarChart3, CheckCircle, ClipboardList, FileText, Info, RefreshCw, RotateCcw, Search, Settings, ShieldCheck, Sparkles, Trash2, User } from 'lucide-react';
@@ -109,10 +110,10 @@ export function ActividadPanel() {
       </div>
 
       <div className="flex gap-3 flex-wrap">
-        <select value={accion} onChange={(e) => setAccion(e.target.value)} className={inputCls}>
+        <Selector value={accion} onChange={(e) => setAccion(e.target.value)} className={inputCls}>
           <option value="">Todas las acciones</option>
           {acciones.map(a => <option key={a} value={a}>{a.replace('_', ' ')}</option>)}
-        </select>
+        </Selector>
         <div className="flex-1 min-w-[200px] relative">
           <Search className="w-4 h-4 text-[color:var(--c-6a6b7e)] absolute left-3 top-1/2 -translate-y-1/2" />
           <input value={buscar} onChange={(e) => setBuscar(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setBuscarAplicado(buscar.trim()); }} placeholder="Buscar por persona o detalle y presiona Enter..." className={`${inputCls} w-full pl-9`} />

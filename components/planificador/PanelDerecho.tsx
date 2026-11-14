@@ -249,7 +249,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
     setPdfPorSeccion(prev => { const copia = { ...prev }; delete copia[destino]; return copia; });
     setPdfAbiertoPorSeccion(prev => { const copia = { ...prev }; delete copia[destino]; return copia; });
     const pesoTotal = nuevasSecciones.filter(s => s.grupoSeccion === destino).reduce((t, s) => t + (Number(s.peso) || 0), 0);
-    agregarNotificacion(`📋 ${copias.length} evaluación(es) copiadas de la Sección ${seccionActiva} a la Sección ${destino}${dias ? ` (fechas corridas ${dias > 0 ? '+' : ''}${dias} día(s))` : ''}.`);
+    agregarNotificacion(`📑 ${copias.length} evaluación(es) copiadas de la Sección ${seccionActiva} a la Sección ${destino}${dias ? ` (fechas corridas ${dias > 0 ? '+' : ''}${dias} día(s))` : ''}.`);
     if (pesoTotal > 100) agregarNotificacion(`⚠️ La Sección ${destino} ahora suma ${pesoTotal}% de peso. Revisa los porcentajes.`);
     setCopiaAbierta(false);
     setSeccionActiva(destino);
@@ -260,11 +260,13 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   // Se abren solos cuando tienen algo (una propuesta del agente o una evaluación en edición) o con el botón.
   const [verFormularios, setVerFormularios] = useState(false);
   // La guía de primeros pasos se puede cerrar; se recuerda por sección en este navegador
-  // Guía "Primeros pasos": se recuerda cerrada por cuenta y por materia (cada cuenta y cada materia nueva la vuelve a ver)
+  // Guía "Primeros pasos": solo para cuentas o materias nuevas (sin evaluaciones o sin estudiantes en toda la materia).
+  // Al cerrarla no vuelve en esa materia, aunque se cambie de sección.
+  const [estudiantesMateria, setEstudiantesMateria] = useState<number | null>(null);
   const claveGuia = `guia_pasos_cerrada:${usuario?.id || 'anon'}:${materiaActivaId || 'sin-materia'}`;
   const [guiasCerradas, setGuiasCerradas] = useState<string[]>([]);
   useEffect(() => { try { setGuiasCerradas(JSON.parse(localStorage.getItem(claveGuia) || '[]')); } catch { setGuiasCerradas([]); } }, [claveGuia]);
-  const cerrarGuia = () => setGuiasCerradas(prev => { const n = [...new Set([...prev, seccionActiva])]; try { localStorage.setItem(claveGuia, JSON.stringify(n)); } catch { /* sin almacenamiento */ } return n; });
+  const cerrarGuia = () => setGuiasCerradas(prev => { const n = [...new Set([...prev, 'materia'])]; try { localStorage.setItem(claveGuia, JSON.stringify(n)); } catch { /* sin almacenamiento */ } return n; });
   // El plan usa solo las evaluaciones de la sección activa que siguen marcadas
   const seccionesParaPlan = seccionesFiltradas.filter((s: SeccionExamen) => !tarjetasExcluidas.includes(s.id));
   const idsSeleccionados = seccionesParaPlan.map((s: SeccionExamen) => s.id);
@@ -394,6 +396,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
       try {
         const data = await apiEstudiantes.listar();
         setEstudiantesSeccion(Array.isArray(data) ? data.filter((e: any) => (e?.grupo || 'A') === seccionActiva && String(e?.estado || 'ACTIVO').toUpperCase() === 'ACTIVO').length : 0);
+        setEstudiantesMateria(Array.isArray(data) ? data.filter((e: any) => String(e?.estado || 'ACTIVO').toUpperCase() === 'ACTIVO').length : 0);
         if (Array.isArray(data) && data.length > 0) {
           const delaSeccion = data.filter((e: any) => (e?.grupo || 'A') === seccionActiva);
           // Si aún no hay estudiantes cargados con ese código de sección específico,
@@ -442,7 +445,8 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
 
   const setPdfUrl = (url: string | null) => { setPdfPorSeccion(prev => ({ ...prev, [seccionActiva]: url })); if (setPdfUrlProp) setPdfUrlProp(url); };
   const setPdfAbierto = (abierto: boolean) => { setPdfAbiertoPorSeccion(prev => ({ ...prev, [seccionActiva]: abierto })); if (setPdfAbiertoProp) setPdfAbiertoProp(abierto); };
-  const agregarNotificacion = (mensaje: string) => { if (!esImportante(mensaje)) return; setNotificaciones(prev => [{ id: `notif-${Date.now()}-${++contadorNotif}`, mensaje, timestamp: new Date(), leido: false }, ...prev.slice(0, 19)]); };
+  // Solo lo importante, y sin repetir el mismo aviso si ya salió hace menos de 2 minutos
+  const agregarNotificacion = (mensaje: string) => { if (!esImportante(mensaje)) return; setNotificaciones(prev => prev.some(n => n.mensaje === mensaje && Date.now() - new Date(n.timestamp).getTime() < 120000) ? prev : [{ id: `notif-${Date.now()}-${++contadorNotif}`, mensaje, timestamp: new Date(), leido: false }, ...prev.slice(0, 19)]); };
   const scrollToTarjeta = () => { setTimeout(() => { if (tarjetaRef.current) tarjetaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 250); };
   
   useEffect(() => { if (scrollToSections && seccionesGuardadasRef.current && vista === 'planificacion') { requestAnimationFrame(() => { seccionesGuardadasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); setScrollToSections(false); }); } }, [planificacion.secciones, scrollToSections, vista]);
@@ -886,14 +890,14 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
                 {/* Guía de primeros pasos: solo mientras falten estudiantes o evaluaciones en la sección */}
-                {datosCargados && estudiantesSeccion !== null && (estudiantesSeccion === 0 || seccionesFiltradas.length === 0) && !guiasCerradas.includes(seccionActiva) && (
+                {datosCargados && estudiantesMateria !== null && (estudiantesMateria === 0 || planificacion.secciones.length === 0) && guiasCerradas.length === 0 && (
                   <div className="rounded-2xl border border-[color:var(--c-818cf8)]/25 bg-gradient-to-br from-[color:var(--c-22234a)]/70 to-[color:var(--c-1d1e2e)] p-5">
-                    <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /><h3 className="text-sm font-semibold text-[color:var(--c-blanco)] flex-1">Primeros pasos · Sección {seccionActiva}</h3><button type="button" onClick={cerrarGuia} aria-label="Cerrar la guía" title="Cerrar la guía" className="p-1 -mr-1 rounded-lg text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] hover:bg-white/10 transition-colors"><X className="w-4 h-4" /></button></div>
+                    <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /><h3 className="text-sm font-semibold text-[color:var(--c-blanco)] flex-1">Primeros pasos</h3><button type="button" onClick={cerrarGuia} aria-label="Cerrar la guía" title="Cerrar la guía" className="p-1 -mr-1 rounded-lg text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-blanco)] hover:bg-white/10 transition-colors"><X className="w-4 h-4" /></button></div>
                     <p className="text-xs text-[color:var(--c-9a9bb0)] mt-1">Tres pasos y tus estudiantes tendrán su plan de evaluación.</p>
                     <ol className="mt-4 grid gap-2 sm:grid-cols-3">
                       {[
-                        { hecho: (estudiantesSeccion ?? 0) > 0, titulo: 'Agrega tus estudiantes', texto: (estudiantesSeccion ?? 0) > 0 ? `${estudiantesSeccion} en la sección` : 'Uno por uno o desde Excel', boton: 'Ir a Estudiantes', hacer: () => setVista('estudiantes') },
-                        { hecho: seccionesFiltradas.length > 0, titulo: 'Crea tu plan', texto: seccionesFiltradas.length > 0 ? `${seccionesFiltradas.length} evaluación(es)` : 'Pídeselo a EvaPlanner: «Hazme un plan de 4 evaluaciones»', boton: 'Abrir el chat', hacer: () => onAbrirChat?.() },
+                        { hecho: (estudiantesMateria ?? 0) > 0, titulo: 'Agrega tus estudiantes', texto: (estudiantesMateria ?? 0) > 0 ? `${estudiantesMateria} en la materia` : 'Uno por uno o desde Excel', boton: 'Ir a Estudiantes', hacer: () => setVista('estudiantes') },
+                        { hecho: planificacion.secciones.length > 0, titulo: 'Crea tu plan', texto: planificacion.secciones.length > 0 ? `${planificacion.secciones.length} evaluación(es)` : 'Pídeselo a EvaPlanner: «Hazme un plan de 4 evaluaciones»', boton: 'Abrir el chat', hacer: () => onAbrirChat?.() },
                         { hecho: false, titulo: 'Envíales el plan', texto: 'Con «Plan de Acción» generas el PDF y lo envías: cada estudiante lo ve en su cuenta.', boton: '', hacer: () => {} },
                       ].map((paso, i) => (
                         <li key={paso.titulo} className={`rounded-xl border p-3 flex flex-col gap-2 ${paso.hecho ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1b1c2b)]'}`}>

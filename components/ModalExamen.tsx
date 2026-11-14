@@ -1,4 +1,5 @@
 'use client';
+import Selector from '@/components/Selector';
 // Examen en línea de una evaluación (profesor): editor de preguntas + entregas de los estudiantes (corregir y publicar).
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -36,11 +37,11 @@ export function EditorPreguntas({ examen, onChange }: { examen: Examen; onChange
         <textarea value={examen.instrucciones} onChange={(e) => set({ instrucciones: e.target.value })} rows={2} placeholder="Instrucciones para el estudiante" className={`${campo} resize-y`} />
         <label className="text-[11px] text-[color:var(--c-8a8b9e)]">Duración (min)<input type="number" min={5} max={300} value={examen.duracionMin} onChange={(e) => set({ duracionMin: Number(e.target.value) || 0 })} className={`${campo} mt-1`} /></label>
         <label className="text-[11px] text-[color:var(--c-8a8b9e)]">Corrección
-          <select value={examen.modoCorreccion} onChange={(e) => set({ modoCorreccion: e.target.value as any })} className={`${campo} mt-1`}>
+          <Selector value={examen.modoCorreccion} onChange={(e) => set({ modoCorreccion: e.target.value as any })} className={`${campo} mt-1`}>
             <option value="sugerida">La IA sugiere, yo publico</option>
             <option value="profesor">Solo yo corrijo</option>
             <option value="automatica">Automática (se publica sola)</option>
-          </select>
+          </Selector>
         </label>
       </div>
       {examen.modoCorreccion === 'automatica' && examen.preguntas.some(p => !esObjetiva(p)) && (
@@ -51,9 +52,9 @@ export function EditorPreguntas({ examen, onChange }: { examen: Examen; onChange
           <li key={p.id} className="rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] p-3 space-y-2">
             <div className="flex items-center gap-2">
               <span className="w-6 h-6 rounded-lg bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-a5b4fc)] text-[11px] font-bold flex items-center justify-center">{i + 1}</span>
-              <select value={p.tipo} onChange={(e) => { const t = e.target.value as TipoPregunta; setP(i, { ...nuevaPregunta(t, i), id: p.id, enunciado: p.enunciado, puntos: p.puntos }); }} className="bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-lg px-2 py-1 text-[12px] text-[color:var(--c-c0c0d0)]">
+              <Selector value={p.tipo} onChange={(e) => { const t = e.target.value as TipoPregunta; setP(i, { ...nuevaPregunta(t, i), id: p.id, enunciado: p.enunciado, puntos: p.puntos }); }} className="bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-lg px-2 py-1 text-[12px] text-[color:var(--c-c0c0d0)]">
                 {(Object.keys(TIPOS_PREGUNTA) as TipoPregunta[]).map(t => <option key={t} value={t}>{TIPOS_PREGUNTA[t]}</option>)}
-              </select>
+              </Selector>
               <label className="ml-auto text-[11px] text-[color:var(--c-8a8b9e)] flex items-center gap-1">Puntos<input type="number" step={0.25} min={0} value={p.puntos} onChange={(e) => setP(i, { puntos: Number(e.target.value) || 0 })} className="w-16 bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] rounded-md px-1.5 py-1 text-[12px] text-[color:var(--c-e0e0ec)] text-right" /></label>
               <button type="button" onClick={() => set({ preguntas: examen.preguntas.filter((_, k) => k !== i) })} aria-label="Quitar pregunta" className="p-1.5 rounded-lg text-[color:var(--c-6a6b7e)] hover:text-red-300 hover:bg-red-500/10"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>

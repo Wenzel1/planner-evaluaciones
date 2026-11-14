@@ -434,3 +434,22 @@ html.claro ::selection { background: #dcdcfa; color: #18191b; }
 /* Filas de pestañas que se desplazan de lado sin mostrar barra (Planificador y panel del estudiante) */
 .sin-barra { scrollbar-width: none; -ms-overflow-style: none; }
 .sin-barra::-webkit-scrollbar { display: none; }
+
+/* La app es oscura: los controles que dibuja el navegador (listas desplegables, calendario y hora nativos,
+   barras de desplazamiento, autocompletado) también salen oscuros */
+:root { color-scheme: dark; }
+select option, select optgroup { background-color: #232428; color: #e5e6e7; }
+select option:checked { background-color: #2c4a73; color: #ffffff; }
+input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #e5e6e7; caret-color: #e5e6e7;
+  -webkit-box-shadow: 0 0 0 1000px #1e1f22 inset; transition: background-color 9999s;
+}
+input[type="file"]::file-selector-button { background: #2a2b30; color: #e5e6e7; border: 1px solid #393b40; border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+
+/* Nada se desplaza de lado por accidente (un elemento un poco más ancho no corre toda la página) */
+html, body { overflow-x: clip; }
+
+/* Casillas, opciones y deslizadores con el color de la app (en vez del azul o gris del navegador) */
+input[type="checkbox"], input[type="radio"], input[type="range"], progress { accent-color: #4f8bf0; }
+/* Ícono del calendario de los campos de fecha nativos: visible sobre fondo oscuro */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator, input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator { opacity: 0.7; cursor: pointer; }
