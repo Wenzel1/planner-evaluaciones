@@ -21,8 +21,8 @@ type Pestana = 'clases' | 'entregas' | 'calendario' | 'notas' | 'mensajes' | 'ch
 // 'chat' solo aparece en pantallas medianas y pequeñas (en las grandes el chat está siempre a la derecha)
 const PESTANAS: { id: Pestana; texto: string; icono: any; soloPequena?: boolean }[] = [
   { id: 'clases', texto: 'Mis clases', icono: BookOpen }, { id: 'entregas', texto: 'Entregas', icono: Upload },
-  { id: 'calendario', texto: 'Calendario', icono: CalendarDays }, { id: 'notas', texto: 'Calificaciones', icono: Award },
-  { id: 'mensajes', texto: 'Mensajes', icono: MessageSquare }, { id: 'chat', texto: 'Chat de la sección', icono: MessagesSquare, soloPequena: true },
+  { id: 'mensajes', texto: 'Mensajes', icono: MessageSquare }, { id: 'calendario', texto: 'Calendario', icono: CalendarDays },
+  { id: 'notas', texto: 'Calificaciones', icono: Award }, { id: 'chat', texto: 'Chat de la sección', icono: MessagesSquare, soloPequena: true },
 ];
 const TITULOS: Record<Pestana, string> = { clases: 'Mis clases', entregas: 'Entregas', calendario: 'Calendario', notas: 'Calificaciones', mensajes: 'Mensajes', chat: 'Chat de la sección', config: 'Configuración' };
 
@@ -163,12 +163,12 @@ export default function PanelEstudiante() {
   );
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[color:var(--c-12131d)]">
+    <div className="h-screen flex overflow-hidden bg-[color:var(--c-161722)]">
       {/* ---------- Menú lateral (computadora): solo íconos; se despliega al pasar el ratón ---------- */}
       <div className="hidden md:block relative w-[68px] flex-shrink-0 z-40">
         <motion.nav onMouseEnter={() => abrirMenu(true)} onMouseLeave={() => abrirMenu(false)} onFocus={() => setMenuAbierto(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setMenuAbierto(false); }}
           initial={false} animate={{ width: menuAbierto ? 232 : 68 }} transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-          className={`absolute inset-y-0 left-0 flex flex-col overflow-hidden border-r border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] ${menuAbierto ? 'shadow-2xl shadow-black/50' : ''}`}>
+          className={`absolute inset-y-0 left-0 flex flex-col overflow-hidden border-r border-[color:var(--c-282a3f)] bg-[color:var(--c-12131d)] ${menuAbierto ? 'shadow-2xl shadow-black/50' : ''}`}>
           <div className="h-14 flex-shrink-0 flex items-center gap-3 px-[14px] border-b border-[color:var(--c-282a3f)]">
             <span className="w-10 h-10 rounded-xl bg-[color:var(--c-818cf8)] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[color:var(--c-818cf8)]/20"><GraduationCap className="w-5 h-5 text-white" /></span>
             <span className={`min-w-0 transition-opacity duration-150 ${menuAbierto ? 'opacity-100' : 'opacity-0'}`}><span className="block text-sm font-semibold text-[color:var(--c-e0e0ec)] whitespace-nowrap">EvaPlanner</span><span className="block text-[10px] text-[color:var(--c-8a8b9e)] whitespace-nowrap">Estudiante</span></span>
@@ -207,7 +207,10 @@ export default function PanelEstudiante() {
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="h-14 flex-shrink-0 flex items-center gap-2 px-3 sm:px-5 border-b border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)]">
           <button type="button" onClick={() => setMenuMovil(true)} aria-label="Abrir el menú" className="md:hidden w-9 h-9 -ml-1 rounded-lg flex items-center justify-center text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-1d1e2e)]"><Menu className="w-5 h-5" /></button>
-          <h1 className="flex-1 min-w-0 truncate text-[15px] font-semibold text-[color:var(--c-e0e0ec)]">{conClases || pestana === 'config' ? TITULOS[pestana] : 'Mi panel'}</h1>
+          <h1 className="flex-1 min-w-0 flex items-center gap-2 text-[15px] font-semibold text-[color:var(--c-e0e0ec)]">
+            {(() => { const I = conClases || pestana === 'config' ? (PESTANAS.find(t => t.id === pestana)?.icono || Settings) : BookOpen; return <span className="w-8 h-8 rounded-lg bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 flex items-center justify-center flex-shrink-0"><I className="w-4 h-4 text-[color:var(--c-818cf8)]" /></span>; })()}
+            <span className="truncate">{conClases || pestana === 'config' ? TITULOS[pestana] : 'Mi panel'}</span>
+          </h1>
           <button type="button" onClick={() => { setVerUnirse(true); setAviso(null); }} title="Unirme a una clase" aria-label="Unirme a una clase" className="md:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10"><Plus className="w-[18px] h-[18px]" /></button>
           {/* Cuenta: solo la foto, con su menú */}
           <div className="relative flex-shrink-0">
@@ -273,7 +276,7 @@ export default function PanelEstudiante() {
           )}
 
           {/* Mis clases: la clase elegida */}
-          {conClases && pestana === 'clases' && actual?.token && <PortalVista key={actual.token} token={actual.token} embebido abrir={abrirEval} />}
+          {conClases && pestana === 'clases' && actual?.token && <PortalVista key={actual.token} token={actual.token} embebido abrir={abrirEval} cuenta={datos ? { id: datos.cuenta.id, avatarEn: datos.cuenta.avatarEn, nombre: datos.cuenta.nombre } : null} />}
 
           {/* Las demás pestañas: todas sus clases juntas */}
           {datos && pestana !== 'clases' && (conClases || pestana === 'config') && (

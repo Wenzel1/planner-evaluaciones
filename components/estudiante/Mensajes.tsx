@@ -92,7 +92,7 @@ export default function Mensajes({ datos, onLeidos }: { datos: Resumen; onLeidos
   return (
     <div className="space-y-4">
       <div><h1 className="text-xl font-semibold text-[color:var(--c-e0e0ec)]">Mensajes</h1><p className="text-sm text-[color:var(--c-8a8b9e)]">Tus conversaciones privadas: solo las ve el profesor de esa materia.</p></div>
-      <div ref={caja} className="h-[calc(100dvh-230px)] min-h-[460px] rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1d1e2e)] overflow-hidden">
+      <div ref={caja} className="h-[calc(100dvh-230px)] min-h-[460px] rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] overflow-hidden shadow-xl">
         {dos ? (
           <div className="h-full grid grid-cols-[300px_minmax(0,1fr)]">
             <div className="border-r border-[color:var(--c-282a3f)] min-h-0">{columnaLista}</div>

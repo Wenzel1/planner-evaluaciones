@@ -12,6 +12,7 @@ import { FranjaExamen, type InfoExamen } from '@/components/ExamenEstudiante';
 import { DescripcionEstudiante } from '@/components/DescripcionOrdenada';
 import { BloqueEntrega, BloqueMensajes, type EntregaInfo } from '@/components/EntregaEstudiante';
 import TutorEstudio from '@/components/TutorEstudio';
+import Avatar from '@/components/Avatar';
 
 interface Recurso { titulo: string; url: string }
 interface Nota { puntaje: number; observaciones: string | null; detalle: (number | null)[] | null }
@@ -98,13 +99,13 @@ const FONDO_NIVEL = ['bg-emerald-500/15 border-emerald-500/40', 'bg-sky-500/15 b
 
 // Vista del estudiante: su plan, recursos, rúbricas, notas, exámenes y entregas.
 // La usan la página con enlace (/e/<token>) y el panel de su cuenta (/estudiante), con el token de cada inscripción.
-export default function PortalVista({ token, embebido = false, abrir = null }: { token: string; embebido?: boolean; abrir?: { materiaId?: string; evaluacionId: string } | null }) {
+export default function PortalVista({ token, embebido = false, abrir = null, cuenta = null }: { token: string; embebido?: boolean; abrir?: { materiaId?: string; evaluacionId: string } | null; cuenta?: { id: string; avatarEn?: string | null; nombre: string } | null }) {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [error, setError] = useState('');
   const [materiaId, setMateriaId] = useState<string | null>(null);
   const [abierta, setAbierta] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => Date.now());
-  const [verPlan, setVerPlan] = useState(true); // el plan sale abierto al entrar
+  const [verPlan, setVerPlan] = useState(!embebido); // en el enlace sale abierto; en la cuenta del estudiante, cerrado (para no recargar)
 
   useEffect(() => {
     let vivo = true;
@@ -205,16 +206,58 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
         )}
       </AnimatePresence>
       {/* Celular: una sola columna. Computadora (lg): panel fijo a la izquierda con el estudiante y su resumen, evaluaciones a la derecha ocupando todo el ancho */}
-      <div className={`mx-auto px-4 sm:px-6 pb-16 lg:grid lg:gap-8 ${embebido ? 'max-w-6xl lg:grid-cols-[300px_minmax(0,1fr)]' : 'max-w-3xl lg:max-w-none lg:px-10 2xl:px-16 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] xl:gap-14'}`}>
-        <aside className={`lg:sticky lg:self-start lg:overflow-y-auto lg:pb-10 [scrollbar-width:none] ${embebido ? 'lg:top-0 lg:max-h-[calc(100vh-56px)]' : 'lg:top-0 lg:max-h-screen'}`}>
+      <div className={`mx-auto px-4 sm:px-6 pb-16 lg:grid lg:gap-8 ${embebido ? 'max-w-5xl !grid-cols-1 lg:!block' : 'max-w-3xl lg:max-w-none lg:px-10 2xl:px-16 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] xl:gap-14'}`}>
+        <aside className={`lg:sticky lg:self-start lg:overflow-y-auto lg:pb-10 [scrollbar-width:none] ${embebido ? 'lg:!static lg:!max-h-none lg:!overflow-visible lg:!pb-0' : 'lg:top-0 lg:max-h-screen'}`}>
           {embebido ? (
-            /* En el panel del estudiante: encabezado compacto de la clase (su nombre y su foto ya están arriba) */
-            <header className="pt-6 pb-4">
-              <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" />Mi plan de evaluación</p>
-              <h1 className="mt-1.5 text-2xl font-semibold text-[color:var(--c-e0e0ec)] leading-tight">{materia?.nombre || 'Mi clase'}</h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                <span className="px-2.5 py-1 rounded-full bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/35 text-[color:var(--c-c7d2fe)] font-semibold">Sección {datos.estudiante.seccion}</span>
-                <span className="text-[color:var(--c-8a8b9e)]">Prof. {datos.profesor}</span>
+            /* En la cuenta del estudiante: una tarjeta con la clase, su foto en grande y lo más importante de un vistazo */
+            <header className="pt-6 pb-5">
+              <div className="relative overflow-hidden rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] shadow-xl">
+                <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_left,rgba(129,140,248,0.16),transparent_60%)]" />
+                <div className="relative p-5 sm:p-6 flex items-start gap-5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-a5b4fc)] font-semibold flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" />Mi plan de evaluación</p>
+                    <h1 className="mt-1.5 text-2xl sm:text-[28px] font-bold text-[color:var(--c-e0e0ec)] leading-tight truncate">{materia?.nombre || 'Mi clase'}</h1>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="px-2.5 py-1 rounded-full bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/35 text-[color:var(--c-c7d2fe)] font-semibold">Sección {datos.estudiante.seccion}</span>
+                      <span className="text-[color:var(--c-9a9bb0)]">Prof. {datos.profesor}</span>
+                    </div>
+                    {materia && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <a href={pdfHref} className="h-8 px-3 rounded-lg border border-[color:var(--c-313248)] bg-[color:var(--c-161722)]/60 text-xs font-medium text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-818cf8)]/50 hover:text-[color:var(--c-e0e0ec)] flex items-center gap-1.5"><Download className="w-3.5 h-3.5" />PDF del plan</a>
+                        <a href={calHref} className="h-8 px-3 rounded-lg border border-[color:var(--c-313248)] bg-[color:var(--c-161722)]/60 text-xs font-medium text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-818cf8)]/50 hover:text-[color:var(--c-e0e0ec)] flex items-center gap-1.5"><CalendarPlus className="w-3.5 h-3.5" />A mi calendario</a>
+                      </div>
+                    )}
+                  </div>
+                  {/* Su foto en grande */}
+                  <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                    <div className="rounded-full p-1 bg-gradient-to-br from-[color:var(--c-818cf8)]/60 to-[color:var(--c-818cf8)]/10 shadow-lg shadow-black/30">
+                      <div className="rounded-full overflow-hidden ring-4 ring-[color:var(--c-1d1e2e)]"><Avatar id={cuenta?.id} version={cuenta?.avatarEn} nombre={cuenta?.nombre || datos.estudiante.nombre} tamano={88} /></div>
+                    </div>
+                    <p className="hidden sm:block max-w-[120px] text-center text-[11px] font-medium text-[color:var(--c-b0b0c4)] truncate">{(cuenta?.nombre || datos.estudiante.nombre).split(' ').slice(0, 2).join(' ')}</p>
+                  </div>
+                </div>
+                {/* Lo importante de un vistazo */}
+                {materia && (
+                  <div className="relative grid grid-cols-3 border-t border-[color:var(--c-282a3f)] divide-x divide-[color:var(--c-282a3f)] bg-[color:var(--c-191a26)]/60">
+                    <button type="button" disabled={!proxima} onClick={() => proxima && irA(proxima.id)} className="px-4 sm:px-5 py-3.5 text-left min-w-0 enabled:hover:bg-[color:var(--c-818cf8)]/[0.06] transition-colors">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-a5b4fc)] font-semibold">Próxima</p>
+                      {proxima && proxima.fecha
+                        ? <><p className="mt-1 text-[13px] font-semibold text-[color:var(--c-e0e0ec)] truncate">{proxima.nombre}</p><p className="text-[11px] text-[color:var(--c-9a9bb0)] truncate">{cuandoFalta(proxima.fecha, ahora)}</p></>
+                        : <p className="mt-1 text-[13px] text-[color:var(--c-9a9bb0)]">{total > 0 && realizadas === total ? '¡Terminaste todas!' : 'Sin fecha'}</p>}
+                    </button>
+                    <div className="px-4 sm:px-5 py-3.5 min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold">Avance</p>
+                      <p className="mt-1 text-lg font-bold text-[color:var(--c-e0e0ec)] leading-none">{realizadas}<span className="text-xs text-[color:var(--c-8a8b9e)] font-medium"> / {total}</span></p>
+                      <div className="mt-2 h-1.5 rounded-full bg-[color:var(--c-272839)] overflow-hidden"><div className="h-full rounded-full bg-[color:var(--c-818cf8)]" style={{ width: `${total ? (realizadas / total) * 100 : 0}%` }} /></div>
+                    </div>
+                    <div className="px-4 sm:px-5 py-3.5 min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold">Mi promedio</p>
+                      {materia.promedio != null
+                        ? <p className={`mt-1 text-lg font-bold leading-none ${materia.promedio >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(materia.promedio)}<span className="text-xs text-[color:var(--c-8a8b9e)] font-medium"> / 20</span></p>
+                        : <p className="mt-1 text-[13px] text-[color:var(--c-9a9bb0)]">Aún sin notas</p>}
+                    </div>
+                  </div>
+                )}
               </div>
             </header>
           ) : (
@@ -233,7 +276,7 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
           )}
 
           {datos.materias.length > 1 && (
-            <div className="flex lg:flex-col gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
+            <div className={`flex ${embebido ? '' : 'lg:flex-col'} gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1`}>
               {datos.materias.map(m => (
                 <button key={m.id} onClick={() => setMateriaId(m.id)} className={`shrink-0 h-9 px-4 rounded-xl text-sm font-medium border text-left transition-colors ${m.id === materia?.id ? 'bg-[color:var(--c-818cf8)] border-[color:var(--c-818cf8)] text-white' : 'bg-[color:var(--c-1c1d2a)] border-[color:var(--c-2a2b3d)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)]'}`}>{m.nombre}</button>
               ))}
@@ -242,10 +285,10 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
 
           {materia && (
             <>
-              {datos.materias.length === 1 && <p className="text-sm text-[color:var(--c-9a9bb0)] mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-[color:var(--c-818cf8)]" />{materia.nombre}</p>}
+              {!embebido && datos.materias.length === 1 && <p className="text-sm text-[color:var(--c-9a9bb0)] mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-[color:var(--c-818cf8)]" />{materia.nombre}</p>}
 
               {/* Resumen */}
-              <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-2 gap-3 mb-8 lg:mb-6">
+              {!embebido && <section className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-2 gap-3 mb-8 lg:mb-6">
                 <div className="sm:col-span-1 lg:col-span-2 rounded-2xl border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 p-4">
                   <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-a5b4fc)] font-semibold">Próxima evaluación</p>
                   {proxima && proxima.fecha ? (
@@ -255,22 +298,22 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
                     </button>
                   ) : <p className="mt-1.5 text-sm text-[color:var(--c-c7d2fe)]">{total > 0 && realizadas === total ? '¡Terminaste todas! 🎉' : 'Sin fecha por ahora'}</p>}
                 </div>
-                <div className="rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-4">
+                <div className="rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] p-4">
                   <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold">Avance</p>
                   <p className="mt-1.5 text-2xl font-bold text-[color:var(--c-blanco)]">{realizadas}<span className="text-base text-[color:var(--c-8a8b9e)] font-medium"> / {total}</span></p>
                   <div className="mt-2 h-1.5 rounded-full bg-[color:var(--c-272839)] overflow-hidden"><div className="h-full rounded-full bg-[color:var(--c-818cf8)]" style={{ width: `${total ? (realizadas / total) * 100 : 0}%` }} /></div>
                 </div>
-                <div className="rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-4">
+                <div className="rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] p-4">
                   <p className="text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold">Mi promedio</p>
                   {materia.promedio != null ? (
                     <p className={`mt-1.5 text-2xl font-bold ${materia.promedio >= 10 ? 'text-emerald-300' : 'text-red-300'}`}>{fNota(materia.promedio)}<span className="text-base text-[color:var(--c-8a8b9e)] font-medium"> / 20</span></p>
                   ) : <p className="mt-1.5 text-sm text-[color:var(--c-8a8b9e)]">Aún sin notas</p>}
                 </div>
                 <TarjetaMeta meta={calcularMeta(materia.evaluaciones)} />
-              </section>
+              </section>}
 
               {/* Solo en computadora: el lapso de un vistazo, para saltar a cada evaluación */}
-              <nav className="hidden lg:block rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-2 mb-6">
+              <nav className={`hidden ${embebido ? '' : 'lg:block'} rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] p-2 mb-6`}>
                 <p className="px-2 pt-1.5 pb-2 text-[11px] uppercase tracking-wider text-[color:var(--c-8a8b9e)] font-semibold">El lapso de un vistazo</p>
                 {lista.map(({ e, s }) => (
                   <button key={e.id} type="button" onClick={() => irA(e.id)} className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl text-left transition-colors hover:bg-[color:var(--c-232438)] ${abierta === e.id ? 'bg-[color:var(--c-232438)]' : ''}`}>
@@ -284,7 +327,7 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
                 ))}
               </nav>
 
-              <div className="hidden lg:flex flex-col gap-3">
+              <div className={`hidden ${embebido ? '' : 'lg:flex'} flex-col gap-3`}>
                 <a href={pdfHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)] font-medium hover:border-[color:var(--c-818cf8)]/50"><Download className="w-4 h-4" />Descargar en PDF</a>
                 <a href={calHref} className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d0d0da)] font-medium hover:border-[color:var(--c-818cf8)]/50"><CalendarPlus className="w-4 h-4" />Agregar a mi calendario</a>
                 {!embebido && <p className="text-xs text-[color:var(--c-6a6b7e)] text-center">🔒 Este enlace es solo tuyo. No lo compartas: muestra tus notas.</p>}
@@ -293,9 +336,9 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
           )}
         </aside>
 
-        <div className="min-w-0 lg:pt-12">
+        <div className={`min-w-0 ${embebido ? '' : 'lg:pt-12'}`}>
           {datos.materias.length === 0 && (
-            <div className="rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-8 text-center text-sm text-[color:var(--c-9a9bb0)]">Tu profesor todavía no ha publicado evaluaciones para tu sección.</div>
+            <div className="rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] p-8 text-center text-sm text-[color:var(--c-9a9bb0)]">Tu profesor todavía no ha publicado evaluaciones para tu sección.</div>
           )}
           {materia && (
             <>
@@ -401,7 +444,7 @@ export function OpinionPlan({ token, materia, onGuardada }: { token: string; mat
   };
 
   if (op && !editando) return (
-    <div className="mt-3 rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1c1d2a)] p-4 flex items-start gap-3">
+    <div className="mt-3 rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] p-4 flex items-start gap-3">
       <span className="text-xl leading-none mt-0.5">{op.deAcuerdo ? '👍' : '💬'}</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm text-[color:var(--c-blanco)] font-medium">{op.deAcuerdo ? 'Dijiste que estás de acuerdo con el plan.' : 'Le enviaste una sugerencia a tu profesor.'}</p>

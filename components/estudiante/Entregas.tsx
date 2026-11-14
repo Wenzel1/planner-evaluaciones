@@ -60,7 +60,7 @@ export default function Entregas({ datos, onCambio }: { datos: Resumen; onCambio
           const activo = filtro === f.id; const n = cuenta(f.id);
           return (
             <button key={f.id} type="button" onClick={() => { setFiltro(f.id); setSel(null); }}
-              className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${activo ? 'border-[color:var(--c-818cf8)]/45 bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1d1e2e)] hover:border-[color:var(--c-3a3b52)]'}`}>
+              className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${activo ? 'border-[color:var(--c-818cf8)]/45 bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] hover:border-[color:var(--c-3a3b52)]'}`}>
               <span className="flex items-center justify-between"><f.icono className="w-4 h-4" style={{ color: f.color }} /><span className={`text-lg font-semibold tabular-nums ${n ? 'text-[color:var(--c-e0e0ec)]' : 'text-[color:var(--c-5f6074)]'}`}>{n}</span></span>
               <span className={`block mt-1 text-[11px] font-medium truncate ${activo ? 'text-[color:var(--c-c7d2fe)]' : 'text-[color:var(--c-8a8b9e)]'}`}>{f.texto}</span>
             </button>
@@ -80,7 +80,7 @@ export default function Entregas({ datos, onCambio }: { datos: Resumen; onCambio
               return (
                 <li key={e.id}>
                   <button type="button" onClick={() => setSel(!dosColumnas && activa ? null : e.id)}
-                    className={`w-full rounded-xl border px-3.5 py-3 flex items-center gap-3 text-left transition-colors ${activa ? 'border-[color:var(--c-818cf8)]/40 bg-[color:var(--c-818cf8)]/[0.07]' : 'border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1d1e2e)] hover:border-[color:var(--c-3a3b52)]'}`}>
+                    className={`w-full rounded-xl border px-3.5 py-3 flex items-center gap-3 text-left transition-colors ${activa ? 'border-[color:var(--c-818cf8)]/40 bg-[color:var(--c-818cf8)]/[0.07]' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] hover:border-[color:var(--c-3a3b52)]'}`}>
                     <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-[13px] font-bold" style={{ background: colorDe(datos.grupos, e.grupo) + '33', color: colorDe(datos.grupos, e.grupo) }}>{(e.materia || '?').charAt(0).toUpperCase()}</span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-[13px] font-medium text-[color:var(--c-e0e0ec)] truncate">{limpiar(e.nombre)}</span>
@@ -121,7 +121,7 @@ function Detalle({ x, grupos, children }: { x: { e: Resumen['evaluaciones'][numb
   const { e, s } = x;
   const color = colorDe(grupos, e.grupo);
   return (
-    <div className="rounded-2xl border border-[color:var(--c-2a2b3d)] bg-[color:var(--c-1d1e2e)] overflow-hidden">
+    <div className="rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] overflow-hidden shadow-xl">
       <div className="px-5 pt-4 pb-4 border-b border-[color:var(--c-282a3f)]" style={{ backgroundImage: `linear-gradient(135deg, ${color}14, transparent 60%)` }}>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md" style={{ background: color + '22', color }}>{e.materia}</span>
