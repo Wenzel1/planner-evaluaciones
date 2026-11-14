@@ -12,7 +12,7 @@ import { DragDropSecciones } from '@/components/planificador/DragDropSecciones';
 import { EvaluacionesApiladas } from '@/components/planificador/EvaluacionesApiladas';
 import { CampanitaNotificacionesFlotante } from '@/components/planificador/Notificaciones';
 import { ErroresEvaluacion, EvaluacionFormulario, MateriaCorta, PanelDerechoHandle, PanelDerechoProps, PlanificacionExamen, SeccionExamen } from '@/components/planificador/tipos';
-import { BotonTema, Tooltip, VentanaFlotante } from '@/components/planificador/ui';
+import { Tooltip, VentanaFlotante } from '@/components/planificador/ui';
 import { planAccionHTML } from '@/components/planificador/planAccionHTML';
 import { useAvisosProfesor } from '@/components/planificador/useAvisosProfesor';
 import BandejaEntregas from '@/components/entregas/BandejaEntregas';
@@ -171,10 +171,13 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   };
   // Busca y asigna recursos (2 videos + 2 páginas) a las evaluaciones de la sección que aún no tienen
   const [llenandoRecursos, setLlenandoRecursos] = useState<{ hechas: number; total: number } | null>(null);
-  const recursosParaTodas = async () => {
-    const pendientes = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva && !(s.recursos?.length) && !['CANCELADA', 'REALIZADA'].includes(String(s.estado || '').toUpperCase()));
-    if (pendientes.length === 0) { agregarNotificacion(`📎 Todas las evaluaciones de la Sección ${seccionActiva} ya tienen recursos.`); return; }
-    if (!window.confirm(`Se buscarán videos y páginas para ${pendientes.length} evaluación(es) de la Sección ${seccionActiva} que no tienen recursos, y se asignarán 2 videos y 2 páginas a cada una. Luego puedes revisarlos en el botón 📎 de cada tarjeta. ¿Continuar?`)) return;
+  // auto: evaluaciones recién creadas (sin preguntar ni avisar si no hay nada que buscar)
+  const recursosParaTodas = async (auto = false, ids?: string[]) => {
+    if (llenandoRecursosRef.current) return;
+    const pendientes = planificacion.secciones.filter((s: SeccionExamen) => (ids ? ids.includes(s.id) : (s.grupoSeccion || 'A') === seccionActiva) && !(s.recursos?.length) && !['CANCELADA', 'REALIZADA'].includes(String(s.estado || '').toUpperCase()));
+    if (pendientes.length === 0) { if (!auto) agregarNotificacion(`📎 Todas las evaluaciones de la Sección ${seccionActiva} ya tienen recursos.`); return; }
+    if (!auto && !window.confirm(`Se buscarán videos y páginas para ${pendientes.length} evaluación(es) de la Sección ${seccionActiva} que no tienen recursos, y se asignarán 2 videos y 2 páginas a cada una. Luego puedes revisarlos en el botón 📎 de cada tarjeta. ¿Continuar?`)) return;
+    llenandoRecursosRef.current = true;
     setLlenandoRecursos({ hechas: 0, total: pendientes.length });
     const resumen: string[] = [];
     for (let i = 0; i < pendientes.length; i++) {
@@ -194,8 +197,32 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
       setLlenandoRecursos({ hechas: i + 1, total: pendientes.length });
     }
     setLlenandoRecursos(null);
-    agregarNotificacion(`📎 Recursos de la Sección ${seccionActiva}: ${resumen.join(' · ')}`);
+    llenandoRecursosRef.current = false;
+    agregarNotificacion(auto ? `📎 Busqué recursos de estudio para las evaluaciones nuevas: ${resumen.join(' · ')}` : `📎 Recursos de la Sección ${seccionActiva}: ${resumen.join(' · ')}`);
   };
+  const llenandoRecursosRef = useRef(false);
+  // Evaluaciones nuevas (creadas por EvaPlanner o a mano): se les buscan recursos solas, en cuanto quedan guardadas
+  const evaluacionesConocidas = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!datosCargados) return;
+    const guardadas = planificacion.secciones.filter((s: SeccionExamen) => esIdGuardado(s.id));
+    if (evaluacionesConocidas.current === null) { evaluacionesConocidas.current = new Set(guardadas.map(s => s.id)); return; }
+    const nuevas = guardadas.filter(s => !evaluacionesConocidas.current!.has(s.id));
+    if (!nuevas.length) return;
+    nuevas.forEach(s => { evaluacionesConocidas.current!.add(s.id); if (!(s.recursos?.length)) porBuscar.current.add(s.id); });
+    if (!porBuscar.current.size) return;
+    // Espera a que termine de guardarse todo (si el plan sigue cambiando, se vuelve a esperar)
+    if (temporizadorRecursos.current) clearTimeout(temporizadorRecursos.current);
+    temporizadorRecursos.current = setTimeout(() => {
+      const ids = [...porBuscar.current]; porBuscar.current.clear(); temporizadorRecursos.current = null;
+      recursosParaTodasRef.current(true, ids);
+    }, 2500);
+  }, [planificacion.secciones, datosCargados]); // eslint-disable-line react-hooks/exhaustive-deps
+  const porBuscar = useRef<Set<string>>(new Set());
+  const temporizadorRecursos = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // la versión más reciente de la función (ve el plan actualizado cuando se dispara el temporizador)
+  const recursosParaTodasRef = useRef(recursosParaTodas);
+  recursosParaTodasRef.current = recursosParaTodas;
   const copiarPlanASeccion = () => {
     const destino = copiaDestino;
     const origen = planificacion.secciones.filter((s: SeccionExamen) => (s.grupoSeccion || 'A') === seccionActiva && !tarjetasExcluidas.includes(s.id));
@@ -799,7 +826,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
           )}
         </AnimatePresence>
         <div data-tutorial="pestanas" className="order-last basis-full @2xl:order-none @2xl:basis-auto flex-1 min-w-0 flex items-center gap-1 md:gap-1.5 overflow-x-auto sin-barra -mx-1 px-1 @2xl:mx-0 @2xl:px-0">
-        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[color:var(--c-313248)] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 px-2.5 @5xl:px-3.5 py-2 rounded-xl text-[13px] @5xl:text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-1d1e2e)]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[color:var(--c-818cf8)]' : ''}`} /><span className={`relative z-10 ${vista === tab.id ? '' : 'hidden @max-2xl:inline @5xl:inline'}`}>{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
+        {tabs.map((tab, i) => (<div key={tab.id} className="flex items-center gap-1 md:gap-2 flex-shrink-0">{i > 0 && tabs[i - 1].grupo !== tab.grupo && (<span className="w-px h-6 bg-[color:var(--c-313248)] mx-1" aria-hidden="true" />)}<motion.button onClick={() => setVista(tab.id)} title={tab.label} aria-label={tab.label} className={`relative flex items-center gap-1.5 px-2.5 @5xl:px-3.5 py-2 rounded-xl text-[13px] @5xl:text-sm font-medium transition-all duration-300 font-['Inter'] whitespace-nowrap ${vista === tab.id ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/10' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-1d1e2e)]'}`}>{vista === tab.id && (<motion.div layoutId="activeTab" className="absolute inset-0 bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/20 rounded-xl" transition={{ type: 'spring', stiffness: 500, damping: 35 }} />)}<tab.icon className={`relative z-10 w-4 h-4 transition-colors ${vista === tab.id ? 'text-[color:var(--c-818cf8)]' : ''}`} /><span className="relative z-10">{tab.label}</span>{(tab.badge ?? 0) > 0 && (<span className="relative z-10 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{tab.badge}</span>)}</motion.button></div>))}
         </div>
         {/* Botón de configuración junto a la campanita */}
         <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2 ml-auto">
@@ -813,26 +840,20 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
               </button>
             </Tooltip>
           )}
-          <BotonTema />
           <CampanitaNotificacionesFlotante notificaciones={notificaciones} setNotificaciones={setNotificaciones} campanaActiva={campanaActiva} setCampanaActiva={setCampanaActiva} />
           {usuario && (
             <div className="flex items-center gap-2 pl-2 ml-1 border-l border-[color:var(--c-282a3f)]">
               {/* Menú de la cuenta: Mi perfil, Papelera y Cerrar sesión */}
               <div className="relative">
-                <button onClick={() => setMenuCuenta(v => !v)} aria-expanded={menuCuenta} title="Mi cuenta" className={`flex items-center gap-2 px-1.5 py-1 rounded-xl transition-colors ${menuCuenta || vista === 'perfil' || vista === 'papelera' ? 'bg-[color:var(--c-818cf8)]/10' : 'hover:bg-[color:var(--c-1d1e2e)]'}`}>
-                  <Avatar id={usuario.id} version={usuario.avatarEn} nombre={usuario.nombre} tamano={30} />
-                  <div className="hidden md:flex flex-col items-start leading-tight">
-                    <span className="text-xs font-medium text-[color:var(--c-d0d0da)] max-w-[140px] truncate">{usuario.nombre}</span>
-                    <span className={`text-[10px] uppercase tracking-wider ${COLOR_TEXTO_ROL[usuario.rol] || 'text-[color:var(--c-818cf8)]'}`}>{usuario.rol}</span>
-                  </div>
-                  <ChevronDown className={`hidden md:block w-3.5 h-3.5 text-[color:var(--c-8a8b9e)] transition-transform ${menuCuenta ? 'rotate-180' : ''}`} />
+                <button onClick={() => setMenuCuenta(v => !v)} aria-expanded={menuCuenta} title={`${usuario.nombre} · Mi cuenta`} className={`flex items-center p-1 rounded-full transition-colors ${menuCuenta || vista === 'perfil' || vista === 'papelera' ? 'bg-[color:var(--c-818cf8)]/10' : 'hover:bg-[color:var(--c-1d1e2e)]'}`}>
+                  <Avatar id={usuario.id} version={usuario.avatarEn} nombre={usuario.nombre} tamano={32} />
                 </button>
                 <AnimatePresence>
                   {menuCuenta && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setMenuCuenta(false)} aria-hidden="true" />
                       <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }} role="menu" className="absolute right-0 top-12 z-50 w-56 bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-1.5">
-                        <div className="px-3 py-2 border-b border-[color:var(--c-282a3f)] mb-1"><p className="text-sm font-medium text-[color:var(--c-e0e0ec)] truncate">{usuario.nombre}</p><p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">{usuario.email}</p></div>
+                        <div className="px-3 py-2 border-b border-[color:var(--c-282a3f)] mb-1"><p className="text-sm font-medium text-[color:var(--c-e0e0ec)] truncate">{usuario.nombre}</p><p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">{usuario.email}</p><p className={`text-[10px] uppercase tracking-wider mt-0.5 ${COLOR_TEXTO_ROL[usuario.rol] || ''}`}>{usuario.rol === 'USUARIO' ? 'Profesor(a)' : usuario.rol === 'ADMIN' ? 'Administrador' : 'Superadmin'}</p></div>
                         <button type="button" role="menuitem" onClick={() => { setMenuCuenta(false); setVista('perfil'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)]"><User className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Mi perfil</button>
                         <button type="button" role="menuitem" onClick={() => { setMenuCuenta(false); setVista('papelera'); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)]"><Trash2 className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Papelera</button>
                         <div className="h-px bg-[color:var(--c-282a3f)] my-1" />
@@ -892,7 +913,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                 {!esSuperadmin && <div data-tutorial="bandeja"><BandejaEntregas linea materiaId={materiaActivaId ?? null} onVerTodo={() => setVista('entregas')} /></div>}
                 <AnimatePresence>
                   {ventanaFormularios && (
-                    <VentanaFlotante onCerrar={cerrarFormularios} ancho="max-w-5xl">
+                    <VentanaFlotante onCerrar={cerrarFormularios} ancho="max-w-6xl">
                       <div ref={tarjetaRef} className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-4 sm:p-6 space-y-4">
                         <div className="flex items-start gap-3">
                           <div className="flex-1 min-w-0">

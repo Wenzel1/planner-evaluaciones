@@ -104,15 +104,14 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
               </div>
             )}
             <div className="flex-1 min-h-0 relative">
-              {archivo ? <VistaArchivo key={`${e.id}:${archivo.id}`} fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} nombre={archivo.nombre} tamano={archivo.tamano} />
+              {archivo ? <VistaArchivo key={`${e.id}:${archivo.id}`} fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} nombre={archivo.nombre} tamano={archivo.tamano} compacta />
                 : e.url ? <TarjetaEnlace url={e.url} />
                 : <p className="absolute inset-0 flex items-center justify-center text-sm text-[color:var(--c-8a8b9e)]">Esta entrega no tiene archivos.</p>}
             </div>
-            {e.comentario && <p className="px-4 py-2.5 text-xs text-[color:var(--c-c0c0d0)] border-t border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] flex-shrink-0"><MessageSquare className="w-3.5 h-3.5 inline mr-1.5 text-[color:var(--c-a5b4fc)]" /><b className="text-[color:var(--c-d0d0da)]">Comentario del estudiante:</b> {e.comentario}</p>}
           </div>
 
           {/* Revisión */}
-          <div className="lg:w-[380px] flex-shrink-0 overflow-y-auto">
+          <div className="lg:w-[420px] flex-shrink-0 overflow-y-auto flex flex-col">
             <PanelRevision key={e.id} e={e} rubrica={rubricas[e.evaluacion.id] ?? null} onActualizar={(c) => onActualizar(e.id, c)}
               onSiguiente={i < entregas.length - 1 ? () => setI(i + 1) : undefined} />
           </div>
@@ -192,7 +191,8 @@ function PanelRevision({ e, rubrica, onActualizar, onSiguiente }: { e: EntregaBa
 
   const etiqueta = 'text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)]';
   return (
-    <div className="p-4 space-y-5">
+    <div className="p-4 space-y-5 flex flex-col flex-1 min-h-full">
+      {e.comentario && <p className="text-xs text-[color:var(--c-c0c0d0)] rounded-xl bg-[color:var(--c-161722)] border border-[color:var(--c-282a3f)] px-3 py-2.5"><MessageSquare className="w-3.5 h-3.5 inline mr-1.5 text-[color:var(--c-a5b4fc)]" /><b className="text-[color:var(--c-d0d0da)]">Comentario del estudiante:</b> {e.comentario}</p>}
       {/* Nota */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -293,9 +293,9 @@ function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos }: { evaluacio
     } catch (e: any) { setError(e.message); } finally { setEnviando(false); setProgreso(null); }
   };
   return (
-    <section className="space-y-2">
+    <section className="flex-1 flex flex-col gap-2 min-h-[340px]">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)] flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" />Mensajes privados</p>
-      <div className="rounded-xl border border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] p-2.5 max-h-72 overflow-y-auto space-y-2">
+      <div className="flex-1 min-h-[220px] rounded-xl border border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] p-2.5 overflow-y-auto space-y-2">
         {lista === null ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-3">Cargando…</p>
           : lista.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-3">Sin mensajes. Escríbele, envíale un archivo o una nota de voz.</p>
           : lista.map(m => {

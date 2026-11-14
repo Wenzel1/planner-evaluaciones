@@ -140,7 +140,7 @@ export function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvalu
       {/* ---- CAMPOS NUMÉRICOS (sin validación SE, solo números) ---- */}
       <div className="flex gap-2 items-end flex-wrap">
                 <div
-          className="w-[180px] flex-shrink-0"
+          className="w-[160px] flex-shrink-0"
           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) validarCampoAlBlur('enfoque', ev.enfoque); }}
         >
           <label className={`${labelBase} ${ev.errores?.enfoque ? 'text-red-400' : ''}`}>Enfoque/actividad</label>
@@ -164,7 +164,7 @@ export function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvalu
             )}
           </AnimatePresence>
         </div>
-        <div className="w-[120px] flex-shrink-0">
+        <div className="w-[108px] flex-shrink-0">
           <label className={`${labelBase} text-center`}>Duración</label>
           <div className="flex">
             <input type="number" value={ev.duracionMinutos ?? ''} onChange={(e) => setEv({...ev, duracionMinutos: e.target.value ? parseInt(e.target.value) : null})} className="flex-1 min-w-0 h-12 px-2.5 bg-[color:var(--c-1f2035)] border border-r-0 border-[color:var(--c-313248)] rounded-l-xl text-sm text-[color:var(--c-d8d8e2)] placeholder-[color:var(--c-6a6b7e)] focus:border-[color:var(--c-818cf8)]/40 outline-none transition-all duration-200 font-['Inter'] text-center" placeholder="0" />
@@ -174,8 +174,8 @@ export function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvalu
             </select>
           </div>
         </div>
-        <div className="w-[88px] flex-shrink-0"><label className={`${labelBase} text-center`}>Pond.</label><div className="relative"><input type="number" min={0} max={100} value={ev.peso ?? ''} onChange={(e) => { const v = e.target.value ? Math.min(100, Math.max(0, parseInt(e.target.value))) : null; setEv({...ev, peso: v}); }} className={`${smallInput} pr-9`} placeholder="0" /><span className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none"><span className="text-[11px] font-bold text-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 px-1.5 py-0.5 rounded-md">%</span></span></div></div>
-                <div className="w-[72px] flex-shrink-0">
+        <div className="w-[78px] flex-shrink-0"><label className={`${labelBase} text-center`}>Pond.</label><div className="relative"><input type="number" min={0} max={100} value={ev.peso ?? ''} onChange={(e) => { const v = e.target.value ? Math.min(100, Math.max(0, parseInt(e.target.value))) : null; setEv({...ev, peso: v}); }} className={`${smallInput} pr-9`} placeholder="0" /><span className="absolute inset-y-0 right-0 flex items-center pr-1.5 pointer-events-none"><span className="text-[11px] font-bold text-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 px-1.5 py-0.5 rounded-md">%</span></span></div></div>
+                <div className="w-[64px] flex-shrink-0">
           <label className={`${labelBase} text-center`}>Grupos</label>
           <input
             type="number"
@@ -191,7 +191,7 @@ export function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvalu
             placeholder="#"
           />
         </div>
-        <div className="w-[88px] flex-shrink-0">
+        <div className="w-[76px] flex-shrink-0">
           <label className={`${labelBase} text-center`}>Pers/Grupo</label>
           <input
             type="number"
@@ -226,11 +226,11 @@ export function EvaluacionesApiladas({ evaluacion1, setEvaluacion1, guardarEvalu
             )}
           </div>
         </div>
-        <div className="flex-shrink-0 w-[296px] max-w-full">
+        <div className="flex-shrink-0 w-[272px] max-w-full">
           <label className={labelBase}>Fecha y hora</label>
           <div className="flex gap-2">
-            <div className="w-[166px]"><DatePicker value={ev.fecha} minimo={new Date()} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
-            <div className="w-[122px]"><TimePicker value={ev.fecha} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
+            <div className="w-[152px]"><DatePicker value={ev.fecha} minimo={new Date()} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
+            <div className="w-[112px]"><TimePicker value={ev.fecha} onChange={(d: Date) => setEv({...ev, fecha: d})} /></div>
           </div>
         </div>
       </div>

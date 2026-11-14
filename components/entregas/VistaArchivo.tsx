@@ -11,7 +11,7 @@ import { categoria, estiloDe, extension, tamanoLegible } from './tiposArchivo';
 import { conModo, enlacesGuardados, precargarArchivo, preconectar, type Enlaces } from './enlaces';
 export { precargarArchivo };
 
-export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: string; nombre: string; tamano?: number | null }) {
+export default function VistaArchivo({ fuente, nombre, tamano, compacta = false }: { fuente: string; nombre: string; tamano?: number | null; compacta?: boolean }) {
   const cat = categoria(nombre);
   // Word, Excel y PowerPoint se ven con el visor de Microsoft Office (por defecto). Word (.docx) y Excel (.xlsx)
   // tienen además una "Vista rápida" que los dibuja en el navegador, por si Office tarda.
@@ -37,12 +37,13 @@ export default function VistaArchivo({ fuente, nombre, tamano }: { fuente: strin
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Barra del archivo */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] flex-shrink-0">
-        <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${est.fondo}`}><Icono className={`w-4 h-4 ${est.color}`} /></span>
-        <div className="min-w-0 flex-1">
+      <div className={`flex items-center gap-2 border-b border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] flex-shrink-0 ${compacta ? 'px-2 py-1' : 'px-3 py-2'}`}>
+        {!compacta && <span className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${est.fondo}`}><Icono className={`w-4 h-4 ${est.color}`} /></span>}
+        <div className={`min-w-0 flex-1 ${compacta ? 'hidden' : ''}`}>
           <p className="text-sm font-medium text-[color:var(--c-e0e0ec)] truncate" title={nombre}>{nombre}</p>
           <p className="text-[10px] text-[color:var(--c-8a8b9e)]">{est.nombre}{tamano ? ` · ${tamanoLegible(tamano)}` : ''}{usaOffice ? ' · vista de Microsoft Office' : ''}</p>
         </div>
+        {compacta && <span className="flex-1 text-[11px] text-[color:var(--c-6a6b7e)] truncate pl-1">{usaOffice ? 'Vista de Microsoft Office' : est.nombre}{tamano ? ` · ${tamanoLegible(tamano)}` : ''}</span>}
         {rapida && enlaces && (
           <button type="button" onClick={() => setConOffice(v => !v)} className="h-8 px-2.5 rounded-lg text-xs font-medium text-[color:var(--c-c7d2fe)] border border-[color:var(--c-313248)] hover:bg-[color:var(--c-818cf8)]/10 flex items-center gap-1.5" title={conOffice ? 'Vista rápida: se dibuja en tu navegador, sin esperar a Microsoft' : 'Volver al visor de Microsoft Office'}>
             {conOffice ? <><Zap className="w-3.5 h-3.5" /><span className="hidden sm:inline">Vista rápida</span></> : <><ExternalLink className="w-3.5 h-3.5" /><span className="hidden sm:inline">Ver con Microsoft Office</span><span className="sm:hidden">Office</span></>}

@@ -718,8 +718,7 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
             traePropuesta = true;
             const prop = propuestaDeAccion(ev.accion);
             setPropuestaPendienteLocal(prop); // para que "sí" escrito también la guarde
-            // Vista previa: la propuesta aparece sola en los formularios (sin guardar). Si estás escribiendo algo a mano, no se pisa.
-            if (!formulariosLibres || formulariosLibres()) { setPropuestaPendiente(prop); if (!esMovil) setVistaPanel('planificacion'); }
+            // La propuesta queda en el chat: los formularios solo se abren con «Ver y ajustar en formularios»
           }
           const sola = ACCIONES_AUTOMATICAS.includes(ev.accion.tipo) || (modoAutoRef.current && !traePropuesta && ACCIONES_SEGURAS.includes(ev.accion.tipo));
           if (sola) { const acc = { ...ev.accion, estado: 'pendiente' as const, automatica: true }; setTimeout(() => ejecutarAccion(idAgente, acc), 60); }
@@ -1281,7 +1280,8 @@ export function AgentePanel({ materias = [], onCambiarMateria, onCambiarSeccion,
             <Tooltip text="Nueva conversación" lado="abajo"><button onClick={nuevaConversacion} aria-label="Nueva conversación" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><Plus className="w-4 h-4" /></button></Tooltip>
             <Tooltip text="Conversaciones anteriores" lado="abajo"><button onClick={() => { const abrir = !verHistorial; setVerHistorial(abrir); if (abrir) cargarConversaciones(); }} aria-label="Conversaciones anteriores" className={`p-2 rounded-lg transition-colors ${verHistorial ? 'text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/15' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15'}`}><History className="w-4 h-4" /></button></Tooltip>
             {esSuperadmin && (<Tooltip text="Configuración del agente" lado="abajo"><button onClick={() => irAPanel('sistema')} aria-label="Configuración del agente" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><Settings className="w-4 h-4" /></button></Tooltip>)}
-            <Tooltip text="Planificador de evaluaciones" lado="abajo"><button onClick={() => irAPanel('planificacion')} aria-label="Planificador de evaluaciones" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><ClipboardList className="w-4 h-4" /></button></Tooltip>
+            {/* Solo el superadmin lo necesita: no tiene la pestaña Planificador (los profesores ya la tienen arriba) */}
+            {esSuperadmin && <Tooltip text="Planificador de evaluaciones" lado="abajo"><button onClick={() => irAPanel('planificacion')} aria-label="Planificador de evaluaciones" className="p-2 text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 rounded-lg transition-colors"><ClipboardList className="w-4 h-4" /></button></Tooltip>}
           </div>
           <Tooltip text={esMovil ? 'Ocultar chat' : 'Ocultar chat (Ctrl+B)'} lado="abajo" alinear="derecha"><motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.92 }} onClick={() => setExpandido(false)} aria-label="Ocultar el chat" className="group/ocultar w-9 h-9 flex items-center justify-center rounded-xl border border-[color:var(--c-818cf8)]/25 bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-a5b4fc)] hover:text-white hover:border-[color:var(--c-818cf8)]/60 hover:from-[color:var(--c-818cf8)]/40 hover:to-[color:var(--c-6366f1)]/25 hover:shadow-lg hover:shadow-[color:var(--c-818cf8)]/25 transition-all"><PanelLeftClose className="w-[18px] h-[18px] transition-transform duration-200 group-hover/ocultar:-translate-x-0.5" /></motion.button></Tooltip>
         </div>

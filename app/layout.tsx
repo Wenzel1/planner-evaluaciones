@@ -16,7 +16,8 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('tema')==='claro')document.documentElement.classList.add('claro')}catch(e){}" }} />
+        {/* Solo tema oscuro: si alguien tenía guardado el claro, se olvida */}
+        <script dangerouslySetInnerHTML={{ __html: "try{localStorage.removeItem('tema');document.documentElement.classList.remove('claro')}catch(e){}" }} />
       </head>
       <body className="font-sans antialiased">
         <Providers>{children}</Providers>
