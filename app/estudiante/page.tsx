@@ -1,23 +1,24 @@
 'use client';
-// Panel del estudiante (cuenta propia, rol ESTUDIANTE): sus clases, unirse con un código de clase
-// y, de cada clase, todo lo que antes veía por su enlace personal (plan, recursos, notas, exámenes y entregas).
-import { useEffect, useState } from 'react';
-import { GraduationCap, LogOut, KeyRound, Plus, Hourglass, Sun, Moon, X, Home, BookOpen, CalendarDays, Upload, Award, MessageSquare, Settings } from 'lucide-react';
+// Panel del estudiante (cuenta propia, rol ESTUDIANTE). Como el del profesor:
+// a la izquierda el Asistente de estudio; a la derecha una barra con las pestañas y su cuenta, y el contenido.
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LogOut, KeyRound, Plus, Hourglass, X, Home, BookOpen, CalendarDays, Upload, Award, MessageSquare, Settings, Bot, PanelLeftOpen } from 'lucide-react';
 import PortalVista from '@/components/PortalVista';
-import Avatar, { EditorAvatar } from '@/components/Avatar';
+import Avatar from '@/components/Avatar';
 import Inicio from '@/components/estudiante/Inicio';
 import Calendario from '@/components/estudiante/Calendario';
 import Entregas from '@/components/estudiante/Entregas';
 import Calificaciones from '@/components/estudiante/Calificaciones';
 import Mensajes from '@/components/estudiante/Mensajes';
 import Configuracion from '@/components/estudiante/Configuracion';
+import Asistente from '@/components/estudiante/Asistente';
 import { type Resumen, estadoEntrega } from '@/components/estudiante/comun';
 
 type Pestana = 'inicio' | 'clases' | 'calendario' | 'entregas' | 'notas' | 'mensajes' | 'config';
 const PESTANAS: { id: Pestana; texto: string; icono: any }[] = [
   { id: 'inicio', texto: 'Inicio', icono: Home }, { id: 'clases', texto: 'Mis clases', icono: BookOpen }, { id: 'calendario', texto: 'Calendario', icono: CalendarDays },
   { id: 'entregas', texto: 'Entregas', icono: Upload }, { id: 'notas', texto: 'Calificaciones', icono: Award }, { id: 'mensajes', texto: 'Mensajes', icono: MessageSquare },
-  { id: 'config', texto: 'Configuración', icono: Settings },
 ];
 
 interface Clase { id: string; estado: 'ACTIVO' | 'PENDIENTE' | 'INACTIVO'; profesor: string; materia: string | null; seccion: string; token: string | null }
@@ -25,17 +26,20 @@ interface Panel { cuenta: { id: string; nombre: string; email: string; avatarEn?
 
 export default function PanelEstudiante() {
   const [datos, setDatos] = useState<Panel | null>(null);
-  const [verPerfil, setVerPerfil] = useState(false);
   const [error, setError] = useState('');
   const [activa, setActiva] = useState<string | null>(null);
   const [codigo, setCodigo] = useState('');
   const [uniendo, setUniendo] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
   const [verUnirse, setVerUnirse] = useState(false);
-  const [claro, setClaro] = useState(false);
+  const [menuCuenta, setMenuCuenta] = useState(false);
+  // Asistente: panel a la izquierda en computadora (se recuerda si lo ocultó); ventana completa en el teléfono
+  const [asistente, setAsistente] = useState(true);
+  const [asistenteMovil, setAsistenteMovil] = useState(false);
+  const contenido = useRef<HTMLDivElement>(null);
   // Pestañas del panel (se recuerda la última) y el resumen de todas sus clases
   const [pestana, setPestanaEstado] = useState<Pestana>('inicio');
-  const setPestana = (p: Pestana) => { setPestanaEstado(p); try { localStorage.setItem('pestanaEstudiante', p); } catch { /* sin almacenamiento */ } window.scrollTo({ top: 0 }); };
+  const setPestana = (p: Pestana) => { setPestanaEstado(p); setMenuCuenta(false); try { localStorage.setItem('pestanaEstudiante', p); } catch { /* sin almacenamiento */ } contenido.current?.scrollTo({ top: 0 }); };
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [abrirEval, setAbrirEval] = useState<{ materiaId?: string; evaluacionId: string } | null>(null);
   const cargarResumen = async () => {
@@ -43,14 +47,19 @@ export default function PanelEstudiante() {
     if (r?.ok) setResumen(await r.json());
   };
   useEffect(() => {
-    try { const p = localStorage.getItem('pestanaEstudiante') as Pestana | null; if (p && PESTANAS.some(x => x.id === p)) setPestanaEstado(p); } catch { /* sin almacenamiento */ }
+    try {
+      const p = localStorage.getItem('pestanaEstudiante') as Pestana | null;
+      if (p && (PESTANAS.some(x => x.id === p) || p === 'config')) setPestanaEstado(p);
+      if (localStorage.getItem('asistenteEstudiante') === 'oculto') setAsistente(false);
+    } catch { /* sin almacenamiento */ }
     cargarResumen();
     const t = setInterval(cargarResumen, 60000);
     return () => clearInterval(t);
   }, []);
   useEffect(() => { if (pestana !== 'clases') cargarResumen(); }, [pestana]);
+  const mostrarAsistente = (v: boolean) => { setAsistente(v); try { localStorage.setItem('asistenteEstudiante', v ? 'visible' : 'oculto'); } catch { /* sin almacenamiento */ } };
   // Desde Inicio, Calendario, Entregas o Calificaciones: abrir esa clase (y esa evaluación) en "Mis clases"
-  const abrirEnClase = ({ claseId, materiaId, evaluacionId }: { claseId: string; materiaId?: string; evaluacionId: string }) => {
+  const abrirEnClase = ({ claseId, evaluacionId, materiaId }: { claseId: string; materiaId?: string; evaluacionId: string }) => {
     setActiva(claseId);
     setAbrirEval(evaluacionId ? { materiaId, evaluacionId } : null);
     setPestana('clases');
@@ -86,13 +95,12 @@ export default function PanelEstudiante() {
       setAviso({ tipo: 'ok', texto: d.estado === 'PENDIENTE' ? `Listo: le pediste unirte a ${d.materia} (Sección ${d.seccion}). Tu profesor(a) ${d.profesor} debe aceptarte.` : `¡Te uniste a ${d.materia}, Sección ${d.seccion}!` });
       setCodigo(''); setVerUnirse(false);
       try { localStorage.removeItem('codigoClasePendiente'); } catch { /* sin almacenamiento */ }
-      await cargar();
+      await cargar(); await cargarResumen();
     } catch (e: any) { setAviso({ tipo: 'error', texto: e.message }); }
     finally { setUniendo(false); }
   };
 
   useEffect(() => {
-    setClaro(document.documentElement.classList.contains('claro'));
     // Si se registró con un código de clase (o abrió el enlace de invitación), se une sola al entrar
     cargar().then(() => {
       let pendiente = '';
@@ -103,12 +111,6 @@ export default function PanelEstudiante() {
     return () => clearInterval(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cambiarTema = () => {
-    const nuevo = !document.documentElement.classList.contains('claro');
-    document.documentElement.classList.toggle('claro', nuevo);
-    try { localStorage.setItem('tema', nuevo ? 'claro' : 'oscuro'); } catch { /* sin almacenamiento */ }
-    setClaro(nuevo);
-  };
   const salir = async () => { await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {}); window.location.replace('/login'); };
 
   const clases = datos?.clases || [];
@@ -119,108 +121,138 @@ export default function PanelEstudiante() {
     entregas: resumen.evaluaciones.filter(e => ['pendiente', 'atrasada', 'por_corregir'].includes(estadoEntrega(e) || '')).length,
     mensajes: resumen.evaluaciones.reduce((t, e) => t + e.mensajesNuevos, 0),
   } : {};
+  const conClases = !!datos && aceptadas.length > 0;
+  const nombre = datos?.cuenta.nombre || '';
 
   return (
-    <div className="min-h-screen bg-[color:var(--c-13141d)]">
-      {/* Mi perfil: foto */}
-      {verPerfil && datos && (
-        <div className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setVerPerfil(false); }}>
-          <div className="w-full max-w-md bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between"><p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Mi perfil</p><button type="button" onClick={() => setVerPerfil(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)]"><X className="w-4 h-4" /></button></div>
-            <EditorAvatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={datos.cuenta.nombre} onCambio={(v) => setDatos(d => (d ? { ...d, cuenta: { ...d.cuenta, avatarEn: v } } : d))} />
-            <div className="text-xs text-[color:var(--c-8a8b9e)] border-t border-[color:var(--c-282a3f)] pt-3"><p className="text-[color:var(--c-d0d0da)] font-medium">{datos.cuenta.nombre}</p><p>{datos.cuenta.email}</p></div>
-          </div>
-        </div>
-      )}
-      {/* Barra superior */}
-      <header className="sticky top-0 z-40 bg-[color:var(--c-161722)]/95 backdrop-blur border-b border-[color:var(--c-282a3f)]">
-        <div className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 h-16 flex items-center gap-3">
-          {datos ? <button type="button" onClick={() => setPestana('config')} title="Mi perfil y configuración" className="rounded-full ring-2 ring-transparent hover:ring-[color:var(--c-818cf8)]/50 transition"><Avatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={datos.cuenta.nombre} tamano={44} /></button>
-            : <div className="w-8 h-8 rounded-lg bg-[color:var(--c-272839)] flex items-center justify-center"><GraduationCap className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></div>}
-          <div className="min-w-0 flex-1">
-            <p className="text-base font-semibold text-[color:var(--c-e0e0ec)] truncate">{datos?.cuenta.nombre || 'Mi panel'}</p>
-            <p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">Estudiante · {datos?.cuenta.email}</p>
-          </div>
-          <button onClick={() => { setVerUnirse(true); setAviso(null); }} className="hidden sm:flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-[color:var(--c-818cf8)]/15 border border-[color:var(--c-818cf8)]/35 text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/25"><Plus className="w-4 h-4" />Unirme a una clase</button>
-          <button onClick={() => { setVerUnirse(true); setAviso(null); }} aria-label="Unirme a una clase" className="sm:hidden w-9 h-9 flex items-center justify-center rounded-xl text-[color:var(--c-c7d2fe)] bg-[color:var(--c-818cf8)]/15"><Plus className="w-4 h-4" /></button>
-          <button onClick={cambiarTema} aria-label={claro ? 'Modo oscuro' : 'Modo claro'} className="w-9 h-9 flex items-center justify-center rounded-xl text-[color:var(--c-8a8b9e)] hover:text-amber-300 hover:bg-[color:var(--c-1d1e2e)]">{claro ? <Moon className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}</button>
-          <button onClick={salir} aria-label="Cerrar sesión" className="w-9 h-9 flex items-center justify-center rounded-xl text-[color:var(--c-8a8b9e)] hover:text-red-400 hover:bg-red-500/10"><LogOut className="w-4 h-4" /></button>
-        </div>
-        {/* Pestañas del panel */}
-        {aceptadas.length > 0 && (
-          <nav className="max-w-none mx-auto px-2 sm:px-4 lg:px-10 2xl:px-16 flex gap-0.5 overflow-x-auto sin-barra border-t border-[color:var(--c-282a3f)]">
-            {PESTANAS.map(t => (
-              <button key={t.id} type="button" onClick={() => setPestana(t.id)} className={`relative shrink-0 h-11 px-3 flex items-center gap-1.5 text-[13px] font-medium transition-colors ${pestana === t.id ? 'text-[color:var(--c-e0e0ec)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
+    <div className="h-screen flex overflow-hidden bg-[color:var(--c-12131d)]">
+      {/* ---------- Asistente de estudio (izquierda, computadora) ---------- */}
+      <AnimatePresence initial={false}>
+        {conClases && asistente && (
+          <motion.aside initial={{ width: 0, opacity: 0 }} animate={{ width: 400, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ duration: 0.2 }}
+            className="hidden lg:block flex-shrink-0 border-r border-[color:var(--c-282a3f)] overflow-hidden">
+            <div className="w-[400px] h-full"><Asistente datos={resumen} nombre={nombre} onOcultar={() => mostrarAsistente(false)} /></div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* ---------- Derecha: barra y contenido ---------- */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="h-14 flex-shrink-0 flex items-center gap-1 px-2 sm:px-4 border-b border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)]">
+          {conClases && !asistente && (
+            <button type="button" onClick={() => mostrarAsistente(true)} title="Mostrar el asistente de estudio" className="hidden lg:flex items-center gap-1.5 h-9 px-2.5 mr-1 rounded-lg text-xs font-medium text-[color:var(--c-c7d2fe)] border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 hover:bg-[color:var(--c-818cf8)]/20"><PanelLeftOpen className="w-4 h-4" />Asistente</button>
+          )}
+          {/* Pestañas con su nombre */}
+          <nav className="flex-1 min-w-0 flex items-stretch h-full overflow-x-auto sin-barra">
+            {conClases && PESTANAS.map(t => (
+              <button key={t.id} type="button" onClick={() => setPestana(t.id)} className={`relative shrink-0 px-3 flex items-center gap-1.5 text-[13px] font-medium transition-colors ${pestana === t.id ? 'text-[color:var(--c-e0e0ec)]' : 'text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
                 <t.icono className={`w-4 h-4 ${pestana === t.id ? 'text-[color:var(--c-818cf8)]' : ''}`} />{t.texto}
                 {(contador[t.id] ?? 0) > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">{contador[t.id]}</span>}
                 {pestana === t.id && <span className="absolute left-2 right-2 bottom-0 h-0.5 rounded-full bg-[color:var(--c-818cf8)]" />}
               </button>
             ))}
+            {!conClases && <p className="self-center text-sm font-semibold text-[color:var(--c-e0e0ec)] px-2">Mi panel</p>}
           </nav>
-        )}
-        {/* Una pestaña por clase */}
-        {pestana === 'clases' && aceptadas.length > 1 && (
-          <div className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 pb-2 flex gap-1.5 overflow-x-auto">
-            {aceptadas.map(c => (
-              <button key={c.id} onClick={() => { setActiva(c.id); setAbrirEval(null); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${c.id === activa ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/45 text-[color:var(--c-c7d2fe)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
-                {c.materia || 'Todas sus materias'} · Prof. {c.profesor.split(' ')[0]}
-              </button>
-            ))}
+          <button type="button" onClick={() => { setVerUnirse(true); setAviso(null); }} title="Unirme a una clase" aria-label="Unirme a una clase" className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10"><Plus className="w-[18px] h-[18px]" /></button>
+          {/* Cuenta: solo la foto, con su menú */}
+          <div className="relative flex-shrink-0">
+            <button type="button" onClick={() => setMenuCuenta(v => !v)} aria-expanded={menuCuenta} title={nombre ? `${nombre} · Mi cuenta` : 'Mi cuenta'} className={`p-1 rounded-full transition-colors ${menuCuenta || pestana === 'config' ? 'bg-[color:var(--c-818cf8)]/15' : 'hover:bg-[color:var(--c-1d1e2e)]'}`}>
+              {datos ? <Avatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={nombre} tamano={34} /> : <span className="block w-[34px] h-[34px] rounded-full bg-[color:var(--c-272839)]" />}
+            </button>
+            <AnimatePresence>
+              {menuCuenta && datos && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMenuCuenta(false)} aria-hidden="true" />
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }} role="menu" className="absolute right-0 top-12 z-50 w-60 bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-1.5">
+                    <div className="px-3 py-2.5 border-b border-[color:var(--c-282a3f)] mb-1 flex items-center gap-3">
+                      <Avatar id={datos.cuenta.id} version={datos.cuenta.avatarEn} nombre={nombre} tamano={40} />
+                      <div className="min-w-0"><p className="text-sm font-medium text-[color:var(--c-e0e0ec)] truncate">{nombre}</p><p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate">{datos.cuenta.email}</p></div>
+                    </div>
+                    <button type="button" role="menuitem" onClick={() => setPestana('config')} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-d0d0da)] hover:bg-[color:var(--c-272839)]"><Settings className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Configuración</button>
+                    <div className="h-px bg-[color:var(--c-282a3f)] my-1" />
+                    <button type="button" role="menuitem" onClick={salir} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-[13px] text-red-300 hover:bg-red-500/10"><LogOut className="w-4 h-4" />Cerrar sesión</button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
-        )}
-      </header>
+        </header>
 
-      {aviso && (
-        <div className={`mx-4 lg:mx-10 2xl:mx-16 mt-3 px-4 py-2.5 rounded-xl text-sm flex items-start gap-2 ${aviso.tipo === 'ok' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-200' : 'bg-red-500/10 border border-red-500/30 text-red-200'}`}>
-          <span className="flex-1">{aviso.texto}</span><button onClick={() => setAviso(null)} aria-label="Cerrar"><X className="w-4 h-4" /></button>
-        </div>
-      )}
-      {pendientes.length > 0 && (
-        <div className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 mt-3 space-y-2">
-          {pendientes.map(c => (
-            <div key={c.id} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-sm text-amber-200">
-              <Hourglass className="w-4 h-4 flex-shrink-0" />Esperando que {c.profesor} te acepte en {c.materia || 'su clase'}, Sección {c.seccion}.
+        <div ref={contenido} className="flex-1 overflow-y-auto custom-scrollbar">
+          {/* Clases (cuando tiene varias) */}
+          {pestana === 'clases' && aceptadas.length > 1 && (
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 flex gap-1.5 overflow-x-auto sin-barra">
+              {aceptadas.map(c => (
+                <button key={c.id} onClick={() => { setActiva(c.id); setAbrirEval(null); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${c.id === activa ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/45 text-[color:var(--c-c7d2fe)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
+                  {c.materia || 'Todas sus materias'} · Prof. {c.profesor.split(' ')[0]}
+                </button>
+              ))}
             </div>
-          ))}
+          )}
+          {(aviso || pendientes.length > 0 || error) && (
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 space-y-2">
+              {aviso && (
+                <div className={`px-4 py-2.5 rounded-xl text-sm flex items-start gap-2 ${aviso.tipo === 'ok' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-200' : 'bg-red-500/10 border border-red-500/30 text-red-200'}`}>
+                  <span className="flex-1">{aviso.texto}</span><button onClick={() => setAviso(null)} aria-label="Cerrar"><X className="w-4 h-4" /></button>
+                </div>
+              )}
+              {pendientes.map(c => (
+                <div key={c.id} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-sm text-amber-200">
+                  <Hourglass className="w-4 h-4 flex-shrink-0" />Esperando que {c.profesor} te acepte en {c.materia || 'su clase'}, Sección {c.seccion}.
+                </div>
+              ))}
+              {error && <p className="text-sm text-red-300">{error}</p>}
+            </div>
+          )}
+          {!datos && !error && <div className="flex items-center justify-center gap-3 mt-32 text-sm text-[color:var(--c-9a9bb0)]"><span className="w-5 h-5 border-2 border-[color:var(--c-818cf8)] border-t-transparent rounded-full animate-spin" />Cargando tu panel…</div>}
+
+          {/* Sin clases todavía: invitación a unirse */}
+          {datos && !aceptadas.length && pestana !== 'config' && (
+            <div className="max-w-md mx-auto mt-16 px-6 text-center">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-[color:var(--c-818cf8)]/15 flex items-center justify-center mb-4"><KeyRound className="w-7 h-7 text-[color:var(--c-a5b4fc)]" /></div>
+              <h1 className="text-xl font-bold text-[color:var(--c-e0e0ec)]">{pendientes.length ? 'Tu solicitud está en camino' : 'Únete a tu primera clase'}</h1>
+              <p className="text-sm text-[color:var(--c-9a9bb0)] mt-1.5">{pendientes.length ? 'Cuando tu profesor te acepte, aquí verás tu plan de evaluación, tus notas y tus entregas.' : 'Escribe el código que te dio tu profesor (por ejemplo ISW-A7K2).'}</p>
+              <FormUnirse codigo={codigo} setCodigo={setCodigo} uniendo={uniendo} onUnirse={() => unirse(codigo)} />
+            </div>
+          )}
+
+          {/* Mis clases: la clase elegida */}
+          {conClases && pestana === 'clases' && actual?.token && <PortalVista key={actual.token} token={actual.token} embebido abrir={abrirEval} />}
+
+          {/* Las demás pestañas: todas sus clases juntas */}
+          {datos && pestana !== 'clases' && (conClases || pestana === 'config') && (
+            <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-24">
+              {pestana === 'config' ? (
+                <Configuracion cuenta={datos.cuenta} onCuenta={(c) => setDatos(d => (d ? { ...d, cuenta: { ...d.cuenta, ...c } } : d))}
+                  clases={clases} onSalir={salirDeClase} onUnirse={() => { setVerUnirse(true); setAviso(null); }} />
+              ) : !resumen ? (
+                <div className="flex items-center justify-center gap-3 py-24 text-sm text-[color:var(--c-9a9bb0)]"><span className="w-5 h-5 border-2 border-[color:var(--c-818cf8)] border-t-transparent rounded-full animate-spin" />Cargando…</div>
+              ) : pestana === 'inicio' ? <Inicio datos={resumen} nombre={nombre} onAbrir={abrirEnClase} onIr={(p) => setPestana(p as Pestana)} />
+              : pestana === 'calendario' ? <Calendario datos={resumen} onAbrir={abrirEnClase} />
+              : pestana === 'entregas' ? <Entregas datos={resumen} onCambio={(id, en) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.id === id ? { ...e, entrega: en } : e)) } : r))} />
+              : pestana === 'notas' ? <Calificaciones datos={resumen} onAbrir={abrirEnClase} />
+              : pestana === 'mensajes' ? <Mensajes datos={resumen} onLeidos={(id) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.id === id ? { ...e, mensajesNuevos: 0 } : e)) } : r))} />
+              : null}
+            </main>
+          )}
         </div>
+      </div>
+
+      {/* ---------- Asistente en el teléfono (o si lo ocultó en la computadora) ---------- */}
+      {conClases && (
+        <button type="button" onClick={() => setAsistenteMovil(true)} className={`fixed bottom-5 right-5 z-40 h-12 pl-4 pr-5 rounded-full bg-[color:var(--c-818cf8)] text-white text-sm font-semibold shadow-xl flex items-center gap-2 ${asistente ? 'lg:hidden' : ''}`}><Bot className="w-5 h-5" />Asistente</button>
       )}
-
-      {error && <p className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 mt-6 text-sm text-red-300">{error}</p>}
-      {!datos && !error && <div className="flex items-center justify-center gap-3 mt-32 text-sm text-[color:var(--c-9a9bb0)]"><span className="w-5 h-5 border-2 border-[color:var(--c-818cf8)] border-t-transparent rounded-full animate-spin" />Cargando tu panel…</div>}
-
-      {/* Sin clases todavía: invitación a unirse */}
-      {datos && !aceptadas.length && (
-        <div className="max-w-md mx-auto mt-16 px-6 text-center">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-[color:var(--c-818cf8)]/15 flex items-center justify-center mb-4"><KeyRound className="w-7 h-7 text-[color:var(--c-a5b4fc)]" /></div>
-          <h1 className="text-xl font-bold text-[color:var(--c-e0e0ec)]">{pendientes.length ? 'Tu solicitud está en camino' : 'Únete a tu primera clase'}</h1>
-          <p className="text-sm text-[color:var(--c-9a9bb0)] mt-1.5">{pendientes.length ? 'Cuando tu profesor te acepte, aquí verás tu plan de evaluación, tus notas y tus entregas.' : 'Escribe el código que te dio tu profesor (por ejemplo ISW-A7K2).'}</p>
-          <FormUnirse codigo={codigo} setCodigo={setCodigo} uniendo={uniendo} onUnirse={() => unirse(codigo)} />
-        </div>
-      )}
-
-      {/* Mis clases: la clase elegida (la misma vista que tenía su enlace personal) */}
-      {pestana === 'clases' && actual?.token && <PortalVista key={actual.token} token={actual.token} embebido abrir={abrirEval} />}
-
-      {/* Las demás pestañas: todas sus clases juntas */}
-      {datos && aceptadas.length > 0 && pestana !== 'clases' && (
-        <main className="max-w-none mx-auto px-4 lg:px-10 2xl:px-16 py-6 pb-16">
-          {pestana === 'config' ? (
-            <Configuracion cuenta={datos.cuenta} onCuenta={(c) => setDatos(d => (d ? { ...d, cuenta: { ...d.cuenta, ...c } } : d))} claro={claro} onTema={cambiarTema}
-              clases={clases} onSalir={salirDeClase} onUnirse={() => { setVerUnirse(true); setAviso(null); }} />
-          ) : !resumen ? (
-            <div className="flex items-center justify-center gap-3 py-24 text-sm text-[color:var(--c-9a9bb0)]"><span className="w-5 h-5 border-2 border-[color:var(--c-818cf8)] border-t-transparent rounded-full animate-spin" />Cargando…</div>
-          ) : pestana === 'inicio' ? <Inicio datos={resumen} nombre={datos.cuenta.nombre} onAbrir={abrirEnClase} onIr={(p) => setPestana(p as Pestana)} />
-          : pestana === 'calendario' ? <Calendario datos={resumen} onAbrir={abrirEnClase} />
-          : pestana === 'entregas' ? <Entregas datos={resumen} onCambio={(id, en) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.id === id ? { ...e, entrega: en } : e)) } : r))} />
-          : pestana === 'notas' ? <Calificaciones datos={resumen} onAbrir={abrirEnClase} />
-          : pestana === 'mensajes' ? <Mensajes datos={resumen} onLeidos={(id) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.id === id ? { ...e, mensajesNuevos: 0 } : e)) } : r))} />
-          : null}
-        </main>
-      )}
+      <AnimatePresence>
+        {asistenteMovil && (
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }} transition={{ duration: 0.18 }} className="fixed inset-0 z-[150] flex flex-col bg-[color:var(--c-161722)]">
+            <div className="flex-1 min-h-0"><Asistente datos={resumen} nombre={nombre} onOcultar={() => setAsistenteMovil(false)} /></div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {verUnirse && (
-        <div className="fixed inset-0 z-[200] bg-[color:var(--c-0b0b12)]/75 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setVerUnirse(false); }}>
-          <div className="w-full max-w-sm bg-[color:var(--c-1f2035)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setVerUnirse(false); }}>
+          <div className="w-full max-w-sm bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-1"><h2 className="text-base font-semibold text-[color:var(--c-e0e0ec)]">Unirme a una clase</h2><button onClick={() => setVerUnirse(false)} aria-label="Cerrar" className="p-1 text-[color:var(--c-8a8b9e)]"><X className="w-4 h-4" /></button></div>
             <p className="text-xs text-[color:var(--c-8a8b9e)]">Escribe el código de clase que te dio tu profesor.</p>
             <FormUnirse codigo={codigo} setCodigo={setCodigo} uniendo={uniendo} onUnirse={() => unirse(codigo)} />

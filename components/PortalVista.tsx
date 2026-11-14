@@ -205,8 +205,8 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
         )}
       </AnimatePresence>
       {/* Celular: una sola columna. Computadora (lg): panel fijo a la izquierda con el estudiante y su resumen, evaluaciones a la derecha ocupando todo el ancho */}
-      <div className="max-w-3xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-10 2xl:px-16 pb-16 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] lg:gap-10 xl:gap-14">
-        <aside className={`lg:sticky lg:self-start lg:overflow-y-auto lg:pb-10 [scrollbar-width:none] ${embebido ? 'lg:top-[112px] lg:max-h-[calc(100vh-112px)]' : 'lg:top-0 lg:max-h-screen'}`}>
+      <div className={`mx-auto px-4 sm:px-6 pb-16 lg:grid lg:gap-8 ${embebido ? 'max-w-6xl lg:grid-cols-[300px_minmax(0,1fr)]' : 'max-w-3xl lg:max-w-none lg:px-10 2xl:px-16 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] xl:gap-14'}`}>
+        <aside className={`lg:sticky lg:self-start lg:overflow-y-auto lg:pb-10 [scrollbar-width:none] ${embebido ? 'lg:top-0 lg:max-h-[calc(100vh-56px)]' : 'lg:top-0 lg:max-h-screen'}`}>
           {embebido ? (
             /* En el panel del estudiante: encabezado compacto de la clase (su nombre y su foto ya están arriba) */
             <header className="pt-6 pb-4">
@@ -337,7 +337,7 @@ export default function PortalVista({ token, embebido = false, abrir = null }: {
           )}
         </div>
       </div>
-      {materia && <TutorEstudio key={`${token}-${materia.id}`} token={token} evaluaciones={lista.filter(x => x.s !== 'bloqueada').map(x => ({ id: x.e.id, nombre: x.e.nombre }))} inicial={proxima?.id ?? null} />}
+      {materia && !embebido && <TutorEstudio key={`${token}-${materia.id}`} token={token} evaluaciones={lista.filter(x => x.s !== 'bloqueada').map(x => ({ id: x.e.id, nombre: x.e.nombre }))} inicial={proxima?.id ?? null} />}
     </Pantalla>
   );
 }
@@ -436,7 +436,7 @@ function OpinionPlan({ token, materia, onGuardada }: { token: string; materia: M
 }
 
 function Pantalla({ children }: { children: React.ReactNode }) {
-  return <main className="min-h-screen bg-[color:var(--c-13141d)] text-[color:var(--c-d0d0da)] font-['Inter',system-ui,sans-serif] [background-image:radial-gradient(ellipse_at_top,rgba(129,140,248,0.12),transparent_60%)]">{children}</main>;
+  return <main className="min-h-screen bg-[color:var(--c-13141d)] text-[color:var(--c-d0d0da)] font-['Inter',system-ui,sans-serif]">{children}</main>;
 }
 
 function TarjetaPortal({ e, s, indice, abierta, onAlternar, ahora, token, materiaNombre, estudiante, onPreparado, onExamen, archivos = false, onEntrega }: { e: Evaluacion; s: Situacion; indice: number; abierta: boolean; onAlternar: () => void; ahora: number; token: string; materiaNombre: string; estudiante?: string; onPreparado: (id: string, v: boolean) => void; onExamen?: (id: string, cambio: Partial<InfoExamen>) => void; archivos?: boolean; onEntrega?: (id: string, cambio: Partial<Evaluacion>) => void }) {

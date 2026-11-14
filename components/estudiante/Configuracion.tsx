@@ -1,7 +1,7 @@
 'use client';
 // Configuración del estudiante: foto, datos, contraseña, apariencia y sus clases
 import { useState } from 'react';
-import { Sun, Moon, LogOut, Plus, KeyRound, CheckCircle2 } from 'lucide-react';
+import { LogOut, Plus, KeyRound, CheckCircle2 } from 'lucide-react';
 import { EditorAvatar } from '@/components/Avatar';
 
 interface Cuenta { id: string; nombre: string; email: string; avatarEn?: string | null }
@@ -11,8 +11,8 @@ const campo = 'w-full h-10 px-3 rounded-lg bg-[color:var(--c-191a26)] border bor
 const etiqueta = 'text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)] block mb-1.5';
 const tarjeta = 'rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] p-5';
 
-export default function Configuracion({ cuenta, onCuenta, claro, onTema, clases, onSalir, onUnirse }: {
-  cuenta: Cuenta; onCuenta: (c: Partial<Cuenta>) => void; claro: boolean; onTema: () => void;
+export default function Configuracion({ cuenta, onCuenta, clases, onSalir, onUnirse }: {
+  cuenta: Cuenta; onCuenta: (c: Partial<Cuenta>) => void;
   clases: Clase[]; onSalir: (claseId: string) => Promise<void>; onUnirse: () => void;
 }) {
   const [nombre, setNombre] = useState(cuenta.nombre);
@@ -58,14 +58,6 @@ export default function Configuracion({ cuenta, onCuenta, claro, onTema, clases,
       </section>
 
 
-      <section className={tarjeta}>
-        <p className={etiqueta}>Apariencia</p>
-        <div className="flex gap-2">
-          {[{ v: false, t: 'Oscuro', i: Moon }, { v: true, t: 'Claro', i: Sun }].map(o => (
-            <button key={o.t} type="button" onClick={() => { if (claro !== o.v) onTema(); }} className={`flex-1 h-11 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 ${claro === o.v ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)] hover:border-[color:var(--c-414258)]'}`}><o.i className="w-4 h-4" />{o.t}</button>
-          ))}
-        </div>
-      </section>
 
       <section className={tarjeta}>
         <div className="flex items-center justify-between mb-3"><p className={`${etiqueta} mb-0`}>Mis clases</p><button type="button" onClick={onUnirse} className="h-8 px-3 rounded-lg text-xs font-semibold text-[color:var(--c-c7d2fe)] border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" />Unirme a otra clase</button></div>
