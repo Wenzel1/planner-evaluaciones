@@ -33,7 +33,7 @@ function Texto({ t }: { t: string }) {
 // 'contenedor' = llena el alto de su contenedor (lo decide quien lo usa);
 // 'llenar' = en computadora ocupa lo que sobra de su columna (flex) y queda fijo abajo: lo de arriba se desplaza por dentro;
 //            en el teléfono se comporta como 'pantalla'
-export default function ChatSeccion({ modo, api, params, titulo, alto: altoPedido = 'pantalla', plegable = true, tutorial }: { modo: 'profesor' | 'estudiante'; api: string; params: Record<string, string>; titulo?: string; alto?: 'pantalla' | 'contenedor' | 'llenar'; plegable?: boolean; tutorial?: string }) {
+export default function ChatSeccion({ modo, api, params, titulo, alto: altoPedido = 'pantalla', plegable = true, tutorial, incrustado = false }: { modo: 'profesor' | 'estudiante'; api: string; params: Record<string, string>; titulo?: string; alto?: 'pantalla' | 'contenedor' | 'llenar'; plegable?: boolean; tutorial?: string; incrustado?: boolean /* dentro de la bandeja de Mensajes: sin marco ni encabezado propio */ }) {
   const [grande, setGrande] = useState(false);
   // Se decide antes de pintar (si no, arranca un instante en modo teléfono y queda mal medido)
   useLayoutEffect(() => {
@@ -143,10 +143,10 @@ export default function ChatSeccion({ modo, api, params, titulo, alto: altoPedid
       // 'llenar': ocupa lo que sobra de la columna (nunca menos de 360 px abierto, ni menos que su encabezado cerrado);
       // la transición es de CSS (framer no puede animar el alto mínimo desde 'auto')
       style={alto === 'llenar' ? { flex: abierto ? '1 0 0px' : '0 0 0px', minHeight: abierto ? 360 : altoCabeza, transition: 'flex-grow 300ms ease, min-height 300ms ease' } : undefined}
-      className={`rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] overflow-hidden flex flex-col ${alto === 'contenedor' ? 'h-full' : ''}`}>
+      className={`${incrustado ? '' : 'rounded-2xl border border-[color:var(--c-313248)]'} bg-[color:var(--c-1d1e2e)] overflow-hidden flex flex-col ${alto === 'contenedor' ? 'h-full' : ''}`}>
       {/* Encabezado */}
-      <div ref={cabeza} className={`px-4 py-3 flex items-center gap-3 flex-shrink-0 border-b transition-colors ${abierto ? 'border-[color:var(--c-282a3f)]' : 'border-transparent'}`}>
-        <button type="button" disabled={!plegable} onClick={() => { pegadoAbajo.current = true; setAbierto(v => !v); }} aria-expanded={abierto} className="min-w-0 flex-1 flex items-center gap-3 text-left disabled:cursor-default">
+      <div ref={cabeza} className={`${incrustado ? (modo === 'profesor' ? 'px-3 py-1.5 justify-end' : 'hidden') : 'px-4 py-3'} flex items-center gap-3 flex-shrink-0 border-b transition-colors ${abierto ? 'border-[color:var(--c-282a3f)]' : 'border-transparent'}`}>
+        <button type="button" disabled={!plegable} onClick={() => { pegadoAbajo.current = true; setAbierto(v => !v); }} aria-expanded={abierto} className={`min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default ${incrustado ? 'hidden' : 'flex'}`}>
         <MessageSquare className="w-4 h-4 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">{titulo || `Chat de la Sección ${params.seccion || ''}`}</h2>

@@ -90,6 +90,7 @@ model Usuario {
   codigoIntentos     Int       @default(0)
   codigoEnviadoEn    DateTime?
   avatarEn     DateTime?                  // cuándo subió su foto de perfil (versión de la imagen; null = sin foto)
+  avisosCorreo Boolean    @default(true)  // cuenta de estudiante: false = no quiere recibir avisos por correo ni WhatsApp
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -128,6 +129,7 @@ model Materia {
   estudiantes   Estudiante[]
   secciones     SeccionMateria[]
   chat          MensajeSeccion[]
+  unidades      Unidad[]
   @@index([usuarioId])
 }
 
@@ -596,4 +598,37 @@ model MensajeSeccion {
   createdAt       DateTime @default(now())
 
   @@index([materiaId, seccion, createdAt])
+}
+
+// Materiales de clase organizados por unidades (temas) de una materia. Los ven todas las secciones de la materia.
+model Unidad {
+  id           String    @id @default(cuid())
+  materiaId    String
+  materia      Materia   @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  nombre       String
+  descripcion  String?
+  orden        Int       @default(0)
+  visibleDesde DateTime? // si tiene fecha, los estudiantes la ven a partir de ese momento
+  createdAt    DateTime  @default(now())
+  materiales   Material[]
+
+  @@index([materiaId, orden])
+}
+
+// Un material de una unidad: un archivo (en el almacenamiento), un enlace o una evaluación vinculada del plan
+model Material {
+  id            String   @id @default(cuid())
+  unidadId      String
+  unidad        Unidad   @relation(fields: [unidadId], references: [id], onDelete: Cascade)
+  tipo          String   // ARCHIVO | ENLACE | EVALUACION
+  titulo        String
+  url           String?  // ENLACE
+  ruta          String?  // ARCHIVO: ruta en el almacenamiento
+  archivoTipo   String?
+  archivoTamano Int?
+  evaluacionId  String?  // EVALUACION: id de la evaluación del plan (sin relación: si se borra, el material deja de mostrarse)
+  orden         Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([unidadId, orden])
 }

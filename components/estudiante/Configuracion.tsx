@@ -5,7 +5,7 @@ import { LogOut, Plus, KeyRound, CheckCircle2 } from 'lucide-react';
 import { EditorAvatar } from '@/components/Avatar';
 import { confirmar as confirmarDialogo } from '@/components/Confirmar';
 
-interface Cuenta { id: string; nombre: string; email: string; avatarEn?: string | null }
+interface Cuenta { id: string; nombre: string; email: string; avatarEn?: string | null; avisosCorreo?: boolean }
 interface Clase { id: string; estado: string; profesor: string; materia: string | null; seccion: string }
 
 const campo = 'w-full h-10 px-3 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]';
@@ -56,6 +56,27 @@ export default function Configuracion({ cuenta, onCuenta, clases, onSalir, onUni
       <section className={tarjeta}>
         <p className={etiqueta}>Foto de perfil</p>
         <EditorAvatar id={cuenta.id} version={cuenta.avatarEn} nombre={cuenta.nombre} onCambio={(v) => onCuenta({ avatarEn: v })} />
+      </section>
+
+      {/* Avisos por correo o WhatsApp */}
+      <section className={tarjeta}>
+        <p className={etiqueta}>Notificaciones</p>
+        <button type="button" role="switch" aria-checked={cuenta.avisosCorreo !== false}
+          onClick={async () => {
+            const nuevo = cuenta.avisosCorreo === false;
+            onCuenta({ avisosCorreo: nuevo }); // se ve al instante; si falla, se devuelve
+            const r = await fetch('/api/perfil/avisos', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avisos: nuevo }) }).catch(() => null);
+            if (!r?.ok) { onCuenta({ avisosCorreo: !nuevo }); setAviso({ ok: false, t: 'No se pudo guardar tu preferencia de avisos.' }); }
+          }}
+          className="mt-2 w-full flex items-center gap-3 text-left">
+          <span className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors duration-200 ${cuenta.avisosCorreo !== false ? 'bg-[color:var(--c-818cf8)]' : 'bg-[color:var(--c-313248)]'}`}>
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${cuenta.avisosCorreo !== false ? 'translate-x-5' : ''}`} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm text-[color:var(--c-e0e0ec)]">Recibir avisos por correo o WhatsApp</span>
+            <span className="block text-xs text-[color:var(--c-8a8b9e)]">Recordatorios de evaluaciones, cambios de fecha y mensajes de tus profesores. Si lo apagas, igual los ves al entrar aquí.</span>
+          </span>
+        </button>
       </section>
 
 

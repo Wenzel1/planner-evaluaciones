@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { aceptaAvisos } from '@/lib/clases'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarLoteN8n, nuevoId, primerNombre, destinoDe, tieneDestino, nombreDestino, type MensajeLote } from '@/lib/whatsappLotes'
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
 
     // Solo estudiantes activos del profesor y de esa sección
     const estudiantes = await prisma.estudiante.findMany({
-      where: { id: { in: ids }, usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO' },
+      where: { id: { in: ids }, usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO', ...aceptaAvisos },
       select: { id: true, nombre: true, telefono: true, email: true },
     })
     // Con correo configurado se usa el correo del estudiante; si no, su teléfono (WhatsApp)

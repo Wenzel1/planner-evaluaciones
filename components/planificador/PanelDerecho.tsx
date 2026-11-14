@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, BarChart3, BookOpen, CalendarDays, CheckCircle, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Copy, FileText, KeyRound, LogOut, PanelLeftOpen, Pencil, Plus, Sparkles, Trash2, User, UserCog, Users, X , Inbox, Settings2, FileSpreadsheet, Download } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, CalendarDays, CheckCircle, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Copy, FileText, KeyRound, LogOut, PanelLeftOpen, Pencil, Plus, Sparkles, Trash2, User, UserCog, Users, X, Inbox, Settings2, FileSpreadsheet, Download, MessageSquare, FolderOpen } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { type Examen } from '@/lib/examen';
 import { type RubricaEval, textoPuntos, totalRubrica } from '@/lib/rubrica';
@@ -18,6 +18,8 @@ import { useAvisosProfesor } from '@/components/planificador/useAvisosProfesor';
 import BandejaEntregas from '@/components/entregas/BandejaEntregas';
 import Avatar from '@/components/Avatar';
 import ChatSeccion from '@/components/ChatSeccion';
+import MensajesProfesor from '@/components/planificador/MensajesProfesor';
+import Materiales from '@/components/Materiales';
 import { EVAL_POR_ABRIR, MATERIA_ACTIVA, calcularFechasEvaluaciones, esIdGuardado, estadoVisibleEvaluacion, heredado, limpiarTexto, pedirSugerenciasRecursos, planVisto, validarContenidoSE, validarEnfoque } from '@/components/planificador/utilidades';
 import { ActividadPanel, ConfigSistemaPanel, PapeleraPanel } from '@/components/planificador/Administracion';
 import { CalendarioPanel } from '@/components/planificador/CalendarioPanel';
@@ -91,7 +93,7 @@ function precargarPaneles() {
 }
 export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(function PanelDerecho({ onSeccionActivaCambia, chatAbierto = true, onAbrirChat, usuario, onLogout, onUsuarioActualizado, onConfigActualizada, datosCargados, planificacion, setPlanificacion, propuestaPendiente, aceptarPropuesta, setPropuestaPendiente, vistaInicial, onCambiarVista, pdfUrl: pdfUrlProp, setPdfUrl: setPdfUrlProp, pdfAbierto: pdfAbiertoProp, setPdfAbierto: setPdfAbiertoProp, generarPDF, planificacionId, setPlanificacionId, materias = [], materiaActivaId = null, onAbrirMateria, onNuevaMateria, onTutorial }: PanelDerechoProps, ref) {
   MATERIA_ACTIVA.nombre = planificacion?.materia || ''; // para el validador de temas (perfil de la materia)
-  const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'entregas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>(vistaInicial);
+  const [vista, setVista] = useState<'planificacion' | 'estadisticas' | 'entregas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario' | 'mensajes' | 'materiales'>(vistaInicial);
   useEffect(() => { precargarPaneles(); }, []);
   const [numEvaluaciones, setNumEvaluaciones] = useState(1); 
   const seccionesGuardadasRef = useRef<HTMLDivElement>(null);
@@ -800,7 +802,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   const { borrarOpiniones, marcarObservacionLeida, marcarOpinionesVistas, observaciones, opiniones, solicitudesEstudiantes, solicitudesPendientes, entregasSinRevisar } = useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadmin, agregarNotificacion });
   // Pestañas ordenadas por rol. 'admin' = supervisión del sistema; 'trabajo' = el espacio propio de la persona.
   // El superadmin no tiene la pestaña Planificador: lo abre desde el ícono del chat, junto a la configuración del agente.
-  type Pestana = { id: 'planificacion' | 'estadisticas' | 'entregas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera' | 'calendario'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
+  type Pestana = { id: 'planificacion' | 'estadisticas' | 'entregas' | 'estudiantes' | 'usuarios' | 'actividad' | 'papelera' | 'calendario' | 'mensajes' | 'materiales'; label: string; icon: any; grupo: 'admin' | 'trabajo'; badge?: number };
   const tabDashboard: Pestana = { id: 'estadisticas', label: 'Dashboard', icon: BarChart3, grupo: puedeAdministrar ? 'admin' : 'trabajo' };
   const tabPlanificador: Pestana = { id: 'planificacion', label: 'Planificador', icon: ClipboardList, grupo: 'trabajo' };
   const tabEstudiantes: Pestana = { id: 'estudiantes', label: 'Estudiantes', icon: Users, grupo: 'trabajo', badge: solicitudesEstudiantes };
@@ -809,11 +811,13 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   const tabUsuarios: Pestana = { id: 'usuarios', label: 'Usuarios', icon: UserCog, grupo: 'admin', badge: solicitudesPendientes };
   const tabActividad: Pestana = { id: 'actividad', label: 'Actividad', icon: Activity, grupo: 'admin' };
   const tabCalendario: Pestana = { id: 'calendario', label: 'Calendario', icon: CalendarDays, grupo: 'trabajo' };
+  const tabMensajes: Pestana = { id: 'mensajes', label: 'Mensajes', icon: MessageSquare, grupo: 'trabajo' };
+  const tabMateriales: Pestana = { id: 'materiales', label: 'Materiales', icon: FolderOpen, grupo: 'trabajo' };
   const tabs: Pestana[] = esSuperadmin
     ? [tabDashboard, tabUsuarios, tabActividad, tabCalendario, tabEstudiantes]
     : puedeAdministrar
-      ? [tabDashboard, tabUsuarios, tabPlanificador, tabEntregas, tabCalendario, tabEstudiantes]
-      : [tabDashboard, tabPlanificador, tabEntregas, tabCalendario, tabEstudiantes];
+      ? [tabDashboard, tabUsuarios, tabPlanificador, tabEntregas, tabMensajes, tabMateriales, tabCalendario, tabEstudiantes]
+      : [tabDashboard, tabPlanificador, tabEntregas, tabMensajes, tabMateriales, tabCalendario, tabEstudiantes];
 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
@@ -1146,6 +1150,8 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
               {false && planificacion.comentariosAgente.length > 0 && (<div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[color:var(--c-818cf8)]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[color:var(--c-9090a4)] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
             </motion.div>
           )}
+          {vista === 'mensajes' && (<motion.div key="mensajes" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><MensajesProfesor materiaId={materiaActivaId ?? null} secciones={seccionesDisponibles} /></motion.div>)}
+          {vista === 'materiales' && (<motion.div key="materiales" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-5xl mx-auto"><Materiales modo="profesor" materiaId={materiaActivaId ?? null} evaluaciones={planificacion.secciones.filter(s => esIdGuardado(s.id)).map(s => ({ id: s.id, nombre: limpiarTexto(s.nombre), seccion: (s.grupoSeccion || 'A').toUpperCase() }))} /></motion.div>)}
           {vista === 'entregas' && (<motion.div key="entregas" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><BandejaEntregas materiaId={materiaActivaId ?? null} /></motion.div>)}
           {vista === 'estudiantes' && (<motion.div key="estudiantes" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><EstudiantesPanel /></motion.div>)}
           {vista === 'papelera' && (<motion.div key="papelera" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-4xl mx-auto"><PapeleraPanel usuario={usuario} /></motion.div>)}

@@ -59,4 +59,7 @@ export async function seccionConCodigo(materiaId: string, letra: string) {
 export const normalizarCodigo = (c: string) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^([A-Z0-9]{2,3})([A-Z0-9]{4,6})$/, '$1-$2')
 
 // Filtro de estudiantes para una materia: los de esa materia y los cargados antes sin materia (valen para todas)
+// Solo quienes aceptan avisos: un estudiante con cuenta propia puede apagarlos en su Configuración
+export const aceptaAvisos = { NOT: { cuenta: { is: { avisosCorreo: false } } } }
+
 export const filtroMateria = (materiaId?: string | null) => (materiaId ? { OR: [{ materiaId: null }, { materiaId }] } : {})

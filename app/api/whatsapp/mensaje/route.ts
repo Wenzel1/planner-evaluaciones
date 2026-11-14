@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { filtroMateria } from '@/lib/clases'
+import { filtroMateria, aceptaAvisos } from '@/lib/clases'
 import { requerirActor } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarLoteN8n, nuevoId, primerNombre, destinoDe, tieneDestino, nombreDestino, type MensajeLote } from '@/lib/whatsappLotes'
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const planMsg = body.planificacionId ? await prisma.planificacion.findUnique({ where: { id: String(body.planificacionId) }, select: { materiaId: true } }).catch(() => null) : null
     let estudiantes = await prisma.estudiante.findMany({
-      where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO', ...filtroMateria(planMsg?.materiaId) },
+      where: { usuarioId: actor.id, grupo: seccion, estado: 'ACTIVO', ...aceptaAvisos, ...filtroMateria(planMsg?.materiaId) },
       select: { id: true, nombre: true, telefono: true, email: true },
     })
     const modo = String(body.destinatarios || 'seccion')

@@ -2,7 +2,7 @@
 // mensajes programados y el armado/envío de los mensajes. Todo se guarda en la tabla ConfiguracionSistema
 // (filas con id "recordatorios:…"), así no hace falta cambiar la base de datos.
 import prisma from '@/lib/prisma'
-import { filtroMateria } from '@/lib/clases'
+import { filtroMateria, aceptaAvisos } from '@/lib/clases'
 import { tokensDeEstudiantes, urlAcceso } from '@/lib/portal'
 import { enviarLoteN8n, fechaBonita, nombreLimpio, nuevoId, primerNombre, destinoDe, tieneDestino, ZONA_HORARIA, type MensajeLote } from '@/lib/whatsappLotes'
 
@@ -131,7 +131,7 @@ export interface EvalAviso { id: string; nombre: string; fecha: Date; peso: numb
 // Queda registrado en EnvioWhatsApp (lote "R_<evaluación>_<tipo>_…") para el historial del panel.
 export async function enviarAviso(request: Request, ev: EvalAviso, tipo: TipoAviso, opciones: { nota?: string; fechaAnterior?: Date | null; probar?: boolean } = {}) {
   const seccion = ev.grupoSeccion || 'A'
-  const todos = await prisma.estudiante.findMany({ where: { usuarioId: ev.usuarioId, grupo: seccion, estado: 'ACTIVO', ...filtroMateria(ev.materiaId) }, select: { id: true, nombre: true, telefono: true, email: true } })
+  const todos = await prisma.estudiante.findMany({ where: { usuarioId: ev.usuarioId, grupo: seccion, estado: 'ACTIVO', ...aceptaAvisos, ...filtroMateria(ev.materiaId) }, select: { id: true, nombre: true, telefono: true, email: true } })
   const estudiantes = todos.filter(tieneDestino)
   const sinDestino = todos.length - estudiantes.length
   if (opciones.probar || !estudiantes.length) return { total: estudiantes.length, sinDestino, ok: true as boolean, error: undefined as string | undefined, loteId: '' }
@@ -153,7 +153,7 @@ export async function enviarAviso(request: Request, ev: EvalAviso, tipo: TipoAvi
 
 // Mensaje libre programado por el profesor (ej. "Traigan laptop") para una sección
 export async function enviarProgramado(request: Request, p: Programado) {
-  const todos = await prisma.estudiante.findMany({ where: { usuarioId: p.usuarioId, grupo: p.seccion, estado: 'ACTIVO', ...filtroMateria(p.materiaId) }, select: { id: true, nombre: true, telefono: true, email: true } })
+  const todos = await prisma.estudiante.findMany({ where: { usuarioId: p.usuarioId, grupo: p.seccion, estado: 'ACTIVO', ...aceptaAvisos, ...filtroMateria(p.materiaId) }, select: { id: true, nombre: true, telefono: true, email: true } })
   const estudiantes = todos.filter(tieneDestino)
   if (!estudiantes.length) return { total: 0, ok: true }
   const loteId = `P_${p.id}_${nuevoId()}`

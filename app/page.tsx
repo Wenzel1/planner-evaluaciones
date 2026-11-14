@@ -113,7 +113,7 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
   };
   const [propuestaPendiente, setPropuestaPendiente] = useState<PropuestaEvaluacion | null>(null);
   const [seccionPlanificador, setSeccionPlanificador] = useState<string>('A'); // sección (A, B, C...) abierta en el planificador
-  const [vistaActual, setVistaActual] = useState<'planificacion' | 'estadisticas' | 'entregas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario'>('estadisticas');
+  const [vistaActual, setVistaActual] = useState<'planificacion' | 'estadisticas' | 'entregas' | 'estudiantes' | 'configuracion' | 'usuarios' | 'perfil' | 'actividad' | 'papelera' | 'sistema' | 'calendario' | 'mensajes' | 'materiales'>('estadisticas');
   const [planificacion, setPlanificacion] = useState<PlanificacionExamen>({ id: '1', version: 1, estado: 'borrador', fechaExamen: new Date(), tipoExamen: 'mixto', duracionMinutos: 0, materia: 'Ing Software', secciones: [], rubrica: [], comentariosAgente: [{ id: 'c1', tipo: 'info', mensaje: 'Sube un archivo o escribe en el chat para comenzar la planificación.', timestamp: new Date() }] });
     // CARGAR EVALUACIONES DESDE LA BD AL REFRESCAR
   useEffect(() => {

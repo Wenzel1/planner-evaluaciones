@@ -17,6 +17,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     if (sinAcceso) return sinAcceso
     const est = await estudianteDeToken(token)
     if (!est) return NextResponse.json({ error: 'No autorizado.' }, { status: 401 })
+    // ?todas=1 → toda la conversación con su profesor (un solo hilo); cada mensaje dice de qué evaluación es
+    if (new URL(request.url).searchParams.get('todas')) {
+      const todos = await prisma.comentarioEvaluacion.findMany({
+        where: { estudianteId: est.id }, orderBy: { createdAt: 'asc' }, take: 400,
+        select: { ...SELECT_COMENTARIO, evaluacionId: true, evaluacion: { select: { nombre: true } } },
+      })
+      await prisma.comentarioEvaluacion.updateMany({ where: { estudianteId: est.id, autor: 'PROFESOR', leido: false }, data: { leido: true } })
+      return NextResponse.json(todos.map(c => ({ ...vistaComentario(c), evaluacionId: c.evaluacionId, evaluacion: c.evaluacion.nombre.replace(/^Evaluaci[oó]n\s*\d+\s*:\s*/i, '') })))
+    }
     const ev = await evaluacionDelEstudiante(est, new URL(request.url).searchParams.get('evaluacionId') || '')
     if (!ev) return NextResponse.json({ error: 'Evaluación no encontrada.' }, { status: 404 })
     // ?adjunto=<id del mensaje> → abre su archivo o nota de voz (enlace temporal)
