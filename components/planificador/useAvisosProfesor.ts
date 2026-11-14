@@ -132,6 +132,7 @@ export function useAvisosProfesor({ usuario, vista, puedeAdministrar, esSuperadm
         (d.solicitudes || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`🙋 ${x.estudiante} pidió unirse a ${x.materia ? `${x.materia}, ` : ''}Sección ${x.seccion}. Acéptalo en la pestaña Estudiantes.`));
         if (typeof d.pendientes === 'number') setSolicitudesEstudiantes(d.pendientes);
         if (typeof d.sinRevisar === 'number') setEntregasSinRevisar(d.sinRevisar);
+        (d.chat || []).slice(0, 5).forEach((x: any) => agregarNotificacion(`💬 ${x.estudiante} escribió en el chat de la Sección ${x.seccion}: ${x.texto}`));
         if ((d.entregas || []).length) window.dispatchEvent(new Event('entregas-cambiaron')); // la bandeja se actualiza sola
       } catch { /* sin conexión: siguiente ciclo */ }
     };

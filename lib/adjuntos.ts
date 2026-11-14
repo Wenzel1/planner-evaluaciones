@@ -23,6 +23,10 @@ function tipoAdjunto(nombre: string, tipo: unknown): string {
 
 // Prepara la subida de un adjunto: valida y devuelve el enlace firmado
 export async function prepararAdjunto(evaluacionId: string, estudianteId: string, body: any): Promise<NextResponse> {
+  return prepararAdjuntoEn(carpeta(evaluacionId, estudianteId), body)
+}
+// Igual, en cualquier carpeta (ej. el chat de una sección: chat/<materiaId>/<sección>/)
+export async function prepararAdjuntoEn(dir: string, body: any): Promise<NextResponse> {
   if (!archivosConfigurados()) return NextResponse.json({ error: 'La subida de archivos no está activada.' }, { status: 400 })
   const nombre = String(body?.nombre || '').trim().slice(0, 150) || 'archivo'
   const tamano = Number(body?.tamano) || 0
@@ -30,16 +34,22 @@ export async function prepararAdjunto(evaluacionId: string, estudianteId: string
   if (!EXTENSIONES.includes(ext)) return NextResponse.json({ error: `No se aceptan archivos .${ext || '?'}.` }, { status: 400 })
   if (tamano <= 0) return NextResponse.json({ error: 'El archivo está vacío.' }, { status: 400 })
   if (tamano > MAX_ARCHIVO) return NextResponse.json({ error: `El archivo pesa más de ${MAX_ARCHIVO / 1024 / 1024} MB.` }, { status: 400 })
-  const ruta = `${carpeta(evaluacionId, estudianteId)}${crypto.randomBytes(6).toString('hex')}-${nombreSeguro(nombre)}`
+  const ruta = `${dir}${crypto.randomBytes(6).toString('hex')}-${nombreSeguro(nombre)}`
   return NextResponse.json({ ruta, subida: await enlaceDeSubida(ruta), tipo: tipoAdjunto(nombre, body?.tipo) })
 }
 
 // Datos del adjunto para guardar en el mensaje (solo rutas de la carpeta de ESA conversación)
-export function datosAdjunto(evaluacionId: string, estudianteId: string, adj: any): { adjuntoRuta: string; adjuntoNombre: string; adjuntoTipo: string; adjuntoTamano: number; adjuntoDuracion: number | null } | null | 'invalido' {
+export function datosAdjunto(evaluacionId: string, estudianteId: string, adj: any) {
+  return datosAdjuntoEn(carpeta(evaluacionId, estudianteId), adj)
+}
+export function datosAdjuntoEn(dir: string, adj: any): { adjuntoRuta: string; adjuntoNombre: string; adjuntoTipo: string; adjuntoTamano: number; adjuntoDuracion: number | null } | null | 'invalido' {
   if (!adj) return null
   const ruta = String(adj.ruta || '')
   const nombre = String(adj.nombre || '').slice(0, 150)
-  if (!ruta.startsWith(carpeta(evaluacionId, estudianteId)) || ruta.includes('..') || !nombre || !EXTENSIONES.includes(extensionDe(nombre))) return 'invalido'
+  if (!ruta.startsWith(dir) || ruta.includes('..') || !nombre || !EXTENSIONES.includes(extensionDe(nombre))) return 'invalido'
   const duracion = Math.round(Number(adj.duracion) || 0)
   return { adjuntoRuta: ruta, adjuntoNombre: nombre, adjuntoTipo: tipoAdjunto(nombre, adj.tipo), adjuntoTamano: Math.max(0, Math.round(Number(adj.tamano) || 0)), adjuntoDuracion: duracion > 0 ? Math.min(duracion, 3600) : null }
 }
+
+// Carpeta de los archivos del chat de una sección
+export const carpetaChat = (materiaId: string, seccion: string) => `chat/${materiaId}/${seccion}/`

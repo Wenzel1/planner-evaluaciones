@@ -1,4 +1,4 @@
-// Cómo se muestra cada tipo de archivo en la bandeja y en el visor (ícono, color y forma de vista previa)
+// Cómo se muestra cada tipo de archivo en la bandeja y en el visor (ícono, color pastel sobrio y forma de vista previa)
 import { FileText, FileSpreadsheet, Presentation, FileCode2, FileArchive, Image as ImageIcon, Film, Music, File, Link2, type LucideIcon } from 'lucide-react';
 
 export type Categoria = 'pdf' | 'word' | 'excel' | 'powerpoint' | 'imagen' | 'video' | 'audio' | 'codigo' | 'texto' | 'csv' | 'zip' | 'otro';
@@ -23,19 +23,19 @@ export const extension = (nombre: string) => (String(nombre || '').match(/\.([a-
 export const categoria = (nombre: string): Categoria => EXT[extension(nombre)] || 'otro';
 
 export const ESTILO: Record<Categoria | 'enlace', { icono: LucideIcon; color: string; fondo: string; nombre: string }> = {
-  pdf: { icono: FileText, color: 'text-red-400', fondo: 'bg-red-500/10 border-red-500/25', nombre: 'PDF' },
-  word: { icono: FileText, color: 'text-sky-400', fondo: 'bg-sky-500/10 border-sky-500/25', nombre: 'Word' },
-  excel: { icono: FileSpreadsheet, color: 'text-emerald-400', fondo: 'bg-emerald-500/10 border-emerald-500/25', nombre: 'Excel' },
-  powerpoint: { icono: Presentation, color: 'text-orange-400', fondo: 'bg-orange-500/10 border-orange-500/25', nombre: 'PowerPoint' },
-  imagen: { icono: ImageIcon, color: 'text-pink-400', fondo: 'bg-pink-500/10 border-pink-500/25', nombre: 'Imagen' },
-  video: { icono: Film, color: 'text-fuchsia-400', fondo: 'bg-fuchsia-500/10 border-fuchsia-500/25', nombre: 'Video' },
-  audio: { icono: Music, color: 'text-teal-400', fondo: 'bg-teal-500/10 border-teal-500/25', nombre: 'Audio' },
-  codigo: { icono: FileCode2, color: 'text-violet-400', fondo: 'bg-violet-500/10 border-violet-500/25', nombre: 'Código' },
-  texto: { icono: FileText, color: 'text-slate-300', fondo: 'bg-slate-500/10 border-slate-500/25', nombre: 'Texto' },
-  csv: { icono: FileSpreadsheet, color: 'text-lime-400', fondo: 'bg-lime-500/10 border-lime-500/25', nombre: 'CSV' },
-  zip: { icono: FileArchive, color: 'text-amber-400', fondo: 'bg-amber-500/10 border-amber-500/25', nombre: 'ZIP' },
-  otro: { icono: File, color: 'text-slate-400', fondo: 'bg-slate-500/10 border-slate-500/25', nombre: 'Archivo' },
-  enlace: { icono: Link2, color: 'text-indigo-300', fondo: 'bg-indigo-500/10 border-indigo-500/25', nombre: 'Enlace' },
+  pdf: { icono: FileText, color: 'text-[#e3a3a3]', fondo: 'bg-[#e3a3a3]/[0.07] border-[#e3a3a3]/20', nombre: 'PDF' },
+  word: { icono: FileText, color: 'text-[#9dbbe3]', fondo: 'bg-[#9dbbe3]/[0.07] border-[#9dbbe3]/20', nombre: 'Word' },
+  excel: { icono: FileSpreadsheet, color: 'text-[#9fd0b0]', fondo: 'bg-[#9fd0b0]/[0.07] border-[#9fd0b0]/20', nombre: 'Excel' },
+  powerpoint: { icono: Presentation, color: 'text-[#e6b48e]', fondo: 'bg-[#e6b48e]/[0.07] border-[#e6b48e]/20', nombre: 'PowerPoint' },
+  imagen: { icono: ImageIcon, color: 'text-[#d6a8c4]', fondo: 'bg-[#d6a8c4]/[0.07] border-[#d6a8c4]/20', nombre: 'Imagen' },
+  video: { icono: Film, color: 'text-[#b9b2df]', fondo: 'bg-[#b9b2df]/[0.07] border-[#b9b2df]/20', nombre: 'Video' },
+  audio: { icono: Music, color: 'text-[#9cd3cb]', fondo: 'bg-[#9cd3cb]/[0.07] border-[#9cd3cb]/20', nombre: 'Audio' },
+  codigo: { icono: FileCode2, color: 'text-[#b3b6e3]', fondo: 'bg-[#b3b6e3]/[0.07] border-[#b3b6e3]/20', nombre: 'Código' },
+  texto: { icono: FileText, color: 'text-[#c2c6cd]', fondo: 'bg-[#c2c6cd]/[0.07] border-[#c2c6cd]/20', nombre: 'Texto' },
+  csv: { icono: FileSpreadsheet, color: 'text-[#bcd59c]', fondo: 'bg-[#bcd59c]/[0.07] border-[#bcd59c]/20', nombre: 'CSV' },
+  zip: { icono: FileArchive, color: 'text-[#dfcb8f]', fondo: 'bg-[#dfcb8f]/[0.07] border-[#dfcb8f]/20', nombre: 'ZIP' },
+  otro: { icono: File, color: 'text-[#b6bac2]', fondo: 'bg-[#b6bac2]/[0.07] border-[#b6bac2]/20', nombre: 'Archivo' },
+  enlace: { icono: Link2, color: 'text-[#a7bfe6]', fondo: 'bg-[#a7bfe6]/[0.07] border-[#a7bfe6]/20', nombre: 'Enlace' },
 };
 
 export const estiloDe = (nombre: string) => ESTILO[categoria(nombre)];

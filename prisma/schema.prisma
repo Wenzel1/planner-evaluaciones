@@ -127,6 +127,7 @@ model Materia {
   opiniones     OpinionPlan[]
   estudiantes   Estudiante[]
   secciones     SeccionMateria[]
+  chat          MensajeSeccion[]
   @@index([usuarioId])
 }
 
@@ -574,4 +575,25 @@ model ComentarioEvaluacion {
   createdAt    DateTime   @default(now())
 
   @@index([evaluacionId, estudianteId])
+}
+
+// Chat de la sección (materia + sección): el profesor y sus estudiantes, con archivos y notas de voz
+model MensajeSeccion {
+  id              String   @id @default(cuid())
+  materiaId       String
+  materia         Materia  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  seccion         String   // letra de la sección (A, B, C…)
+  autorTipo       String   // PROFESOR | ESTUDIANTE
+  usuarioId       String?  // cuenta del autor
+  estudianteId    String?  // registro del estudiante en esa clase (si lo escribió un estudiante)
+  autorNombre     String
+  texto           String
+  adjuntoRuta     String?
+  adjuntoNombre   String?
+  adjuntoTipo     String?
+  adjuntoTamano   Int?
+  adjuntoDuracion Int?
+  createdAt       DateTime @default(now())
+
+  @@index([materiaId, seccion, createdAt])
 }

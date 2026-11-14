@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const d = new Date(new URL(request.url).searchParams.get('desde') || Date.now() - 86400000)
     const desde = isNaN(d.getTime()) ? new Date(Date.now() - 86400000) : d
     const propias = { evaluacion: { planificacion: { materia: { usuarioId: actor.id } } } }
-    const [entregas, mensajes, solicitudes, pendientes, sinRevisar] = await Promise.all([
+    const [entregas, mensajes, solicitudes, pendientes, sinRevisar, chat] = await Promise.all([
       prisma.entrega.findMany({ where: { ...propias, entregadaEn: { gt: desde } }, orderBy: { entregadaEn: 'desc' }, take: 30, select: { entregadaEn: true, estudiante: { select: { nombre: true } }, evaluacion: { select: { id: true, nombre: true } } } }),
       prisma.comentarioEvaluacion.findMany({ where: { ...propias, autor: 'ESTUDIANTE', createdAt: { gt: desde } }, orderBy: { createdAt: 'desc' }, take: 30, select: { createdAt: true, texto: true, estudiante: { select: { nombre: true } }, evaluacion: { select: { id: true, nombre: true } } } }),
       // Estudiantes que pidieron unirse con el código de clase
@@ -20,6 +20,8 @@ export async function GET(request: Request) {
       prisma.estudiante.count({ where: { usuarioId: actor.id, estado: 'PENDIENTE' } }),
       // Entregas que todavía no revisa (contador rojo de la pestaña Entregas)
       prisma.entrega.count({ where: { ...propias, revisada: false, devuelta: false } }),
+      // Mensajes de estudiantes en el chat de sus secciones
+      prisma.mensajeSeccion.findMany({ where: { autorTipo: 'ESTUDIANTE', createdAt: { gt: desde }, materia: { usuarioId: actor.id } }, orderBy: { createdAt: 'desc' }, take: 20, select: { autorNombre: true, seccion: true, texto: true, adjuntoNombre: true, materia: { select: { nombre: true } } } }),
     ])
     return NextResponse.json({
       entregas: entregas.map(e => ({ en: e.entregadaEn, estudiante: e.estudiante.nombre, evaluacion: e.evaluacion.nombre, evaluacionId: e.evaluacion.id })),
@@ -27,6 +29,7 @@ export async function GET(request: Request) {
       solicitudes: solicitudes.map(x => ({ estudiante: x.nombre, seccion: x.grupo, materia: x.materia?.nombre || null })),
       pendientes,
       sinRevisar,
+      chat: chat.map(m => ({ estudiante: m.autorNombre, seccion: m.seccion, materia: m.materia.nombre, texto: (m.texto || (m.adjuntoNombre ? `📎 ${m.adjuntoNombre}` : '')).slice(0, 120) })),
       ahora: new Date().toISOString(),
     })
   } catch (e) {

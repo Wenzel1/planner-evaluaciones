@@ -26,7 +26,7 @@ function buscar<T extends { nombre: string }>(lista: T[], nombre: string): T[] {
   return lista.filter(x => { const pm = normal(x.nombre).split(' '); return palabras.every(p => pm.some(w => w === p || (p.length >= 4 && w.startsWith(p)))) })
 }
 
-export const TIPOS_CONSULTA = ['estudiante', 'notas_evaluacion', 'seccion', 'envios_whatsapp', 'opiniones', 'materias'] as const
+export const TIPOS_CONSULTA = ['estudiante', 'notas_evaluacion', 'seccion', 'envios_whatsapp', 'opiniones', 'materias', 'chat_seccion'] as const
 
 export function describirConsulta(a: any): string {
   switch (a?.que) {
@@ -36,6 +36,7 @@ export function describirConsulta(a: any): string {
     case 'envios_whatsapp': return 'los envíos de mensajes'
     case 'opiniones': return 'las opiniones de los estudiantes'
     case 'materias': return 'tus materias'
+    case 'chat_seccion': return `el chat de la Sección ${String(a.seccion || '').toUpperCase() || 'activa'}`
     default: return 'datos'
   }
 }
@@ -49,6 +50,7 @@ export async function ejecutarConsulta(c: ContextoConsulta, a: any): Promise<str
       case 'envios_whatsapp': return await consultaEnvios(c)
       case 'opiniones': return await consultaOpiniones(c)
       case 'materias': return await consultaMaterias(c)
+      case 'chat_seccion': return await consultaChat(c, String(a.seccion || c.seccion || 'A').toUpperCase().slice(0, 1))
       default: return 'Consulta no reconocida.'
     }
   } catch (e: any) {
@@ -137,6 +139,16 @@ async function consultaOpiniones(c: ContextoConsulta): Promise<string> {
   if (!ops.length) return 'Ningún estudiante ha opinado todavía.'
   return [`${ops.length} opiniones: ${ops.filter(o => o.deAcuerdo).length} de acuerdo, ${ops.filter(o => !o.deAcuerdo).length} sugieren cambios.`,
     ...ops.filter(o => o.comentario).map(o => `- ${o.estudiante.nombre} (sec. ${o.estudiante.grupo})${o.leida ? '' : ' [nueva]'}: ${o.deAcuerdo ? '👍' : '✏️'} "${String(o.comentario).slice(0, 200)}"`)].join('\n')
+}
+
+// Chat de la sección: los últimos mensajes (para resumir quejas, recomendaciones o dudas de los estudiantes)
+async function consultaChat(c: ContextoConsulta, seccion: string): Promise<string> {
+  if (!c.materiaId) return 'Guarda el plan primero.'
+  const ms = await prisma.mensajeSeccion.findMany({ where: { materiaId: c.materiaId, seccion }, orderBy: { createdAt: 'desc' }, take: 120, select: { autorTipo: true, autorNombre: true, texto: true, adjuntoNombre: true, adjuntoTipo: true, createdAt: true } })
+  if (!ms.length) return `El chat de la Sección ${seccion} no tiene mensajes todavía.`
+  const est = ms.filter(m => m.autorTipo === 'ESTUDIANTE').length
+  return [`Chat de la Sección ${seccion}: ${ms.length} mensajes recientes (${est} de estudiantes), del más antiguo al más nuevo:`,
+    ...ms.reverse().map(m => `- [${dia(m.createdAt)}] ${m.autorTipo === 'PROFESOR' ? 'Profesor' : m.autorNombre}: ${m.texto ? String(m.texto).slice(0, 300) : ''}${m.adjuntoNombre ? ` (adjuntó ${String(m.adjuntoTipo || '').startsWith('audio/') ? 'una nota de voz' : m.adjuntoNombre})` : ''}`)].join(String.fromCharCode(10))
 }
 
 async function consultaMaterias(c: ContextoConsulta): Promise<string> {

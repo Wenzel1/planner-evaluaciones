@@ -11,7 +11,7 @@ import { AgentePanel } from '@/components/planificador/AgentePanel';
 import { CambioPasswordObligatorio } from '@/components/planificador/Cuenta';
 import { PanelDerecho } from '@/components/planificador/PanelDerecho';
 import { ConfigCliente, MateriaCorta, PanelDerechoHandle, PlanificacionExamen, PropuestaEvaluacion, SeccionExamen, UsuarioSesion } from '@/components/planificador/tipos';
-import { BandaRol, useAnchoPantalla } from '@/components/planificador/ui';
+import { useAnchoPantalla } from '@/components/planificador/ui';
 import { CANAL, CONFIG_CLIENTE_DEFECTO, LIMITES, buscarPorNombre, planVisto } from '@/components/planificador/utilidades';
 import dynamic from 'next/dynamic';
 
@@ -278,7 +278,6 @@ const cambiarMateriaPorNombre = async (nombre: string, crear: boolean): Promise<
   return (
     <div className="fixed inset-0 flex flex-col bg-[color:var(--c-161722)] text-[color:var(--c-b0b0c0)] overflow-hidden">
       <style>{` @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); * { font-family: 'Inter', system-ui, -apple-system, sans-serif; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #1f2035; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #313248; border-radius: 20px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #414258; } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #313248 #1f2035; } body { scrollbar-width: thin; scrollbar-color: #313248 #161722; } @media (max-width: 767px) { input, select, textarea { font-size: 16px !important; } } `}</style>
-      <BandaRol rol={usuario.rol} />
       {sinMaterias && usuario && usuario.rol !== 'SUPERADMIN' && (
         <BienvenidaProfesor nombre={usuario.nombre} onCrear={(m, secciones) => crearMateria(m, secciones)} />
       )}

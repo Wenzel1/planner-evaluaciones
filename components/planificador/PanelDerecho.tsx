@@ -17,6 +17,7 @@ import { planAccionHTML } from '@/components/planificador/planAccionHTML';
 import { useAvisosProfesor } from '@/components/planificador/useAvisosProfesor';
 import BandejaEntregas from '@/components/entregas/BandejaEntregas';
 import Avatar from '@/components/Avatar';
+import ChatSeccion from '@/components/ChatSeccion';
 import { EVAL_POR_ABRIR, MATERIA_ACTIVA, calcularFechasEvaluaciones, esIdGuardado, estadoVisibleEvaluacion, heredado, limpiarTexto, pedirSugerenciasRecursos, planVisto, validarContenidoSE, validarEnfoque } from '@/components/planificador/utilidades';
 import { ActividadPanel, ConfigSistemaPanel, PapeleraPanel } from '@/components/planificador/Administracion';
 import { CalendarioPanel } from '@/components/planificador/CalendarioPanel';
@@ -884,8 +885,6 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
           {vista === 'estadisticas' && (<motion.div key="dashboard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="max-w-6xl mx-auto"><DashboardPorRol planificacion={planificacion} usuario={usuario} onMiTrabajo={() => { if (typeof window !== 'undefined' && window.innerWidth >= 768) onAbrirChat?.(); }} /></motion.div>)}
           {vista === 'planificacion' && (
             <motion.div key="plan" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-5 max-w-5xl mx-auto">
-                <ObservacionesRecibidas items={observaciones} onLeer={marcarObservacionLeida} />
-                <OpinionesEstudiantes items={opiniones} onVistas={marcarOpinionesVistas} onBorrar={borrarOpiniones} />
                 {/* Guía de primeros pasos: solo mientras falten estudiantes o evaluaciones en la sección */}
                 {datosCargados && estudiantesSeccion !== null && (estudiantesSeccion === 0 || seccionesFiltradas.length === 0) && !guiasCerradas.includes(seccionActiva) && (
                   <div className="rounded-2xl border border-[color:var(--c-818cf8)]/25 bg-gradient-to-br from-[color:var(--c-22234a)]/70 to-[color:var(--c-1d1e2e)] p-5">
@@ -1132,6 +1131,8 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                   </motion.div>
                 </AnimatePresence>
               </div>
+              {/* Chat de la sección (con las observaciones de los administradores y las opiniones del plan) */}
+              {materiaActivaId && !esSuperadmin && <div data-tutorial="chat-seccion"><ChatSeccion modo="profesor" api="/api/secciones/chat" params={{ materiaId: materiaActivaId, seccion: seccionActiva }} /></div>}
               {false && planificacion.comentariosAgente.length > 0 && (<div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-6 shadow-xl"><h2 className="text-sm font-medium text-[color:var(--c-9090a8)] uppercase tracking-wider mb-3 flex items-center gap-2 font-['Inter']"><Sparkles className="w-4 h-4 text-[color:var(--c-818cf8)]" /> Feedback del agente</h2><div className="space-y-2">{planificacion.comentariosAgente.slice(-3).map(c => (<motion.p key={c.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="text-base text-[color:var(--c-9090a4)] leading-relaxed font-['Inter']">{c.mensaje}</motion.p>))}</div></div>)}
             </motion.div>
           )}
