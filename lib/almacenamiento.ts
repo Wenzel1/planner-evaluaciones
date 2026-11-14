@@ -17,12 +17,12 @@ export const archivosConfigurados = () => !!(base() && clave())
 // El bucket "entregas" debe permitir este tamaño (Supabase → Storage → entregas → Edit → File size limit).
 export const MAX_ARCHIVO = 25 * 1024 * 1024
 export const MAX_ARCHIVOS_POR_ENTREGA = 10
-export const EXTENSIONES = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods', 'txt', 'md', 'csv', 'zip', 'rar', '7z', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4', 'webm', 'mov', 'mp3', 'wav', 'm4a', 'drawio', 'fig', 'sql', 'json', 'xml', 'yml', 'yaml', 'html', 'css', 'scss', 'js', 'jsx', 'ts', 'tsx', 'py', 'java', 'kt', 'c', 'h', 'cpp', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'dart', 'sh', 'ipynb', 'puml', 'uml']
+export const EXTENSIONES = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods', 'txt', 'md', 'csv', 'zip', 'rar', '7z', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4', 'webm', 'mov', 'mp3', 'wav', 'm4a', 'ogg', 'oga', 'opus', 'drawio', 'fig', 'sql', 'json', 'xml', 'yml', 'yaml', 'html', 'css', 'scss', 'js', 'jsx', 'ts', 'tsx', 'py', 'java', 'kt', 'c', 'h', 'cpp', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'dart', 'sh', 'ipynb', 'puml', 'uml']
 
 // Tipo de contenido por extensión. Lo que un navegador podría ejecutar (html, svg, js…) se guarda como texto plano.
 const TIPOS: Record<string, string> = {
   pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
-  mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4',
+  mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg',
   doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',

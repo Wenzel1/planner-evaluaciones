@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requerirActor, verificarAcceso } from '@/lib/permisos'
+import { SELECT_COMENTARIO, vistaComentario, datosAdjunto } from '@/lib/adjuntos'
+import { enlaceArchivo } from '@/lib/almacenamiento'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,16 +25,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const estudianteId = new URL(request.url).searchParams.get('estudianteId') || ''
     const r = await contexto(request, id, estudianteId, 'leer')
     if (r.error) return r.error
-    const lista = await prisma.comentarioEvaluacion.findMany({ where: { evaluacionId: id, estudianteId }, orderBy: { createdAt: 'asc' }, take: 200, select: { id: true, autor: true, texto: true, createdAt: true } })
+    // ?adjunto=<id del mensaje> → abre su archivo o nota de voz (enlace temporal)
+    const adjunto = new URL(request.url).searchParams.get('adjunto')
+    if (adjunto) {
+      const c = await prisma.comentarioEvaluacion.findFirst({ where: { id: adjunto, evaluacionId: id, estudianteId }, select: { adjuntoRuta: true, adjuntoNombre: true } })
+      if (!c?.adjuntoRuta) return NextResponse.json({ error: 'No hay archivo.' }, { status: 404 })
+      return NextResponse.redirect(await enlaceArchivo(c.adjuntoRuta, new URL(request.url).searchParams.get('descargar') ? c.adjuntoNombre || undefined : undefined))
+    }
+    const lista = await prisma.comentarioEvaluacion.findMany({ where: { evaluacionId: id, estudianteId }, orderBy: { createdAt: 'asc' }, take: 200, select: SELECT_COMENTARIO })
     await prisma.comentarioEvaluacion.updateMany({ where: { evaluacionId: id, estudianteId, autor: 'ESTUDIANTE', leido: false }, data: { leido: true } })
-    return NextResponse.json(lista)
+    return NextResponse.json(lista.map(vistaComentario))
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'No se pudieron cargar los comentarios.' }, { status: 500 })
   }
 }
 
-// POST /api/evaluaciones/:id/comentarios  { estudianteId, texto }
+// POST /api/evaluaciones/:id/comentarios  { estudianteId, texto?, adjunto?: { ruta, nombre, tamano, tipo, duracion? } }
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
@@ -41,9 +50,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const r = await contexto(request, id, estudianteId, 'escribir')
     if (r.error) return r.error
     const texto = String(body.texto || '').trim().slice(0, 1000)
-    if (texto.length < 2) return NextResponse.json({ error: 'Escribe tu mensaje.' }, { status: 400 })
-    const c = await prisma.comentarioEvaluacion.create({ data: { evaluacionId: id, estudianteId, autor: 'PROFESOR', texto }, select: { id: true, autor: true, texto: true, createdAt: true } })
-    return NextResponse.json(c, { status: 201 })
+    const adj = datosAdjunto(id, estudianteId, body.adjunto)
+    if (adj === 'invalido') return NextResponse.json({ error: 'Archivo no válido.' }, { status: 400 })
+    if (texto.length < 2 && !adj) return NextResponse.json({ error: 'Escribe tu mensaje.' }, { status: 400 })
+    const c = await prisma.comentarioEvaluacion.create({ data: { evaluacionId: id, estudianteId, autor: 'PROFESOR', texto, ...(adj || {}) }, select: SELECT_COMENTARIO })
+    return NextResponse.json(vistaComentario(c), { status: 201 })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'No se pudo enviar el mensaje.' }, { status: 500 })

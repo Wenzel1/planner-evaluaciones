@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Upload, Link2, CheckCircle2, AlertCircle, MessageSquare, Send, FileText, ExternalLink, X, Eye } from 'lucide-react';
 import VistaArchivo, { precargarArchivo } from '@/components/entregas/VistaArchivo';
+import { VerAdjunto, BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
 
 export interface ArchivoInfo { id: string; nombre: string; tamano: number | null; tipo: string | null }
 export interface EntregaInfo { tipo: string; url: string | null; archivoNombre: string | null; comentario: string | null; entregadaEn: string; devuelta: boolean; devolucion: string | null; tarde?: boolean; revisada?: boolean; archivos?: ArchivoInfo[] }
@@ -197,14 +198,28 @@ function ListaArchivos({ archivos, onVer, fuente }: { archivos: ArchivoInfo[]; o
   );
 }
 
-interface Mensaje { id: string; autor: string; texto: string; createdAt: string }
+interface Mensaje { id: string; autor: string; texto: string; createdAt: string; adjunto?: Adjunto | null }
 export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreAbierto = false }: { token: string; evaluacionId: string; nuevos: number; onLeidos: () => void; siempreAbierto?: boolean }) {
   const [abierto, setAbierto] = useState(nuevos > 0 || siempreAbierto);
   const [lista, setLista] = useState<Mensaje[] | null>(null);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
+  const [progreso, setProgreso] = useState<{ nombre: string; p: number } | null>(null);
+  const [grabando, setGrabando] = useState(false);
   const fin = useRef<HTMLDivElement>(null);
+  const baseMsj = `/api/portal/${encodeURIComponent(token)}/comentarios`;
+  // Archivo o nota de voz: se sube directo al almacenamiento y se envía como mensaje
+  const enviarAdjunto = async (archivo: File | Blob, nombre: string, duracion?: number) => {
+    setEnviando(true); setError(''); setProgreso({ nombre, p: 0 });
+    try {
+      const adjunto = await subirAdjunto(`${baseMsj}/subida`, { evaluacionId }, archivo, nombre, (p) => setProgreso({ nombre, p }), duracion);
+      const r = await fetch(baseMsj, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ evaluacionId, texto: texto.trim(), adjunto }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'No se pudo enviar.');
+      setLista(prev => [...(prev || []), d]); setTexto('');
+    } catch (e: any) { setError(e.message); } finally { setEnviando(false); setProgreso(null); }
+  };
   const cargar = async () => {
     const r = await fetch(`/api/portal/${encodeURIComponent(token)}/comentarios?evaluacionId=${encodeURIComponent(evaluacionId)}`, { cache: 'no-store' }).catch(() => null);
     if (r?.ok) { setLista(await r.json()); onLeidos(); }
@@ -233,16 +248,21 @@ export function BloqueMensajes({ token, evaluacionId, nuevos, onLeidos, siempreA
             {lista === null && <p className="text-xs text-[color:var(--c-8a8b9e)]">Cargando…</p>}
             {lista?.length === 0 && <p className="text-xs text-[color:var(--c-8a8b9e)]">¿Tienes una duda sobre esta evaluación? Escríbele: solo la ve tu profesor.</p>}
             {lista?.map(m => (
-              <div key={m.id} className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${m.autor === 'ESTUDIANTE' ? 'ml-auto bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-e0e0ec)]' : 'bg-[color:var(--c-272839)] text-[color:var(--c-d0d0da)]'}`}>
-                <p className="whitespace-pre-wrap break-words">{m.texto}</p>
-                <p className="text-[10px] text-[color:var(--c-8a8b9e)] mt-0.5">{m.autor === 'ESTUDIANTE' ? 'Tú' : 'Profesor'} · {fecha(m.createdAt)}</p>
+              <div key={m.id} className={`max-w-[85%] px-3 py-2 rounded-xl text-sm space-y-1.5 ${m.autor === 'ESTUDIANTE' ? 'ml-auto bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-e0e0ec)]' : 'bg-[color:var(--c-272839)] text-[color:var(--c-d0d0da)]'}`}>
+                {m.adjunto && <VerAdjunto adjunto={m.adjunto} mio={false} url={`${baseMsj}?evaluacionId=${encodeURIComponent(evaluacionId)}&adjunto=${encodeURIComponent(m.id)}`} />}
+                {m.texto && <p className="whitespace-pre-wrap break-words">{m.texto}</p>}
+                <p className="text-[10px] text-[color:var(--c-8a8b9e)]">{m.autor === 'ESTUDIANTE' ? 'Tú' : 'Profesor'} · {fecha(m.createdAt)}</p>
               </div>
             ))}
+            {progreso && <div className="ml-auto w-48 rounded-xl bg-[color:var(--c-818cf8)]/10 px-3 py-2"><p className="text-[11px] text-[color:var(--c-c7d2fe)] truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-[color:var(--c-282a3f)] overflow-hidden"><div className="h-full bg-[color:var(--c-818cf8)] transition-all" style={{ width: `${progreso.p}%` }} /></div></div>}
             <div ref={fin} />
           </div>
-          <form onSubmit={(ev) => { ev.preventDefault(); if (texto.trim().length >= 2) enviar(); }} className="flex gap-2">
-            <input value={texto} onChange={(ev) => setTexto(ev.target.value)} maxLength={1000} placeholder="Escribe tu mensaje…" className="flex-1 min-w-0 h-10 px-3 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-d8d8e2)] outline-none focus:border-[color:var(--c-818cf8)]/60" />
-            <button type="submit" disabled={enviando || texto.trim().length < 2} aria-label="Enviar" className="w-10 h-10 rounded-lg bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-50"><Send className="w-4 h-4" /></button>
+          <form onSubmit={(ev) => { ev.preventDefault(); if (texto.trim().length >= 2) enviar(); }} className="flex gap-1.5 items-center flex-wrap">
+            {!grabando && <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />}
+            {!grabando && <input value={texto} onChange={(ev) => setTexto(ev.target.value)} maxLength={1000} placeholder="Escribe tu mensaje…" className="flex-1 min-w-0 h-10 px-3 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />}
+            {texto.trim().length >= 2 && !grabando
+              ? <button type="submit" disabled={enviando} aria-label="Enviar" className="w-10 h-10 rounded-lg bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-50 flex-shrink-0"><Send className="w-4 h-4" /></button>
+              : <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />}
           </form>
           {error && <p className="text-xs text-red-300">{error}</p>}
         </div>

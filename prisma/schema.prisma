@@ -565,6 +565,12 @@ model ComentarioEvaluacion {
   autor        String     // PROFESOR | ESTUDIANTE
   texto        String
   leido        Boolean    @default(false) // lo leyó el destinatario
+  // Archivo o nota de voz adjunta (opcional), guardada en el almacenamiento de entregas
+  adjuntoRuta     String?
+  adjuntoNombre   String?
+  adjuntoTipo     String?
+  adjuntoTamano   Int?
+  adjuntoDuracion Int?    // segundos (notas de voz)
   createdAt    DateTime   @default(now())
 
   @@index([evaluacionId, estudianteId])

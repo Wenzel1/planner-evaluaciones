@@ -9,6 +9,7 @@ import { X, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Send, ExternalLi
 import VistaArchivo from './VistaArchivo';
 import Avatar from '@/components/Avatar';
 import { precargarArchivo } from './enlaces';
+import { VerAdjunto, BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
 import { estiloDe, ESTILO, fechaHora, tamanoLegible } from './tiposArchivo';
 import { NIVELES_RUBRICA, type RubricaEval } from '@/lib/rubrica';
 import { notaDesdeRubrica, NIVEL_CORTO, COLOR_BOTON_NIVEL, textoNota } from '@/components/planificador/ModalNotas';
@@ -258,9 +259,12 @@ function PanelRevision({ e, rubrica, onActualizar, onSiguiente }: { e: EntregaBa
 }
 
 function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos }: { evaluacionId: string; estudianteId: string; sinLeer: number; onLeidos: () => void }) {
-  const [lista, setLista] = useState<{ id: string; autor: string; texto: string; createdAt: string }[] | null>(null);
+  const [lista, setLista] = useState<{ id: string; autor: string; texto: string; createdAt: string; adjunto?: Adjunto | null }[] | null>(null);
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [progreso, setProgreso] = useState<{ nombre: string; p: number } | null>(null);
+  const [grabando, setGrabando] = useState(false);
+  const [error, setError] = useState('');
   const fin = useRef<HTMLDivElement>(null);
   const base = `/api/evaluaciones/${encodeURIComponent(evaluacionId)}/comentarios`;
   useEffect(() => {
@@ -269,30 +273,56 @@ function Mensajes({ evaluacionId, estudianteId, sinLeer, onLeidos }: { evaluacio
     return () => { vivo = false; };
   }, [base, estudianteId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fin.current?.scrollIntoView({ block: 'nearest' }); }, [lista?.length]);
+  const publicar = async (cuerpo: Record<string, unknown>) => {
+    const r = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteId, ...cuerpo }) }).catch(() => null);
+    const d = r ? await r.json().catch(() => ({})) : {};
+    if (!r?.ok) throw new Error(d.error || 'No se pudo enviar.');
+    setLista(l => [...(l || []), d]);
+  };
   const enviar = async () => {
     const t = texto.trim(); if (t.length < 2) return;
-    setEnviando(true);
-    const r = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estudianteId, texto: t }) }).catch(() => null);
-    if (r?.ok) { const m = await r.json(); setLista(l => [...(l || []), m]); setTexto(''); }
-    setEnviando(false);
+    setEnviando(true); setError('');
+    try { await publicar({ texto: t }); setTexto(''); } catch (e: any) { setError(e.message); } finally { setEnviando(false); }
+  };
+  // Archivo o nota de voz: se sube directo al almacenamiento y se envía como mensaje (con el texto escrito, si hay)
+  const enviarAdjunto = async (archivo: File | Blob, nombre: string, duracion?: number) => {
+    setEnviando(true); setError(''); setProgreso({ nombre, p: 0 });
+    try {
+      const adjunto = await subirAdjunto(`${base}/subida`, { estudianteId }, archivo, nombre, (p) => setProgreso({ nombre, p }), duracion);
+      await publicar({ texto: texto.trim(), adjunto }); setTexto('');
+    } catch (e: any) { setError(e.message); } finally { setEnviando(false); setProgreso(null); }
   };
   return (
     <section className="space-y-2">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)] flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" />Mensajes privados</p>
-      <div className="rounded-xl border border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] p-2.5 max-h-60 overflow-y-auto space-y-2">
+      <div className="rounded-xl border border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)] p-2.5 max-h-72 overflow-y-auto space-y-2">
         {lista === null ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-3">Cargando…</p>
-          : lista.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-3">Sin mensajes. Escríbele algo sobre su trabajo.</p>
-          : lista.map(m => (
-            <div key={m.id} className={`flex ${m.autor === 'PROFESOR' ? 'justify-end' : 'justify-start'}`}>
-              <p className={`max-w-[85%] text-xs rounded-2xl px-3 py-2 whitespace-pre-wrap ${m.autor === 'PROFESOR' ? 'bg-[color:var(--c-818cf8)] text-white rounded-br-md' : 'bg-[color:var(--c-232430)] text-[color:var(--c-d0d0da)] rounded-bl-md'}`}>{m.texto}<span className="block text-[9px] opacity-60 mt-0.5">{fechaHora(m.createdAt)}</span></p>
-            </div>
-          ))}
+          : lista.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-3">Sin mensajes. Escríbele, envíale un archivo o una nota de voz.</p>
+          : lista.map(m => {
+            const mio = m.autor === 'PROFESOR';
+            return (
+              <div key={m.id} className={`flex ${mio ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] text-xs rounded-2xl px-3 py-2 space-y-1.5 ${mio ? 'bg-[color:var(--c-818cf8)] text-white rounded-br-md' : 'bg-[color:var(--c-232430)] text-[color:var(--c-d0d0da)] rounded-bl-md'}`}>
+                  {m.adjunto && <VerAdjunto adjunto={m.adjunto} mio={mio} url={`${base}?estudianteId=${encodeURIComponent(estudianteId)}&adjunto=${encodeURIComponent(m.id)}`} />}
+                  {m.texto && <p className="whitespace-pre-wrap break-words">{m.texto}</p>}
+                  <span className="block text-[9px] opacity-60">{fechaHora(m.createdAt)}</span>
+                </div>
+              </div>
+            );
+          })}
+        {progreso && (
+          <div className="flex justify-end"><div className="w-48 rounded-2xl rounded-br-md bg-[color:var(--c-818cf8)]/20 px-3 py-2"><p className="text-[11px] text-[color:var(--c-c7d2fe)] truncate">Enviando {progreso.nombre}…</p><div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-[color:var(--c-818cf8)] transition-all" style={{ width: `${progreso.p}%` }} /></div></div></div>
+        )}
         <div ref={fin} />
       </div>
-      <div className="flex gap-2">
-        <input value={texto} onChange={(ev) => setTexto(ev.target.value.slice(0, 1000))} onKeyDown={(ev) => { if (ev.key === 'Enter') enviar(); }} placeholder="Escribe un mensaje…" className="flex-1 h-10 px-3 rounded-xl bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />
-        <button type="button" disabled={enviando || texto.trim().length < 2} onClick={enviar} className="w-10 h-10 rounded-xl bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-40"><Send className="w-4 h-4" /></button>
+      <div className="flex gap-1.5 items-center flex-wrap">
+        {!grabando && <BotonAdjuntar deshabilitado={enviando} onArchivo={(f) => enviarAdjunto(f, f.name)} />}
+        {!grabando && <input value={texto} onChange={(ev) => setTexto(ev.target.value.slice(0, 1000))} onKeyDown={(ev) => { if (ev.key === 'Enter') enviar(); }} placeholder="Escribe un mensaje…" className="flex-1 min-w-0 h-10 px-3 rounded-xl bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]" />}
+        {texto.trim().length >= 2 && !grabando
+          ? <button type="button" disabled={enviando} onClick={enviar} className="w-10 h-10 rounded-xl bg-[color:var(--c-818cf8)] text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0"><Send className="w-4 h-4" /></button>
+          : <Grabadora deshabilitado={enviando} onGrabando={setGrabando} onListo={(audio, nombre, seg) => enviarAdjunto(audio, nombre, seg)} />}
       </div>
+      {error && <p className="text-[11px] text-red-300">{error}</p>}
     </section>
   );
 }
