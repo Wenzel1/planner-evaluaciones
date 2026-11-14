@@ -2,7 +2,7 @@
 // Chat de la sección: profesor y estudiantes de una materia y sección. Sobrio, con archivos y notas de voz.
 // En la vista del profesor también aparecen (solo para él) las observaciones de los administradores y las opiniones del plan.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Sparkles, Trash2, ShieldCheck, ThumbsUp, Lightbulb, X, Loader2, CheckCheck } from 'lucide-react';
+import { MessageSquare, Send, Sparkles, Trash2, ShieldCheck, ThumbsUp, Lightbulb, X, Loader2, CheckCheck, ChevronDown } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { VerAdjunto, BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
 
@@ -37,6 +37,11 @@ export default function ChatSeccion({ modo, api, params, titulo }: { modo: 'prof
   const [error, setError] = useState('');
   const [resumen, setResumen] = useState<{ cargando: boolean; texto?: string; error?: string } | null>(null);
   const lista = useRef<HTMLDivElement>(null);
+  const [abierto, setAbierto] = useState(false); // aparece cerrado; se abre al tocar el encabezado
+  const claveVisto = `chat-visto:${api}?${qs(params)}`;
+  const [vistoHasta, setVistoHasta] = useState(0);
+  useEffect(() => { try { setVistoHasta(Number(localStorage.getItem(claveVisto) || 0)); } catch { /* sin almacenamiento */ } }, [claveVisto]);
+  const marcarVisto = () => { const t = Date.now(); setVistoHasta(t); try { localStorage.setItem(claveVisto, String(t)); } catch { /* sin almacenamiento */ } };
   const pegadoAbajo = useRef(true);
   const consulta = qs(params);
 
@@ -53,7 +58,9 @@ export default function ChatSeccion({ modo, api, params, titulo }: { modo: 'prof
     return () => clearInterval(t);
   }, [cargar]);
   // Baja solo si ya estaba abajo (no interrumpe a quien está leyendo mensajes viejos)
-  useEffect(() => { const el = lista.current; if (el && pegadoAbajo.current) el.scrollTop = el.scrollHeight; }, [items?.length, progreso]);
+  useEffect(() => { const el = lista.current; if (el && pegadoAbajo.current) el.scrollTop = el.scrollHeight; }, [items?.length, progreso, abierto]);
+  // Mientras está abierto, lo que llega queda como leído
+  useEffect(() => { if (abierto) marcarVisto(); }, [abierto, items?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const publicar = async (cuerpo: Record<string, unknown>) => {
     const r = await fetch(api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...params, ...cuerpo }) });
@@ -86,25 +93,34 @@ export default function ChatSeccion({ modo, api, params, titulo }: { modo: 'prof
     setResumen(r?.ok ? { cargando: false, texto: d.texto } : { cargando: false, error: d.error || 'No se pudo resumir.' });
   };
 
+  const ultimo = items && items.length ? items[items.length - 1] : null;
+  const nuevos = (items || []).filter(m => !m.mio && m.tipo === 'MENSAJE' && new Date(m.createdAt).getTime() > vistoHasta).length;
   const urlAdjunto = (id: string) => `${api}?${consulta}&adjunto=${encodeURIComponent(id)}`;
   const mensajesEst = (items || []).filter(m => m.autorTipo === 'ESTUDIANTE').length;
 
   return (
     <section className="rounded-2xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] overflow-hidden">
       {/* Encabezado */}
-      <div className="px-4 py-3 flex items-center gap-3 border-b border-[color:var(--c-282a3f)]">
+      <div className={`px-4 py-3 flex items-center gap-3 ${abierto ? 'border-b border-[color:var(--c-282a3f)]' : ''}`}>
+        <button type="button" onClick={() => { pegadoAbajo.current = true; setAbierto(v => !v); }} aria-expanded={abierto} className="min-w-0 flex-1 flex items-center gap-3 text-left">
         <MessageSquare className="w-4 h-4 text-[color:var(--c-a5b4fc)] flex-shrink-0" />
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">{titulo || `Chat de la Sección ${params.seccion || ''}`}</h2>
-          <p className="text-[11px] text-[color:var(--c-8a8b9e)]">{modo === 'profesor' ? `${estudiantes ?? '…'} estudiante${estudiantes === 1 ? '' : 's'} · lo que escribes aquí lo ve toda la sección` : 'Lo ven tu profesor y tus compañeros de sección'}</p>
+          {!abierto && ultimo ? (
+            <p className="text-[11px] text-[color:var(--c-8a8b9e)] truncate"><b className="font-medium text-[color:var(--c-b0b0c4)]">{ultimo.mio ? 'Tú' : ultimo.autorNombre.split(' ')[0]}:</b> {ultimo.texto || (ultimo.adjunto ? (ultimo.adjunto.tipo?.startsWith('audio/') ? '🎤 Nota de voz' : `📎 ${ultimo.adjunto.nombre}`) : '')}</p>
+          ) : <p className="text-[11px] text-[color:var(--c-8a8b9e)]">{modo === 'profesor' ? `${estudiantes ?? '…'} estudiante${estudiantes === 1 ? '' : 's'} · lo que escribes aquí lo ve toda la sección` : 'Lo ven tu profesor y tus compañeros de sección'}</p>}
         </div>
-        {modo === 'profesor' && (
+        {!abierto && nuevos > 0 && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[color:var(--c-818cf8)] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">{nuevos}</span>}
+        <ChevronDown className={`w-4 h-4 text-[color:var(--c-8a8b9e)] flex-shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+        </button>
+        {abierto && modo === 'profesor' && (
           <button type="button" onClick={resumir} disabled={resumen?.cargando || !mensajesEst} title={mensajesEst ? 'La IA resume quejas, recomendaciones y dudas de tus estudiantes' : 'Aún no hay mensajes de estudiantes'} className="h-8 px-3 rounded-lg border border-[color:var(--c-313248)] text-xs font-medium text-[color:var(--c-c7d2fe)] hover:border-[color:var(--c-414258)] flex items-center gap-1.5 disabled:opacity-40">
             {resumen?.cargando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}Resumir con IA
           </button>
         )}
       </div>
 
+      {abierto && (<>
       {/* Resumen de la IA */}
       {resumen && !resumen.cargando && (
         <div className="mx-4 mt-3 rounded-xl border border-[color:var(--c-818cf8)]/25 bg-[color:var(--c-818cf8)]/[0.06] px-4 py-3 text-[13px] text-[color:var(--c-c0c0d0)] leading-relaxed relative">
@@ -115,7 +131,7 @@ export default function ChatSeccion({ modo, api, params, titulo }: { modo: 'prof
       )}
 
       {/* Mensajes (estilo WhatsApp: los tuyos a la derecha, los demás a la izquierda) */}
-      <div ref={lista} onScroll={(e) => { const el = e.currentTarget; pegadoAbajo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} className="max-h-[460px] min-h-[180px] overflow-y-auto overscroll-contain px-3 sm:px-5 py-3 bg-[color:var(--c-161722)]">
+      <div ref={lista} onScroll={(e) => { const el = e.currentTarget; pegadoAbajo.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} className="h-[420px] overflow-y-auto overscroll-contain px-3 sm:px-5 py-3 bg-[color:var(--c-161722)]">
         {items === null ? <p className="text-xs text-[color:var(--c-8a8b9e)] text-center py-8">Cargando…</p>
           : items.length === 0 ? <p className="text-xs text-[color:var(--c-6a6b7e)] text-center py-8">{modo === 'profesor' ? 'Aún no hay mensajes. Escribe un aviso para toda la sección.' : 'Aún no hay mensajes. Escribe tu duda: la ve tu profesor y tus compañeros.'}</p>
           : items.map((m, i) => {
@@ -193,6 +209,7 @@ export default function ChatSeccion({ modo, api, params, titulo }: { modo: 'prof
         </form>
         {error && <p className="text-[11px] text-red-300 mt-1.5 px-2">{error}</p>}
       </div>
+      </>)}
     </section>
   );
 }

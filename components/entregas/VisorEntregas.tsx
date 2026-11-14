@@ -254,18 +254,23 @@ function PanelRevision({ e, rubrica, onActualizar, onSiguiente, sugerencia, vers
                 </div>
               </div>
             ))}
-            <div className="flex items-center justify-between rounded-xl bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/25 px-3 py-2">
-              <span className="text-xs text-[color:var(--c-c7d2fe)]">Nota según la rúbrica</span>
-              <span className="text-xl font-bold text-[color:var(--c-e0e0ec)] tabular-nums">{notaRubrica == null ? '—' : textoNota(notaRubrica)}<span className="text-xs text-[color:var(--c-8a8b9e)] font-normal"> /20</span></span>
+            <div className="flex items-stretch gap-2 h-[72px]">
+              <div className="w-28 flex-shrink-0 rounded-xl bg-[color:var(--c-818cf8)]/10 border border-[color:var(--c-818cf8)]/25 flex flex-col items-center justify-center">
+                <span className="text-2xl font-bold text-[color:var(--c-e0e0ec)] tabular-nums leading-none">{notaRubrica == null ? '—' : textoNota(notaRubrica)}</span>
+                <span className="text-[10px] text-[color:var(--c-a5b4fc)] mt-1">según la rúbrica</span>
+              </div>
+              <textarea value={obs} onChange={(ev) => setObs(ev.target.value.slice(0, 500))} placeholder="Observación (opcional, la verá el estudiante)" className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)] resize-none" />
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3">
-            <input value={puntaje} onChange={(ev) => setPuntaje(ev.target.value.replace(/[^\d.,]/g, '').slice(0, 5))} inputMode="decimal" placeholder="—" className={`w-24 h-12 text-center text-2xl font-bold rounded-xl bg-[color:var(--c-191a26)] border text-[color:var(--c-e0e0ec)] focus:outline-none focus:border-[color:var(--c-818cf8)] ${notaValida ? 'border-[color:var(--c-313248)]' : 'border-red-500/60'}`} />
-            <span className="text-sm text-[color:var(--c-8a8b9e)]">de 20 puntos</span>
+          <div className="flex items-stretch gap-2 h-[72px]">
+            <label className={`w-24 flex-shrink-0 rounded-xl bg-[color:var(--c-191a26)] border flex flex-col items-center justify-center focus-within:border-[color:var(--c-818cf8)] ${notaValida ? 'border-[color:var(--c-313248)]' : 'border-red-500/60'}`}>
+              <input value={puntaje} onChange={(ev) => setPuntaje(ev.target.value.replace(/[^\d.,]/g, '').slice(0, 5))} inputMode="decimal" placeholder="—" aria-label="Nota sobre 20" className="w-full bg-transparent text-center text-2xl font-bold text-[color:var(--c-e0e0ec)] focus:outline-none" />
+              <span className="text-[10px] text-[color:var(--c-6a6b7e)]">de 20</span>
+            </label>
+            <textarea value={obs} onChange={(ev) => setObs(ev.target.value.slice(0, 500))} placeholder="Observación (opcional, la verá el estudiante)" className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)] resize-none" />
           </div>
         )}
-        <textarea value={obs} onChange={(ev) => setObs(ev.target.value.slice(0, 500))} rows={2} placeholder="Observación de la nota (opcional, la verá el estudiante)" className="w-full px-3 py-2 rounded-xl bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)] resize-none" />
         <div className="grid grid-cols-2 gap-2">
           <button type="button" disabled={guardando} onClick={() => guardarNota(false)} className="h-10 rounded-xl border border-[color:var(--c-313248)] text-sm font-medium text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/10 flex items-center justify-center gap-1.5 disabled:opacity-50"><Save className="w-4 h-4" />Guardar nota</button>
           <button type="button" disabled={guardando} onClick={() => guardarNota(true)} className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold text-white flex items-center justify-center gap-1.5 disabled:opacity-50" title="Guarda la nota, la marca como revisada y pasa al siguiente">{guardando ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}Calificar y seguir</button>
@@ -276,13 +281,14 @@ function PanelRevision({ e, rubrica, onActualizar, onSiguiente, sugerencia, vers
       {/* Estado de la revisión */}
       <section className="space-y-2">
         <p className={etiqueta}>Revisión</p>
-        <button type="button" onClick={alternarRevisada} className={`w-full h-10 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-colors ${e.revisada ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-emerald-500/40'}`}>
+        <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={alternarRevisada} className={`h-10 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-colors ${e.revisada ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-emerald-500/40'}`}>
           {e.revisada ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}{e.revisada ? 'Revisada' : 'Marcar como revisada'}
         </button>
+        <button type="button" onClick={() => setDevolviendo(v => !v)} className={`h-10 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-colors ${devolviendo ? 'bg-amber-500/15 border-amber-500/50 text-amber-200' : 'border-amber-500/30 text-amber-200 hover:bg-amber-500/10'}`}><RotateCcw className="w-4 h-4" />Devolver para corregir</button>
+        </div>
         {e.devuelta && e.devolucion && <p className="text-xs text-amber-100/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2"><b>Le pediste corregir:</b> {e.devolucion}</p>}
-        {!devolviendo ? (
-          <button type="button" onClick={() => setDevolviendo(true)} className="w-full h-10 rounded-xl border border-amber-500/30 text-sm font-medium text-amber-200 hover:bg-amber-500/10 flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" />Devolver para corregir</button>
-        ) : (
+        {devolviendo && (
           <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
             <textarea autoFocus value={textoDevolucion} onChange={(ev) => setTextoDevolucion(ev.target.value.slice(0, 1000))} rows={3} placeholder="¿Qué debe corregir? (lo verá el estudiante)" className="w-full px-3 py-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-amber-400/60 resize-none" />
             <div className="flex gap-2 justify-end"><button type="button" onClick={() => setDevolviendo(false)} className="h-8 px-3 text-xs text-[color:var(--c-8a8b9e)]">Cancelar</button><button type="button" onClick={devolver} className="h-8 px-3 rounded-lg bg-amber-500 text-black text-xs font-semibold">Devolver</button></div>
