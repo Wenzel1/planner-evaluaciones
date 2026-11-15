@@ -19,6 +19,7 @@ import BandejaEntregas from '@/components/entregas/BandejaEntregas';
 import Avatar from '@/components/Avatar';
 import ChatSeccion from '@/components/ChatSeccion';
 import MensajesProfesor from '@/components/planificador/MensajesProfesor';
+import AvisarCambios from '@/components/planificador/AvisarCambios';
 import Materiales from '@/components/Materiales';
 import { EVAL_POR_ABRIR, MATERIA_ACTIVA, calcularFechasEvaluaciones, esIdGuardado, estadoVisibleEvaluacion, heredado, limpiarTexto, pedirSugerenciasRecursos, planVisto, validarContenidoSE, validarEnfoque } from '@/components/planificador/utilidades';
 import { ActividadPanel, ConfigSistemaPanel, PapeleraPanel } from '@/components/planificador/Administracion';
@@ -178,7 +179,8 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   // auto: evaluaciones recién creadas (sin preguntar ni avisar si no hay nada que buscar)
   const recursosParaTodas = async (auto = false, ids?: string[]) => {
     if (llenandoRecursosRef.current) return;
-    const pendientes = planificacion.secciones.filter((s: SeccionExamen) => (ids ? ids.includes(s.id) : (s.grupoSeccion || 'A') === seccionActiva) && !(s.recursos?.length) && !['CANCELADA', 'REALIZADA'].includes(String(s.estado || '').toUpperCase()));
+    const pendientes = planificacion.secciones.filter((s: SeccionExamen) => (ids ? ids.includes(s.id) : (s.grupoSeccion || 'A') === seccionActiva) && !(s.recursos?.length) && !['CANCELADA', 'REALIZADA'].includes(String(s.estado || '').toUpperCase()))
+      .sort((a, b) => (ids ? ids.indexOf(a.id) - ids.indexOf(b.id) : 0));
     if (pendientes.length === 0) { if (!auto) agregarNotificacion(`📎 Todas las evaluaciones de la Sección ${seccionActiva} ya tienen recursos.`); return; }
     if (!auto && !(await confirmar(`Se buscarán videos y páginas para ${pendientes.length} evaluación(es) de la Sección ${seccionActiva} que no tienen recursos, y se asignarán 2 videos y 2 páginas a cada una. Luego puedes revisarlos en el botón 📎 de cada tarjeta. ¿Continuar?`))) return;
     llenandoRecursosRef.current = true;
@@ -193,6 +195,9 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
           setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id && !(s.recursos?.length) ? { ...s, recursos } : s) }));
           resumen.push(`«${limpiarTexto(sec.nombre)}»: ${d.videos.slice(0, 2).length} video(s), ${d.paginas.slice(0, 2).length} página(s)`);
         } else resumen.push(`«${limpiarTexto(sec.nombre)}»: no se encontró nada`);
+        // Por qué no llegaron videos (cupo agotado, clave rechazada…): se dice una sola vez
+        const motivo = !d.videos.length ? d.avisos.find(a => /^Videos:/.test(a)) : undefined;
+        if (motivo && !resumen.some(r => r.startsWith('⚠️'))) resumen.push(`⚠️ ${motivo.replace(/^Videos:\s*/, 'YouTube: ')}`);
         if (d.avisos.some(a => /cupo/i.test(a)) && !d.videos.length && !d.paginas.length) { resumen.push('Se detuvo: se acabó el cupo diario.'); break; }
       } catch (e: any) {
         resumen.push(`«${limpiarTexto(sec.nombre)}»: ${e.message}`);
@@ -207,18 +212,34 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   const llenandoRecursosRef = useRef(false);
   // Evaluaciones nuevas (creadas por EvaPlanner o a mano): se les buscan recursos solas, en cuanto quedan guardadas
   const evaluacionesConocidas = useRef<Set<string> | null>(null);
+  const seccionesConPlan = useRef<Set<string>>(new Set()); // secciones que ya tenían evaluaciones guardadas
+  const abrirPrimero = useRef<string | null>(null); // evaluación que se abre al estudiante: sus recursos se buscan antes
   useEffect(() => {
     if (!datosCargados) return;
     const guardadas = planificacion.secciones.filter((s: SeccionExamen) => esIdGuardado(s.id));
-    if (evaluacionesConocidas.current === null) { evaluacionesConocidas.current = new Set(guardadas.map(s => s.id)); return; }
+    const letra = (s: SeccionExamen) => (s.grupoSeccion || 'A').toUpperCase();
+    if (evaluacionesConocidas.current === null) { evaluacionesConocidas.current = new Set(guardadas.map(s => s.id)); guardadas.forEach(s => seccionesConPlan.current.add(letra(s))); return; }
     const nuevas = guardadas.filter(s => !evaluacionesConocidas.current!.has(s.id));
     if (!nuevas.length) return;
+    // Primera vez que una sección recibe su plan: la primera evaluación (la de fecha más cercana) queda abierta
+    // para los estudiantes desde ya, con su descripción y sus recursos. Las demás se abren solas unos días antes.
+    for (const sec of [...new Set(nuevas.map(letra))]) {
+      if (seccionesConPlan.current.has(sec)) continue;
+      seccionesConPlan.current.add(sec);
+      const primera = nuevas.filter(s => letra(s) === sec && s.fecha).sort((a, b) => new Date(a.fecha!).getTime() - new Date(b.fecha!).getTime())[0];
+      if (primera && !primera.abiertaManual) {
+        abrirPrimero.current = primera.id;
+        setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(x => (x.id === primera.id ? { ...x, abiertaManual: true } : x)) }));
+        agregarNotificacion(`🔓 «${limpiarTexto(primera.nombre)}» quedó abierta para los estudiantes de la Sección ${sec} (es la primera del plan).`);
+      }
+    }
     nuevas.forEach(s => { evaluacionesConocidas.current!.add(s.id); if (!(s.recursos?.length)) porBuscar.current.add(s.id); });
     if (!porBuscar.current.size) return;
     // Espera a que termine de guardarse todo (si el plan sigue cambiando, se vuelve a esperar)
     if (temporizadorRecursos.current) clearTimeout(temporizadorRecursos.current);
     temporizadorRecursos.current = setTimeout(() => {
-      const ids = [...porBuscar.current]; porBuscar.current.clear(); temporizadorRecursos.current = null;
+      // La evaluación que quedó abierta va primero, para que el estudiante no la vea sin recursos
+      const ids = [...porBuscar.current].sort((a, b) => (a === abrirPrimero.current ? -1 : b === abrirPrimero.current ? 1 : 0)); porBuscar.current.clear(); temporizadorRecursos.current = null;
       recursosParaTodasRef.current(true, ids);
     }, 2500);
   }, [planificacion.secciones, datosCargados]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -321,20 +342,8 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
     }
   }, [planificacion.secciones, datosCargados]);
   const cambiarFechaEvaluacion = (sec: SeccionExamen, fecha: Date) => {
-    const anterior = sec.fecha ? new Date(sec.fecha) : null;
     setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(s => s.id === sec.id ? { ...s, fecha } : s) }));
-    // Si ya estaba guardada y la fecha nueva es futura, se ofrece avisar a los estudiantes del cambio
-    const realmenteCambio = !anterior || Math.abs(anterior.getTime() - fecha.getTime()) > 60_000;
-    if (esIdGuardado(sec.id) && realmenteCambio && fecha.getTime() > Date.now() && !['REALIZADA', 'CANCELADA'].includes(String(sec.estado || '').toUpperCase())) {
-      setTimeout(async () => {
-        if (!(await confirmar(`¿Avisar a los estudiantes de la Sección ${(sec.grupoSeccion || 'A').toUpperCase()} que «${limpiarTexto(sec.nombre)}» cambió de fecha?`))) return;
-        const r = await fetch('/api/recordatorios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion: 'avisar_cambio', evaluacionId: sec.id, fecha: fecha.toISOString(), fechaAnterior: anterior?.toISOString() }) }).catch(() => null);
-        const d = await r?.json().catch(() => ({})) ?? {};
-        if (!r?.ok) agregarNotificacion(`⚠️ ${d.error || 'No se pudo avisar a los estudiantes.'}`);
-        else if (d.desactivado) agregarNotificacion('ℹ️ Los avisos de cambios están apagados (Calendario → Recordatorios).');
-        else agregarNotificacion(d.ok === false ? `⚠️ No se pudo avisar: ${d.error || 'error de envío'}` : `📣 Se avisó del cambio de fecha a ${d.total} estudiante(s).`);
-      }, 150);
-    }
+    // El aviso a los estudiantes ya no sale con cada cambio: queda pendiente en «Avisar cambios» de la sección
     agregarNotificacion(`📅 "${limpiarTexto(sec.nombre)}" ahora es el ${fecha.toLocaleString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}.`);
   };
   // Marca una evaluación como realizada / reprogramada / cancelada (se guarda al instante en la base de datos)
@@ -1013,6 +1022,8 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                         )}
                       </AnimatePresence>
                     </div>
+                    <AvisarCambios materiaId={materiaActivaId ?? null} seccion={seccionActiva} agregarNotificacion={agregarNotificacion}
+                      version={seccionesFiltradas.map(x => `${x.id}|${x.fecha ? new Date(x.fecha).getTime() : ''}|${x.peso ?? ''}`).join(',')} />
                     {seccionesFiltradas.length > 0 && (
                       <button type="button" data-tutorial="plan-accion" onClick={() => setModoPlan(v => !v)} className={`whitespace-nowrap h-9 px-3 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${modoPlan ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/50 text-[color:var(--c-c7d2fe)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-c0c0d0)] hover:border-[color:var(--c-414258)]'}`}>
                         <FileText className="w-3.5 h-3.5" />Plan de Acción

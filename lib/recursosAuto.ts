@@ -53,11 +53,28 @@ export async function buscarVideos(tema: TemaRecursos, cuantos = 5): Promise<Vid
   const palabras = base.split(' ').filter(Boolean).length
   // Si el tema es muy corto (ej. "UML"), se agrega la materia para dar contexto; "en español" ayuda mucho a YouTube
   const q = `${palabras <= 2 && tema.materia ? `${base} ${temaLimpio(tema.materia)}` : base} en español`
-  const recientes = await buscarVideosDesde(tema, base, q, clave, cuantos, new Date(Date.now() - 5 * 365 * 86400000))
-  if (recientes.length >= Math.min(2, cuantos)) return recientes
-  const todos = await buscarVideosDesde(tema, base, q, clave, cuantos, null)
-  const vistos = new Set(recientes.map(v => v.url))
-  return [...recientes, ...todos.filter(v => !vistos.has(v.url))].slice(0, cuantos)
+  const guardado = VIDEOS_GUARDADOS.get(q.toLowerCase())
+  if (guardado && Date.now() - guardado.en < GUARDAR_MS) return guardado.videos.slice(0, cuantos)
+  let videos = await buscarVideosDesde(tema, base, q, clave, cuantos, null)
+  // Títulos largos ("Gobernanza de datos federada y agentes de IA"): se prueba con las 3 palabras más importantes
+  const corto = palabrasClave(base).slice(0, 3).join(' ')
+  if (videos.length < Math.min(2, cuantos) && corto && corto !== base.toLowerCase()) {
+    const otros = await buscarVideosDesde(tema, corto, `${corto} en español`, clave, cuantos, null)
+    const vistos = new Set(videos.map(v => v.url))
+    videos = [...videos, ...otros.filter(v => !vistos.has(v.url))].slice(0, cuantos)
+  }
+  if (videos.length) VIDEOS_GUARDADOS.set(q.toLowerCase(), { en: Date.now(), videos })
+  if (VIDEOS_GUARDADOS.size > 300) VIDEOS_GUARDADOS.delete(VIDEOS_GUARDADOS.keys().next().value!)
+  return videos
+}
+
+// Resultados ya buscados (en la memoria del servidor): repetir el mismo tema no gasta cupo de YouTube
+const VIDEOS_GUARDADOS = new Map<string, { en: number; videos: VideoSugerido[] }>()
+const GUARDAR_MS = 3 * 86400000
+const normalizar = (t: string) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+const VACIAS = /^(para|desde|hasta|sobre|entre|como|con|del|las|los|una|unos|unas|que|por|sus|este|esta|estos|estas|mediante|basad[oa]s?|aplicad[oa]s?|usando|uso)$/
+function palabrasClave(t: string): string[] {
+  return [...new Set(normalizar(t).split(/[^a-z0-9ñ]+/).filter(w => w.length >= 3 && !GENERICAS.test(w) && !VACIAS.test(w)))]
 }
 
 const ANIO = 365 * 86400000
@@ -92,7 +109,7 @@ async function buscarVideosDesde(tema: TemaRecursos, base: string, q: string, cl
     const v = porId.get(id)
     if (!v) return
     const seg = segundosISO(v.contentDetails?.duration)
-    if (seg < 180 || seg > 1800) return // ni shorts ni clases de horas
+    if (seg < 120 || seg > 2700) return // ni shorts ni clases de horas
     const idioma = String(v.snippet?.defaultAudioLanguage || v.snippet?.defaultLanguage || '').toLowerCase()
     const titulo = decodificar(v.snippet?.title)
     const pareceEspanol = idioma.startsWith('es') || /[áéíóúñ¿¡]|\b(qu[eé]|c[oó]mo|para|desde|explicaci[oó]n|tutorial en espa[nñ]ol|curso|clase|ejemplo|introducci[oó]n|del|los|las|una)\b/i.test(titulo)
@@ -102,12 +119,11 @@ async function buscarVideosDesde(tema: TemaRecursos, base: string, q: string, cl
     // Antigüedad: más de 8 años, fuera; y cada año resta puntos (se prefieren los recientes)
     const publicado = Date.parse(v.snippet?.publishedAt || '')
     const anios = Number.isFinite(publicado) ? Math.max(0, (Date.now() - publicado) / ANIO) : 0
-    if (anios > 8) return
+    if (anios > 10) return
     const vistas = Number(v.statistics?.viewCount) || 0
     const texto = normal(`${titulo} ${v.snippet?.description || ''}`)
     const coinciden = claves.filter(k => texto.includes(raiz(k))).length
     if (claves.length && coinciden === 0) return // no habla del tema
-    if (claves.length >= 3 && coinciden < 2 && !normal(titulo).includes(raiz(claves[0]))) return
     // Puntaje: que hable del tema primero, luego español, popularidad y el orden de relevancia de YouTube
     const puntaje = (claves.length ? (coinciden / claves.length) * 150 : 0) + (pareceEspanol ? 100 : 0) + Math.log10(vistas + 1) * 6 - pos * 1.5 - anios * 12
     candidatos.push({

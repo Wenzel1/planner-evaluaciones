@@ -5,6 +5,7 @@ import { normalizarRecursos } from '@/lib/portal'
 import prisma from '@/lib/prisma';
 import { requerirActor, quiereTodos, verificarAcceso } from '@/lib/permisos';
 import { registrarActividad } from '@/lib/actividad';
+import { anotarCambios, type Cambio } from '@/lib/cambiosPlan'
 
 function datosEvaluacion(ev: any, index: number) {
   return {
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
     if (denegado) return denegado
 
     const idsNuevos: Record<string, string> = {} // id que usaba la pantalla → id real en la base de datos
+    const nuevas: Cambio[] = [] // evaluaciones del plan nuevo (para «Publicar el plan»)
     const creado = await prisma.$transaction(async (tx) => {
     const plan = await tx.planificacion.create({
       data: {
@@ -112,6 +114,7 @@ export async function POST(request: Request) {
     for (const [index, ev] of ((body.evaluaciones || []) as any[]).entries()) {
       const c = await tx.evaluacion.create({ data: { ...datosEvaluacion(ev, index), planificacionId: plan.id } })
       if (ev?.id) idsNuevos[String(ev.id)] = c.id
+      nuevas.push({ seccion: c.grupoSeccion || 'A', evaluacionId: c.id, tipo: 'NUEVA', nombre: c.nombre })
     }
     return plan
     }, { timeout: 20000 })
@@ -125,6 +128,7 @@ export async function POST(request: Request) {
       },
     })
 
+    if (nuevas.length) await anotarCambios(planificacion.materia.id, nuevas).catch(e => console.error('[cambiosPlan]', e))
     await registrarActividad({ actor, accion: 'CREAR', entidad: 'Plan', detalle: `Plan de "${planificacion.materia.nombre}" (${planificacion.evaluaciones.length} evaluaciones)` })
     return NextResponse.json({ ...planificacion, idsNuevos }, { status: 201 })
   } catch (error) {

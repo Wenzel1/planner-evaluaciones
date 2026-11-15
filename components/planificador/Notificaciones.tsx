@@ -36,8 +36,8 @@ export function analizarNotificacion(mensaje: string): { emoji: string; texto: s
 // "reordenado", "descargado"…) ya se ven en pantalla y no se notifican.
 export function esImportante(mensaje: string): boolean {
   const t = String(mensaje || '').trim();
-  if (/^(📥|💬|🙋|🔑|🗳|👍|📋|⚠|❌|🚫|⛔)/u.test(t)) return true;
-  if (/^📎 Busqué recursos/u.test(t)) return true; // lo hizo la app sola, en segundo plano
+  if (/^(📥|💬|🙋|🔑|🗳|👍|📋|⚠|❌|🚫|⛔|📣|🔓)/u.test(t)) return true; // 📣 aviso enviado a los estudiantes · 🔓 evaluación abierta sola
+  if (/^📎 (Busqué recursos|Recursos de la Sección)/u.test(t)) return true; // la búsqueda de recursos (sola o pedida), con su resultado
   if (/no se pudo|^error|falló|se acabó el cupo/i.test(t)) return true;
   return false;
 }

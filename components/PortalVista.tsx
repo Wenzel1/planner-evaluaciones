@@ -99,7 +99,7 @@ const FONDO_NIVEL = ['bg-emerald-500/15 border-emerald-500/40', 'bg-sky-500/15 b
 
 // Vista del estudiante: su plan, recursos, rúbricas, notas, exámenes y entregas.
 // La usan la página con enlace (/e/<token>) y el panel de su cuenta (/estudiante), con el token de cada inscripción.
-export default function PortalVista({ token, embebido = false, abrir = null, cuenta = null }: { token: string; embebido?: boolean; abrir?: { materiaId?: string; evaluacionId: string } | null; cuenta?: { id: string; avatarEn?: string | null; nombre: string } | null }) {
+export default function PortalVista({ token, embebido = false, abrir = null, cuenta = null, materiaFija = null }: { token: string; embebido?: boolean; materiaFija?: string | null; abrir?: { materiaId?: string; evaluacionId: string } | null; cuenta?: { id: string; avatarEn?: string | null; nombre: string } | null }) {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [error, setError] = useState('');
   const [materiaId, setMateriaId] = useState<string | null>(null);
@@ -140,7 +140,8 @@ export default function PortalVista({ token, embebido = false, abrir = null, cue
     return () => { vivo = false; clearInterval(t); document.removeEventListener('visibilitychange', alVolver); };
   }, [token, !!datos]);
 
-  const materia = datos?.materias.find(m => m.id === materiaId) || datos?.materias[0] || null;
+  // En la cuenta del estudiante la materia la elige el selector de arriba (materiaFija)
+  const materia = datos?.materias.find(m => m.id === (materiaFija || materiaId)) || datos?.materias[0] || null;
   const lista = useMemo(() => {
     if (!materia) return [];
     let marcada = false;
@@ -275,7 +276,7 @@ export default function PortalVista({ token, embebido = false, abrir = null, cue
           </header>
           )}
 
-          {datos.materias.length > 1 && (
+          {datos.materias.length > 1 && !materiaFija && (
             <div className={`flex ${embebido ? '' : 'lg:flex-col'} gap-1.5 overflow-x-auto pb-1 mb-4 -mx-1 px-1`}>
               {datos.materias.map(m => (
                 <button key={m.id} onClick={() => setMateriaId(m.id)} className={`shrink-0 h-9 px-4 rounded-xl text-sm font-medium border text-left transition-colors ${m.id === materia?.id ? 'bg-[color:var(--c-818cf8)] border-[color:var(--c-818cf8)] text-white' : 'bg-[color:var(--c-1c1d2a)] border-[color:var(--c-2a2b3d)] text-[color:var(--c-a0a0b8)] hover:text-[color:var(--c-blanco)]'}`}>{m.nombre}</button>

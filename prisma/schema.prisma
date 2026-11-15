@@ -130,6 +130,7 @@ model Materia {
   secciones     SeccionMateria[]
   chat          MensajeSeccion[]
   unidades      Unidad[]
+  cambiosPlan   CambioPlan[]
   @@index([usuarioId])
 }
 
@@ -631,4 +632,23 @@ model Material {
   createdAt     DateTime @default(now())
 
   @@index([unidadId, orden])
+}
+
+// Cambios del plan de una sección que todavía no se avisaron a los estudiantes (evaluación nueva, fecha, peso,
+// cancelada o eliminada). El profesor los envía juntos con «Avisar cambios»; entonces se marcan con avisadoEn.
+model CambioPlan {
+  id           String    @id @default(cuid())
+  materiaId    String
+  materia      Materia   @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  seccion      String    // letra de la sección (A, B, C…)
+  evaluacionId String?   // sin relación: la evaluación puede haberse eliminado
+  tipo         String    // NUEVA | FECHA | PESO | CANCELADA | ELIMINADA
+  nombre       String    // nombre de la evaluación (se conserva aunque luego se elimine)
+  antes        String?   // valor anterior (fecha ISO o peso)
+  despues      String?   // valor nuevo
+  createdAt    DateTime  @default(now())
+  avisadoEn    DateTime? // null = pendiente de avisar
+  nota         String?   // mensaje opcional del profesor al avisar
+
+  @@index([materiaId, seccion, avisadoEn])
 }

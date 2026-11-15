@@ -4,7 +4,7 @@
 // y debajo el contenido. El chat de la sección va debajo de sus evaluaciones (y también en Mensajes).
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, KeyRound, Plus, Hourglass, X, BookOpen, CalendarDays, Upload, Award, MessageSquare, Settings, Bot, PanelLeftOpen, FolderOpen, ArrowRight, Inbox } from 'lucide-react';
+import { LogOut, KeyRound, Plus, Hourglass, X, BookOpen, ChevronDown, Check, CalendarDays, Upload, Award, MessageSquare, Settings, Bot, PanelLeftOpen, FolderOpen, ArrowRight, Inbox } from 'lucide-react';
 import PortalVista from '@/components/PortalVista';
 import Avatar from '@/components/Avatar';
 import ChatSeccion from '@/components/ChatSeccion';
@@ -20,7 +20,7 @@ import { type Resumen, estadoEntrega } from '@/components/estudiante/comun';
 
 type Pestana = 'clases' | 'entregas' | 'mensajes' | 'materiales' | 'calendario' | 'notas' | 'config';
 const PESTANAS: { id: Pestana; texto: string; icono: any }[] = [
-  { id: 'clases', texto: 'Mis clases', icono: BookOpen }, { id: 'entregas', texto: 'Entregas', icono: Upload },
+  { id: 'clases', texto: 'Mi materia', icono: BookOpen }, { id: 'entregas', texto: 'Entregas', icono: Upload },
   { id: 'mensajes', texto: 'Mensajes', icono: MessageSquare }, { id: 'materiales', texto: 'Materiales', icono: FolderOpen },
   { id: 'calendario', texto: 'Calendario', icono: CalendarDays }, { id: 'notas', texto: 'Calificaciones', icono: Award },
 ];
@@ -41,7 +41,10 @@ export default function PanelEstudiante() {
   const [asistente, setAsistente] = useState(true);
   const [asistenteMovil, setAsistenteMovil] = useState(false);
   // Chat de la sección que se muestra bajo las evaluaciones: el de la clase (y materia) elegida
-  const [chatClave, setChatClave] = useState('');
+  // Materia abierta: todo el panel muestra solo esa materia (como el profesor, que trabaja con una a la vez)
+  const [materiaSel, setMateriaSelEstado] = useState('');
+  const [menuMateria, setMenuMateria] = useState(false);
+  const elegirMateria = (clave: string) => { setMateriaSelEstado(clave); setMenuMateria(false); setAbrirEval(null); try { localStorage.setItem('materiaEstudiante', clave); } catch { /* sin almacenamiento */ } contenido.current?.scrollTo({ top: 0 }); };
   const contenido = useRef<HTMLDivElement>(null);
   // Pestañas del panel (se recuerda la última) y el resumen de todas sus clases
   const [pestana, setPestanaEstado] = useState<Pestana>('clases');
@@ -57,6 +60,7 @@ export default function PanelEstudiante() {
       const p = localStorage.getItem('pestanaEstudiante') as Pestana | null;
       if (p && (PESTANAS.some(x => x.id === p) || p === 'config')) setPestanaEstado(p);
       if (localStorage.getItem('asistenteEstudiante') === 'oculto') setAsistente(false);
+      setMateriaSelEstado(localStorage.getItem('materiaEstudiante') || '');
     } catch { /* sin almacenamiento */ }
     cargarResumen();
     const t = setInterval(cargarResumen, 60000);
@@ -67,6 +71,8 @@ export default function PanelEstudiante() {
   // Desde Calendario, Entregas o Calificaciones: abrir esa clase (y esa evaluación) en "Mis clases"
   const abrirEnClase = ({ claseId, evaluacionId, materiaId }: { claseId: string; materiaId?: string; evaluacionId: string }) => {
     setActiva(claseId);
+    const g = resumen?.grupos.find(x => x.claseId === claseId && (!materiaId || x.materiaId === materiaId));
+    if (g) setMateriaSelEstado(g.clave);
     setAbrirEval(evaluacionId ? { materiaId, evaluacionId } : null);
     setPestana('clases');
   };
@@ -123,17 +129,35 @@ export default function PanelEstudiante() {
   const aceptadas = clases.filter(c => c.token);
   const pendientes = clases.filter(c => c.estado === 'PENDIENTE');
   const actual = aceptadas.find(c => c.id === activa) || null;
-  const estados = (resumen?.evaluaciones || []).map(e => estadoEntrega(e));
+  const grupos = resumen?.grupos || [];
+  const grupoSel = grupos.find(g => g.clave === materiaSel) || grupos.find(g => g.claseId === activa) || grupos[0] || null;
+  const datosMateria: Resumen | null = resumen && grupoSel ? { ...resumen, grupos: [grupoSel], evaluaciones: resumen.evaluaciones.filter(e => e.grupo === grupoSel.clave) } : resumen;
+  const pendientesDe = (clave: string) => (resumen?.evaluaciones || []).filter(e => e.grupo === clave).reduce((t, e) => t + e.mensajesNuevos + (['pendiente', 'atrasada', 'por_corregir'].includes(estadoEntrega(e) || '') ? 1 : 0), 0);
+  const estados = (datosMateria?.evaluaciones || []).map(e => estadoEntrega(e));
   const nPorEntregar = estados.filter(s => s === 'pendiente').length;
   const nAtrasadas = estados.filter(s => s === 'atrasada').length;
   const nPorCorregir = estados.filter(s => s === 'por_corregir').length;
-  const nMensajes = (resumen?.evaluaciones || []).reduce((t, e) => t + e.mensajesNuevos, 0);
+  const nMensajes = (datosMateria?.evaluaciones || []).reduce((t, e) => t + e.mensajesNuevos, 0);
   const contador: Partial<Record<Pestana, number>> = resumen ? { entregas: nPorEntregar + nAtrasadas + nPorCorregir, mensajes: nMensajes } : {};
   const conClases = !!datos && aceptadas.length > 0;
   const nombre = datos?.cuenta.nombre || '';
   // Chat de la sección bajo las evaluaciones: el de la clase que está viendo
-  const gruposClase = (resumen?.grupos || []).filter(g => g.claseId === activa);
-  const grupoChat = gruposClase.find(g => g.clave === chatClave) || gruposClase[0] || null;
+  const grupoChat = grupoSel;
+  // Avisos de cambios del plan que envió el profesor (se ven al entrar aunque no lea el correo)
+  const [novedades, setNovedades] = useState<{ clave: string; lista: { en: string; nota: string | null; cambios: string[] }[] } | null>(null);
+  const [vistoHasta, setVistoHasta] = useState('');
+  const claveNovedad = grupoSel ? `novedadVista:${grupoSel.clave}` : '';
+  useEffect(() => {
+    if (!grupoSel) return;
+    let vivo = true;
+    try { setVistoHasta(localStorage.getItem(`novedadVista:${grupoSel.clave}`) || ''); } catch { /* sin almacenamiento */ }
+    fetch(`/api/portal/${encodeURIComponent(grupoSel.token)}/novedades?materiaId=${encodeURIComponent(grupoSel.materiaId)}`, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : [])).then(d => { if (vivo) setNovedades({ clave: grupoSel.clave, lista: Array.isArray(d) ? d : [] }); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [grupoSel?.clave]); // eslint-disable-line react-hooks/exhaustive-deps
+  const novedad = novedades?.clave === grupoSel?.clave ? novedades?.lista.find(n => n.en > vistoHasta) : undefined;
+  const marcarNovedadVista = () => { const en = novedades?.lista[0]?.en || ''; setVistoHasta(en); try { localStorage.setItem(claveNovedad, en); } catch { /* sin almacenamiento */ } };
+  const otrasPendientes = grupos.filter(g => g.clave !== grupoSel?.clave).reduce((t, g) => t + pendientesDe(g.clave), 0);
 
   return (
     <div className="h-screen flex overflow-hidden bg-[color:var(--c-161722)] text-[color:var(--c-b0b0c0)]">
@@ -142,7 +166,7 @@ export default function PanelEstudiante() {
         {conClases && asistente && (
           <motion.aside initial={{ width: 0, opacity: 0 }} animate={{ width: 420, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }}
             className="hidden lg:block flex-shrink-0 border-r border-[color:var(--c-282a3f)] overflow-hidden">
-            <div className="w-[420px] h-full"><Asistente datos={resumen} nombre={nombre} onOcultar={() => mostrarAsistente(false)} /></div>
+            <div className="w-[420px] h-full"><Asistente key={grupoSel?.clave || 'x'} datos={datosMateria} nombre={nombre} onOcultar={() => mostrarAsistente(false)} /></div>
           </motion.aside>
         )}
       </AnimatePresence>
@@ -152,6 +176,44 @@ export default function PanelEstudiante() {
         <header className="flex-shrink-0 flex items-center gap-2 px-2 sm:px-4 py-2 sm:py-3 border-b border-[color:var(--c-282a3f)] bg-[color:var(--c-161722)]">
           {conClases && !asistente && (
             <button type="button" onClick={() => mostrarAsistente(true)} title="Mostrar el asistente de estudio" aria-label="Mostrar el asistente de estudio" className="hidden lg:flex w-9 h-9 flex-shrink-0 items-center justify-center rounded-xl text-[color:var(--c-c7d2fe)] border border-[color:var(--c-818cf8)]/30 bg-[color:var(--c-818cf8)]/10 hover:bg-[color:var(--c-818cf8)]/20"><PanelLeftOpen className="w-4 h-4" /></button>
+          )}
+          {/* Materia abierta: al elegir otra, todo el panel cambia a esa materia */}
+          {conClases && grupoSel && (
+            <div className="relative flex-shrink-0 min-w-0">
+              <button type="button" onClick={() => grupos.length > 1 && setMenuMateria(v => !v)} aria-expanded={menuMateria} aria-haspopup={grupos.length > 1 ? 'listbox' : undefined} title={`${grupoSel.materia} · Prof. ${grupoSel.profesor}`}
+                className={`relative h-10 max-w-[150px] sm:max-w-[240px] pl-2 pr-2.5 rounded-xl border flex items-center gap-2 text-left transition-colors ${menuMateria ? 'border-[color:var(--c-818cf8)]/50 bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)]'} ${grupos.length > 1 ? 'hover:border-[color:var(--c-414258)] cursor-pointer' : 'cursor-default'}`}>
+                <span className="w-7 h-7 rounded-lg bg-[color:var(--c-818cf8)]/15 flex items-center justify-center flex-shrink-0"><BookOpen className="w-4 h-4 text-[color:var(--c-818cf8)]" /></span>
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-semibold text-[color:var(--c-e0e0ec)] truncate leading-tight">{grupoSel.materia}</span>
+                  <span className="hidden sm:block text-[10px] text-[color:var(--c-8a8b9e)] truncate leading-tight">Sec. {grupoSel.seccion} · Prof. {grupoSel.profesor.split(' ')[0]}</span>
+                </span>
+                {grupos.length > 1 && <ChevronDown className={`w-4 h-4 flex-shrink-0 text-[color:var(--c-8a8b9e)] transition-transform duration-200 ${menuMateria ? 'rotate-180' : ''}`} />}
+                {otrasPendientes > 0 && !menuMateria && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[color:var(--c-818cf8)] ring-2 ring-[color:var(--c-161722)]" title="Hay novedades en otra materia" />}
+              </button>
+              <AnimatePresence>
+                {menuMateria && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setMenuMateria(false)} aria-hidden="true" />
+                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }} role="listbox"
+                      className="absolute left-0 top-12 z-50 w-[300px] max-w-[calc(100vw-24px)] bg-[color:var(--c-1c1d2a)] border border-[color:var(--c-313248)] rounded-xl shadow-2xl p-1.5">
+                      <p className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--c-6a6b7e)]">Mis materias</p>
+                      {grupos.map(g => {
+                        const n = pendientesDe(g.clave); const activa = g.clave === grupoSel.clave;
+                        return (
+                          <button key={g.clave} type="button" role="option" aria-selected={activa} onClick={() => elegirMateria(g.clave)} className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${activa ? 'bg-[color:var(--c-818cf8)]/10' : 'hover:bg-[color:var(--c-272839)]'}`}>
+                            <span className="w-4 flex-shrink-0">{activa && <Check className="w-4 h-4 text-[color:var(--c-818cf8)]" />}</span>
+                            <span className="min-w-0 flex-1"><span className="block text-[13px] text-[color:var(--c-e0e0ec)] truncate">{g.materia}</span><span className="block text-[11px] text-[color:var(--c-8a8b9e)] truncate">Prof. {g.profesor} · Sec. {g.seccion}</span></span>
+                            {n > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[color:var(--c-818cf8)] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">{n}</span>}
+                          </button>
+                        );
+                      })}
+                      <div className="h-px bg-[color:var(--c-282a3f)] my-1" />
+                      <button type="button" onClick={() => { setMenuMateria(false); setVerUnirse(true); setAviso(null); }} className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-[13px] text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-272839)]"><Plus className="w-4 h-4" />Unirme a una clase</button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           )}
           {/* Pestañas (mismo estilo que las del profesor) */}
           <nav className="flex-1 min-w-0 flex items-center gap-1 md:gap-2 overflow-x-auto sin-barra">
@@ -222,8 +284,26 @@ export default function PanelEstudiante() {
 
           {/* ---------- Mis clases: pendientes, la clase elegida y el chat de su sección ---------- */}
           {conClases && pestana === 'clases' && (
-            <motion.div key="clases" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
+            <motion.div key={`clases:${grupoSel?.clave || ''}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
               <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-3">
+                {/* Tu profesor actualizó el plan */}
+                <AnimatePresence initial={false}>
+                  {novedad && (
+                    <motion.div key={novedad.en} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                      <div className="rounded-xl border border-[color:var(--c-818cf8)]/35 bg-[color:var(--c-818cf8)]/[0.08] px-4 py-3">
+                        <div className="flex items-start gap-3">
+                          <span className="w-8 h-8 rounded-lg bg-[color:var(--c-818cf8)]/15 flex items-center justify-center flex-shrink-0"><CalendarDays className="w-4 h-4 text-[color:var(--c-a5b4fc)]" /></span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Tu profesor actualizó el plan</p>
+                            <ul className="mt-1 space-y-0.5">{novedad.cambios.map((c, i) => <li key={i} className="text-[13px] text-[color:var(--c-c0c0d0)]">• {c}</li>)}</ul>
+                            {novedad.nota && <p className="mt-1.5 text-[13px] text-[color:var(--c-c7d2fe)]">📝 {novedad.nota}</p>}
+                          </div>
+                          <button type="button" onClick={marcarNovedadVista} className="h-8 px-3 rounded-lg text-xs font-semibold text-[color:var(--c-c7d2fe)] hover:bg-[color:var(--c-818cf8)]/15 flex-shrink-0">Entendido</button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 {/* Lo pendiente, en una línea (como la franja de entregas del profesor) */}
                 {resumen && (
                   <button type="button" onClick={() => setPestana(nPorEntregar + nAtrasadas + nPorCorregir > 0 || !nMensajes ? 'entregas' : 'mensajes')} className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1d1e2e)] text-left hover:border-[color:var(--c-414258)] transition-colors">
@@ -239,27 +319,12 @@ export default function PanelEstudiante() {
                     <span className="flex-shrink-0 text-xs font-semibold text-[color:var(--c-a5b4fc)] flex items-center gap-1">Ver<ArrowRight className="w-3.5 h-3.5" /></span>
                   </button>
                 )}
-                {/* Clases (cuando tiene varias) */}
-                {aceptadas.length > 1 && (
-                  <div className="flex gap-1.5 overflow-x-auto sin-barra">
-                    {aceptadas.map(c => (
-                      <button key={c.id} onClick={() => { setActiva(c.id); setAbrirEval(null); setChatClave(''); }} className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${c.id === activa ? 'bg-[color:var(--c-818cf8)]/15 border-[color:var(--c-818cf8)]/45 text-[color:var(--c-c7d2fe)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-d0d0da)]'}`}>
-                        {c.materia || 'Todas sus materias'} · Prof. {c.profesor.split(' ')[0]}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
-              {actual?.token && <PortalVista key={actual.token} token={actual.token} embebido abrir={abrirEval} cuenta={datos ? { id: datos.cuenta.id, avatarEn: datos.cuenta.avatarEn, nombre: datos.cuenta.nombre } : null} />}
+              {(grupoSel?.token || actual?.token) && <PortalVista key={`${grupoSel?.token || actual?.token}:${grupoSel?.materiaId || ''}`} token={(grupoSel?.token || actual?.token)!} materiaFija={grupoSel?.materiaId || null} embebido abrir={abrirEval} cuenta={datos ? { id: datos.cuenta.id, avatarEn: datos.cuenta.avatarEn, nombre: datos.cuenta.nombre } : null} />}
               {/* Chat de la sección, debajo de las evaluaciones (como en el planificador del profesor) */}
               {grupoChat && (
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-24 lg:pb-10 -mt-6 space-y-2">
-                  {gruposClase.length > 1 && (
-                    <Selector value={grupoChat.clave} onChange={(e) => setChatClave(e.target.value)} aria-label="Chat de qué materia" className="h-9 w-full sm:w-72 px-3 rounded-xl bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] text-xs text-[color:var(--c-d0d0da)]">
-                      {gruposClase.map(g => <option key={g.clave} value={g.clave}>{g.materia} · Sección {g.seccion}</option>)}
-                    </Selector>
-                  )}
-                  <ChatSeccion key={grupoChat.clave} modo="estudiante" alto="pantalla" api={`/api/portal/${encodeURIComponent(grupoChat.token)}/chat`} params={{ materiaId: grupoChat.materiaId }} titulo={`Chat de la Sección ${grupoChat.seccion}${gruposClase.length > 1 ? ` · ${grupoChat.materia}` : ''}`} />
+                  <ChatSeccion key={grupoChat.clave} modo="estudiante" alto="pantalla" api={`/api/portal/${encodeURIComponent(grupoChat.token)}/chat`} params={{ materiaId: grupoChat.materiaId }} titulo={`Chat de la Sección ${grupoChat.seccion}`} />
                 </div>
               )}
             </motion.div>
@@ -268,17 +333,17 @@ export default function PanelEstudiante() {
           {/* ---------- Las demás pestañas: todas sus clases juntas ---------- */}
           {datos && pestana !== 'clases' && (conClases || pestana === 'config') && (
             <main className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-24 lg:pb-6">
-              <motion.div key={pestana} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
+              <motion.div key={`${pestana}:${grupoSel?.clave || ''}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
                 {pestana === 'config' ? (
                   <Configuracion cuenta={datos.cuenta} onCuenta={(c) => setDatos(d => (d ? { ...d, cuenta: { ...d.cuenta, ...c } } : d))}
                     clases={clases} onSalir={salirDeClase} onUnirse={() => { setVerUnirse(true); setAviso(null); }} />
                 ) : !resumen ? (
                   <div className="flex items-center justify-center gap-3 py-24 text-sm text-[color:var(--c-9a9bb0)]"><span className="w-5 h-5 border-2 border-[color:var(--c-818cf8)] border-t-transparent rounded-full animate-spin" />Cargando…</div>
-                ) : pestana === 'calendario' ? <Calendario datos={resumen} onAbrir={abrirEnClase} />
-                : pestana === 'entregas' ? <Entregas datos={resumen} onCambio={(id, en) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.id === id ? { ...e, entrega: en } : e)) } : r))} />
-                : pestana === 'notas' ? <Calificaciones datos={resumen} onAbrir={abrirEnClase} />
-                : pestana === 'mensajes' ? <Mensajes datos={resumen} onLeidos={(token) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.token === token ? { ...e, mensajesNuevos: 0 } : e)) } : r))} />
-                : pestana === 'materiales' ? <Materiales modo="estudiante" grupos={resumen.grupos} />
+                ) : pestana === 'calendario' ? <Calendario datos={datosMateria!} onAbrir={abrirEnClase} />
+                : pestana === 'entregas' ? <Entregas datos={datosMateria!} onCambio={(id, en) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.id === id ? { ...e, entrega: en } : e)) } : r))} />
+                : pestana === 'notas' ? <Calificaciones datos={datosMateria!} onAbrir={abrirEnClase} />
+                : pestana === 'mensajes' ? <Mensajes key={grupoSel?.clave} datos={datosMateria!} onLeidos={(token) => setResumen(r => (r ? { ...r, evaluaciones: r.evaluaciones.map(e => (e.token === token ? { ...e, mensajesNuevos: 0 } : e)) } : r))} />
+                : pestana === 'materiales' ? <Materiales key={grupoSel?.clave} modo="estudiante" grupos={datosMateria!.grupos} />
                 : null}
               </motion.div>
             </main>
@@ -293,7 +358,7 @@ export default function PanelEstudiante() {
       <AnimatePresence>
         {asistenteMovil && (
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }} transition={{ duration: 0.18 }} className="fixed inset-0 z-[150] flex flex-col bg-[color:var(--c-161722)]">
-            <div className="flex-1 min-h-0"><Asistente datos={resumen} nombre={nombre} onOcultar={() => setAsistenteMovil(false)} /></div>
+            <div className="flex-1 min-h-0"><Asistente key={grupoSel?.clave || 'x'} datos={datosMateria} nombre={nombre} onOcultar={() => setAsistenteMovil(false)} /></div>
           </motion.div>
         )}
       </AnimatePresence>

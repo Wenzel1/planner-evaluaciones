@@ -7,6 +7,7 @@ import { requerirActor, verificarAcceso } from '@/lib/permisos'
 import { registrarActividad } from '@/lib/actividad'
 import { enviarAPapelera, notasParaPapelera } from '@/lib/papelera'
 import { recalcularPromedios } from '@/lib/notas'
+import { anotarCambios, type Cambio } from '@/lib/cambiosPlan'
 
 // Campos de una evaluación tal como se guardan (sin el estado: ese se cambia con /api/evaluaciones/:id/estado)
 function datosEvaluacion(ev: any, index: number) {
@@ -120,6 +121,7 @@ export async function PUT(
     let conNotas: string[] = [] // estudiantes que tenían nota en evaluaciones borradas
     let notasBorradas = new Map<string, any[]>() // notas de las evaluaciones borradas (van a la papelera con ellas)
     const idsNuevos: Record<string, string> = {} // id que usaba la pantalla → id real en la base de datos
+    const cambios: Cambio[] = [] // lo que verán distinto los estudiantes (para «Avisar cambios»)
     await prisma.$transaction(async (tx) => {
     // Actualizar campos principales
     await tx.planificacion.update({
@@ -145,13 +147,18 @@ export async function PUT(
         if (previa && !conservar.has(previa.id)) {
           await tx.evaluacion.update({ where: { id: previa.id }, data: datos })
           conservar.add(previa.id)
+          const antes = previa.fecha ? previa.fecha.getTime() : null, despues = datos.fecha ? datos.fecha.getTime() : null
+          if (antes !== despues && (antes === null || despues === null || Math.abs(antes - despues) >= 60000)) cambios.push({ seccion: datos.grupoSeccion, evaluacionId: previa.id, tipo: 'FECHA', nombre: datos.nombre, antes: previa.fecha?.toISOString() ?? null, despues: datos.fecha?.toISOString() ?? null })
+          if ((previa.peso ?? null) !== (datos.peso ?? null)) cambios.push({ seccion: datos.grupoSeccion, evaluacionId: previa.id, tipo: 'PESO', nombre: datos.nombre, antes: previa.peso == null ? null : String(previa.peso), despues: datos.peso == null ? null : String(datos.peso) })
         } else {
           const creada = await tx.evaluacion.create({ data: { ...datos, planificacionId: id } })
           conservar.add(creada.id)
           if (ev?.id) idsNuevos[String(ev.id)] = creada.id
+          cambios.push({ seccion: datos.grupoSeccion, evaluacionId: creada.id, tipo: 'NUEVA', nombre: datos.nombre })
         }
       }
       eliminadas = existentes.filter(e => !conservar.has(e.id))
+      for (const e of eliminadas) cambios.push({ seccion: e.grupoSeccion || 'A', evaluacionId: e.id, tipo: 'ELIMINADA', nombre: e.nombre })
       if (eliminadas.length > 0) {
         notasBorradas = await notasParaPapelera(eliminadas.map(e => e.id), tx)
         conNotas = [...notasBorradas.values()].flat().map(n => n.estudianteId)
@@ -197,6 +204,7 @@ export async function PUT(
     }, { timeout: 20000 })
 
     if (conNotas.length > 0) await recalcularPromedios(conNotas)
+    if (cambios.length) await anotarCambios(dueno.materiaId, cambios).catch(e => console.error('[cambiosPlan]', e))
     if (eliminadas.length > 0) {
       await enviarAPapelera(eliminadas.map((ev) => ({
         usuarioId: dueno.usuarioId ?? actor.id, // la papelera es del dueño del plan, aunque lo guarde el superadmin
