@@ -72,12 +72,14 @@ export default function CorregirArchivo({ entregaId, archivo, tipo, fuente, prev
         setGuardando('Subiendo…');
         subido = await subirCorregido(entregaId, new File([blob], nombre, { type: blob.type }), nombre);
       } else if (tipo === 'DRAWIO') {
+        // El diagrama editado (si se editó) y las observaciones escritas
         const xml = actual.current.xml ?? (datos?.xml as string | undefined);
-        if (xml) {
+        const comentario = String(datos?.comentario || '').trim() || null;
+        if (actual.current.xml) {
           const nombre = nombreCorregido(archivo.nombre, 'drawio');
-          subido = await subirCorregido(entregaId, new File([xml], nombre, { type: 'application/xml' }), nombre);
-          datos = { xml: xml.length < 800_000 ? xml : null };
+          subido = await subirCorregido(entregaId, new File([actual.current.xml], nombre, { type: 'application/xml' }), nombre);
         }
+        datos = { xml: xml && xml.length < 800_000 ? xml : null, comentario };
       } else if (tipo === 'CODIGO' && datos?.corregido != null) {
         const nombre = nombreCorregido(archivo.nombre);
         subido = await subirCorregido(entregaId, new File([datos.corregido], nombre, { type: 'text/plain' }), nombre);
@@ -106,7 +108,9 @@ export default function CorregirArchivo({ entregaId, archivo, tipo, fuente, prev
     : tipo === 'N8N' ? <VisorN8n texto={texto!} datos={previa?.datos} onCambio={(d) => cambio(d)} />
     : tipo === 'WORD' ? <ComentariosWord fuente={fuente} datos={previa?.datos} autor={autor} onCambio={cambio} />
     : tipo === 'EXCEL' ? <EditorExcel fuente={fuente} datos={previa?.datos} onCambio={cambio} />
-    : tipo === 'DRAWIO' ? <EditorDrawio xml={(previa?.datos?.xml as string) || texto!} onCambio={(xml) => { actual.current = { ...actual.current, xml }; setCambiado(true); }} />
+    : tipo === 'DRAWIO' ? <EditorDrawio xml={(previa?.datos?.xml as string) || texto!} comentario={previa?.datos?.comentario}
+        onCambio={(xml) => { actual.current = { ...actual.current, xml }; setCambiado(true); }}
+        onComentario={(t) => { actual.current = { ...actual.current, datos: { ...(actual.current.datos || {}), comentario: t } }; setCambiado(true); }} />
     : null;
 
   return createPortal(
@@ -119,7 +123,7 @@ export default function CorregirArchivo({ entregaId, archivo, tipo, fuente, prev
         </div>
         {error && <span className="hidden md:block text-xs text-red-300 max-w-[260px] truncate" title={error}>{error}</span>}
         {previa && <button type="button" onClick={quitar} disabled={!!guardando} className="h-9 px-3 rounded-lg text-xs font-medium text-red-300 hover:bg-red-500/10 flex items-center gap-1.5 disabled:opacity-50"><Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Quitar corrección</span></button>}
-        <button type="button" onClick={guardar} disabled={!!guardando || (!cambiado && !!previa)} className="h-9 px-4 rounded-xl bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+        <button type="button" onClick={guardar} disabled={!!guardando || !cambiado} className="h-9 px-4 rounded-xl bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
           {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}<span className="hidden sm:inline">{guardando || 'Guardar corrección'}</span>
         </button>
         <button type="button" onClick={cerrar} aria-label="Cerrar" className="w-9 h-9 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]"><X className="w-5 h-5" /></button>

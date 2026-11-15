@@ -18,7 +18,7 @@ export function precargarArchivo(fuente: string): Promise<Enlaces> {
     .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'No se pudo abrir el archivo.'); return { ver: d.ver as string, descargar: d.descargar as string }; })
     .then(enlaces => {
       enlacesGuardados.set(fuente, { enlaces, hasta: Date.now() + 8 * 60_000 });
-      preconectar(new URL(enlaces.ver).origin);
+      try { preconectar(new URL(enlaces.ver, location.href).origin); } catch { /* dirección rara: solo no se adelanta la conexión */ }
       return enlaces;
     })
     .finally(() => enCurso.delete(fuente));

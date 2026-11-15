@@ -30,10 +30,11 @@ export default function CorreccionesEstudiante({ token, evaluacionId, version }:
     if (c.tipo === 'N8N') return `${d.comentarios?.length || 0} comentario(s) en los nodos`;
     if (c.tipo === 'WORD') return `${d.comentarios?.length || 0} comentario(s) de Word`;
     if (c.tipo === 'EXCEL') return `${Object.keys(d.cambios || {}).length} celda(s) corregida(s)`;
+    if (c.tipo === 'DRAWIO') return d.xml ? 'diagrama corregido' : 'observaciones';
     if (c.tipo === 'PDF' || c.tipo === 'IMAGEN') return `${Object.values<any[]>(d.paginas || {}).reduce((t, l) => t + l.length, 0)} marca(s)`;
     return NOMBRE_TIPO[c.tipo];
   };
-  const verEnApp = (c: Correccion) => c.tipo === 'CODIGO' || c.tipo === 'N8N' || (c.tipo === 'DRAWIO' && c.datos?.xml);
+  const verEnApp = (c: Correccion) => c.tipo === 'CODIGO' || c.tipo === 'N8N' || c.tipo === 'DRAWIO';
 
   return (
     <div className="rounded-xl border border-[#f76b15]/30 bg-[#f76b15]/[0.05] p-3 space-y-2">
@@ -62,7 +63,7 @@ function VentanaCorreccion({ c, fuente, onCerrar }: { c: Correccion; fuente: str
   const [texto, setTexto] = useState<string | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
-    if (c.tipo === 'DRAWIO') return;
+    if (c.tipo === 'DRAWIO' && c.datos?.xml) return; // el diagrama corregido ya viene con la corrección
     let vivo = true;
     textoOriginal(fuente).then(t => vivo && setTexto(t)).catch(e => vivo && setError(e.message));
     return () => { vivo = false; };
@@ -76,7 +77,12 @@ function VentanaCorreccion({ c, fuente, onCerrar }: { c: Correccion; fuente: str
         <button type="button" onClick={onCerrar} aria-label="Cerrar" className="w-9 h-9 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]"><X className="w-5 h-5" /></button>
       </div>
       <div className="relative flex-1 min-h-0">
-        {c.tipo === 'DRAWIO' ? <VistaDrawio xml={c.datos?.xml || ''} />
+        {c.tipo === 'DRAWIO' ? (
+          <div className="absolute inset-0 flex">
+            <div className="relative flex-1 min-w-0">{c.datos?.xml || texto != null ? <VistaDrawio xml={c.datos?.xml || texto!} /> : <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-[color:var(--c-818cf8)]" /></div>}</div>
+            {c.datos?.comentario && <aside className="w-[300px] flex-shrink-0 border-l border-[color:var(--c-282a3f)] bg-[color:var(--c-1d1e2e)] p-4"><p className="text-[11px] font-semibold uppercase tracking-wider text-[#f5a46b] mb-2">Observaciones</p><p className="text-[13px] text-[color:var(--c-e0e0ec)] whitespace-pre-wrap">{c.datos.comentario}</p></aside>}
+          </div>
+        )
           : error ? <p className="absolute inset-0 flex items-center justify-center text-sm text-red-300">{error}</p>
           : texto == null ? <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-[color:var(--c-9a9bb0)]"><Loader2 className="w-5 h-5 animate-spin" />Abriendo…</div>
           : c.tipo === 'N8N' ? <VisorN8n texto={texto} datos={c.datos} soloLectura />

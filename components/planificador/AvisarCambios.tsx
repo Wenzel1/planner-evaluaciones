@@ -18,7 +18,8 @@ export default function AvisarCambios({ materiaId, seccion, version, agregarNoti
   const cargar = useCallback(async () => {
     if (!materiaId) return;
     const r = await fetch(`/api/planificaciones/cambios?materiaId=${encodeURIComponent(materiaId)}&seccion=${encodeURIComponent(seccion)}`, { cache: 'no-store' }).catch(() => null);
-    if (r?.ok) setDatos(await r.json());
+    const d = r?.ok ? await r.json().catch(() => null) : null;
+    if (d && Array.isArray(d.cambios)) setDatos(d); // si la respuesta no trae la lista, no se muestra nada (nunca rompe la pantalla)
   }, [materiaId, seccion]);
   // Se vuelve a consultar poco después de cada cambio del plan (cuando ya se guardó)
   useEffect(() => { setDatos(null); }, [materiaId, seccion]);
