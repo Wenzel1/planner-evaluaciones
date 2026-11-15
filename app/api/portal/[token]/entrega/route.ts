@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { accesoPortal } from '@/lib/portalAcceso'
 import prisma from '@/lib/prisma'
-import { estudianteDeToken, evaluacionDelEstudiante, enlaceValido, archivosDeEntrega, archivosPublicos } from '@/lib/entregas'
+import { estudianteDeToken, evaluacionDelEstudiante, bloqueoDeEntrega, enlaceValido, archivosDeEntrega, archivosPublicos } from '@/lib/entregas'
 import { borrarArchivo, extensionDe, EXTENSIONES, MAX_ARCHIVO, MAX_ARCHIVOS_POR_ENTREGA, tipoDeArchivo } from '@/lib/almacenamiento'
 import { responderArchivo } from '@/lib/visorArchivos'
 
@@ -30,6 +30,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const ev = await evaluacionDelEstudiante(est, String(body.evaluacionId || ''))
     if (!ev) return NextResponse.json({ error: 'Evaluación no encontrada.' }, { status: 404 })
     if (!ev.aceptaEntregas || ev.estado === 'CANCELADA') return NextResponse.json({ error: 'Esta evaluación no recibe entregas.' }, { status: 400 })
+    const bloqueo = bloqueoDeEntrega(ev)
+    if (bloqueo) return NextResponse.json({ error: bloqueo }, { status: 403 })
 
     const comentario = String(body.comentario || '').trim().slice(0, 1000) || null
     const urlTexto = String(body.url || '').trim()

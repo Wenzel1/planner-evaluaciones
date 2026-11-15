@@ -361,6 +361,7 @@ export default function PortalVista({ token, embebido = false, abrir = null, cue
               </section>
 
               <h2 className="text-sm font-semibold text-[color:var(--c-9a9bb0)] uppercase tracking-wider mb-3">Mis evaluaciones</h2>
+              {lista.length === 0 && <div className="rounded-2xl border border-dashed border-[color:var(--c-3a3b52)] p-8 text-center text-sm text-[color:var(--c-9a9bb0)]">Tu profesor todavía no ha publicado evaluaciones de {materia.nombre} para tu sección.</div>}
               <ol className="space-y-3">
                 {lista.map(({ e, s }, i) => (
                   <TarjetaPortal key={e.id} e={e} s={s} indice={i + 1} abierta={abierta === e.id} onAlternar={() => setAbierta(abierta === e.id ? null : e.id)} ahora={ahora} token={token} materiaNombre={materia.nombre} estudiante={datos.estudiante.nombre} onPreparado={marcarPreparado} onExamen={cambiarExamen} archivos={!!datos.archivos} onEntrega={(id, cambio) => setDatos(prev => prev ? { ...prev, materias: prev.materias.map(m => ({ ...m, evaluaciones: m.evaluaciones.map(x => (x.id === id ? { ...x, ...cambio } : x)) })) } : prev)} />

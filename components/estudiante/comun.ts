@@ -5,7 +5,7 @@ export interface Grupo { clave: string; claseId: string; token: string; materiaI
 export interface EvalResumen {
   grupo: string; claseId: string; token: string; materia: string; profesor: string;
   id: string; nombre: string; tipoActividad: string | null; fecha: string | null; duracion: number | null; peso: number | null; estado: string;
-  abierta: boolean; nota: { puntaje: number; observaciones: string | null } | null;
+  abierta: boolean; abreEl?: string | null; nota: { puntaje: number; observaciones: string | null } | null;
   aceptaEntregas: boolean; entrega: EntregaInfo | null; examen: { estado: string } | null;
   mensajes: number; mensajesNuevos: number;
 }
@@ -33,12 +33,13 @@ export const textoNota = (n: number) => (Number.isInteger(n) ? String(n) : n.toF
 export const limpiar = (t: string) => String(t || '').replace(/^Evaluaci[oó]n\s*\d+\s*:\s*/i, '');
 
 // Estado de la entrega de una evaluación (solo las que reciben entregas)
-export type EstadoEntrega = 'por_corregir' | 'revisada' | 'entregada' | 'atrasada' | 'pendiente';
+export type EstadoEntrega = 'por_corregir' | 'revisada' | 'entregada' | 'atrasada' | 'pendiente' | 'bloqueada';
 export function estadoEntrega(e: EvalResumen): EstadoEntrega | null {
   if (!e.aceptaEntregas || e.estado === 'CANCELADA') return null;
   if (e.entrega?.devuelta) return 'por_corregir';
   if (e.entrega?.revisada) return 'revisada';
   if (e.entrega) return 'entregada';
+  if (!e.abierta) return 'bloqueada'; // todavía no se abre: no se puede entregar (no cuenta como pendiente ni atrasada)
   if (e.fecha && new Date(e.fecha).getTime() < Date.now()) return 'atrasada';
   return 'pendiente';
 }
@@ -48,6 +49,7 @@ export const ESTADO_ENTREGA: Record<EstadoEntrega, { texto: string; clase: strin
   entregada: { texto: 'Entregada · por revisar', clase: 'bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-c7d2fe)] border-[color:var(--c-818cf8)]/30' },
   atrasada: { texto: 'Atrasada', clase: 'bg-red-500/10 text-red-300 border-red-500/30' },
   pendiente: { texto: 'Pendiente', clase: 'bg-[color:var(--c-272839)] text-[color:var(--c-b0b0c4)] border-[color:var(--c-313248)]' },
+  bloqueada: { texto: 'Bloqueada', clase: 'bg-transparent text-[color:var(--c-6a6b7e)] border-[color:var(--c-313248)]' },
 };
 
 // Enlace para agregar una evaluación a Google Calendar

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { validarCedula, validarEmail, validarNombre, validarPassword, validarTelefono } from '@/lib/validacionesUsuario';
 import { DatosDemostracion } from '@/components/planificador/Administracion';
 import { UsuarioSesion } from '@/components/planificador/tipos';
+import { clavePrimeraHoy, primeraHoyActiva } from '@/components/planificador/utilidades';
 
 // ============================================
 // CAMBIO OBLIGATORIO DE CONTRASEÑA (cuenta con clave temporal)
@@ -155,6 +156,8 @@ export function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesio
         </div>
       )}
 
+      {usuario && usuario.rol !== 'SUPERADMIN' && <PreferenciaPrimeraHoy usuarioId={usuario.id} />}
+
       <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="w-11 h-11 rounded-full bg-[color:var(--c-272839)] flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-[color:var(--c-818cf8)]" /></div>
@@ -228,6 +231,27 @@ export function PerfilPanel({ usuario, onActualizado }: { usuario?: UsuarioSesio
       </motion.button>
 
       <DatosDemostracion />
+    </div>
+  );
+}
+
+// Preferencia del planificador: la primera evaluación de un plan nuevo con la fecha de hoy
+function PreferenciaPrimeraHoy({ usuarioId }: { usuarioId: string }) {
+  const [activa, setActiva] = useState(true);
+  useEffect(() => { setActiva(primeraHoyActiva(usuarioId)); }, [usuarioId]);
+  const cambiar = () => { const v = !activa; setActiva(v); try { localStorage.setItem(clavePrimeraHoy(usuarioId), v ? 'si' : 'no'); } catch { /* sin almacenamiento */ } };
+  return (
+    <div className="bg-[color:var(--c-1d1e2e)] border border-[color:var(--c-313248)] rounded-2xl p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)] mb-3">Planificador</p>
+      <button type="button" role="switch" aria-checked={activa} onClick={cambiar} className="w-full flex items-center gap-3 text-left">
+        <span className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors duration-200 ${activa ? 'bg-[color:var(--c-818cf8)]' : 'bg-[color:var(--c-313248)]'}`}>
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${activa ? 'translate-x-5' : ''}`} />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm text-[color:var(--c-e0e0ec)]">Primera evaluación con la fecha de hoy</span>
+          <span className="block text-xs text-[color:var(--c-8a8b9e)]">Al crear el plan de una sección vacía (con EvaPlanner, «Generar con IA» o a mano), la primera evaluación queda para hoy a las 11:59 p. m., abierta y recibiendo entregas. Se guarda en este navegador.</span>
+        </span>
+      </button>
     </div>
   );
 }

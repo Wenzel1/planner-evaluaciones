@@ -21,7 +21,7 @@ import ChatSeccion from '@/components/ChatSeccion';
 import MensajesProfesor from '@/components/planificador/MensajesProfesor';
 import AvisarCambios from '@/components/planificador/AvisarCambios';
 import Materiales from '@/components/Materiales';
-import { EVAL_POR_ABRIR, MATERIA_ACTIVA, calcularFechasEvaluaciones, esIdGuardado, estadoVisibleEvaluacion, heredado, limpiarTexto, pedirSugerenciasRecursos, planVisto, validarContenidoSE, validarEnfoque } from '@/components/planificador/utilidades';
+import { EVAL_POR_ABRIR, MATERIA_ACTIVA, calcularFechasEvaluaciones, esIdGuardado, estadoVisibleEvaluacion, heredado, limpiarTexto, pedirSugerenciasRecursos, planVisto, validarContenidoSE, validarEnfoque, primeraHoyActiva } from '@/components/planificador/utilidades';
 import { ActividadPanel, ConfigSistemaPanel, PapeleraPanel } from '@/components/planificador/Administracion';
 import { CalendarioPanel } from '@/components/planificador/CalendarioPanel';
 import { PerfilPanel } from '@/components/planificador/Cuenta';
@@ -229,8 +229,10 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
       const primera = nuevas.filter(s => letra(s) === sec && s.fecha).sort((a, b) => new Date(a.fecha!).getTime() - new Date(b.fecha!).getTime())[0];
       if (primera && !primera.abiertaManual) {
         abrirPrimero.current = primera.id;
-        setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(x => (x.id === primera.id ? { ...x, abiertaManual: true } : x)) }));
-        agregarNotificacion(`🔓 «${limpiarTexto(primera.nombre)}» quedó abierta para los estudiantes de la Sección ${sec} (es la primera del plan).`);
+        // Con la preferencia encendida, la primera queda para hoy a las 11:59 p. m.: abierta y recibiendo entregas todo el día
+        const hoy = primeraHoyActiva(usuario?.id) ? (() => { const d = new Date(); d.setHours(23, 59, 0, 0); return d; })() : null;
+        setPlanificacion(prev => ({ ...prev, secciones: prev.secciones.map(x => (x.id === primera.id ? { ...x, abiertaManual: true, ...(hoy ? { fecha: hoy } : {}) } : x)) }));
+        agregarNotificacion(`🔓 «${limpiarTexto(primera.nombre)}» quedó abierta para los estudiantes de la Sección ${sec}${hoy ? ', con fecha de hoy (11:59 p. m.) para que puedan entregar' : ' (es la primera del plan)'}.`);
       }
     }
     nuevas.forEach(s => { evaluacionesConocidas.current!.add(s.id); if (!(s.recursos?.length)) porBuscar.current.add(s.id); });

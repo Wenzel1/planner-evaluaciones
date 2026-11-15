@@ -34,6 +34,7 @@ export async function datosPortal(token: string) {
     where: { usuarioId: est.usuarioId, ...(est.materiaId ? { id: est.materiaId } : {}) },
     select: {
       id: true, nombre: true,
+      secciones: { where: { letra: grupo }, select: { id: true } },
       opiniones: { where: { estudianteId: est.id }, select: { deAcuerdo: true, comentario: true, updatedAt: true } },
       // El MISMO plan que ve el profesor en la app: el último creado de la materia (antes era el último modificado
       // y, si la materia tenía un plan viejo, el estudiante veía evaluaciones que ya no son las del profesor)
@@ -64,10 +65,13 @@ export async function datosPortal(token: string) {
 
   const ahora = Date.now()
   const lista = materias
-    .map(m => ({ m, plan: m.planificaciones[0] && m.planificaciones[0].evaluaciones.length > 0 ? m.planificaciones[0] : undefined })) // el plan actual, si tiene evaluaciones de su sección
-    .filter(x => x.plan)
+    .map(m => ({ m, plan: m.planificaciones[0] }))
+    // La materia se muestra aunque el profesor haya borrado sus evaluaciones (el estudiante sigue inscrito):
+    // la suya (si se unió con un código), la que tiene evaluaciones o su sección creada para su grupo.
+    // A los estudiantes cargados sin materia no se les muestran materias del profesor que nunca fueron de su sección.
+    .filter(({ m, plan }) => est.materiaId === m.id || (plan?.evaluaciones.length ?? 0) > 0 || m.secciones.length > 0)
     .map(({ m, plan }) => {
-      const evaluaciones = plan!.evaluaciones.map(ev => {
+      const evaluaciones = (plan?.evaluaciones || []).map(ev => {
         const { abierta, abreEl } = estaAbierta({ fecha: ev.fecha, estado: ev.estado, abiertaManual: ev.abiertaManual }, ahora)
         const nota = ev.calificaciones[0]
         return {

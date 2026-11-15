@@ -1,3 +1,4 @@
+import { estaAbierta } from '@/lib/portal'
 // Entregas de trabajos y comentarios privados: comprobaciones compartidas.
 import prisma from '@/lib/prisma'
 import { TOKEN_VALIDO } from '@/lib/portal'
@@ -14,7 +15,7 @@ export async function estudianteDeToken(token: string) {
 export async function evaluacionDelEstudiante(est: { usuarioId: string | null; grupo: string; materiaId: string | null }, evaluacionId: string) {
   const ev = await prisma.evaluacion.findUnique({
     where: { id: String(evaluacionId || '') },
-    select: { id: true, nombre: true, fecha: true, estado: true, grupoSeccion: true, aceptaEntregas: true, planificacion: { select: { materiaId: true, materia: { select: { usuarioId: true, nombre: true } } } } },
+    select: { id: true, nombre: true, fecha: true, estado: true, grupoSeccion: true, aceptaEntregas: true, abiertaManual: true, planificacion: { select: { materiaId: true, materia: { select: { usuarioId: true, nombre: true } } } } },
   })
   if (!ev || ev.planificacion.materia.usuarioId !== est.usuarioId || (ev.grupoSeccion || 'A') !== (est.grupo || 'A')) return null
   if (est.materiaId && ev.planificacion.materiaId !== est.materiaId) return null
@@ -38,3 +39,12 @@ export function archivosDeEntrega(e: { archivoRuta?: string | null; archivoNombr
 }
 // Lo que se envía al navegador (sin la ruta interna del almacenamiento)
 export const archivosPublicos = (lista: ArchivoEntrega[]) => lista.map(({ ruta, ...a }) => a)
+
+// ¿Puede entregar ya? Solo en evaluaciones abiertas (las bloqueadas se abren unos días antes de su fecha).
+// Devuelve el mensaje de error o null si puede.
+export function bloqueoDeEntrega(ev: { fecha: Date | null; estado: string; abiertaManual: boolean }): string | null {
+  const { abierta, abreEl } = estaAbierta(ev)
+  if (abierta) return null
+  const dia = abreEl ? new Intl.DateTimeFormat('es-VE', { timeZone: 'America/Caracas', weekday: 'long', day: 'numeric', month: 'long' }).format(abreEl) : ''
+  return `Esta evaluación todavía está bloqueada${dia ? `: se abre el ${dia}` : ''}. Podrás entregar desde ese día.`
+}

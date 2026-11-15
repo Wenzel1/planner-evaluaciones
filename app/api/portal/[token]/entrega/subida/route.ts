@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { accesoPortal } from '@/lib/portalAcceso'
-import { estudianteDeToken, evaluacionDelEstudiante } from '@/lib/entregas'
+import { estudianteDeToken, evaluacionDelEstudiante, bloqueoDeEntrega } from '@/lib/entregas'
 import { archivosConfigurados, enlaceDeSubida, EXTENSIONES, MAX_ARCHIVO, extensionDe, nombreSeguro, tipoDeArchivo } from '@/lib/almacenamiento'
 import { bloqueado, registrarFallo, minutosRestantes } from '@/lib/rateLimit'
 
@@ -26,6 +26,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const ev = await evaluacionDelEstudiante(est, String(body.evaluacionId || ''))
     if (!ev) return NextResponse.json({ error: 'Evaluación no encontrada.' }, { status: 404 })
     if (!ev.aceptaEntregas || ev.estado === 'CANCELADA') return NextResponse.json({ error: 'Esta evaluación no recibe entregas.' }, { status: 400 })
+    const bloqueo = bloqueoDeEntrega(ev)
+    if (bloqueo) return NextResponse.json({ error: bloqueo }, { status: 403 })
 
     const nombre = String(body.nombre || '').trim().slice(0, 150) || 'archivo'
     const tamano = Number(body.tamano) || 0

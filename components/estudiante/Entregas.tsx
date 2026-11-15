@@ -3,7 +3,7 @@
 // Arriba un resumen por estado (sirve de filtro); abajo la lista a la izquierda y el detalle de la elegida a la derecha
 // (en pantallas angostas el detalle se abre debajo de la tarea).
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, ChevronRight, Clock, FileCheck2, Inbox, Layers, RotateCcw } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Lock, CheckCircle2, ChevronDown, ChevronRight, Clock, FileCheck2, Inbox, Layers, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BloqueEntrega, type EntregaInfo } from '@/components/EntregaEstudiante';
 import { type Resumen, type EstadoEntrega, colorDe, limpiar, fechaHora, cuandoTexto, estadoEntrega, ESTADO_ENTREGA } from './comun';
@@ -17,7 +17,7 @@ const FILTROS: { id: Filtro; texto: string; icono: any; color: string }[] = [
   { id: 'entregada', texto: 'Entregadas', icono: FileCheck2, color: 'var(--c-a5b4fc)' },
   { id: 'revisada', texto: 'Revisadas', icono: CheckCircle2, color: '#a0cdb7' },
 ];
-const ORDEN: Record<EstadoEntrega, number> = { por_corregir: 0, atrasada: 1, pendiente: 2, entregada: 3, revisada: 4 };
+const ORDEN: Record<EstadoEntrega, number> = { por_corregir: 0, atrasada: 1, pendiente: 2, entregada: 3, revisada: 4, bloqueada: 5 };
 
 // Ancho disponible del contenido (no de la ventana): con el menú y la columna derecha puede ser angosto
 function useAncho<T extends HTMLElement>() {
@@ -46,13 +46,21 @@ export default function Entregas({ datos, onCambio }: { datos: Resumen; onCambio
   // En dos columnas siempre hay una elegida (la primera del filtro)
   const elegida = visibles.find(x => x.e.id === sel) || (dosColumnas ? visibles[0] : undefined);
 
-  const detalle = (x: { e: typeof lista[number]['e']; s: EstadoEntrega }) => (
+  const detalle = (x: { e: typeof lista[number]['e']; s: EstadoEntrega }) => x.s === 'bloqueada' ? (
+    <div className="flex items-start gap-3 rounded-xl border border-dashed border-[color:var(--c-3a3b52)] px-4 py-5">
+      <Lock className="w-5 h-5 text-[color:var(--c-8a8b9e)] flex-shrink-0 mt-0.5" />
+      <div>
+        <p className="text-sm font-medium text-[color:var(--c-d0d0da)]">Todavía no puedes entregar</p>
+        <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">{x.e.abreEl ? `Se abre el ${new Intl.DateTimeFormat('es-VE', { timeZone: 'America/Caracas', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(x.e.abreEl))}. Podrás entregar desde ese día.` : 'Se abre unos días antes de su fecha. Podrás entregar desde ese día.'}</p>
+      </div>
+    </div>
+  ) : (
     <BloqueEntrega key={x.e.id} token={x.e.token} evaluacionId={x.e.id} entrega={x.e.entrega} archivos={datos.archivos} fechaEval={x.e.fecha} sinMarco onCambio={(en) => onCambio(x.e.id, en)} />
   );
 
   return (
     <div ref={ref} className="space-y-5">
-      <p className="text-sm text-[color:var(--c-8a8b9e)]">Los trabajos que debes entregar en todas tus materias.</p>
+      <p className="text-sm text-[color:var(--c-8a8b9e)]">Los trabajos que debes entregar en esta materia. Solo puedes entregar en las evaluaciones abiertas.</p>
 
       {/* Resumen por estado (también filtra) */}
       <div className={`grid gap-2 ${ancho >= 640 ? 'grid-cols-6' : 'grid-cols-3'}`}>

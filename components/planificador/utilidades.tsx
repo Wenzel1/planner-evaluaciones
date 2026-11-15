@@ -503,3 +503,10 @@ export const planVisto: { en: string | null } = { en: null }; // objeto (no let)
 // Últimos datos que mostró cada panel. Al volver a una pestaña se ven al instante y se actualizan por detrás
 // (antes cada visita empezaba en blanco con "Cargando..."). Se borra sola al recargar la página o cerrar sesión.
 export const memoriaPaneles: Record<string, any> = {};
+
+// «Primera evaluación con la fecha de hoy»: al crear el plan de una sección vacía, la primera evaluación queda para
+// hoy a las 11:59 p. m. (abierta y recibiendo entregas todo el día). Se guarda en este navegador, por cuenta. Encendida por defecto.
+export const clavePrimeraHoy = (usuarioId?: string | null) => `primeraEvalHoy:${usuarioId || 'anonimo'}`;
+export function primeraHoyActiva(usuarioId?: string | null): boolean {
+  try { return localStorage.getItem(clavePrimeraHoy(usuarioId)) !== 'no'; } catch { return true; }
+}

@@ -40,7 +40,7 @@ export async function GET(request: Request) {
           evaluaciones.push({
             grupo: clave, claseId: c.id, token, materia: m.nombre, profesor: c.usuario?.nombre || 'Profesor',
             id: e.id, nombre: e.nombre, tipoActividad: e.tipoActividad, fecha: e.fecha, duracion: e.duracion, peso: e.peso, estado: e.estado,
-            abierta: e.abierta, nota: e.nota ? { puntaje: e.nota.puntaje, observaciones: e.nota.observaciones } : null,
+            abierta: e.abierta, abreEl: e.abreEl ?? null, nota: e.nota ? { puntaje: e.nota.puntaje, observaciones: e.nota.observaciones } : null,
             aceptaEntregas: !!e.aceptaEntregas && !e.examen, entrega: e.entrega || null, examen: e.examen ? { estado: e.examen.estado } : null,
             mensajes: e.mensajes || 0, mensajesNuevos: e.mensajesNuevos || 0,
           })
