@@ -17,7 +17,7 @@ export const archivosConfigurados = () => !!(base() && clave())
 // El bucket "entregas" debe permitir este tamaño (Supabase → Storage → entregas → Edit → File size limit).
 export const MAX_ARCHIVO = 25 * 1024 * 1024
 export const MAX_ARCHIVOS_POR_ENTREGA = 10
-export const EXTENSIONES = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods', 'txt', 'md', 'csv', 'zip', 'rar', '7z', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4', 'webm', 'mov', 'mp3', 'wav', 'm4a', 'ogg', 'oga', 'opus', 'drawio', 'fig', 'sql', 'json', 'xml', 'yml', 'yaml', 'html', 'css', 'scss', 'js', 'jsx', 'ts', 'tsx', 'py', 'java', 'kt', 'c', 'h', 'cpp', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'dart', 'sh', 'ipynb', 'puml', 'uml']
+export const EXTENSIONES = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods', 'txt', 'md', 'csv', 'zip', 'rar', '7z', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'mp4', 'webm', 'mov', 'mp3', 'wav', 'm4a', 'ogg', 'oga', 'opus', 'drawio', 'fig', 'sql', 'json', 'xml', 'yml', 'yaml', 'html', 'css', 'scss', 'js', 'jsx', 'ts', 'tsx', 'py', 'java', 'kt', 'c', 'h', 'cpp', 'cs', 'php', 'rb', 'go', 'rs', 'swift', 'dart', 'sh', 'ipynb', 'puml', 'uml', 'pkt', 'pka']
 
 // Tipo de contenido por extensión. Lo que un navegador podría ejecutar (html, svg, js…) se guarda como texto plano.
 const TIPOS: Record<string, string> = {
@@ -27,7 +27,7 @@ const TIPOS: Record<string, string> = {
   xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   odt: 'application/vnd.oasis.opendocument.text', ods: 'application/vnd.oasis.opendocument.spreadsheet', odp: 'application/vnd.oasis.opendocument.presentation',
-  rtf: 'application/rtf', zip: 'application/zip', rar: 'application/vnd.rar', '7z': 'application/x-7z-compressed', csv: 'text/csv; charset=utf-8',
+  rtf: 'application/rtf', zip: 'application/zip', rar: 'application/vnd.rar', '7z': 'application/x-7z-compressed', pkt: 'application/octet-stream', pka: 'application/octet-stream', csv: 'text/csv; charset=utf-8',
 }
 export const extensionDe = (nombre: string) => (String(nombre || '').match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase()
 export const tipoDeArchivo = (nombre: string) => TIPOS[extensionDe(nombre)] || (EXTENSIONES.includes(extensionDe(nombre)) ? 'text/plain; charset=utf-8' : 'application/octet-stream')

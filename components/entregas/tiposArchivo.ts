@@ -1,7 +1,7 @@
 // Cómo se muestra cada tipo de archivo en la bandeja y en el visor (ícono, color pastel sobrio y forma de vista previa)
-import { FileText, FileSpreadsheet, Presentation, FileCode2, FileArchive, Image as ImageIcon, Film, Music, File, Link2, type LucideIcon } from 'lucide-react';
+import { FileText, FileSpreadsheet, Presentation, FileCode2, FileArchive, Image as ImageIcon, Film, Music, File, Link2, Network, type LucideIcon } from 'lucide-react';
 
-export type Categoria = 'pdf' | 'word' | 'excel' | 'powerpoint' | 'imagen' | 'video' | 'audio' | 'codigo' | 'texto' | 'csv' | 'zip' | 'otro';
+export type Categoria = 'pdf' | 'word' | 'excel' | 'powerpoint' | 'imagen' | 'video' | 'audio' | 'codigo' | 'texto' | 'csv' | 'zip' | 'red' | 'otro';
 
 const EXT: Record<string, Categoria> = {
   pdf: 'pdf',
@@ -14,6 +14,7 @@ const EXT: Record<string, Categoria> = {
   csv: 'csv',
   txt: 'texto', md: 'texto',
   zip: 'zip',
+  pkt: 'red', pka: 'red',
   js: 'codigo', jsx: 'codigo', ts: 'codigo', tsx: 'codigo', py: 'codigo', java: 'codigo', kt: 'codigo', c: 'codigo', h: 'codigo', cpp: 'codigo', cs: 'codigo',
   php: 'codigo', rb: 'codigo', go: 'codigo', rs: 'codigo', swift: 'codigo', dart: 'codigo', sh: 'codigo', sql: 'codigo', html: 'codigo', css: 'codigo',
   scss: 'codigo', json: 'codigo', xml: 'codigo', yml: 'codigo', yaml: 'codigo', svg: 'codigo', ipynb: 'codigo', puml: 'codigo', uml: 'codigo', drawio: 'codigo',
@@ -34,6 +35,7 @@ export const ESTILO: Record<Categoria | 'enlace', { icono: LucideIcon; color: st
   texto: { icono: FileText, color: 'text-[#c2c6cd]', fondo: 'bg-[#c2c6cd]/[0.07] border-[#c2c6cd]/20', nombre: 'Texto' },
   csv: { icono: FileSpreadsheet, color: 'text-[#bcd59c]', fondo: 'bg-[#bcd59c]/[0.07] border-[#bcd59c]/20', nombre: 'CSV' },
   zip: { icono: FileArchive, color: 'text-[#dfcb8f]', fondo: 'bg-[#dfcb8f]/[0.07] border-[#dfcb8f]/20', nombre: 'ZIP' },
+  red: { icono: Network, color: 'text-[#8fc7e3]', fondo: 'bg-[#8fc7e3]/[0.07] border-[#8fc7e3]/20', nombre: 'Packet Tracer' },
   otro: { icono: File, color: 'text-[#b6bac2]', fondo: 'bg-[#b6bac2]/[0.07] border-[#b6bac2]/20', nombre: 'Archivo' },
   enlace: { icono: Link2, color: 'text-[#a7bfe6]', fondo: 'bg-[#a7bfe6]/[0.07] border-[#a7bfe6]/20', nombre: 'Enlace' },
 };
@@ -41,7 +43,7 @@ export const ESTILO: Record<Categoria | 'enlace', { icono: LucideIcon; color: st
 export const estiloDe = (nombre: string) => ESTILO[categoria(nombre)];
 
 // Se ven dentro del programa: PDF, imágenes, video y audio directo; Office con el visor de Microsoft; código y texto con colores
-export const tieneVistaPrevia = (nombre: string) => categoria(nombre) !== 'otro' && !['rar', '7z', 'fig'].includes(extension(nombre));
+export const tieneVistaPrevia = (nombre: string) => !['otro', 'red'].includes(categoria(nombre)) && !['rar', '7z', 'fig'].includes(extension(nombre));
 
 export function tamanoLegible(bytes: number | null | undefined): string {
   if (!bytes && bytes !== 0) return '';

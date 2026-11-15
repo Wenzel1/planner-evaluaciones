@@ -4,7 +4,8 @@
 // Si el editor no responde (sin conexión, o el navegador lo bloquea), queda la vista del diagrama y las
 // observaciones escritas, que siempre funcionan. Vista: el visor de diagrams.net (solo lectura).
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ExternalLink, Eye, Loader2, PencilRuler } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Eye, Loader2, MessageSquareText, PencilRuler } from 'lucide-react';
+import PanelPlegable, { usePanel } from './PanelPlegable';
 
 const EDITOR = 'https://embed.diagrams.net/?embed=1&proto=json&spin=1&ui=dark&lang=es&noExitBtn=1&saveAndExit=0&noSaveBtn=1&libraries=1';
 export interface DatosDrawio { xml?: string | null; comentario?: string | null }
@@ -17,6 +18,7 @@ export function EditorDrawio({ xml, comentario, onCambio, onComentario }: { xml:
   const [actual, setActual] = useState(xml);
   const [nota, setNota] = useState(comentario || '');
   const listoRef = useRef(false);
+  const [panel, setPanel] = usePanel('drawio');
   useEffect(() => {
     // Si en 15 s el editor no avisó que está listo, se pasa a la vista (y se explica por qué)
     const t = setTimeout(() => setSinEditor(s => { if (!listoRef.current) { setModo('ver'); return true; } return s; }), 15000);
@@ -52,11 +54,12 @@ export function EditorDrawio({ xml, comentario, onCambio, onComentario }: { xml:
           {modo === 'ver' && <VistaDrawio key={actual.length} xml={actual} />}
         </div>
       </div>
-      <aside className="w-[300px] flex-shrink-0 border-l border-[color:var(--c-282a3f)] bg-[color:var(--c-1d1e2e)] p-4 flex flex-col gap-2">
-        <p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">Observaciones sobre el diagrama</p>
+      <PanelPlegable abierto={panel} onCambiar={setPanel} icono={MessageSquareText} titulo="Observaciones" contador={nota.trim() ? '✓' : null} ancho={300}>
+       <div className="flex-1 min-h-0 p-4 flex flex-col gap-2">
         <p className="text-[11px] text-[color:var(--c-8a8b9e)]">Lo verá el estudiante junto al diagrama corregido.</p>
         <textarea value={nota} onChange={(e) => { setNota(e.target.value.slice(0, 3000)); onComentario(e.target.value.slice(0, 3000)); }} placeholder="Ej.: Falta el actor «Profesor» y la relación «include» entre Entregar y Subir archivo." className="flex-1 min-h-[160px] w-full px-3 py-2 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-[13px] text-[color:var(--c-e0e0ec)] outline-none focus:border-[color:var(--c-818cf8)]/60 resize-none" />
-      </aside>
+       </div>
+      </PanelPlegable>
     </div>
   );
 }

@@ -5,7 +5,11 @@
 // Si Monaco no carga (sin conexión al servidor de librerías), se usa el editor sencillo de la app.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Editor, { DiffEditor, loader } from '@monaco-editor/react';
-import { Columns2, MessageSquarePlus, PencilLine, Trash2 } from 'lucide-react';
+import { Columns2, MessageSquarePlus, PencilLine, Play, Trash2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import PanelPlegable, { usePanel } from './PanelPlegable';
+import { lenguajeEjecutable } from './Ejecutar';
+const TerminalEjecucion = dynamic(() => import('./Ejecutar'), { ssr: false });
 import CodigoSimple, { type ComentarioLinea, type DatosCodigo } from './CodigoSimple';
 export type { ComentarioLinea, DatosCodigo };
 
@@ -38,6 +42,11 @@ function CodigoMonaco({ texto, ext, datos, onCambio, soloLectura = false }: { te
   const [sel, setSel] = useState<{ desde: number; hasta: number } | null>(null);
   const [nuevo, setNuevo] = useState('');
   const editor = useRef<any>(null);
+  const [panel, setPanel] = usePanel(soloLectura ? 'codigo-estudiante' : 'codigo');
+  const [terminal, setTerminal] = useState(false);
+  const ejecutable = lenguajeEjecutable(ext);
+  // Al elegir líneas para comentar, el panel se abre solo
+  useEffect(() => { if (sel && !panel) setPanel(true); }, [sel]); // eslint-disable-line react-hooks/exhaustive-deps
   const zonas = useRef<string[]>([]);
   useEffect(() => { if (!soloLectura) onCambio?.(estado); }, [estado]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -103,6 +112,7 @@ function CodigoMonaco({ texto, ext, datos, onCambio, soloLectura = false }: { te
         {corregido != null && <Pestana id="diferencias" I={Columns2} t="Original vs. corregido" />}
         <span className="flex-1" />
         {!soloLectura && vista === 'comentarios' && <span className="text-[11px] text-[color:var(--c-8a8b9e)]">Selecciona líneas o toca su número para comentar</span>}
+        {ejecutable && !terminal && <button type="button" onClick={() => setTerminal(true)} title="Ejecutar en una terminal aislada, dentro de tu navegador" className="h-8 px-3 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5"><Play className="w-3.5 h-3.5 fill-current" />Ejecutar</button>}
         {!soloLectura && corregido != null && vista !== 'comentarios' && <button type="button" onClick={() => { setEstado(e => ({ ...e, corregido: null })); setVista('comentarios'); }} className="h-8 px-3 rounded-lg text-xs text-red-300 hover:bg-red-500/10">Descartar versión corregida</button>}
       </div>
       <div className="relative flex-1 min-h-0 flex">
@@ -112,7 +122,7 @@ function CodigoMonaco({ texto, ext, datos, onCambio, soloLectura = false }: { te
           {vista === 'diferencias' && corregido != null && <DiffEditor height="100%" theme="vs-dark" language={lenguaje} original={original} modified={corregido} options={{ ...OPCIONES, readOnly: true, renderSideBySide: true, originalEditable: false }} />}
         </div>
         {vista === 'comentarios' && (
-          <aside className="w-[300px] flex-shrink-0 border-l border-[color:var(--c-282a3f)] bg-[color:var(--c-1d1e2e)] flex flex-col min-h-0">
+          <PanelPlegable abierto={panel} onCambiar={setPanel} icono={MessageSquarePlus} titulo="Comentarios" contador={estado.comentarios.length || null} ancho={300}>
             {!soloLectura && (
               <div className="p-3 border-b border-[color:var(--c-282a3f)]">
                 {sel ? (
@@ -135,9 +145,14 @@ function CodigoMonaco({ texto, ext, datos, onCambio, soloLectura = false }: { te
                 </div>
               ))}
             </div>
-          </aside>
+          </PanelPlegable>
         )}
       </div>
+      {terminal && ejecutable && (
+        <TerminalEjecucion lenguaje={ejecutable} onCerrar={() => setTerminal(false)}
+          etiqueta={vista === 'comentarios' || corregido == null ? 'el original del estudiante' : 'la versión corregida'}
+          obtenerCodigo={() => (vista === 'comentarios' || corregido == null ? original : corregido)} />
+      )}
     </div>
   );
 }

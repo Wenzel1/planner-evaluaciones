@@ -129,7 +129,7 @@ export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEva
                 className={`rounded-xl border-2 border-dashed px-4 py-6 text-center cursor-pointer transition-colors ${arrastrando ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-3a3b52)] hover:border-[color:var(--c-818cf8)]/60'}`}>
                 <Upload className="w-6 h-6 mx-auto text-[color:var(--c-a5b4fc)]" />
                 <p className="text-sm text-[color:var(--c-d0d0da)] mt-2"><b>Arrastra tus archivos aquí</b> o toca para elegirlos</p>
-                <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">PDF, Word, Excel, PowerPoint, imágenes, código, flujos de n8n (.json), diagramas (.drawio), .zip… · hasta {MAX_ARCHIVOS} archivos de {MAX_MB} MB</p>
+                <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">PDF, Word, Excel, PowerPoint, imágenes, código, flujos de n8n (.json), diagramas (.drawio), Packet Tracer (.pkt), .zip… · hasta {MAX_ARCHIVOS} archivos de {MAX_MB} MB</p>
                 <input ref={inputRef} type="file" multiple className="hidden" onChange={(ev) => { if (ev.target.files) agregar(ev.target.files); ev.target.value = ''; }} />
               </div>
               {(actuales.length > 0 || subidas.length > 0) && (
@@ -156,6 +156,19 @@ export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEva
                   ))}
                 </ul>
               )}
+              {(() => {
+                // Packet Tracer no se puede ver en la web: se sugiere adjuntar también la topología y la configuración
+                const nombres = [...actuales.map(a => a.nombre), ...subidas.map(s => s.archivo.name)].map(n => n.toLowerCase());
+                if (!nombres.some(n => /\.(pkt|pka)$/.test(n))) return null;
+                const conVista = nombres.some(n => /\.(png|jpe?g|webp|gif|pdf)$/.test(n));
+                const conConfig = nombres.some(n => /\.txt$/.test(n));
+                if (conVista && conConfig) return null;
+                return (
+                  <p className="text-xs text-sky-200 bg-sky-500/10 border border-sky-500/25 rounded-lg px-3 py-2 leading-relaxed">
+                    <b>Consejo para Packet Tracer:</b> tu profesor no puede ver el .pkt dentro de la app. Agrega también {!conVista ? 'una captura o un PDF de tu topología' : ''}{!conVista && !conConfig ? ' y ' : ''}{!conConfig ? 'un .txt con la configuración (lo que muestra show running-config)' : ''}, para que pueda corregirla aquí mismo.
+                  </p>
+                );
+              })()}
             </>
           ) : <p className="text-xs text-[color:var(--c-8a8b9e)]">Tu profesor recibe esta entrega como enlace (Drive, GitHub, Figma…).</p>}
           <div className="relative"><Link2 className="w-4 h-4 text-[color:var(--c-5f6074)] absolute left-3 top-1/2 -translate-y-1/2" /><input value={url} onChange={(ev) => setUrl(ev.target.value)} placeholder={archivos ? 'Enlace (opcional): GitHub, Drive, Figma…' : 'https://github.com/tu-usuario/tu-proyecto'} className="w-full h-10 pl-9 pr-3 rounded-lg bg-[color:var(--c-191a26)] border border-[color:var(--c-313248)] text-sm text-[color:var(--c-e0e0ec)] placeholder-[color:var(--c-5f6074)] focus:outline-none focus:border-[color:var(--c-818cf8)]" /></div>

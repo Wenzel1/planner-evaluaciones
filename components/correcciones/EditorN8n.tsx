@@ -6,7 +6,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap, Handle, Position, useReactFlow, MarkerType, type Node, type Edge, type NodeProps, type Connection, type NodeChange, applyNodeChanges } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { AlertTriangle, Bot, Box, Brain, CheckCircle2, Clock, Code2, Copy, Database, Filter, GitBranch, Globe, Hourglass, Mail, Merge, MessageCircle, MessageSquare, MousePointerClick, Plus, Power, Redo2, Repeat, Reply, Sparkles, Split, SquarePen, Trash2, Undo2, Webhook, Wrench, X } from 'lucide-react';
+import PanelPlegable, { usePanel } from './PanelPlegable';
+import { AlertTriangle, Bot, Box, Brain, CheckCircle2, Clock, Code2, Copy, Database, Filter, GitBranch, Globe, Hourglass, Mail, Merge, MessageCircle, MessageSquare, MousePointerClick, Plus, Power, Redo2, Repeat, Reply, Sparkles, Split, SquarePen, Trash2, Undo2, Webhook, Wrench, X, ListChecks } from 'lucide-react';
 
 export interface ComentarioNodo { nodo: string; texto: string }
 export interface DatosN8n { comentarios: ComentarioNodo[]; flujo?: string | null } // flujo: el .json corregido (si se editó)
@@ -125,6 +126,8 @@ function Lienzo({ texto, datos, onCambio, soloLectura = false }: { texto: string
   const [agregando, setAgregando] = useState(false);
   const [rfNodos, setRfNodos] = useState<Node<DatosNodo>[]>([]);
   const rf = useReactFlow();
+  const [panel, setPanel] = usePanel(soloLectura ? 'n8n-estudiante' : 'n8n');
+  useEffect(() => { if (sel && !panel) setPanel(true); }, [sel]); // eslint-disable-line react-hooks/exhaustive-deps
   const mostrado = verOriginal && original ? original : flujo;
 
   useEffect(() => { if (!soloLectura && flujo) onCambio?.({ comentarios, flujo: editado ? aTexto(flujo) : null }); }, [comentarios, flujo, editado]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -295,7 +298,7 @@ function Lienzo({ texto, datos, onCambio, soloLectura = false }: { texto: string
       </div>
 
       {/* Panel: revisión automática o el nodo elegido */}
-      <aside className="w-[340px] flex-shrink-0 border-l border-[color:var(--c-282a3f)] bg-[color:var(--c-1d1e2e)] flex flex-col min-h-0">
+      <PanelPlegable abierto={panel} onCambiar={setPanel} icono={nodoSel ? MessageSquare : ListChecks} titulo={nodoSel ? 'Nodo elegido' : 'Revisión y comentarios'} contador={(comentarios.length + avisos.length) || null} ancho={340}>
         {!nodoSel ? (
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--c-8a8b9e)]">Revisión automática</p>
@@ -312,7 +315,7 @@ function Lienzo({ texto, datos, onCambio, soloLectura = false }: { texto: string
             onComentar={() => { const x = nuevo.trim(); if (x) { setComentarios(l => [...l, { nodo: nodoSel.name, texto: x.slice(0, 2000) }]); setNuevo(''); } }}
             onQuitarComentario={(c) => setComentarios(l => l.filter(x => x !== c))} />
         )}
-      </aside>
+      </PanelPlegable>
     </div>
   );
 }

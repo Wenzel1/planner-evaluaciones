@@ -71,6 +71,7 @@ export default function VistaArchivo({ fuente, nombre, tamano, compacta = false 
           : cat === 'codigo' || cat === 'texto' ? <VistaTexto url={conModo(fuente, 'texto')} ext={extension(nombre)} />
           : cat === 'csv' ? <VistaCsv url={conModo(fuente, 'texto')} />
           : cat === 'zip' ? <VistaZip fuente={fuente} />
+          : cat === 'red' ? <VistaPacketTracer nombre={nombre} enlaces={enlaces} />
           : <SinVista nombre={nombre} enlaces={enlaces} />}
       </div>
     </div>
@@ -93,6 +94,22 @@ function Cargando() {
 }
 function Aviso({ texto }: { texto: string }) {
   return <div className="absolute inset-0 flex items-center justify-center p-6"><p className="flex items-center gap-2 text-sm text-amber-200 bg-amber-500/10 border border-amber-500/25 rounded-xl px-4 py-3 max-w-md"><AlertCircle className="w-4 h-4 flex-shrink-0" />{texto}</p></div>;
+}
+// Packet Tracer (.pkt / .pka): formato cerrado y cifrado de Cisco, no se puede dibujar en la web; se descarga y se abre allá
+function VistaPacketTracer({ nombre, enlaces }: { nombre: string; enlaces: Enlaces }) {
+  const est = estiloDe(nombre); const Icono = est.icono;
+  const actividad = extension(nombre) === 'pka';
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <span className={`w-16 h-16 rounded-2xl border flex items-center justify-center ${est.fondo}`}><Icono className={`w-8 h-8 ${est.color}`} /></span>
+      <div className="max-w-md">
+        <p className="text-sm font-semibold text-[color:var(--c-e0e0ec)]">{actividad ? 'Actividad de Packet Tracer' : 'Archivo de Packet Tracer'}</p>
+        <p className="text-xs text-[color:var(--c-8a8b9e)] mt-1 leading-relaxed">Ábrelo en Cisco Packet Tracer para ver la red, probar la configuración y hacer ping. Este formato no se puede mostrar dentro de la app.</p>
+        <p className="text-xs text-[color:var(--c-8a8b9e)] mt-2 leading-relaxed">Si el estudiante adjuntó una captura o un PDF de la topología y un .txt con la configuración, puedes corregirlos aquí mismo en los otros archivos de la entrega.</p>
+      </div>
+      <a href={enlaces.descargar} className="h-9 px-4 rounded-lg bg-[color:var(--c-818cf8)] text-white text-sm font-semibold flex items-center gap-1.5"><Download className="w-4 h-4" />Descargar {nombre}</a>
+    </div>
+  );
 }
 function SinVista({ nombre, enlaces }: { nombre: string; enlaces: Enlaces }) {
   const est = estiloDe(nombre); const Icono = est.icono;
