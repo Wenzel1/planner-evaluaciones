@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic';
 import { type Correccion, NOMBRE_TIPO, extension, textoOriginal } from './comun';
 
 const CorrectorCodigo = dynamic(() => import('./CorrectorCodigo'), { ssr: false });
-const VisorN8n = dynamic(() => import('./VisorN8n'), { ssr: false });
+const EditorN8n = dynamic(() => import('./EditorN8n'), { ssr: false });
 const VistaDrawio = dynamic(() => import('./Drawio').then(m => m.VistaDrawio), { ssr: false });
 
 export default function CorreccionesEstudiante({ token, evaluacionId, version }: { token: string; evaluacionId: string; version?: string }) {
@@ -85,7 +85,7 @@ function VentanaCorreccion({ c, fuente, onCerrar }: { c: Correccion; fuente: str
         )
           : error ? <p className="absolute inset-0 flex items-center justify-center text-sm text-red-300">{error}</p>
           : texto == null ? <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-[color:var(--c-9a9bb0)]"><Loader2 className="w-5 h-5 animate-spin" />Abriendo…</div>
-          : c.tipo === 'N8N' ? <VisorN8n texto={texto} datos={c.datos} soloLectura />
+          : c.tipo === 'N8N' ? <EditorN8n texto={texto} datos={c.datos} soloLectura />
           : <CorrectorCodigo texto={texto} ext={extension(c.archivoNombre)} datos={c.datos} soloLectura />}
       </div>
     </motion.div>

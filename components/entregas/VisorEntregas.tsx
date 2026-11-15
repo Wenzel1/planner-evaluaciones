@@ -7,7 +7,8 @@ import { tipoCorreccion, type Correccion } from '@/components/correcciones/comun
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Send, ExternalLink, MessageSquare, ClipboardCheck, Clock, Link2, Save, Circle, Sparkles, PenLine } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, RotateCcw, Send, ExternalLink, MessageSquare, ClipboardCheck, Clock, Link2, Save, Circle, Sparkles, PenLine, Maximize2, Minimize2 } from 'lucide-react';
+import { confirmar } from '@/components/Confirmar';
 import VistaArchivo from './VistaArchivo';
 import Avatar from '@/components/Avatar';
 import { precargarArchivo } from './enlaces';
@@ -49,13 +50,26 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
   const [archivoSel, setArchivoSel] = useState(archivoInicial);
   // Correcciones sobre los archivos de esta entrega (lápiz en PDF, comentarios en código, n8n, draw.io, Word, Excel)
   const [correcciones, setCorrecciones] = useState<Record<string, Correccion>>({});
-  const [corrigiendo, setCorrigiendo] = useState(false);
+  // La corrección se abre directo sobre el archivo; si tiene cambios sin guardar, se pregunta antes de salir de él
+  const sucio = useRef(false);
+  const [panelOculto, setPanelOculto] = useState(false);
+  const [listaArchivos, setListaArchivos] = useState(false);
+  const filaArchivos = useRef<HTMLDivElement>(null);
+  const seguro = async (accion: () => void) => {
+    if (sucio.current && !(await confirmar({ titulo: 'Cambios sin guardar', mensaje: 'La corrección de este archivo tiene cambios que no guardaste. Si sigues, se pierden.', boton: 'Seguir sin guardar' }))) return;
+    sucio.current = false; accion();
+  };
+  const irA = (n: number) => seguro(() => setI(Math.min(entregas.length - 1, Math.max(0, n))));
+  const elegirArchivo = (k: number) => { setListaArchivos(false); if (k !== archivoSel) seguro(() => setArchivoSel(k)); };
+  const salir = () => seguro(onCerrar);
+  const [cargadas, setCargadas] = useState<string | null>(null); // id de la entrega cuyas correcciones ya llegaron
   const [autor, setAutor] = useState('Profesor');
   useEffect(() => { fetch('/api/auth/me').then(r => (r.ok ? r.json() : null)).then(u => u?.nombre && setAutor(u.nombre)).catch(() => {}); }, []);
   useEffect(() => {
-    let vivo = true; setCorrecciones({});
+    let vivo = true; setCorrecciones({}); setCargadas(null);
     if (!e?.id) return;
-    fetch(`/api/entregas/${encodeURIComponent(e.id)}/correcciones`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : [])).then((l: Correccion[]) => { if (vivo && Array.isArray(l)) setCorrecciones(Object.fromEntries(l.map(c => [c.archivoId, c]))); }).catch(() => {});
+    const id = e.id;
+    fetch(`/api/entregas/${encodeURIComponent(id)}/correcciones`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : [])).then((l: Correccion[]) => { if (vivo && Array.isArray(l)) setCorrecciones(Object.fromEntries(l.map(c => [c.archivoId, c]))); }).catch(() => {}).finally(() => { if (vivo) setCargadas(id); });
     return () => { vivo = false; };
   }, [e?.id]);
   const primeraEntrega = useRef(e?.id);
@@ -70,26 +84,39 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
     return () => clearTimeout(t);
   }, [i, e?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const salirRef = useRef(salir); salirRef.current = salir;
+  const irARef = useRef((d: number) => {}); irARef.current = (d: number) => { const n = i + d; if (n >= 0 && n < entregas.length && n !== i) irA(n); };
+  // El archivo elegido siempre a la vista en la fila
+  useEffect(() => { filaArchivos.current?.querySelector<HTMLElement>(`[data-archivo="${archivoSel}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }, [archivoSel, e?.id]);
+  // Rueda del ratón → desplaza la fila de archivos de lado
+  useEffect(() => {
+    const f = filaArchivos.current; if (!f) return;
+    const rueda = (ev: WheelEvent) => { if (f.scrollWidth <= f.clientWidth || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return; ev.preventDefault(); f.scrollLeft += ev.deltaY; };
+    f.addEventListener('wheel', rueda, { passive: false }); return () => f.removeEventListener('wheel', rueda);
+  });
   // Teclado: ← → cambian de estudiante, Esc cierra (no mientras se escribe)
   useEffect(() => {
     const tecla = (ev: KeyboardEvent) => {
       const t = ev.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      if (ev.key === 'Escape') onCerrar();
-      if (ev.key === 'ArrowRight') setI(x => Math.min(entregas.length - 1, x + 1));
-      if (ev.key === 'ArrowLeft') setI(x => Math.max(0, x - 1));
+      if (document.querySelector('[data-dialogo-confirmar]')) return;
+      if (ev.key === 'Escape') { salirRef.current(); return; }
+      // Dentro de la corrección las flechas son del editor (mover nodos, el cursor…)
+      if (t?.closest?.('[data-zona-correccion]')) return;
+      if (ev.key === 'ArrowRight') irARef.current(+1);
+      if (ev.key === 'ArrowLeft') irARef.current(-1);
     };
     window.addEventListener('keydown', tecla);
     const previo = document.body.style.overflow; document.body.style.overflow = 'hidden';
     return () => { window.removeEventListener('keydown', tecla); document.body.style.overflow = previo; };
-  }, [entregas.length, onCerrar]);
+  }, []);
 
   if (!e) return null;
   const archivo = e.archivos[archivoSel];
   const estado = e.devuelta ? { t: 'Devuelta para corregir', c: 'bg-amber-500/15 text-amber-200 border-amber-500/30' } : e.revisada ? { t: 'Revisada', c: 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30' } : { t: 'Sin revisar', c: 'bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-c7d2fe)] border-[color:var(--c-818cf8)]/30' };
 
   return createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] bg-[color:var(--c-12131d)] flex items-stretch justify-center" onMouseDown={(ev) => { if (ev.target === ev.currentTarget) onCerrar(); }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] bg-[color:var(--c-12131d)] flex items-stretch justify-center" onMouseDown={(ev) => { if (ev.target === ev.currentTarget) salir(); }}>
       <motion.div initial={{ y: 10 }} animate={{ y: 0 }} transition={{ duration: 0.15 }} className="w-full h-full bg-[color:var(--c-1d1e2e)] flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
           {/* Documento */}
@@ -102,42 +129,60 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md border flex-shrink-0 ${estado.c}`}>{estado.t}</span>
                 {e.tarde && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md border bg-red-500/10 text-red-300 border-red-500/30 flex items-center gap-1 flex-shrink-0"><Clock className="w-3 h-3" />Tarde</span>}
               </div>
-              <div className="flex-1 min-w-0 flex gap-1.5 overflow-x-auto sin-barra">
+              {e.archivos.length > 1 && (
+                <div className="relative flex items-center gap-0.5 flex-shrink-0">
+                  <button type="button" onClick={() => elegirArchivo(archivoSel - 1)} disabled={archivoSel === 0} title="Archivo anterior" className="w-7 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setListaArchivos(v => !v)} title="Ver todos los archivos" className="h-8 px-2 rounded-lg text-[11px] tabular-nums text-[color:var(--c-b0b0c4)] hover:bg-[color:var(--c-818cf8)]/10 flex items-center gap-1 whitespace-nowrap">Archivo {Math.min(archivoSel + 1, e.archivos.length)} de {e.archivos.length}<ChevronDown className="w-3.5 h-3.5" /></button>
+                  <button type="button" onClick={() => elegirArchivo(archivoSel + 1)} disabled={archivoSel >= e.archivos.length - 1} title="Archivo siguiente" className="w-7 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
+                  {listaArchivos && (
+                    <>
+                      <div className="fixed inset-0 z-[310]" onMouseDown={() => setListaArchivos(false)} />
+                      <div className="absolute left-0 top-10 z-[311] w-80 max-w-[85vw] max-h-[60vh] overflow-y-auto custom-scrollbar rounded-xl border border-[color:var(--c-313248)] bg-[color:var(--c-1c1d2a)] shadow-2xl p-1">
+                        {e.archivos.map((a, k) => {
+                          const est = estiloDe(a.nombre); const Icono = est.icono;
+                          return (
+                            <button key={a.id} type="button" onClick={() => elegirArchivo(k)} className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-[13px] ${k === archivoSel ? 'bg-[color:var(--c-818cf8)]/15 text-[color:var(--c-e0e0ec)]' : 'text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-272839)]'}`}>
+                              <span className="text-[11px] tabular-nums text-[color:var(--c-6a6b7e)] w-5 text-right flex-shrink-0">{k + 1}</span>
+                              <Icono className={`w-4 h-4 flex-shrink-0 ${est.color}`} /><span className="flex-1 min-w-0 truncate">{a.nombre}</span>
+                              {correcciones[a.id] && <PenLine className="w-3.5 h-3.5 text-[#f5a46b] flex-shrink-0" aria-label="Corregido" />}
+                              {a.tamano ? <span className="text-[10px] text-[color:var(--c-6a6b7e)] flex-shrink-0">{tamanoLegible(a.tamano)}</span> : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              <div ref={filaArchivos} className="flex-1 min-w-0 flex gap-1.5 overflow-x-auto sin-barra scroll-smooth">
                 {e.archivos.map((a, k) => {
                   const est = estiloDe(a.nombre); const Icono = est.icono;
                   return (
-                    <button key={a.id} type="button" onClick={() => setArchivoSel(k)} className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs whitespace-nowrap transition-colors flex-shrink-0 ${k === archivoSel ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-b0b0c4)] hover:border-[color:var(--c-818cf8)]/40'}`}>
+                    <button key={a.id} type="button" data-archivo={k} onClick={() => elegirArchivo(k)} title={a.nombre} className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs whitespace-nowrap transition-colors flex-shrink-0 ${k === archivoSel ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-b0b0c4)] hover:border-[color:var(--c-818cf8)]/40'}`}>
                       <Icono className={`w-3.5 h-3.5 ${est.color}`} /><span className="max-w-[170px] truncate">{a.nombre}</span>{correcciones[a.id] && <PenLine className="w-3 h-3 text-[#f5a46b]" aria-label="Corregido" />}{a.tamano ? <span className="text-[10px] text-[color:var(--c-6a6b7e)]">{tamanoLegible(a.tamano)}</span> : null}
                     </button>
                   );
                 })}
                 {e.url && <a href={e.url} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs whitespace-nowrap flex-shrink-0 ${ESTILO.enlace.fondo} ${ESTILO.enlace.color}`}><Link2 className="w-3.5 h-3.5" />Enlace<ExternalLink className="w-3 h-3" /></a>}
               </div>
-              {archivo && tipoCorreccion(archivo.nombre) && (
-                <button type="button" onClick={() => setCorrigiendo(true)} title="Marcar y comentar sobre el archivo (el original no cambia)"
-                  className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 transition-colors ${correcciones[archivo.id] ? 'border border-[#f76b15]/45 bg-[#f76b15]/10 text-[#f5a46b] hover:bg-[#f76b15]/20' : 'bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white'}`}>
-                  <PenLine className="w-3.5 h-3.5" />{correcciones[archivo.id] ? 'Ver corrección' : 'Corregir'}
-                </button>
-              )}
-              <button type="button" onClick={onCerrar} className="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] flex-shrink-0" title="Cerrar"><X className="w-4 h-4" /></button>
+              <button type="button" onClick={() => setPanelOculto(v => !v)} title={panelOculto ? 'Mostrar el panel de revisión' : 'Ampliar el archivo (oculta el panel de revisión)'} className="hidden lg:flex w-8 h-8 rounded-lg items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-818cf8)]/10 flex-shrink-0">{panelOculto ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}</button>
+              <button type="button" onClick={salir} className="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] flex-shrink-0" title="Cerrar"><X className="w-4 h-4" /></button>
             </div>
-            <div className="flex-1 min-h-0 relative">
-              <AnimatePresence>
-                {corrigiendo && archivo && tipoCorreccion(archivo.nombre) && (
-                  <CorregirArchivo key={`${e.id}:${archivo.id}`} entregaId={e.id} archivo={archivo} tipo={tipoCorreccion(archivo.nombre)!} autor={autor}
-                    fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} previa={correcciones[archivo.id] || null}
-                    onCerrar={() => setCorrigiendo(false)}
-                    onGuardada={(c) => setCorrecciones(m => { const { [archivo.id]: _, ...resto } = m; return c ? { ...resto, [archivo.id]: c } : resto; })} />
-                )}
-              </AnimatePresence>
-              {archivo ? <VistaArchivo key={`${e.id}:${archivo.id}`} fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} nombre={archivo.nombre} tamano={archivo.tamano} compacta />
+            <div className="flex-1 min-h-0 relative" data-zona-correccion={archivo && tipoCorreccion(archivo.nombre) ? '' : undefined}>
+              {archivo && tipoCorreccion(archivo.nombre) && cargadas === e.id ? (
+                <CorregirArchivo key={`${e.id}:${archivo.id}`} incrustado entregaId={e.id} archivo={archivo} tipo={tipoCorreccion(archivo.nombre)!} autor={autor}
+                  fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} previa={correcciones[archivo.id] || null}
+                  onSucio={(x) => { sucio.current = x; }}
+                  onGuardada={(c) => setCorrecciones(m => { const { [archivo.id]: _, ...resto } = m; return c ? { ...resto, [archivo.id]: c } : resto; })} />
+              ) : archivo && tipoCorreccion(archivo.nombre) ? <p className="absolute inset-0 flex items-center justify-center text-sm text-[color:var(--c-8a8b9e)]">Abriendo…</p>
+              : archivo ? <VistaArchivo key={`${e.id}:${archivo.id}`} fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} nombre={archivo.nombre} tamano={archivo.tamano} compacta />
                 : e.url ? <TarjetaEnlace url={e.url} />
                 : <p className="absolute inset-0 flex items-center justify-center text-sm text-[color:var(--c-8a8b9e)]">Esta entrega no tiene archivos.</p>}
             </div>
           </div>
 
           {/* Revisión */}
-          <div className="lg:w-[480px] flex-shrink-0 flex flex-col min-h-0">
+          <div className={`lg:w-[480px] flex-shrink-0 flex flex-col min-h-0 ${panelOculto ? 'lg:hidden' : ''}`}>
             {/* Revisión (nota, estado, mensajes) o Corrección con IA */}
             <div className="flex border-b border-[color:var(--c-282a3f)] flex-shrink-0">
               {([['revision', 'Revisión', ClipboardCheck], ['ia', 'Corrección IA', Sparkles]] as const).map(([id, txt, I]) => (
@@ -148,16 +193,16 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
                 </button>
               ))}
               <div className="flex items-center gap-0.5 px-1.5 border-l border-[color:var(--c-282a3f)] flex-shrink-0">
-                <button type="button" disabled={i === 0} onClick={() => setI(i - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30" title="Anterior (←)"><ChevronLeft className="w-4 h-4" /></button>
+                <button type="button" disabled={i === 0} onClick={() => irA(i - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30" title="Anterior (←)"><ChevronLeft className="w-4 h-4" /></button>
                 <span className="text-[11px] tabular-nums text-[color:var(--c-8a8b9e)] min-w-[38px] text-center">{i + 1}/{entregas.length}</span>
-                <button type="button" disabled={i === entregas.length - 1} onClick={() => setI(i + 1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30" title="Siguiente (→)"><ChevronRight className="w-4 h-4" /></button>
-                <button type="button" onClick={onCerrar} className="hidden lg:flex w-8 h-8 rounded-lg items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-white/5" title="Cerrar (Esc)"><X className="w-4 h-4" /></button>
+                <button type="button" disabled={i === entregas.length - 1} onClick={() => irA(i + 1)} className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-c0c0d0)] hover:bg-[color:var(--c-818cf8)]/10 disabled:opacity-30" title="Siguiente (→)"><ChevronRight className="w-4 h-4" /></button>
+                <button type="button" onClick={salir} className="hidden lg:flex w-8 h-8 rounded-lg items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-white/5" title="Cerrar (Esc)"><X className="w-4 h-4" /></button>
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
               <div className={pestanaPanel === 'revision' ? 'flex flex-col flex-1 min-h-0' : 'hidden'}>
                 <PanelRevision key={e.id} e={e} rubrica={rubricas[e.evaluacion.id] ?? null} onActualizar={(c) => onActualizar(e.id, c)}
-                  onSiguiente={i < entregas.length - 1 ? () => setI(i + 1) : undefined}
+                  onSiguiente={i < entregas.length - 1 ? () => irA(i + 1) : undefined}
                   sugerencia={sugerencia?.id === e.id ? sugerencia : null} versionChat={versionChat} />
               </div>
               {pestanaPanel === 'ia' && (

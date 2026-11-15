@@ -27,7 +27,7 @@ function Cuadro({ o, responder, alTerminar }: { o: OpcionesConfirmar; responder:
   return (
     <AnimatePresence onExitComplete={alTerminar}>
       {visible && (
-        <motion.div key="fondo" className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/55 backdrop-blur-[2px]"
+        <motion.div key="fondo" data-dialogo-confirmar="" className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/55 backdrop-blur-[2px]"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}
           onMouseDown={(e) => { if (e.target === e.currentTarget) cerrar(false); }}>
           <motion.div role="alertdialog" aria-modal="true" aria-labelledby="confirmar-titulo"
