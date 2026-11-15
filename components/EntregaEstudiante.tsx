@@ -7,6 +7,7 @@ import { Upload, Link2, CheckCircle2, AlertCircle, MessageSquare, Send, FileText
 import VistaArchivo, { precargarArchivo } from '@/components/entregas/VistaArchivo';
 import { BotonAdjuntar, Grabadora, subirAdjunto, type Adjunto } from '@/components/MensajeAdjunto';
 import { Burbuja, SeparadorDia, diaChat, useBajarAlFinal } from '@/components/Burbuja';
+import CorreccionesEstudiante from '@/components/correcciones/CorreccionesEstudiante';
 
 export interface ArchivoInfo { id: string; nombre: string; tamano: number | null; tipo: string | null }
 export interface EntregaInfo { tipo: string; url: string | null; archivoNombre: string | null; comentario: string | null; entregadaEn: string; devuelta: boolean; devolucion: string | null; tarde?: boolean; revisada?: boolean; archivos?: ArchivoInfo[] }
@@ -112,6 +113,8 @@ export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEva
           <button type="button" onClick={() => setEditando(true)} className="block text-xs text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-c7d2fe)] underline">{entrega.devuelta ? 'Entregar la corrección' : 'Cambiar mi entrega'}</button>
         </div>
       )}
+      {/* Lo que el profesor marcó sobre los archivos (se ve también mientras corrige su entrega devuelta) */}
+      {entrega && <CorreccionesEstudiante token={token} evaluacionId={evaluacionId} version={entrega.entregadaEn} />}
 
       {editando && (
         <div className="space-y-3">
@@ -126,7 +129,7 @@ export function BloqueEntrega({ token, evaluacionId, entrega, archivos, fechaEva
                 className={`rounded-xl border-2 border-dashed px-4 py-6 text-center cursor-pointer transition-colors ${arrastrando ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10' : 'border-[color:var(--c-3a3b52)] hover:border-[color:var(--c-818cf8)]/60'}`}>
                 <Upload className="w-6 h-6 mx-auto text-[color:var(--c-a5b4fc)]" />
                 <p className="text-sm text-[color:var(--c-d0d0da)] mt-2"><b>Arrastra tus archivos aquí</b> o toca para elegirlos</p>
-                <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">PDF, Word, Excel, PowerPoint, imágenes, código, .zip… · hasta {MAX_ARCHIVOS} archivos de {MAX_MB} MB</p>
+                <p className="text-[11px] text-[color:var(--c-6a6b7e)] mt-1">PDF, Word, Excel, PowerPoint, imágenes, código, flujos de n8n (.json), diagramas (.drawio), .zip… · hasta {MAX_ARCHIVOS} archivos de {MAX_MB} MB</p>
                 <input ref={inputRef} type="file" multiple className="hidden" onChange={(ev) => { if (ev.target.files) agregar(ev.target.files); ev.target.value = ''; }} />
               </div>
               {(actuales.length > 0 || subidas.length > 0) && (

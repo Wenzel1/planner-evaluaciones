@@ -652,3 +652,25 @@ model CambioPlan {
 
   @@index([materiaId, seccion, avisadoEn])
 }
+
+// Corrección del profesor sobre un archivo entregado. El original del estudiante no se toca:
+// las marcas (trazos, comentarios por línea o por nodo…) se guardan en «datos» y, cuando aplica,
+// una copia corregida del archivo en el almacenamiento (rutaCorregida).
+model CorreccionArchivo {
+  id              String   @id @default(cuid())
+  entregaId       String
+  archivoId       String   // id del EntregaArchivo, o "principal" en entregas antiguas
+  archivoNombre   String
+  tipo            String   // PDF | IMAGEN | CODIGO | N8N | DRAWIO | WORD | EXCEL
+  datos           Json?
+  rutaCorregida   String?
+  nombreCorregido String?
+  tipoCorregido   String?
+  autorId         String?
+  autorNombre     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([entregaId, archivoId])
+  @@index([entregaId])
+}

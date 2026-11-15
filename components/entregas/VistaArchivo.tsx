@@ -322,10 +322,10 @@ function VistaWord({ url, onFallo }: { url: string; onFallo: () => void }) {
 }
 
 // ---------- Excel (.xlsx) como cuadrícula con pestañas de hojas ----------
-interface Celda { t: string; estilo?: React.CSSProperties; colSpan?: number; rowSpan?: number; oculta?: boolean }
-interface Hoja { nombre: string; columnas: number[]; filas: Celda[][]; recortada: boolean }
+export interface Celda { t: string; estilo?: React.CSSProperties; colSpan?: number; rowSpan?: number; oculta?: boolean }
+export interface Hoja { nombre: string; columnas: number[]; filas: Celda[][]; recortada: boolean }
 const MAX_FILAS = 1000, MAX_COLUMNAS = 60;
-const letraColumna = (n: number) => { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };
+export const letraColumna = (n: number) => { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s; };
 const colorArgb = (c: any) => (c?.argb && /^[0-9A-F]{8}$/i.test(c.argb) ? `#${c.argb.slice(2)}` : undefined);
 
 function textoCelda(cell: any): string {
@@ -337,7 +337,7 @@ function textoCelda(cell: any): string {
   } catch { return ''; }
 }
 
-async function leerExcel(datos: ArrayBuffer): Promise<Hoja[]> {
+export async function leerExcel(datos: ArrayBuffer): Promise<Hoja[]> {
   const ExcelJS: any = (await import('exceljs')).default ?? (await import('exceljs'));
   const libro = new ExcelJS.Workbook();
   await libro.xlsx.load(datos);

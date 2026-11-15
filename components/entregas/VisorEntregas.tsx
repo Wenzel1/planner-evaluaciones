@@ -1,11 +1,13 @@
 'use client';
+import CorregirArchivo from '@/components/correcciones/CorregirArchivo';
+import { tipoCorreccion, type Correccion } from '@/components/correcciones/comun';
 // Visor de revisión del profesor (como "Trabajo de los estudiantes" de Classroom):
 // el documento a la izquierda y, a la derecha, la nota (directa o con la rúbrica), "Revisada", "Devolver para corregir"
 // y los mensajes privados. Con ← → se pasa al siguiente estudiante sin cerrar.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Send, ExternalLink, MessageSquare, ClipboardCheck, Clock, Link2, Save, Circle, Sparkles } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, CheckCircle2, RotateCcw, Send, ExternalLink, MessageSquare, ClipboardCheck, Clock, Link2, Save, Circle, Sparkles, PenLine } from 'lucide-react';
 import VistaArchivo from './VistaArchivo';
 import Avatar from '@/components/Avatar';
 import { precargarArchivo } from './enlaces';
@@ -45,6 +47,17 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
   const [versionChat, setVersionChat] = useState(0);
   // Abre el archivo que se tocó en la bandeja; al pasar a otro estudiante, su primer archivo
   const [archivoSel, setArchivoSel] = useState(archivoInicial);
+  // Correcciones sobre los archivos de esta entrega (lápiz en PDF, comentarios en código, n8n, draw.io, Word, Excel)
+  const [correcciones, setCorrecciones] = useState<Record<string, Correccion>>({});
+  const [corrigiendo, setCorrigiendo] = useState(false);
+  const [autor, setAutor] = useState('Profesor');
+  useEffect(() => { fetch('/api/auth/me').then(r => (r.ok ? r.json() : null)).then(u => u?.nombre && setAutor(u.nombre)).catch(() => {}); }, []);
+  useEffect(() => {
+    let vivo = true; setCorrecciones({});
+    if (!e?.id) return;
+    fetch(`/api/entregas/${encodeURIComponent(e.id)}/correcciones`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : [])).then((l: Correccion[]) => { if (vivo && Array.isArray(l)) setCorrecciones(Object.fromEntries(l.map(c => [c.archivoId, c]))); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [e?.id]);
   const primeraEntrega = useRef(e?.id);
   useEffect(() => { if (e?.id !== primeraEntrega.current) { primeraEntrega.current = e?.id; setArchivoSel(0); } }, [e?.id]);
   // Mientras revisa esta entrega, se adelantan sus otros archivos y el primero de la siguiente y la anterior
@@ -94,15 +107,29 @@ export default function VisorEntregas({ entregas, inicio, archivoInicial = 0, ru
                   const est = estiloDe(a.nombre); const Icono = est.icono;
                   return (
                     <button key={a.id} type="button" onClick={() => setArchivoSel(k)} className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs whitespace-nowrap transition-colors flex-shrink-0 ${k === archivoSel ? 'border-[color:var(--c-818cf8)] bg-[color:var(--c-818cf8)]/10 text-[color:var(--c-e0e0ec)]' : 'border-[color:var(--c-313248)] text-[color:var(--c-b0b0c4)] hover:border-[color:var(--c-818cf8)]/40'}`}>
-                      <Icono className={`w-3.5 h-3.5 ${est.color}`} /><span className="max-w-[170px] truncate">{a.nombre}</span>{a.tamano ? <span className="text-[10px] text-[color:var(--c-6a6b7e)]">{tamanoLegible(a.tamano)}</span> : null}
+                      <Icono className={`w-3.5 h-3.5 ${est.color}`} /><span className="max-w-[170px] truncate">{a.nombre}</span>{correcciones[a.id] && <PenLine className="w-3 h-3 text-[#f5a46b]" aria-label="Corregido" />}{a.tamano ? <span className="text-[10px] text-[color:var(--c-6a6b7e)]">{tamanoLegible(a.tamano)}</span> : null}
                     </button>
                   );
                 })}
                 {e.url && <a href={e.url} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs whitespace-nowrap flex-shrink-0 ${ESTILO.enlace.fondo} ${ESTILO.enlace.color}`}><Link2 className="w-3.5 h-3.5" />Enlace<ExternalLink className="w-3 h-3" /></a>}
               </div>
+              {archivo && tipoCorreccion(archivo.nombre) && (
+                <button type="button" onClick={() => setCorrigiendo(true)} title="Marcar y comentar sobre el archivo (el original no cambia)"
+                  className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 transition-colors ${correcciones[archivo.id] ? 'border border-[#f76b15]/45 bg-[#f76b15]/10 text-[#f5a46b] hover:bg-[#f76b15]/20' : 'bg-[color:var(--c-818cf8)] hover:bg-[color:var(--c-6366f1)] text-white'}`}>
+                  <PenLine className="w-3.5 h-3.5" />{correcciones[archivo.id] ? 'Ver corrección' : 'Corregir'}
+                </button>
+              )}
               <button type="button" onClick={onCerrar} className="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] flex-shrink-0" title="Cerrar"><X className="w-4 h-4" /></button>
             </div>
             <div className="flex-1 min-h-0 relative">
+              <AnimatePresence>
+                {corrigiendo && archivo && tipoCorreccion(archivo.nombre) && (
+                  <CorregirArchivo key={`${e.id}:${archivo.id}`} entregaId={e.id} archivo={archivo} tipo={tipoCorreccion(archivo.nombre)!} autor={autor}
+                    fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} previa={correcciones[archivo.id] || null}
+                    onCerrar={() => setCorrigiendo(false)}
+                    onGuardada={(c) => setCorrecciones(m => { const { [archivo.id]: _, ...resto } = m; return c ? { ...resto, [archivo.id]: c } : resto; })} />
+                )}
+              </AnimatePresence>
               {archivo ? <VistaArchivo key={`${e.id}:${archivo.id}`} fuente={`/api/entregas/${encodeURIComponent(e.id)}?archivoId=${encodeURIComponent(archivo.id)}`} nombre={archivo.nombre} tamano={archivo.tamano} compacta />
                 : e.url ? <TarjetaEnlace url={e.url} />
                 : <p className="absolute inset-0 flex items-center justify-center text-sm text-[color:var(--c-8a8b9e)]">Esta entrega no tiene archivos.</p>}
