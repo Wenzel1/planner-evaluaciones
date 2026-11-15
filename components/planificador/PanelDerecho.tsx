@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, BarChart3, BookOpen, CalendarDays, CheckCircle, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Copy, FileText, KeyRound, LogOut, PanelLeftOpen, Pencil, Plus, Sparkles, Trash2, User, UserCog, Users, X, Inbox, Settings2, FileSpreadsheet, Download, MessageSquare, FolderOpen } from 'lucide-react';
+import { Activity, Loader2, BarChart3, BookOpen, CalendarDays, CheckCircle, ChevronDown, ChevronUp, CircleHelp, ClipboardList, Copy, FileText, KeyRound, LogOut, PanelLeftOpen, Pencil, Plus, Sparkles, Trash2, User, UserCog, Users, X, Inbox, Settings2, FileSpreadsheet, Download, MessageSquare, FolderOpen } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { type Examen } from '@/lib/examen';
 import { type RubricaEval, textoPuntos, totalRubrica } from '@/lib/rubrica';
@@ -477,6 +477,25 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   const ventanaFormularios = verFormularios || (formulariosConContenido && !formsCerrados);
   const cerrarFormularios = () => { setVerFormularios(false); if (formulariosConContenido) setFormsCerrados(true); };
   const abrirFormularios = () => { setFormsCerrados(false); setVerFormularios(true); };
+  // «Generar con IA»: la IA rellena los formularios abiertos (respeta lo que ya se escribió); no guarda nada
+  const [generandoIA, setGenerandoIA] = useState(false);
+  const generarConIA = async () => {
+    if (generandoIA) return;
+    setGenerandoIA(true);
+    try {
+      const forms = [evaluacion1, evaluacion2, evaluacion3, evaluacion4].slice(0, Math.max(1, numEvaluaciones));
+      const existentes = planificacion.secciones.filter((x: SeccionExamen) => (x.grupoSeccion || 'A') === seccionActiva && !forms.some(f => f.editandoId === x.id))
+        .map((x: SeccionExamen) => ({ nombre: limpiarTexto(x.nombre), tipoActividad: x.tipoActividad || '', peso: x.peso ?? 0, fecha: x.fecha ? new Date(x.fecha).toISOString().slice(0, 10) : '' }));
+      const r = await fetch('/api/evaluaciones/generar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        materia: planificacion.materia, seccion: seccionActiva, estudiantes: totalEstudiantes, existentes,
+        formularios: forms.map(f => ({ materia: f.materia, tipoActividad: f.tipoActividad, enfoque: f.enfoque })),
+      }) }).catch(() => null);
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r?.ok || !Array.isArray(d.evaluaciones)) throw new Error(d.error || 'No se pudo generar con IA.');
+      // Se rellenan igual que una propuesta de EvaPlanner (si una casilla estaba editando una evaluación, la sigue editando)
+      setPropuestaPendiente({ evaluaciones: d.evaluaciones.map((e: any, i: number) => ({ ...e, existenteId: forms[i]?.editandoId || null })) });
+    } catch (e: any) { agregarNotificacion(`⚠️ ${e.message}`); } finally { setGenerandoIA(false); }
+  };
   const [modoPlan, setModoPlan] = useState(false); // armar el Plan de Acción: aparecen los círculos para elegir
   const [menuSeccion, setMenuSeccion] = useState(false);
   const [menuCuenta, setMenuCuenta] = useState(false);
@@ -937,8 +956,13 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                             <h3 className="text-base font-semibold text-[color:var(--c-e0e0ec)]">{formulariosConContenido && [evaluacion1, evaluacion2, evaluacion3, evaluacion4].some(f => !!f.editandoId) ? 'Editar evaluación' : 'Nueva evaluación'} · Sección {seccionActiva}</h3>
                             <p className="text-xs text-[color:var(--c-8a8b9e)] mt-0.5">Llénala a mano y guárdala, o <button type="button" onClick={() => { cerrarFormularios(); onAbrirChat?.(); }} className="text-[color:var(--c-c7d2fe)] hover:underline">pídesela a EvaPlanner en el chat</button>: sus propuestas aparecen aquí para que las revises.</p>
                           </div>
+                          <button type="button" onClick={generarConIA} disabled={generandoIA} title="La IA rellena los formularios; respeta lo que ya escribiste. Luego revisas y guardas."
+                            className="h-9 px-3.5 rounded-xl border border-[color:var(--c-818cf8)]/40 bg-gradient-to-r from-[color:var(--c-818cf8)]/20 to-[color:var(--c-6366f1)]/10 text-[13px] font-semibold text-[color:var(--c-c7d2fe)] hover:from-[color:var(--c-818cf8)]/30 flex items-center gap-1.5 whitespace-nowrap disabled:opacity-70 transition-colors">
+                            {generandoIA ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}{generandoIA ? 'Generando…' : 'Generar con IA'}
+                          </button>
                           <button type="button" onClick={cerrarFormularios} aria-label="Cerrar" className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--c-8a8b9e)] hover:text-[color:var(--c-e0e0ec)] hover:bg-[color:var(--c-272839)]"><X className="w-4 h-4" /></button>
                         </div>
+                        <div className={`transition-opacity duration-300 ${generandoIA ? 'opacity-50 pointer-events-none animate-pulse' : ''}`} aria-busy={generandoIA}>
                         <EvaluacionesApiladas 
                 evaluacion1={evaluacion1} setEvaluacion1={setEvaluacion1} guardarEvaluacion1={guardarEvaluacion1} limpiarEvaluacion1={limpiarEvaluacion1}
                 evaluacion2={evaluacion2} setEvaluacion2={setEvaluacion2} guardarEvaluacion2={guardarEvaluacion2} limpiarEvaluacion2={limpiarEvaluacion2}
@@ -948,6 +972,7 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
                 justFilled1={glow1} justFilled2={glow2} justFilled3={glow3} justFilled4={glow4}
                 totalEstudiantes={totalEstudiantes}
               />
+                        </div>
                         {formulariosConContenido && <p className="text-[11px] text-[color:var(--c-6a6b7e)]">Si la cierras sin guardar, lo que escribiste queda como borrador (botón «Borrador sin guardar» en la barra de la sección).</p>}
                       </div>
                     </VentanaFlotante>
