@@ -212,20 +212,21 @@ export const PanelDerecho = forwardRef<PanelDerechoHandle, PanelDerechoProps>(fu
   const llenandoRecursosRef = useRef(false);
   // Evaluaciones nuevas (creadas por EvaPlanner o a mano): se les buscan recursos solas, en cuanto quedan guardadas
   const evaluacionesConocidas = useRef<Set<string> | null>(null);
-  const seccionesConPlan = useRef<Set<string>>(new Set()); // secciones que ya tenían evaluaciones guardadas
   const abrirPrimero = useRef<string | null>(null); // evaluación que se abre al estudiante: sus recursos se buscan antes
   useEffect(() => {
     if (!datosCargados) return;
     const guardadas = planificacion.secciones.filter((s: SeccionExamen) => esIdGuardado(s.id));
     const letra = (s: SeccionExamen) => (s.grupoSeccion || 'A').toUpperCase();
-    if (evaluacionesConocidas.current === null) { evaluacionesConocidas.current = new Set(guardadas.map(s => s.id)); guardadas.forEach(s => seccionesConPlan.current.add(letra(s))); return; }
+    if (evaluacionesConocidas.current === null) { evaluacionesConocidas.current = new Set(guardadas.map(s => s.id)); return; }
     const nuevas = guardadas.filter(s => !evaluacionesConocidas.current!.has(s.id));
     if (!nuevas.length) return;
     // Primera vez que una sección recibe su plan: la primera evaluación (la de fecha más cercana) queda abierta
     // para los estudiantes desde ya, con su descripción y sus recursos. Las demás se abren solas unos días antes.
     for (const sec of [...new Set(nuevas.map(letra))]) {
-      if (seccionesConPlan.current.has(sec)) continue;
-      seccionesConPlan.current.add(sec);
+      // Plan nuevo = en esa sección no queda ninguna otra evaluación guardada aparte de las recién creadas
+      // (sirve aunque se hayan borrado las anteriores sin recargar la página)
+      const yaTenia = guardadas.some(s => letra(s) === sec && !nuevas.includes(s));
+      if (yaTenia) continue;
       const primera = nuevas.filter(s => letra(s) === sec && s.fecha).sort((a, b) => new Date(a.fecha!).getTime() - new Date(b.fecha!).getTime())[0];
       if (primera && !primera.abiertaManual) {
         abrirPrimero.current = primera.id;
