@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, MessageSquarePlus, Trash2, X } from 'lucide-react';
 import { bajarOriginal } from './comun';
+import PanelPlegable, { usePanel } from './PanelPlegable';
 
 export interface ComentarioParrafo { indice: number; extracto: string; texto: string }
 export interface DatosWord { comentarios: ComentarioParrafo[] }
@@ -21,6 +22,9 @@ export default function ComentariosWord({ fuente, datos, autor, onCambio }: {
   const [comentarios, setComentarios] = useState<ComentarioParrafo[]>(datos?.comentarios || []);
   const [sel, setSel] = useState<{ indice: number; extracto: string } | null>(null);
   const [nuevo, setNuevo] = useState('');
+  const [panel, setPanel] = usePanel('word');
+  // Al tocar un párrafo, el panel se abre solo
+  useEffect(() => { if (sel && !panel) setPanel(true); }, [sel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let vivo = true;
@@ -69,10 +73,9 @@ export default function ComentariosWord({ fuente, datos, autor, onCambio }: {
         {error && <div className="absolute inset-0 flex items-center justify-center p-6 text-sm text-red-600">{error}</div>}
         <div ref={ref} className="min-h-full [&_.docx-wrapper]:!bg-transparent [&_.docx-wrapper]:!p-6" />
       </div>
-      <aside className="w-[340px] flex-shrink-0 border-l border-[color:var(--c-282a3f)] bg-[color:var(--c-1d1e2e)] flex flex-col min-h-0">
-        <div className="p-4 border-b border-[color:var(--c-282a3f)]">
-          <p className="text-sm font-semibold text-[color:var(--c-e0e0ec)] flex items-center gap-2"><MessageSquarePlus className="w-4 h-4 text-[color:var(--c-a5b4fc)]" />Comentarios de Word</p>
-          <p className="text-[11px] text-[color:var(--c-8a8b9e)] mt-0.5">Toca un párrafo del documento para comentarlo. El estudiante los verá como comentarios en el margen de Word.</p>
+      <PanelPlegable abierto={panel} onCambiar={setPanel} icono={MessageSquarePlus} titulo="Comentarios de Word" contador={comentarios.length || null} ancho={340}>
+        <div className="px-4 py-3 border-b border-[color:var(--c-282a3f)]">
+          <p className="text-[11px] text-[color:var(--c-8a8b9e)]">Toca un párrafo del documento para comentarlo. El estudiante los verá como comentarios en el margen de Word.</p>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-2.5">
           {sel && (
@@ -90,7 +93,7 @@ export default function ComentariosWord({ fuente, datos, autor, onCambio }: {
             </div>
           ))}
         </div>
-      </aside>
+      </PanelPlegable>
     </div>
   );
 }
